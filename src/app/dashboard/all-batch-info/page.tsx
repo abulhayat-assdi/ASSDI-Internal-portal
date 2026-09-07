@@ -118,6 +118,14 @@ const COLUMNS = [
     "courseStatus", "currentlyDoing", "companyName", "businessName", "salary",
 ] as const;
 
+// Left-offset classes for the columns frozen inside the edit grid (desktop only).
+// Offsets are cumulative widths: # (w-12=48px) + Roll (70px) + Name (150px).
+const FROZEN_GRID_COLS: Record<string, string> = {
+    roll: "md:left-12",
+    name: "md:left-[118px]",
+    phone: "md:left-[268px] md:shadow-[2px_0_6px_-2px_rgba(0,0,0,0.18)]",
+};
+
 export default function AllBatchInfoPage() {
     const confirm = useConfirm();
     const { userProfile } = useAuth();
@@ -1451,10 +1459,10 @@ export default function AllBatchInfoPage() {
                             <table className="w-full border-collapse bg-white shadow-sm">
                                 <thead className="sticky top-0 z-20 shadow-sm">
                                     <tr className="bg-[#1e3a5f]">
-                                        <th className="w-12 px-2 py-2 text-center text-xs font-semibold text-white border border-[#2d5278]">#</th>
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] min-w-[70px]">Roll</th>
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] min-w-[150px]">Name</th>
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] min-w-[120px]">Phone</th>
+                                        <th className="w-12 px-2 py-2 text-center text-xs font-semibold text-white border border-[#2d5278] md:sticky md:left-0 md:z-10 bg-[#1e3a5f]">#</th>
+                                        <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] w-[70px] md:sticky md:left-12 md:z-10 bg-[#1e3a5f]">Roll</th>
+                                        <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] w-[150px] md:sticky md:left-[118px] md:z-10 bg-[#1e3a5f]">Name</th>
+                                        <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] w-[120px] md:sticky md:left-[268px] md:z-10 bg-[#1e3a5f] md:shadow-[2px_0_6px_-2px_rgba(0,0,0,0.35)]">Phone</th>
                                         <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] min-w-[120px]">Date of Birth</th>
                                         <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] min-w-[140px]">Educational Degree</th>
                                         <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] min-w-[100px]">Category</th>
@@ -1487,11 +1495,11 @@ export default function AllBatchInfoPage() {
                                         const absoluteIdx = gridPage * PAGE_SIZE + pageIdx;
                                         return (
                                             <tr key={absoluteIdx} className="bg-white hover:bg-gray-50 transition-colors group">
-                                                <td className="p-1 border border-gray-200 text-center text-xs text-gray-400 bg-gray-50 select-none">
+                                                <td className="p-1 border border-gray-200 text-center text-xs text-gray-400 bg-gray-50 select-none md:sticky md:left-0 md:z-10">
                                                     {absoluteIdx + 1}
                                                 </td>
                                                 {COLUMNS.map(col => (
-                                                    <td key={col} className="p-0 border border-gray-200">
+                                                    <td key={col} className={`p-0 border border-gray-200${FROZEN_GRID_COLS[col] ? ` bg-inherit md:sticky md:z-10 ${FROZEN_GRID_COLS[col]}` : ""}`}>
                                                         {col === "courseStatus" ? (
                                                             <select
                                                                 value={rowData[col] ?? ""}
