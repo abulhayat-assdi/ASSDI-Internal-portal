@@ -1071,10 +1071,10 @@ export default function AllBatchInfoPage() {
                         <table className="w-full text-left border-collapse">
                             <thead className="sticky top-0 z-10">
                                 <tr className="bg-[#1e3a5f] text-white text-xs uppercase tracking-wider">
-                                    <th className="px-4 py-3 font-medium border border-[#2d5278] w-16">Photo</th>
-                                    <th className="px-4 py-3 font-medium border border-[#2d5278]">Roll</th>
-                                    <th className="px-4 py-3 font-medium border border-[#2d5278] min-w-[150px]">Name</th>
-                                    <th className="px-4 py-3 font-medium border border-[#2d5278]">Phone</th>
+                                    <th className="px-4 py-3 font-medium border border-[#2d5278] w-16 md:sticky md:left-0 md:z-20 bg-[#1e3a5f]">Photo</th>
+                                    <th className="px-4 py-3 font-medium border border-[#2d5278] w-20 md:sticky md:left-16 md:z-20 bg-[#1e3a5f]">Roll</th>
+                                    <th className="px-4 py-3 font-medium border border-[#2d5278] w-40 md:sticky md:left-[144px] md:z-20 bg-[#1e3a5f]">Name</th>
+                                    <th className="px-4 py-3 font-medium border border-[#2d5278] w-32 md:sticky md:left-[304px] md:z-20 bg-[#1e3a5f] md:shadow-[2px_0_6px_-2px_rgba(0,0,0,0.3)]">Phone</th>
                                     <th className="px-4 py-3 font-medium border border-[#2d5278] min-w-[120px]">Date of Birth</th>
                                     <th className="px-4 py-3 font-medium border border-[#2d5278] min-w-[150px]">Educational Degree</th>
                                     <th className="px-4 py-3 font-medium border border-[#2d5278]">Category</th>
@@ -1109,7 +1109,7 @@ export default function AllBatchInfoPage() {
                                             key={student.id}
                                             className={idx % 2 === 0 ? "bg-white hover:bg-gray-50 transition-colors" : "bg-[#f9fafb] hover:bg-gray-50 transition-colors"}
                                         >
-                                            <td className="px-4 py-3 border-b border-gray-200 text-center">
+                                            <td className="px-4 py-3 border-b border-gray-200 text-center w-16 md:sticky md:left-0 md:z-[5] bg-inherit">
                                                 <button
                                                     onClick={() => { setPhotoEditStudent(student); setPhotoInputUrl(student.photo || ""); }}
                                                     className="mx-auto block"
@@ -1129,9 +1129,9 @@ export default function AllBatchInfoPage() {
                                                     )}
                                                 </button>
                                             </td>
-                                            <td className="px-4 py-3 text-sm text-gray-900 border-b border-gray-200">{student.roll}</td>
-                                            <td className="px-4 py-3 text-sm text-gray-900 font-semibold border-b border-gray-200">{student.name}</td>
-                                            <td className="px-4 py-3 text-sm text-gray-600 border-b border-gray-200">{student.phone}</td>
+                                            <td className="px-4 py-3 text-sm text-gray-900 border-b border-gray-200 w-20 md:sticky md:left-16 md:z-[5] bg-inherit">{student.roll}</td>
+                                            <td className="px-4 py-3 text-sm text-gray-900 font-semibold border-b border-gray-200 w-40 md:sticky md:left-[144px] md:z-[5] bg-inherit">{student.name}</td>
+                                            <td className="px-4 py-3 text-sm text-gray-600 border-b border-gray-200 w-32 md:sticky md:left-[304px] md:z-[5] bg-inherit md:shadow-[2px_0_6px_-2px_rgba(0,0,0,0.15)]">{student.phone}</td>
                                             <td className="px-4 py-3 text-sm text-gray-600 border-b border-gray-200">{student.dob || "-"}</td>
                                             <td className="px-4 py-3 text-sm text-gray-600 border-b border-gray-200">{student.educationalDegree || "-"}</td>
                                             <td className="px-4 py-3 text-sm text-gray-600 border-b border-gray-200">
