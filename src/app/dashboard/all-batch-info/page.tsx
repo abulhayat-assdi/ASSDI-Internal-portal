@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
 import { useConfirm } from "@/contexts/ConfirmContext";
@@ -118,13 +118,44 @@ const COLUMNS = [
     "courseStatus", "currentlyDoing", "companyName", "businessName", "salary",
 ] as const;
 
-// Left-offset classes for the columns frozen inside the edit grid (desktop only).
-// Offsets are cumulative widths: # (w-12=48px) + Roll (70px) + Name (150px).
-const FROZEN_GRID_COLS: Record<string, string> = {
-    roll: "md:left-12",
-    name: "md:left-[118px]",
-    phone: "md:left-[268px] md:shadow-[2px_0_6px_-2px_rgba(0,0,0,0.18)]",
-};
+// Edit-grid column definitions: order, header label and default pixel width.
+// "__row" is the leading row-number column. The first four keys stay frozen
+// (sticky) on desktop while the rest scroll horizontally; every column is
+// user-resizable via the drag handle on its header's right edge.
+const GRID_COLUMN_META: { key: string; label: string; width: number }[] = [
+    { key: "__row", label: "#", width: 48 },
+    { key: "roll", label: "Roll", width: 90 },
+    { key: "name", label: "Name", width: 200 },
+    { key: "phone", label: "Phone", width: 150 },
+    { key: "dob", label: "Date of Birth", width: 130 },
+    { key: "educationalDegree", label: "Educational Degree", width: 190 },
+    { key: "category", label: "Category", width: 120 },
+    { key: "bloodGroup", label: "Blood Group", width: 120 },
+    { key: "totalPaidTk", label: "Total Paid TK", width: 120 },
+    { key: "address", label: "Address", width: 260 },
+    { key: "email", label: "Email", width: 200 },
+    { key: "nidBirthNo", label: "NID / Birth No", width: 160 },
+    { key: "fatherName", label: "Father Name", width: 170 },
+    { key: "motherName", label: "Mother Name", width: 170 },
+    { key: "permanentAddress", label: "Permanent Address", width: 240 },
+    { key: "guardianName", label: "Guardian Name", width: 170 },
+    { key: "guardianPhone", label: "Guardian Phone", width: 150 },
+    { key: "lastInstitute", label: "Last Institute", width: 210 },
+    { key: "latestDegree", label: "Latest Degree", width: 160 },
+    { key: "gpaResult", label: "GPA / Result", width: 130 },
+    { key: "currentDistrict", label: "Current District", width: 150 },
+    { key: "homeDistrict", label: "Home District", width: 140 },
+    { key: "tShirtSize", label: "T-Shirt Size", width: 120 },
+    { key: "courseGoal", label: "Course Goal", width: 240 },
+    { key: "courseStatus", label: "Course Status", width: 140 },
+    { key: "currentlyDoing", label: "Currently Doing", width: 150 },
+    { key: "companyName", label: "Company Name", width: 160 },
+    { key: "businessName", label: "Business Name", width: 160 },
+    { key: "salary", label: "Salary / Income", width: 150 },
+];
+
+const FROZEN_GRID_KEYS = ["__row", "roll", "name", "phone"];
+const MIN_GRID_COL_WIDTH = 56;
 
 export default function AllBatchInfoPage() {
     const confirm = useConfirm();
@@ -177,6 +208,52 @@ export default function AllBatchInfoPage() {
         const start = gridPage * PAGE_SIZE;
         return gridData.slice(start, start + PAGE_SIZE);
     }, [gridData, gridPage]);
+
+    // Resizable edit-grid columns
+    const [gridColWidths, setGridColWidths] = useState<Record<string, number>>(
+        () => Object.fromEntries(GRID_COLUMN_META.map(c => [c.key, c.width]))
+    );
+    const resizeRef = useRef<{ key: string; startX: number; startW: number } | null>(null);
+
+    const startColResize = useCallback((e: React.PointerEvent, key: string) => {
+        e.preventDefault();
+        e.stopPropagation();
+        resizeRef.current = { key, startX: e.clientX, startW: gridColWidths[key] ?? 120 };
+
+        const onMove = (ev: PointerEvent) => {
+            const s = resizeRef.current;
+            if (!s) return;
+            const next = Math.max(MIN_GRID_COL_WIDTH, s.startW + (ev.clientX - s.startX));
+            setGridColWidths(prev => ({ ...prev, [s.key]: next }));
+        };
+        const onUp = () => {
+            resizeRef.current = null;
+            window.removeEventListener("pointermove", onMove);
+            window.removeEventListener("pointerup", onUp);
+            document.body.style.cursor = "";
+            document.body.style.userSelect = "";
+        };
+        document.body.style.cursor = "col-resize";
+        document.body.style.userSelect = "none";
+        window.addEventListener("pointermove", onMove);
+        window.addEventListener("pointerup", onUp);
+    }, [gridColWidths]);
+
+    // Cumulative left offset for each frozen column (used for sticky positioning)
+    const frozenGridLeft = useMemo(() => {
+        const map: Record<string, number> = {};
+        let acc = 0;
+        for (const key of FROZEN_GRID_KEYS) {
+            map[key] = acc;
+            acc += gridColWidths[key] ?? 0;
+        }
+        return map;
+    }, [gridColWidths]);
+
+    const totalGridWidth = useMemo(
+        () => GRID_COLUMN_META.reduce((sum, c) => sum + (gridColWidths[c.key] ?? 0), 0),
+        [gridColWidths]
+    );
 
     const fetchData = async () => {
         setLoading(true);
@@ -1456,38 +1533,32 @@ export default function AllBatchInfoPage() {
                         </div>
 
                         <div className="flex-1 overflow-auto p-4 bg-gray-50">
-                            <table className="w-full border-collapse bg-white shadow-sm">
+                            <table className="border-collapse bg-white shadow-sm table-fixed" style={{ width: totalGridWidth, minWidth: "100%" }}>
+                                <colgroup>
+                                    {GRID_COLUMN_META.map(c => (
+                                        <col key={c.key} style={{ width: gridColWidths[c.key] }} />
+                                    ))}
+                                </colgroup>
                                 <thead className="sticky top-0 z-20 shadow-sm">
                                     <tr className="bg-[#1e3a5f]">
-                                        <th className="w-12 px-2 py-2 text-center text-xs font-semibold text-white border border-[#2d5278] md:sticky md:left-0 md:z-10 bg-[#1e3a5f]">#</th>
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] w-[70px] md:sticky md:left-12 md:z-10 bg-[#1e3a5f]">Roll</th>
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] w-[150px] md:sticky md:left-[118px] md:z-10 bg-[#1e3a5f]">Name</th>
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] w-[120px] md:sticky md:left-[268px] md:z-10 bg-[#1e3a5f] md:shadow-[2px_0_6px_-2px_rgba(0,0,0,0.35)]">Phone</th>
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] min-w-[120px]">Date of Birth</th>
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] min-w-[140px]">Educational Degree</th>
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] min-w-[100px]">Category</th>
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] min-w-[100px]">Blood Group</th>
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] min-w-[100px]">Total Paid TK</th>
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] min-w-[150px]">Address</th>
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] min-w-[160px]">Email</th>
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] min-w-[140px]">NID / Birth No</th>
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] min-w-[140px]">Father Name</th>
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] min-w-[140px]">Mother Name</th>
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] min-w-[180px]">Permanent Address</th>
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] min-w-[140px]">Guardian Name</th>
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] min-w-[130px]">Guardian Phone</th>
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] min-w-[180px]">Last Institute</th>
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] min-w-[140px]">Latest Degree</th>
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] min-w-[110px]">GPA / Result</th>
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] min-w-[130px]">Current District</th>
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] min-w-[120px]">Home District</th>
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] min-w-[110px]">T-Shirt Size</th>
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] min-w-[200px]">Course Goal</th>
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] min-w-[120px]">Course Status</th>
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] min-w-[120px]">Currently Doing</th>
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] min-w-[130px]">Company Name</th>
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] min-w-[130px]">Business Name</th>
-                                        <th className="px-3 py-2 text-left text-xs font-semibold text-white border border-[#2d5278] w-[130px]">Salary / Income</th>
+                                        {GRID_COLUMN_META.map(c => {
+                                            const frozen = FROZEN_GRID_KEYS.includes(c.key);
+                                            return (
+                                                <th
+                                                    key={c.key}
+                                                    className={`relative px-3 py-2 text-xs font-semibold text-white border border-[#2d5278] ${c.key === "__row" ? "text-center px-1" : "text-left"} ${frozen ? "md:sticky md:z-10 bg-[#1e3a5f]" : ""} ${c.key === "phone" ? "md:shadow-[2px_0_6px_-2px_rgba(0,0,0,0.35)]" : ""}`}
+                                                    style={frozen ? { left: frozenGridLeft[c.key] } : undefined}
+                                                >
+                                                    <span className="block truncate pr-1">{c.label}</span>
+                                                    <span
+                                                        onPointerDown={e => startColResize(e, c.key)}
+                                                        onClick={e => e.stopPropagation()}
+                                                        title="Drag to resize column"
+                                                        className="absolute top-0 right-0 z-10 h-full w-2 cursor-col-resize touch-none hover:bg-white/40 active:bg-white/60"
+                                                    />
+                                                </th>
+                                            );
+                                        })}
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1495,11 +1566,20 @@ export default function AllBatchInfoPage() {
                                         const absoluteIdx = gridPage * PAGE_SIZE + pageIdx;
                                         return (
                                             <tr key={absoluteIdx} className="bg-white hover:bg-gray-50 transition-colors group">
-                                                <td className="p-1 border border-gray-200 text-center text-xs text-gray-400 bg-gray-50 select-none md:sticky md:left-0 md:z-10">
+                                                <td
+                                                    className="p-1 border border-gray-200 text-center text-xs text-gray-400 bg-gray-50 select-none md:sticky md:z-10"
+                                                    style={{ left: frozenGridLeft["__row"] }}
+                                                >
                                                     {absoluteIdx + 1}
                                                 </td>
-                                                {COLUMNS.map(col => (
-                                                    <td key={col} className={`p-0 border border-gray-200${FROZEN_GRID_COLS[col] ? ` bg-inherit md:sticky md:z-10 ${FROZEN_GRID_COLS[col]}` : ""}`}>
+                                                {COLUMNS.map(col => {
+                                                    const frozen = FROZEN_GRID_KEYS.includes(col);
+                                                    return (
+                                                    <td
+                                                        key={col}
+                                                        className={`p-0 border border-gray-200${frozen ? " bg-inherit md:sticky md:z-10" : ""}${col === "phone" ? " md:shadow-[2px_0_6px_-2px_rgba(0,0,0,0.18)]" : ""}`}
+                                                        style={frozen ? { left: frozenGridLeft[col] } : undefined}
+                                                    >
                                                         {col === "courseStatus" ? (
                                                             <select
                                                                 value={rowData[col] ?? ""}
@@ -1572,7 +1652,8 @@ export default function AllBatchInfoPage() {
                                                             />
                                                         )}
                                                     </td>
-                                                ))}
+                                                    );
+                                                })}
                                             </tr>
                                         );
                                     })}
