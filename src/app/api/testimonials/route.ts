@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -18,11 +18,16 @@ function extractVideoId(url: string): string {
 }
 
 /** GET /api/testimonials — return in shape the frontend service expects */
-export async function GET() {
-    const items = await prisma.videoTestimonial.findMany({
-        where: { isPublished: true },
-        orderBy: { order: "asc" },
-    });
+export async function GET(req: NextRequest) {
+    const courseId = req.headers.get("x-course-id");
+    if (!courseId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const items = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+        tx.videoTestimonial.findMany({
+            where: { courseId, isPublished: true },
+            orderBy: { order: "asc" },
+        })
+    );
 
     // Map DB fields → service interface shape
     const result = items.map((item) => ({
@@ -42,9 +47,10 @@ export async function GET() {
 /** POST /api/testimonials */
 export async function POST(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user || !isAdmin(user)) {
+    if (!user || !isAdmin(user) || !user.courseId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+    const courseId = user.courseId;
 
     try {
         const body = await req.json();
@@ -52,19 +58,22 @@ export async function POST(req: NextRequest) {
 
         const resolvedVideoId = bodyVideoId || extractVideoId(youtubeUrl || "");
 
-        const item = await prisma.videoTestimonial.create({
-            data: {
-                title: title || "",
-                videoUrl: youtubeUrl || "",
-                videoId: resolvedVideoId,
-                studentName: studentName || "",
-                thumbnailUrl: resolvedVideoId
-                    ? `https://img.youtube.com/vi/${resolvedVideoId}/hqdefault.jpg`
-                    : null,
-                isPublished: true,
-                order: Number(order) || 0,
-            },
-        });
+        const item = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+            tx.videoTestimonial.create({
+                data: {
+                    courseId,
+                    title: title || "",
+                    videoUrl: youtubeUrl || "",
+                    videoId: resolvedVideoId,
+                    studentName: studentName || "",
+                    thumbnailUrl: resolvedVideoId
+                        ? `https://img.youtube.com/vi/${resolvedVideoId}/hqdefault.jpg`
+                        : null,
+                    isPublished: true,
+                    order: Number(order) || 0,
+                },
+            })
+        );
 
         return NextResponse.json({
             id: item.id,
@@ -83,9 +92,10 @@ export async function POST(req: NextRequest) {
 /** PATCH /api/testimonials */
 export async function PATCH(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user || !isAdmin(user)) {
+    if (!user || !isAdmin(user) || !user.courseId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+    const courseId = user.courseId;
 
     try {
         const body = await req.json();
@@ -103,7 +113,9 @@ export async function PATCH(req: NextRequest) {
             updateData.thumbnailUrl = `https://img.youtube.com/vi/${resolvedVideoId}/hqdefault.jpg`;
         }
 
-        const item = await prisma.videoTestimonial.update({ where: { id }, data: updateData });
+        const item = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+            tx.videoTestimonial.update({ where: { id, courseId }, data: updateData })
+        );
 
         return NextResponse.json({
             id: item.id,
@@ -122,14 +134,17 @@ export async function PATCH(req: NextRequest) {
 /** DELETE /api/testimonials?id=... */
 export async function DELETE(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user || !isAdmin(user)) {
+    if (!user || !isAdmin(user) || !user.courseId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+    const courseId = user.courseId;
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
     if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
-    await prisma.videoTestimonial.delete({ where: { id } });
+    await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+        tx.videoTestimonial.delete({ where: { id, courseId } })
+    );
     return NextResponse.json({ success: true });
 }

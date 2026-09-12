@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -11,16 +11,20 @@ export async function GET(req: NextRequest) {
     const all = searchParams.get("all") === "true";
 
     const user = await getSessionUser(req).catch(() => null);
+    const courseId = user?.courseId || req.headers.get("x-course-id");
+    if (!courseId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const where: any = {};
+    const where: any = { courseId };
     if (!all || !user || !isAdmin(user)) {
         where.isPublished = true;
     }
 
-    const stories = await prisma.successStory.findMany({
-        where,
-        orderBy: { createdAt: "desc" },
-    });
+    const stories = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+        tx.successStory.findMany({
+            where,
+            orderBy: { createdAt: "desc" },
+        })
+    );
 
     return NextResponse.json(stories);
 }
@@ -28,27 +32,31 @@ export async function GET(req: NextRequest) {
 /** POST /api/success-stories/reviews */
 export async function POST(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user || !isAdmin(user)) {
+    if (!user || !isAdmin(user) || !user.courseId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+    const courseId = user.courseId;
 
     try {
         const body = await req.json();
         const { name, studentName, batch, role, company, story, quote, imageUrl, isPublished, rating, order } = body;
 
-        const item = await prisma.successStory.create({
-            data: {
-                name: name || studentName || "",
-                batch: batch || "",
-                role: role || "",
-                company: company || "",
-                story: story || quote || "",
-                imageUrl: imageUrl || null,
-                isPublished: isPublished ?? false,
-                rating: rating ?? 5,
-                order: order ?? 0,
-            },
-        });
+        const item = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+            tx.successStory.create({
+                data: {
+                    courseId,
+                    name: name || studentName || "",
+                    batch: batch || "",
+                    role: role || "",
+                    company: company || "",
+                    story: story || quote || "",
+                    imageUrl: imageUrl || null,
+                    isPublished: isPublished ?? false,
+                    rating: rating ?? 5,
+                    order: order ?? 0,
+                },
+            })
+        );
 
         return NextResponse.json(item, { status: 201 });
     } catch (error) {
@@ -60,25 +68,28 @@ export async function POST(req: NextRequest) {
 /** PATCH /api/success-stories/reviews */
 export async function PATCH(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user || !isAdmin(user)) {
+    if (!user || !isAdmin(user) || !user.courseId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+    const courseId = user.courseId;
 
     try {
         const body = await req.json();
         const { id, studentName, quote, name, story, rating, order, ...rest } = body;
-        const item = await prisma.successStory.update({
-            where: { id },
-            data: {
-                ...rest,
-                ...(studentName !== undefined && { name: studentName }),
-                ...(name !== undefined && { name }),
-                ...(quote !== undefined && { story: quote }),
-                ...(story !== undefined && { story }),
-                ...(rating !== undefined && { rating }),
-                ...(order !== undefined && { order }),
-            },
-        });
+        const item = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+            tx.successStory.update({
+                where: { id, courseId },
+                data: {
+                    ...rest,
+                    ...(studentName !== undefined && { name: studentName }),
+                    ...(name !== undefined && { name }),
+                    ...(quote !== undefined && { story: quote }),
+                    ...(story !== undefined && { story }),
+                    ...(rating !== undefined && { rating }),
+                    ...(order !== undefined && { order }),
+                },
+            })
+        );
         return NextResponse.json(item);
     } catch (error) {
         console.error("[SuccessStories PATCH]", error);
@@ -89,14 +100,17 @@ export async function PATCH(req: NextRequest) {
 /** DELETE /api/success-stories/reviews?id=... */
 export async function DELETE(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user || !isAdmin(user)) {
+    if (!user || !isAdmin(user) || !user.courseId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+    const courseId = user.courseId;
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
     if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
-    await prisma.successStory.delete({ where: { id } });
+    await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+        tx.successStory.delete({ where: { id, courseId } })
+    );
     return NextResponse.json({ success: true });
 }

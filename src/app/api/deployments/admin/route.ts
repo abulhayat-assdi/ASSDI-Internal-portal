@@ -2,36 +2,40 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin } from "@/lib/auth";
 
 // ─── GET /api/deployments/admin ───────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
     const caller = await getSessionUser(req);
-    if (!caller || !isAdmin(caller)) {
+    if (!caller || !isAdmin(caller) || !caller.courseId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+    const courseId = caller.courseId;
 
     const { searchParams } = new URL(req.url);
     const search = searchParams.get("search")?.trim().toLowerCase() ?? "";
 
     try {
-        const deployments = await prisma.deployment.findMany({
-            orderBy: { createdAt: "desc" },
-            include: {
-                user: {
-                    select: {
-                        id: true,
-                        displayName: true,
-                        studentBatchName: true,
-                        studentRoll: true,
-                        deploymentLimit: true,
-                        isDeploymentFrozen: true,
+        const deployments = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+            tx.deployment.findMany({
+                where: { courseId },
+                orderBy: { createdAt: "desc" },
+                include: {
+                    user: {
+                        select: {
+                            id: true,
+                            displayName: true,
+                            studentBatchName: true,
+                            studentRoll: true,
+                            deploymentLimit: true,
+                            isDeploymentFrozen: true,
+                        },
                     },
                 },
-            },
-        });
+            })
+        );
 
         const filtered = search
             ? deployments.filter((d) => {

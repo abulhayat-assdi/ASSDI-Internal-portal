@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -12,26 +12,25 @@ export const runtime = "nodejs";
 export async function GET(req: NextRequest) {
     try {
         const user = await getSessionUser(req);
-        if (!user) {
+        if (!user || !user.courseId) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
+        const courseId = user.courseId;
 
         const { searchParams } = new URL(req.url);
         const teacherId = searchParams.get("teacherId");
-        const all = searchParams.get("all") === "true";
 
-        const where: any = {};
+        const where: any = { courseId };
         if (teacherId && teacherId !== "ALL") {
             where.teacherId = teacherId;
         }
 
-        // If not 'all', filter for current week or similar logic could go here
-        // For now, let's just return all based on teacherId
-
-        const schedules = await prisma.classSchedule.findMany({
-            where,
-            orderBy: { date: "asc" }
-        });
+        const schedules = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+            tx.classSchedule.findMany({
+                where,
+                orderBy: { date: "asc" }
+            })
+        );
 
         return NextResponse.json(schedules);
     } catch (error) {
@@ -47,9 +46,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     try {
         const user = await getSessionUser(req);
-        if (!user || !isAdmin(user)) {
+        if (!user || !isAdmin(user) || !user.courseId) {
             return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
         }
+        const courseId = user.courseId;
 
         const body = await req.json();
         const schedulesData = body.schedules || (Array.isArray(body) ? body : [body]);
@@ -62,6 +62,7 @@ export async function POST(req: NextRequest) {
         const validSchedules = schedulesData
             .filter((s: any) => s.teacherId && s.teacherName)
             .map((s: any) => ({
+                courseId,
                 teacherId: s.teacherId.trim(),
                 teacherName: s.teacherName.trim(),
                 date: s.date?.trim() || "",
@@ -76,11 +77,12 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "No valid schedules with teacher info" }, { status: 400 });
         }
 
-        // Prisma transaction for bulk create
-        const result = await prisma.classSchedule.createMany({
-            data: validSchedules,
-            skipDuplicates: true,
-        });
+        const result = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+            tx.classSchedule.createMany({
+                data: validSchedules,
+                skipDuplicates: true,
+            })
+        );
 
         return NextResponse.json({
             success: true,

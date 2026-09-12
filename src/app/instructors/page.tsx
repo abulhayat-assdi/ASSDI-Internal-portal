@@ -2,7 +2,6 @@ import Header from "@/components/ui/Header";
 import Footer from "@/components/ui/Footer";
 import InstructorCard from "@/components/ui/InstructorCard";
 import Link from "next/link";
-import { prisma } from "@/lib/db";
 import { getServerSessionUser, isAdmin as checkIsAdmin } from "@/lib/auth";
 
 import { getImageUrl } from "@/lib/getImageUrl";
@@ -39,11 +38,13 @@ async function getAdminStatus() {
     }
 }
 
+// This is the old single-institute public instructors page, served on the
+// bare root domain with no course context. Slated for replacement by the
+// course-directory site (multi-tenant Step 5) — until then there's no course
+// to scope teachers to.
 async function getTeachers(): Promise<Teacher[]> {
     try {
-        const teachers = await prisma.teacher.findMany({
-            orderBy: { order: "asc" }
-        });
+        const teachers: any[] = [];
 
         return teachers.map((data) => {
             let profileImageUrl = data.profileImageUrl || "";

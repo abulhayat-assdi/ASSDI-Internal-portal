@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -13,9 +13,10 @@ export const runtime = "nodejs";
 export async function POST(req: NextRequest) {
     try {
         const user = await getSessionUser(req);
-        if (!user || !isAdmin(user)) {
+        if (!user || !isAdmin(user) || !user.courseId) {
             return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
         }
+        const courseId = user.courseId;
 
         const body = await req.json();
         const { classId, clsData } = body;
@@ -24,47 +25,53 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Class ID is required" }, { status: 400 });
         }
 
-        let result;
+        const result = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+            let cls;
 
-        if (classId.startsWith('sheet_')) {
-            // Create a new record for a virtual sheet class
-            result = await prisma.class.create({
-                data: {
-                    teacherUid: clsData.teacherUid,
-                    teacherName: clsData.teacherName,
-                    date: clsData.date,
-                    startTime: clsData.startTime || "",
-                    endTime: clsData.endTime || "",
-                    timeRange: clsData.timeRange || "",
-                    batch: clsData.batch,
-                    subject: clsData.subject,
-                    status: "COMPLETED",
-                    completedByUid: user.id,
-                    completedAt: new Date(),
-                }
-            });
-        } else {
-            // Update existing class
-            result = await prisma.class.update({
-                where: { id: classId },
-                data: {
-                    status: "COMPLETED",
-                    completedByUid: user.id,
-                    completedAt: new Date(),
-                }
-            });
-        }
-
-        // Log Activity
-        await prisma.activityLog.create({
-            data: {
-                actorUid: user.id,
-                actorRole: "ADMIN",
-                actionType: "CLASS_COMPLETED",
-                targetType: "class",
-                targetId: result.id,
-                description: `Admin marked class '${result.subject}' for '${result.batch}' as completed`,
+            if (classId.startsWith('sheet_')) {
+                // Create a new record for a virtual sheet class
+                cls = await tx.class.create({
+                    data: {
+                        courseId,
+                        teacherUid: clsData.teacherUid,
+                        teacherName: clsData.teacherName,
+                        date: clsData.date,
+                        startTime: clsData.startTime || "",
+                        endTime: clsData.endTime || "",
+                        timeRange: clsData.timeRange || "",
+                        batch: clsData.batch,
+                        subject: clsData.subject,
+                        status: "COMPLETED",
+                        completedByUid: user.id,
+                        completedAt: new Date(),
+                    }
+                });
+            } else {
+                // Update existing class
+                cls = await tx.class.update({
+                    where: { id: classId, courseId },
+                    data: {
+                        status: "COMPLETED",
+                        completedByUid: user.id,
+                        completedAt: new Date(),
+                    }
+                });
             }
+
+            // Log Activity
+            await tx.activityLog.create({
+                data: {
+                    courseId,
+                    actorUid: user.id,
+                    actorRole: "ADMIN",
+                    actionType: "CLASS_COMPLETED",
+                    targetType: "class",
+                    targetId: cls.id,
+                    description: `Admin marked class '${cls.subject}' for '${cls.batch}' as completed`,
+                }
+            });
+
+            return cls;
         });
 
         return NextResponse.json({ success: true, class: result });

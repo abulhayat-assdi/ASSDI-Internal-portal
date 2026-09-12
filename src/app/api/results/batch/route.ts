@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isTeacherOrAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -11,16 +11,19 @@ export const runtime = "nodejs";
  */
 export async function GET(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!user || !user.courseId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const courseId = user.courseId;
 
     const { searchParams } = new URL(req.url);
     const batchName = searchParams.get("batchName");
     if (!batchName) return NextResponse.json({ error: "batchName required" }, { status: 400 });
 
-    const records = await prisma.studentExamBatchRecord.findMany({
-        where: { batchName },
-        orderBy: { roll: "asc" },
-    });
+    const records = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+        tx.studentExamBatchRecord.findMany({
+            where: { courseId, batchName },
+            orderBy: { roll: "asc" },
+        })
+    );
 
     return NextResponse.json(records.map(r => ({
         id: r.id,
@@ -36,9 +39,10 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user || !isTeacherOrAdmin(user)) {
+    if (!user || !isTeacherOrAdmin(user) || !user.courseId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+    const courseId = user.courseId;
 
     try {
         const body = await req.json();
@@ -48,23 +52,25 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "batchName and results array required" }, { status: 400 });
         }
 
-        await Promise.all(
-            results.map((r: any) => {
-                const data = {
-                    fixedSubjectLabels: r.fixedSubjectLabels,
-                    customColumns: r.customColumns,
-                    examRecords: r.examRecords,
-                    presentationColumns: r.presentationColumns,
-                    presentationRecords: r.presentationRecords,
-                    marks: r.marks,
-                    remarks: r.remarks,
-                };
-                return prisma.studentExamBatchRecord.upsert({
-                    where: { batchName_roll: { batchName, roll: r.roll } },
-                    update: { name: r.name || "", data },
-                    create: { batchName, roll: r.roll, name: r.name || "", data },
-                });
-            })
+        await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+            Promise.all(
+                results.map((r: any) => {
+                    const data = {
+                        fixedSubjectLabels: r.fixedSubjectLabels,
+                        customColumns: r.customColumns,
+                        examRecords: r.examRecords,
+                        presentationColumns: r.presentationColumns,
+                        presentationRecords: r.presentationRecords,
+                        marks: r.marks,
+                        remarks: r.remarks,
+                    };
+                    return tx.studentExamBatchRecord.upsert({
+                        where: { courseId_batchName_roll: { courseId, batchName, roll: r.roll } },
+                        update: { name: r.name || "", data },
+                        create: { courseId, batchName, roll: r.roll, name: r.name || "", data },
+                    });
+                })
+            )
         );
 
         return NextResponse.json({ success: true, count: results.length });

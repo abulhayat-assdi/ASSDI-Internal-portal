@@ -1,25 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isTeacherOrAdmin } from "@/lib/auth";
-import { ensureCompetitionsTablesExist } from "@/lib/competitionsDb";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
     try {
-        await ensureCompetitionsTablesExist();
+        const courseId = req.headers.get("x-course-id");
+        if (!courseId) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
         const { searchParams } = new URL(req.url);
         const batchName = searchParams.get("batchName");
         const competitionId = searchParams.get("competitionId");
 
-        const where: any = {};
+        const where: any = { courseId };
         if (batchName) where.batchName = batchName;
         if (competitionId) where.competitionId = competitionId;
 
-        const groups = await (prisma as any).competitionGroup.findMany({
-            where,
-            orderBy: { groupName: "asc" }
-        });
+        const groups = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+            tx.competitionGroup.findMany({
+                where,
+                orderBy: { groupName: "asc" }
+            })
+        );
 
         return NextResponse.json(groups);
     } catch (error) {
@@ -30,11 +35,11 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
     try {
-        await ensureCompetitionsTablesExist();
         const user = await getSessionUser(req);
-        if (!user || !isTeacherOrAdmin(user)) {
+        if (!user || !isTeacherOrAdmin(user) || !user.courseId) {
             return NextResponse.json({ error: "Forbidden: Only Teachers and Admins can manage groups." }, { status: 403 });
         }
+        const courseId = user.courseId;
 
         const body = await req.json();
         const { id, batchName, competitionId, groupName, members } = body;
@@ -46,30 +51,33 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Group Name is required" }, { status: 400 });
         }
 
-        if (id) {
-            // Update existing group
-            const updated = await (prisma as any).competitionGroup.update({
-                where: { id },
-                data: {
-                    groupName: groupName.trim(),
-                    batchName: batchName.trim(),
-                    competitionId: competitionId || null,
-                    members: members || [],
-                }
-            });
-            return NextResponse.json(updated);
-        } else {
-            // Create new group
-            const created = await (prisma as any).competitionGroup.create({
-                data: {
-                    groupName: groupName.trim(),
-                    batchName: batchName.trim(),
-                    competitionId: competitionId || null,
-                    members: members || [],
-                }
-            });
-            return NextResponse.json(created);
-        }
+        const result = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) => {
+            if (id) {
+                // Update existing group
+                return tx.competitionGroup.update({
+                    where: { id, courseId },
+                    data: {
+                        groupName: groupName.trim(),
+                        batchName: batchName.trim(),
+                        competitionId: competitionId || null,
+                        members: members || [],
+                    }
+                });
+            } else {
+                // Create new group
+                return tx.competitionGroup.create({
+                    data: {
+                        courseId,
+                        groupName: groupName.trim(),
+                        batchName: batchName.trim(),
+                        competitionId: competitionId || null,
+                        members: members || [],
+                    }
+                });
+            }
+        });
+
+        return NextResponse.json(result);
     } catch (error: any) {
         console.error("Failed to create/update competition group:", error);
         return NextResponse.json({ error: error?.message || "Internal Server Error" }, { status: 500 });
@@ -78,11 +86,11 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
     try {
-        await ensureCompetitionsTablesExist();
         const user = await getSessionUser(req);
-        if (!user || !isTeacherOrAdmin(user)) {
+        if (!user || !isTeacherOrAdmin(user) || !user.courseId) {
             return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
+        const courseId = user.courseId;
 
         const { searchParams } = new URL(req.url);
         const id = searchParams.get("id");
@@ -91,9 +99,11 @@ export async function DELETE(req: NextRequest) {
             return NextResponse.json({ error: "Group ID is required" }, { status: 400 });
         }
 
-        await (prisma as any).competitionGroup.delete({
-            where: { id }
-        });
+        await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+            tx.competitionGroup.delete({
+                where: { id, courseId }
+            })
+        );
 
         return NextResponse.json({ success: true });
     } catch (error) {

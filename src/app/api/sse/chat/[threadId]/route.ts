@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -16,9 +16,10 @@ export async function GET(
     { params }: { params: Promise<{ threadId: string }> }
 ) {
     const user = await getSessionUser(request);
-    if (!user) {
+    if (!user || !user.courseId) {
         return new Response("Unauthorized", { status: 401 });
     }
+    const courseId = user.courseId;
 
     const { threadId } = await params;
 
@@ -33,39 +34,42 @@ export async function GET(
         start(controller) {
             const send = async () => {
                 try {
-                    // Find the thread first
-                    const thread = await prisma.chatThread.findUnique({
-                        where: { studentUid: threadId },
+                    // Fresh transaction per poll tick — this stream stays open
+                    // for a long time, so a single transaction for its whole
+                    // lifetime would hold a pooled connection indefinitely.
+                    const data = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+                        // Find the thread first
+                        const thread = await tx.chatThread.findUnique({
+                            where: { studentUid: threadId, courseId },
+                        });
+
+                        if (!thread) {
+                            return JSON.stringify([]);
+                        }
+
+                        const messages = await tx.chatMessage.findMany({
+                            where: { threadId: thread.id, courseId },
+                            orderBy: { createdAt: "asc" },
+                            select: {
+                                id: true,
+                                sender: true,
+                                text: true,
+                                attachments: true,
+                                createdAt: true,
+                            },
+                        });
+
+                        // Always send full message list (client replaces state)
+                        return JSON.stringify(
+                            messages.map((m: any) => ({
+                                id: m.id,
+                                sender: m.sender,
+                                text: m.text,
+                                attachments: m.attachments,
+                                createdAt: m.createdAt.toISOString(),
+                            }))
+                        );
                     });
-
-                    if (!thread) {
-                        const data = JSON.stringify([]);
-                        controller.enqueue(encoder.encode(`event: messages\ndata: ${data}\n\n`));
-                        return;
-                    }
-
-                    const messages = await prisma.chatMessage.findMany({
-                        where: { threadId: thread.id },
-                        orderBy: { createdAt: "asc" },
-                        select: {
-                            id: true,
-                            sender: true,
-                            text: true,
-                            attachments: true,
-                            createdAt: true,
-                        },
-                    });
-
-                    // Always send full message list (client replaces state)
-                    const data = JSON.stringify(
-                        messages.map((m: any) => ({
-                            id: m.id,
-                            sender: m.sender,
-                            text: m.text,
-                            attachments: m.attachments,
-                            createdAt: m.createdAt.toISOString(),
-                        }))
-                    );
 
                     controller.enqueue(encoder.encode(`event: messages\ndata: ${data}\n\n`));
                 } catch (err) {

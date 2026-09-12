@@ -4,7 +4,8 @@ import "@/styles/globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ConfirmProvider } from "@/contexts/ConfirmContext";
 import MobileBottomNav from "@/components/ui/MobileBottomNav";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
+import { headers } from "next/headers";
 
 const geistSans = Geist({
     variable: "--font-geist-sans",
@@ -25,7 +26,12 @@ const SITE_DESCRIPTION =
 export async function generateMetadata(): Promise<Metadata> {
     let faviconUrl: string | undefined;
     try {
-        const cmsRecord = await prisma.cmsContent.findUnique({ where: { key: "site_settings" } });
+        const courseId = (await headers()).get("x-course-id");
+        if (!courseId) throw new Error("no course context (root domain)");
+
+        const cmsRecord = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+            tx.cmsContent.findUnique({ where: { courseId_key: { courseId, key: "site_settings" } } })
+        );
         const cms = cmsRecord?.value as Record<string, unknown> | null;
         const logoUrl = cms?.logoUrl as string | undefined;
         // Convert /api/file?path=uploads/... → /uploads/... (static public path, no auth needed)

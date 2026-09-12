@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -8,9 +8,10 @@ export const runtime = "nodejs";
 /** POST /api/homework/cleanup — soft-delete all submissions for completed batches */
 export async function POST(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user || !isAdmin(user)) {
+    if (!user || !isAdmin(user) || !user.courseId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+    const courseId = user.courseId;
 
     try {
         const body = await req.json();
@@ -22,13 +23,16 @@ export async function POST(req: NextRequest) {
 
         const batchNames = batches.map(b => b.batchName);
 
-        const result = await prisma.homeworkSubmission.updateMany({
-            where: {
-                studentBatchName: { in: batchNames },
-                deletedAt: null,
-            },
-            data: { deletedAt: new Date() },
-        });
+        const result = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+            tx.homeworkSubmission.updateMany({
+                where: {
+                    courseId,
+                    studentBatchName: { in: batchNames },
+                    deletedAt: null,
+                },
+                data: { deletedAt: new Date() },
+            })
+        );
 
         return NextResponse.json({ deleted: result.count });
     } catch (error) {

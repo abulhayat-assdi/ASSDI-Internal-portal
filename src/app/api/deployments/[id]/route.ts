@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { mkdir, rm, readFile, writeFile, rename } from "fs/promises";
 import path from "path";
 import * as fs from "fs";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin } from "@/lib/auth";
 import * as cheerio from "cheerio";
 
@@ -62,89 +62,96 @@ export async function PATCH(
     { params }: { params: Promise<{ id: string }> }
 ) {
     const user = await getSessionUser(req);
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!user || !user.courseId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const courseId = user.courseId;
 
     const { id } = await params;
 
     try {
-        const deployment = await prisma.deployment.findUnique({ where: { id } });
-        if (!deployment) return NextResponse.json({ error: "Deployment not found" }, { status: 404 });
+        return await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+            const deployment = await tx.deployment.findUnique({ where: { id, courseId } });
+            if (!deployment) return NextResponse.json({ error: "Deployment not found" }, { status: 404 });
 
-        if (deployment.userId !== user.id) {
-            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-        }
+            if (deployment.userId !== user.id) {
+                return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+            }
 
-        const dbUser = await prisma.user.findUnique({
-            where: { id: user.id },
-            select: { isDeploymentFrozen: true },
-        });
-        if (dbUser?.isDeploymentFrozen) {
-            return NextResponse.json({ error: "Your deployment access has been frozen." }, { status: 403 });
-        }
-
-        const body = await req.json();
-        const newSubdomain = (body.subdomain as string | undefined)?.toLowerCase().trim();
-        const newDisplayName = (body.displayName as string | undefined)?.trim();
-
-        if (!newSubdomain) {
-            return NextResponse.json({ error: "New subdomain is required." }, { status: 400 });
-        }
-
-        if (!SUBDOMAIN_REGEX.test(newSubdomain)) {
-            return NextResponse.json({ error: "Invalid subdomain format." }, { status: 400 });
-        }
-        if (RESERVED_SUBDOMAINS.has(newSubdomain)) {
-            return NextResponse.json({ error: `"${newSubdomain}" is a reserved subdomain.` }, { status: 400 });
-        }
-
-        if (newSubdomain === deployment.subdomain) {
-            const updated = await prisma.deployment.update({
-                where: { id },
-                data: { displayName: newDisplayName ?? deployment.displayName },
+            const dbUser = await tx.user.findUnique({
+                where: { id: user.id },
+                select: { isDeploymentFrozen: true },
             });
+            if (dbUser?.isDeploymentFrozen) {
+                return NextResponse.json({ error: "Your deployment access has been frozen." }, { status: 403 });
+            }
+
+            const body = await req.json();
+            const newSubdomain = (body.subdomain as string | undefined)?.toLowerCase().trim();
+            const newDisplayName = (body.displayName as string | undefined)?.trim();
+
+            if (!newSubdomain) {
+                return NextResponse.json({ error: "New subdomain is required." }, { status: 400 });
+            }
+
+            if (!SUBDOMAIN_REGEX.test(newSubdomain)) {
+                return NextResponse.json({ error: "Invalid subdomain format." }, { status: 400 });
+            }
+            if (RESERVED_SUBDOMAINS.has(newSubdomain)) {
+                return NextResponse.json({ error: `"${newSubdomain}" is a reserved subdomain.` }, { status: 400 });
+            }
+
+            if (newSubdomain === deployment.subdomain) {
+                const updated = await tx.deployment.update({
+                    where: { id, courseId },
+                    data: { displayName: newDisplayName ?? deployment.displayName },
+                });
+                return NextResponse.json({ deployment: updated });
+            }
+
+            // Deployment subdomains are a platform-wide namespace — check
+            // across ALL courses, not just the caller's.
+            const conflict = await withCourseContext({ courseId: null, isSuperAdmin: true }, (tx2) =>
+                tx2.deployment.findUnique({ where: { subdomain: newSubdomain } })
+            );
+            if (conflict) {
+                return NextResponse.json({ error: "This subdomain is already taken." }, { status: 409 });
+            }
+
+            const storageBase = getStorageBase();
+            const studentSitesBase = path.resolve(storageBase, "student-sites");
+            const oldDir = deployment.folderPath;
+            const newDir = safePath(studentSitesBase, newSubdomain);
+
+            if (fs.existsSync(newDir)) {
+                return NextResponse.json({ error: "A site with this subdomain already exists on the server." }, { status: 409 });
+            }
+
+            try {
+                await rename(oldDir, newDir);
+            } catch {
+                await mkdir(newDir, { recursive: true });
+                fs.cpSync(oldDir, newDir, { recursive: true });
+                await rm(oldDir, { recursive: true, force: true });
+            }
+
+            const newLiveUrl = buildLiveUrl(newSubdomain);
+
+            const updated = await tx.deployment.update({
+                where: { id, courseId },
+                data: {
+                    subdomain: newSubdomain,
+                    folderPath: newDir,
+                    liveUrl: newLiveUrl,
+                    displayName: newDisplayName ?? deployment.displayName,
+                },
+            });
+
+            const newIndexPath = path.join(newDir, "index.html");
+            if (fs.existsSync(newIndexPath)) {
+                await injectTrackingPixel(newIndexPath, id);
+            }
+
             return NextResponse.json({ deployment: updated });
-        }
-
-        const conflict = await prisma.deployment.findUnique({ where: { subdomain: newSubdomain } });
-        if (conflict) {
-            return NextResponse.json({ error: "This subdomain is already taken." }, { status: 409 });
-        }
-
-        const storageBase = getStorageBase();
-        const studentSitesBase = path.resolve(storageBase, "student-sites");
-        const oldDir = deployment.folderPath;
-        const newDir = safePath(studentSitesBase, newSubdomain);
-
-        if (fs.existsSync(newDir)) {
-            return NextResponse.json({ error: "A site with this subdomain already exists on the server." }, { status: 409 });
-        }
-
-        try {
-            await rename(oldDir, newDir);
-        } catch {
-            await mkdir(newDir, { recursive: true });
-            fs.cpSync(oldDir, newDir, { recursive: true });
-            await rm(oldDir, { recursive: true, force: true });
-        }
-
-        const newLiveUrl = buildLiveUrl(newSubdomain);
-
-        const updated = await prisma.deployment.update({
-            where: { id },
-            data: {
-                subdomain: newSubdomain,
-                folderPath: newDir,
-                liveUrl: newLiveUrl,
-                displayName: newDisplayName ?? deployment.displayName,
-            },
         });
-
-        const newIndexPath = path.join(newDir, "index.html");
-        if (fs.existsSync(newIndexPath)) {
-            await injectTrackingPixel(newIndexPath, id);
-        }
-
-        return NextResponse.json({ deployment: updated });
     } catch (error) {
         console.error("[Deployments PATCH]", error);
         const msg = error instanceof Error ? error.message : "Internal server error";
@@ -159,39 +166,42 @@ export async function DELETE(
     { params }: { params: Promise<{ id: string }> }
 ) {
     const user = await getSessionUser(req);
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!user || !user.courseId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const courseId = user.courseId;
 
     const { id } = await params;
 
     try {
-        const deployment = await prisma.deployment.findUnique({ where: { id } });
-        if (!deployment) return NextResponse.json({ error: "Deployment not found" }, { status: 404 });
+        return await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+            const deployment = await tx.deployment.findUnique({ where: { id, courseId } });
+            if (!deployment) return NextResponse.json({ error: "Deployment not found" }, { status: 404 });
 
-        const adminCaller = isAdmin(user);
-        const isOwner = deployment.userId === user.id;
+            const adminCaller = isAdmin(user);
+            const isOwner = deployment.userId === user.id;
 
-        if (!adminCaller && !isOwner) {
-            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-        }
-
-        if (!adminCaller && isOwner) {
-            const dbUser = await prisma.user.findUnique({
-                where: { id: user.id },
-                select: { isDeploymentFrozen: true },
-            });
-            if (dbUser?.isDeploymentFrozen) {
-                return NextResponse.json({ error: "Your deployment access has been frozen." }, { status: 403 });
+            if (!adminCaller && !isOwner) {
+                return NextResponse.json({ error: "Forbidden" }, { status: 403 });
             }
-        }
 
-        const folderPath = deployment.folderPath;
-        if (fs.existsSync(folderPath)) {
-            await rm(folderPath, { recursive: true, force: true });
-        }
+            if (!adminCaller && isOwner) {
+                const dbUser = await tx.user.findUnique({
+                    where: { id: user.id },
+                    select: { isDeploymentFrozen: true },
+                });
+                if (dbUser?.isDeploymentFrozen) {
+                    return NextResponse.json({ error: "Your deployment access has been frozen." }, { status: 403 });
+                }
+            }
 
-        await prisma.deployment.delete({ where: { id } });
+            const folderPath = deployment.folderPath;
+            if (fs.existsSync(folderPath)) {
+                await rm(folderPath, { recursive: true, force: true });
+            }
 
-        return NextResponse.json({ success: true });
+            await tx.deployment.delete({ where: { id, courseId } });
+
+            return NextResponse.json({ success: true });
+        });
     } catch (error) {
         console.error("[Deployments DELETE]", error);
         const msg = error instanceof Error ? error.message : "Internal server error";

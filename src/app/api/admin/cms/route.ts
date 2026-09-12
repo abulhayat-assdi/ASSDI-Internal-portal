@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 
@@ -16,18 +16,18 @@ import { revalidatePath } from "next/cache";
 export async function GET(req: NextRequest) {
     try {
         const caller = await getSessionUser(req);
-        if (!caller || !isAdmin(caller)) {
+        if (!caller || !isAdmin(caller) || !caller.courseId) {
             return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
         }
+        const courseId = caller.courseId;
 
-        const allContent = await prisma.cmsContent.findMany({
-            orderBy: { key: 'asc' },
+        const contentMap = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+            const allContent = await tx.cmsContent.findMany({
+                where: { courseId },
+                orderBy: { key: 'asc' },
+            });
+            return Object.fromEntries(allContent.map((c) => [c.key, c.value]));
         });
-
-        // Convert to { key: value } map for backward compatibility
-        const contentMap = Object.fromEntries(
-            allContent.map((c: { key: string; value: any }) => [c.key, c.value])
-        );
 
         return NextResponse.json(contentMap);
     } catch (error) {
@@ -39,9 +39,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     try {
         const caller = await getSessionUser(req);
-        if (!caller || !isAdmin(caller)) {
+        if (!caller || !isAdmin(caller) || !caller.courseId) {
             return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
         }
+        const courseId = caller.courseId;
 
         const { pageId, content } = await req.json();
 
@@ -49,12 +50,13 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Missing required fields (pageId, content)" }, { status: 400 });
         }
 
-        // Upsert the CMS content by key
-        await prisma.cmsContent.upsert({
-            where: { key: pageId },
-            create: { key: pageId, value: content, updatedBy: caller.id },
-            update: { value: content, updatedBy: caller.id },
-        });
+        await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+            tx.cmsContent.upsert({
+                where: { courseId_key: { courseId, key: pageId } },
+                create: { courseId, key: pageId, value: content, updatedBy: caller.id },
+                update: { value: content, updatedBy: caller.id },
+            })
+        );
 
         // On-demand cache revalidation
         try {

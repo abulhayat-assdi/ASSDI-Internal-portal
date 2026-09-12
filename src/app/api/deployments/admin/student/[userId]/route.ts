@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin } from "@/lib/auth";
 
 // ─── GET /api/deployments/admin/student/[userId] ──────────────────────────────
@@ -12,30 +12,34 @@ export async function GET(
     { params }: { params: Promise<{ userId: string }> }
 ) {
     const caller = await getSessionUser(req);
-    if (!caller || !isAdmin(caller)) {
+    if (!caller || !isAdmin(caller) || !caller.courseId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+    const courseId = caller.courseId;
 
     const { userId } = await params;
 
     try {
-        const [user, deployments] = await Promise.all([
-            prisma.user.findUnique({
-                where: { id: userId },
-                select: {
-                    id: true,
-                    displayName: true,
-                    studentBatchName: true,
-                    studentRoll: true,
-                    deploymentLimit: true,
-                    isDeploymentFrozen: true,
-                },
-            }),
-            prisma.deployment.findMany({
-                where: { userId },
-                orderBy: { createdAt: "desc" },
-            }),
-        ]);
+        const { user, deployments } = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+            const [user, deployments] = await Promise.all([
+                tx.user.findUnique({
+                    where: { id: userId, courseId },
+                    select: {
+                        id: true,
+                        displayName: true,
+                        studentBatchName: true,
+                        studentRoll: true,
+                        deploymentLimit: true,
+                        isDeploymentFrozen: true,
+                    },
+                }),
+                tx.deployment.findMany({
+                    where: { userId, courseId },
+                    orderBy: { createdAt: "desc" },
+                }),
+            ]);
+            return { user, deployments };
+        });
 
         if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
@@ -53,9 +57,10 @@ export async function PATCH(
     { params }: { params: Promise<{ userId: string }> }
 ) {
     const caller = await getSessionUser(req);
-    if (!caller || !isAdmin(caller)) {
+    if (!caller || !isAdmin(caller) || !caller.courseId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+    const courseId = caller.courseId;
 
     const { userId } = await params;
 
@@ -83,15 +88,17 @@ export async function PATCH(
             return NextResponse.json({ error: "No valid fields to update." }, { status: 400 });
         }
 
-        const updated = await prisma.user.update({
-            where: { id: userId },
-            data: updateData,
-            select: {
-                id: true,
-                deploymentLimit: true,
-                isDeploymentFrozen: true,
-            },
-        });
+        const updated = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+            tx.user.update({
+                where: { id: userId, courseId },
+                data: updateData,
+                select: {
+                    id: true,
+                    deploymentLimit: true,
+                    isDeploymentFrozen: true,
+                },
+            })
+        );
 
         return NextResponse.json({ user: updated });
     } catch (error) {

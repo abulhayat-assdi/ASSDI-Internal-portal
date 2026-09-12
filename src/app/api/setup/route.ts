@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { withCourseContext } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 
 export const dynamic = 'force-dynamic';
@@ -14,66 +14,62 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        if (!prisma || !prisma.user) {
-            throw new Error('Prisma client is not properly initialized.');
-        }
-
-        // Ensure permissions column exists (safe to run multiple times)
-        await prisma.$executeRawUnsafe(`
-            ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions JSONB DEFAULT '[]'::JSONB;
-        `);
-
         const { searchParams } = new URL(req.url);
         const action = searchParams.get('action');
 
         const email = 'mohammadabulhayatt@gmail.com';
 
-        // action=check — just show current user state, no changes
-        if (action === 'check') {
-            const user = await prisma.user.findUnique({
-                where: { email },
-                select: { id: true, email: true, role: true, displayName: true, teacherId: true }
-            });
-            const hwCount = await prisma.homeworkSubmission.count();
-            const assignCount = await prisma.homeworkAssignment.count();
-            return NextResponse.json({ user, homeworkSubmissions: hwCount, homeworkAssignments: assignCount });
-        }
-
-        // action=fix-role — set role to super_admin
-        if (action === 'fix-role') {
-            const user = await prisma.user.update({
-                where: { email },
-                data: { role: 'super_admin' },
-                select: { email: true, role: true, displayName: true }
-            });
-            return NextResponse.json({ success: true, message: 'Role updated to super_admin', user });
-        }
-
-        // default — create/reset admin account
-        const password = 'Password@123';
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        const user = await prisma.user.upsert({
-            where: { email },
-            update: {
-                passwordHash: hashedPassword,
-                role: 'super_admin',
-                displayName: 'Abul Hayat',
-                permissions: [],
-            },
-            create: {
-                email,
-                passwordHash: hashedPassword,
-                role: 'super_admin',
-                displayName: 'Abul Hayat',
-                permissions: [],
+        // This bootstraps the platform's super_admin account, which has no
+        // course — every operation here runs under the super-admin RLS bypass.
+        return await withCourseContext({ courseId: null, isSuperAdmin: true }, async (tx) => {
+            // action=check — just show current user state, no changes
+            if (action === 'check') {
+                const user = await tx.user.findUnique({
+                    where: { email },
+                    select: { id: true, email: true, role: true, displayName: true, teacherId: true, courseId: true }
+                });
+                const hwCount = await tx.homeworkSubmission.count();
+                const assignCount = await tx.homeworkAssignment.count();
+                return NextResponse.json({ user, homeworkSubmissions: hwCount, homeworkAssignments: assignCount });
             }
-        });
 
-        return NextResponse.json({
-            success: true,
-            message: 'Admin account created/reset with role: super_admin',
-            user: { email: user.email, role: user.role },
+            // action=fix-role — set role to super_admin
+            if (action === 'fix-role') {
+                const user = await tx.user.update({
+                    where: { email },
+                    data: { role: 'super_admin', courseId: null },
+                    select: { email: true, role: true, displayName: true }
+                });
+                return NextResponse.json({ success: true, message: 'Role updated to super_admin', user });
+            }
+
+            // default — create/reset admin account
+            const password = 'Password@123';
+            const hashedPassword = await bcrypt.hash(password, 10);
+
+            const user = await tx.user.upsert({
+                where: { email },
+                update: {
+                    passwordHash: hashedPassword,
+                    role: 'super_admin',
+                    courseId: null,
+                    displayName: 'Abul Hayat',
+                    permissions: [],
+                },
+                create: {
+                    email,
+                    passwordHash: hashedPassword,
+                    role: 'super_admin',
+                    displayName: 'Abul Hayat',
+                    permissions: [],
+                }
+            });
+
+            return NextResponse.json({
+                success: true,
+                message: 'Admin account created/reset with role: super_admin',
+                user: { email: user.email, role: user.role },
+            });
         });
     } catch (error: unknown) {
         console.error('Setup Error:', error);

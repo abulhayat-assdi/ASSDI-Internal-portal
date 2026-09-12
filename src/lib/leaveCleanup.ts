@@ -1,16 +1,17 @@
 import fs from "fs";
 import path from "path";
-import { prisma } from "./db";
+import type { Prisma } from "@prisma/client";
 
 /**
  * Automatically clean up physical attachment files and clear attachment URLs
  * for student leave requests of a batch that has been marked as Completed.
  * All text records of leave requests (dates, reason, status, reviewNote) remain intact.
  */
-export async function cleanupBatchLeaveAttachments(batchName: string): Promise<number> {
+export async function cleanupBatchLeaveAttachments(tx: Prisma.TransactionClient, courseId: string, batchName: string): Promise<number> {
     try {
-        const leaveRequestsWithAttachments = await prisma.studentLeaveRequest.findMany({
+        const leaveRequestsWithAttachments = await tx.studentLeaveRequest.findMany({
             where: {
+                courseId,
                 studentBatchName: batchName,
                 attachmentUrl: { not: null },
             },
@@ -44,8 +45,9 @@ export async function cleanupBatchLeaveAttachments(batchName: string): Promise<n
         }
 
         // Reset attachment fields in database while keeping text records intact
-        const updateResult = await prisma.studentLeaveRequest.updateMany({
+        const updateResult = await tx.studentLeaveRequest.updateMany({
             where: {
+                courseId,
                 studentBatchName: batchName,
                 attachmentUrl: { not: null },
             },

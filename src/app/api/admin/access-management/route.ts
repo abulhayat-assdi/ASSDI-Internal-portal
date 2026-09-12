@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isSuperAdmin, isAdmin } from "@/lib/auth";
 import {
     PORTAL_OWNER_EMAIL,
@@ -9,9 +9,6 @@ import {
     getDisplayRoleLabel,
     ALL_PERMISSION_KEYS,
     ADMIN_TEACHER_MARKER,
-    DEFAULT_TEACHER_PERMISSIONS,
-    DEFAULT_ADMIN_PERMISSIONS,
-    TEACHER_FEATURE_PERMISSIONS,
 } from "@/lib/permissions";
 
 /**
@@ -21,25 +18,29 @@ import {
  */
 export async function GET(req: NextRequest) {
     const caller = await getSessionUser(req);
-    if (!caller || !isAdmin(caller)) {
+    if (!caller || !isAdmin(caller) || !caller.courseId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+    const courseId = caller.courseId;
 
-    const users = await prisma.user.findMany({
-        where: {
-            role: { notIn: ["student"] },
-            deletedAt: null,
-        },
-        select: {
-            id: true,
-            email: true,
-            displayName: true,
-            role: true,
-            permissions: true,
-            createdAt: true,
-        },
-        orderBy: [{ role: "asc" }, { displayName: "asc" }],
-    });
+    const users = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+        tx.user.findMany({
+            where: {
+                courseId,
+                role: { notIn: ["student"] },
+                deletedAt: null,
+            },
+            select: {
+                id: true,
+                email: true,
+                displayName: true,
+                role: true,
+                permissions: true,
+                createdAt: true,
+            },
+            orderBy: [{ role: "asc" }, { displayName: "asc" }],
+        })
+    );
 
     const result = users.map((u) => {
         const rawPerms = u.permissions as string[] | null;
@@ -66,9 +67,10 @@ export async function GET(req: NextRequest) {
  */
 export async function PUT(req: NextRequest) {
     const caller = await getSessionUser(req);
-    if (!caller || !isSuperAdmin(caller)) {
+    if (!caller || !isSuperAdmin(caller) || !caller.courseId) {
         return NextResponse.json({ error: "Forbidden: Only super_admin can manage access." }, { status: 403 });
     }
+    const courseId = caller.courseId;
 
     const body = await req.json();
     const { userId, permissions, roleLabel } = body as {
@@ -82,71 +84,71 @@ export async function PUT(req: NextRequest) {
         return NextResponse.json({ error: "userId is required." }, { status: 400 });
     }
 
-    // Find target user
-    const target = await prisma.user.findUnique({ where: { id: userId, deletedAt: null } });
-    if (!target) {
-        return NextResponse.json({ error: "User not found." }, { status: 404 });
-    }
-
-    // Portal owner is immutable
-    if (target.email === PORTAL_OWNER_EMAIL) {
-        return NextResponse.json({ error: "The portal owner's account cannot be modified." }, { status: 403 });
-    }
-
-    if (target.role === "student") {
-        return NextResponse.json({ error: "Student accounts cannot be managed here." }, { status: 400 });
-    }
-
-    // ── Derive DB role from roleLabel ────────────────────────
-    // "admin_teacher" → DB role = "admin" (gives full admin API access)
-    // "admin"         → DB role = "admin"
-    // "teacher"       → DB role = "teacher"
-    const dbRole: "teacher" | "admin" | undefined =
-        roleLabel === "teacher" ? "teacher"
-        : roleLabel === "admin" || roleLabel === "admin_teacher" ? "admin"
-        : undefined;
-
-    const roleChanged = dbRole !== undefined && dbRole !== target.role;
-
-    // ── Build final permissions array ────────────────────────
-    let finalPermissions: string[] | undefined;
-
-    if (permissions !== undefined) {
-        if (!Array.isArray(permissions)) {
-            return NextResponse.json({ error: "permissions must be an array." }, { status: 400 });
-        }
-        // Validate — allow real permission keys; strip any stale markers (we'll re-add if needed)
-        const pagePerms = permissions.filter((p) => !p.startsWith("__"));
-        const invalid   = pagePerms.filter((p) => !ALL_PERMISSION_KEYS.includes(p as any));
-        if (invalid.length > 0) {
-            return NextResponse.json({ error: `Invalid permission keys: ${invalid.join(", ")}` }, { status: 400 });
+    return withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+        // Find target user
+        const target = await tx.user.findUnique({ where: { id: userId, courseId, deletedAt: null } });
+        if (!target) {
+            return NextResponse.json({ error: "User not found." }, { status: 404 });
         }
 
-        const effectiveDbRole = dbRole ?? (target.role as string);
+        // Portal owner is immutable
+        if (target.email === PORTAL_OWNER_EMAIL) {
+            return NextResponse.json({ error: "The portal owner's account cannot be modified." }, { status: 403 });
+        }
 
-        // access_management only available to admins
-        const filtered = effectiveDbRole === "teacher"
-            ? pagePerms.filter((p) => p !== "access_management")
-            : pagePerms;
+        if (target.role === "student") {
+            return NextResponse.json({ error: "Student accounts cannot be managed here." }, { status: 400 });
+        }
 
-        // Re-attach the role display marker if Admin+Teacher is selected
-        finalPermissions = roleLabel === "admin_teacher"
-            ? [...filtered, ADMIN_TEACHER_MARKER]
-            : filtered;
-    }
+        // ── Derive DB role from roleLabel ────────────────────────
+        // "admin_teacher" → DB role = "admin" (gives full admin API access)
+        // "admin"         → DB role = "admin"
+        // "teacher"       → DB role = "teacher"
+        const dbRole: "teacher" | "admin" | undefined =
+            roleLabel === "teacher" ? "teacher"
+            : roleLabel === "admin" || roleLabel === "admin_teacher" ? "admin"
+            : undefined;
 
-    if (finalPermissions === undefined && roleLabel !== undefined) {
-        // Role changed but no permissions sent — apply sensible defaults
-        const existingPagePerms = getEffectivePermissions(target.role, target.permissions as string[]);
-        finalPermissions = roleLabel === "admin_teacher"
-            ? [...existingPagePerms, ADMIN_TEACHER_MARKER]
-            : existingPagePerms.filter((p) => p !== ADMIN_TEACHER_MARKER);
-    }
+        const roleChanged = dbRole !== undefined && dbRole !== target.role;
 
-    // ── Persist ──────────────────────────────────────────────
-    await prisma.$transaction(async (tx: any) => {
+        // ── Build final permissions array ────────────────────────
+        let finalPermissions: string[] | undefined;
+
+        if (permissions !== undefined) {
+            if (!Array.isArray(permissions)) {
+                return NextResponse.json({ error: "permissions must be an array." }, { status: 400 });
+            }
+            // Validate — allow real permission keys; strip any stale markers (we'll re-add if needed)
+            const pagePerms = permissions.filter((p) => !p.startsWith("__"));
+            const invalid   = pagePerms.filter((p) => !ALL_PERMISSION_KEYS.includes(p as any));
+            if (invalid.length > 0) {
+                return NextResponse.json({ error: `Invalid permission keys: ${invalid.join(", ")}` }, { status: 400 });
+            }
+
+            const effectiveDbRole = dbRole ?? (target.role as string);
+
+            // access_management only available to admins
+            const filtered = effectiveDbRole === "teacher"
+                ? pagePerms.filter((p) => p !== "access_management")
+                : pagePerms;
+
+            // Re-attach the role display marker if Admin+Teacher is selected
+            finalPermissions = roleLabel === "admin_teacher"
+                ? [...filtered, ADMIN_TEACHER_MARKER]
+                : filtered;
+        }
+
+        if (finalPermissions === undefined && roleLabel !== undefined) {
+            // Role changed but no permissions sent — apply sensible defaults
+            const existingPagePerms = getEffectivePermissions(target.role, target.permissions as string[]);
+            finalPermissions = roleLabel === "admin_teacher"
+                ? [...existingPagePerms, ADMIN_TEACHER_MARKER]
+                : existingPagePerms.filter((p) => p !== ADMIN_TEACHER_MARKER);
+        }
+
+        // ── Persist ──────────────────────────────────────────────
         await tx.user.update({
-            where: { id: userId },
+            where: { id: userId, courseId },
             data: {
                 ...(roleChanged ? { role: dbRole } : {}),
                 ...(finalPermissions !== undefined ? { permissions: finalPermissions } : {}),
@@ -156,19 +158,19 @@ export async function PUT(req: NextRequest) {
         // Sync Teacher.isAdmin
         if (roleChanged) {
             await tx.teacher.updateMany({
-                where: { OR: [{ loginEmail: target.email }, { email: target.email }] },
+                where: { courseId, OR: [{ loginEmail: target.email }, { email: target.email }] },
                 data:  { isAdmin: dbRole === "admin" },
             });
         }
-    });
 
-    const savedRole        = dbRole ?? (target.role as string);
-    const savedPermissions = finalPermissions ?? (target.permissions as string[]) ?? [];
+        const savedRole        = dbRole ?? (target.role as string);
+        const savedPermissions = finalPermissions ?? (target.permissions as string[]) ?? [];
 
-    return NextResponse.json({
-        success:     true,
-        role:        savedRole,
-        displayRole: getDisplayRoleLabel(savedRole, savedPermissions),
-        permissions: getEffectivePermissions(savedRole, savedPermissions),
+        return NextResponse.json({
+            success:     true,
+            role:        savedRole,
+            displayRole: getDisplayRoleLabel(savedRole, savedPermissions),
+            permissions: getEffectivePermissions(savedRole, savedPermissions),
+        });
     });
 }

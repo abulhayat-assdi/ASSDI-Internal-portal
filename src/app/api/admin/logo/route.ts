@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser, isAdmin } from "@/lib/auth";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import path from "path";
 import fs from "fs";
 
@@ -10,9 +10,10 @@ import fs from "fs";
 export async function POST(req: NextRequest) {
     try {
         const caller = await getSessionUser(req);
-        if (!caller || !isAdmin(caller)) {
+        if (!caller || !isAdmin(caller) || !caller.courseId) {
             return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
+        const courseId = caller.courseId;
 
         const formData = await req.formData();
         const file = formData.get("file") as File;
@@ -30,55 +31,57 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "File too large (max 2MB)" }, { status: 400 });
         }
 
-        // Delete old logo file if exists
-        const existingRecord = await prisma.cmsContent.findUnique({ where: { key: "site_settings" } });
-        if (existingRecord) {
-            const existingValue = existingRecord.value as Record<string, unknown>;
-            const oldStoragePath = existingValue.logoStoragePath as string;
-            if (oldStoragePath && (oldStoragePath.startsWith("uploads/images/logo/") || oldStoragePath.startsWith("images/logo/"))) {
-                const oldAbsPath = path.resolve(process.cwd(), "public", oldStoragePath);
-                if (fs.existsSync(oldAbsPath)) {
-                    fs.unlinkSync(oldAbsPath);
+        return await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+            // Delete old logo file if exists
+            const existingRecord = await tx.cmsContent.findUnique({ where: { courseId_key: { courseId, key: "site_settings" } } });
+            if (existingRecord) {
+                const existingValue = existingRecord.value as Record<string, unknown>;
+                const oldStoragePath = existingValue.logoStoragePath as string;
+                if (oldStoragePath && (oldStoragePath.startsWith("uploads/images/logo/") || oldStoragePath.startsWith("images/logo/"))) {
+                    const oldAbsPath = path.resolve(process.cwd(), "public", oldStoragePath);
+                    if (fs.existsSync(oldAbsPath)) {
+                        fs.unlinkSync(oldAbsPath);
+                    }
                 }
             }
-        }
 
-        // Save new logo to public/uploads/images/logo/
-        const ext = path.extname(file.name).toLowerCase();
-        const timestamp = Date.now();
-        const safeExt = ext || ".png";
-        const fileName = `logo_${timestamp}${safeExt}`;
-        const storagePath = `uploads/images/logo/${fileName}`;
-        const absolutePath = path.resolve(process.cwd(), "public", storagePath);
-        const dir = path.dirname(absolutePath);
+            // Save new logo to public/uploads/images/logo/
+            const ext = path.extname(file.name).toLowerCase();
+            const timestamp = Date.now();
+            const safeExt = ext || ".png";
+            const fileName = `logo_${timestamp}${safeExt}`;
+            const storagePath = `uploads/images/logo/${fileName}`;
+            const absolutePath = path.resolve(process.cwd(), "public", storagePath);
+            const dir = path.dirname(absolutePath);
 
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-        }
+            if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir, { recursive: true });
+            }
 
-        const buffer = Buffer.from(await file.arrayBuffer());
-        fs.writeFileSync(absolutePath, buffer);
+            const buffer = Buffer.from(await file.arrayBuffer());
+            fs.writeFileSync(absolutePath, buffer);
 
-        const logoUrl = `/api/file?path=${storagePath}`;
+            const logoUrl = `/api/file?path=${storagePath}`;
 
-        // Update site_settings in DB
-        const currentValue = existingRecord
-            ? (existingRecord.value as Record<string, unknown>)
-            : {};
+            // Update site_settings in DB
+            const currentValue = existingRecord
+                ? (existingRecord.value as Record<string, unknown>)
+                : {};
 
-        const updatedValue = {
-            ...currentValue,
-            logoUrl,
-            logoStoragePath: storagePath,
-        };
+            const updatedValue = {
+                ...currentValue,
+                logoUrl,
+                logoStoragePath: storagePath,
+            };
 
-        await prisma.cmsContent.upsert({
-            where: { key: "site_settings" },
-            create: { key: "site_settings", value: updatedValue, updatedBy: caller.id },
-            update: { value: updatedValue, updatedBy: caller.id },
+            await tx.cmsContent.upsert({
+                where: { courseId_key: { courseId, key: "site_settings" } },
+                create: { courseId, key: "site_settings", value: updatedValue, updatedBy: caller.id },
+                update: { value: updatedValue, updatedBy: caller.id },
+            });
+
+            return NextResponse.json({ success: true, logoUrl, storagePath });
         });
-
-        return NextResponse.json({ success: true, logoUrl, storagePath });
     } catch (error) {
         console.error("[Logo API] Error:", error);
         return NextResponse.json({ error: "Logo upload failed" }, { status: 500 });
@@ -89,27 +92,30 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
     try {
         const caller = await getSessionUser(req);
-        if (!caller || !isAdmin(caller)) {
+        if (!caller || !isAdmin(caller) || !caller.courseId) {
             return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
+        const courseId = caller.courseId;
 
-        const existingRecord = await prisma.cmsContent.findUnique({ where: { key: "site_settings" } });
-        if (existingRecord) {
-            const existingValue = existingRecord.value as Record<string, unknown>;
-            const oldStoragePath = existingValue.logoStoragePath as string;
-            if (oldStoragePath && (oldStoragePath.startsWith("uploads/images/logo/") || oldStoragePath.startsWith("images/logo/"))) {
-                const oldAbsPath = path.resolve(process.cwd(), "public", oldStoragePath);
-                if (fs.existsSync(oldAbsPath)) {
-                    fs.unlinkSync(oldAbsPath);
+        await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+            const existingRecord = await tx.cmsContent.findUnique({ where: { courseId_key: { courseId, key: "site_settings" } } });
+            if (existingRecord) {
+                const existingValue = existingRecord.value as Record<string, unknown>;
+                const oldStoragePath = existingValue.logoStoragePath as string;
+                if (oldStoragePath && (oldStoragePath.startsWith("uploads/images/logo/") || oldStoragePath.startsWith("images/logo/"))) {
+                    const oldAbsPath = path.resolve(process.cwd(), "public", oldStoragePath);
+                    if (fs.existsSync(oldAbsPath)) {
+                        fs.unlinkSync(oldAbsPath);
+                    }
                 }
-            }
 
-            const updatedValue = { ...existingValue, logoUrl: "", logoStoragePath: "" };
-            await prisma.cmsContent.update({
-                where: { key: "site_settings" },
-                data: { value: updatedValue, updatedBy: caller.id },
-            });
-        }
+                const updatedValue = { ...existingValue, logoUrl: "", logoStoragePath: "" };
+                await tx.cmsContent.update({
+                    where: { courseId_key: { courseId, key: "site_settings" } },
+                    data: { value: updatedValue, updatedBy: caller.id },
+                });
+            }
+        });
 
         return NextResponse.json({ success: true });
     } catch (error) {

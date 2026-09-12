@@ -3,7 +3,7 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 
 const TRANSPARENT_GIF = Buffer.from(
     "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
@@ -27,6 +27,7 @@ function getClientIp(req: NextRequest): string {
 }
 
 // ─── GET /api/deployments/pixel?id=<deploymentId> ────────────────────────────
+// Public, unauthenticated — hit by any visitor of a deployed student site.
 
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
@@ -47,20 +48,26 @@ export async function GET(req: NextRequest) {
     const today = getTodayDate();
     const hashedIp = hashIp(clientIp);
 
-    Promise.all([
-        prisma.deployment.updateMany({
-            where: { id: deploymentId },
-            data: { totalVisitors: { increment: 1 } },
-        }),
-        prisma.visitorLog.create({
-            data: {
-                deploymentId,
-                visitorIp: hashedIp,
-                userAgent,
-                date: today,
-            },
-        }),
-    ]).catch((err) => {
+    withCourseContext({ courseId: null, isSuperAdmin: true }, async (tx) => {
+        const deployment = await tx.deployment.findUnique({ where: { id: deploymentId }, select: { courseId: true } });
+        if (!deployment) return;
+
+        await Promise.all([
+            tx.deployment.updateMany({
+                where: { id: deploymentId },
+                data: { totalVisitors: { increment: 1 } },
+            }),
+            tx.visitorLog.create({
+                data: {
+                    courseId: deployment.courseId,
+                    deploymentId,
+                    visitorIp: hashedIp,
+                    userAgent,
+                    date: today,
+                },
+            }),
+        ]);
+    }).catch((err) => {
         console.error("[Pixel] Failed to record visit:", err);
     });
 

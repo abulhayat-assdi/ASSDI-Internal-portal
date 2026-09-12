@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isTeacherOrAdmin } from "@/lib/auth";
 import fs from "fs";
 import { unlink } from "fs/promises";
@@ -58,35 +58,38 @@ async function removeUploadedFile(storagePath?: string | null) {
 /** GET /api/routines?batchName=...  — latest routine image first */
 export async function GET(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!user || !user.courseId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const courseId = user.courseId;
 
     const { searchParams } = new URL(req.url);
     const batchName = searchParams.get("batchName");
 
-    const where: any = {};
+    const where: any = { courseId };
     if (batchName) where.batchName = { equals: batchName.trim(), mode: "insensitive" };
 
-    const routines = await prisma.routine.findMany({ where, orderBy: { createdAt: "desc" } });
+    const normalized = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+        const routines = await tx.routine.findMany({ where, orderBy: { createdAt: "desc" } });
 
-    const existingRoutines = routines.filter((routine) => {
-        const filePath = resolveRoutineFilePath(routine.storagePath || routine.fileUrl);
-        return fs.existsSync(filePath);
+        const existingRoutines = routines.filter((routine) => {
+            const filePath = resolveRoutineFilePath(routine.storagePath || routine.fileUrl);
+            return fs.existsSync(filePath);
+        });
+
+        const missingIds = routines
+            .filter((routine) => !existingRoutines.some((item) => item.id === routine.id))
+            .map((routine) => routine.id);
+
+        if (missingIds.length > 0) {
+            await tx.routine.deleteMany({ where: { id: { in: missingIds }, courseId } });
+        }
+
+        return existingRoutines.map(routine => ({
+            ...routine,
+            fileUrl: routine.fileUrl.startsWith("/api/uploads/")
+                ? routine.fileUrl
+                : `/api/uploads/${(routine.fileUrl.startsWith("/") ? routine.fileUrl.slice(1) : routine.fileUrl)}`,
+        }));
     });
-
-    const missingIds = routines
-        .filter((routine) => !existingRoutines.some((item) => item.id === routine.id))
-        .map((routine) => routine.id);
-
-    if (missingIds.length > 0) {
-        await prisma.routine.deleteMany({ where: { id: { in: missingIds } } });
-    }
-
-    const normalized = existingRoutines.map(routine => ({
-        ...routine,
-        fileUrl: routine.fileUrl.startsWith("/api/uploads/")
-            ? routine.fileUrl
-            : `/api/uploads/${(routine.fileUrl.startsWith("/") ? routine.fileUrl.slice(1) : routine.fileUrl)}`,
-    }));
 
     return NextResponse.json(normalized);
 }
@@ -97,9 +100,10 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user || !isTeacherOrAdmin(user)) {
+    if (!user || !isTeacherOrAdmin(user) || !user.courseId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+    const courseId = user.courseId;
 
     try {
         const body = await req.json();
@@ -109,21 +113,24 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "batchName and fileUrl are required" }, { status: 400 });
         }
 
-        // Replace: drop any existing routine(s) for this batch + clean their files.
-        const existing = await prisma.routine.findMany({ where: { batchName } });
-        if (existing.length > 0) {
-            await prisma.routine.deleteMany({ where: { batchName } });
-            await Promise.all(existing.map(r => removeUploadedFile(r.storagePath)));
-        }
+        const routine = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+            // Replace: drop any existing routine(s) for this batch + clean their files.
+            const existing = await tx.routine.findMany({ where: { courseId, batchName } });
+            if (existing.length > 0) {
+                await tx.routine.deleteMany({ where: { courseId, batchName } });
+                await Promise.all(existing.map(r => removeUploadedFile(r.storagePath)));
+            }
 
-        const routine = await prisma.routine.create({
-            data: {
-                batchName,
-                fileUrl,
-                storagePath: storagePath || fileUrl,
-                fileName: fileName || "",
-                uploadedBy: uploadedBy || user.id,
-            },
+            return tx.routine.create({
+                data: {
+                    courseId,
+                    batchName,
+                    fileUrl,
+                    storagePath: storagePath || fileUrl,
+                    fileName: fileName || "",
+                    uploadedBy: uploadedBy || user.id,
+                },
+            });
         });
 
         return NextResponse.json(routine, { status: 201 });
@@ -136,17 +143,24 @@ export async function POST(req: NextRequest) {
 /** DELETE /api/routines?id=...  — remove a routine image (and its file) */
 export async function DELETE(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user || !isTeacherOrAdmin(user)) {
+    if (!user || !isTeacherOrAdmin(user) || !user.courseId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+    const courseId = user.courseId;
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
     if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
-    const routine = await prisma.routine.findUnique({ where: { id } });
+    const routine = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+        const routine = await tx.routine.findUnique({ where: { id, courseId } });
+        if (routine) {
+            await tx.routine.delete({ where: { id, courseId } });
+        }
+        return routine;
+    });
+
     if (routine) {
-        await prisma.routine.delete({ where: { id } });
         await removeUploadedFile(routine.storagePath);
     }
     return NextResponse.json({ success: true });

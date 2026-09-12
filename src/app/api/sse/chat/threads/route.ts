@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -11,9 +11,10 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(request: NextRequest) {
     const user = await getSessionUser(request);
-    if (!user || !isAdmin(user)) {
+    if (!user || !isAdmin(user) || !user.courseId) {
         return new Response("Unauthorized", { status: 401 });
     }
+    const courseId = user.courseId;
 
     const encoder = new TextEncoder();
 
@@ -21,9 +22,15 @@ export async function GET(request: NextRequest) {
         start(controller) {
             const send = async () => {
                 try {
-                    const threads = await prisma.chatThread.findMany({
-                        orderBy: { lastMessageTime: "desc" },
-                    });
+                    // Fresh transaction per poll tick — this stream stays open
+                    // for a long time, so a single transaction for its whole
+                    // lifetime would hold a pooled connection indefinitely.
+                    const threads = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+                        tx.chatThread.findMany({
+                            where: { courseId },
+                            orderBy: { lastMessageTime: "desc" },
+                        })
+                    );
 
                     const data = JSON.stringify(
                         threads.map((t: any) => ({

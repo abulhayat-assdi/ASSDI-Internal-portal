@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { withCourseContext } from '@/lib/db';
 import { signJWT } from '@/lib/auth';
 import { AUTH_ROLES, COOKIES } from '@/lib/constants';
 import bcrypt from 'bcryptjs';
@@ -21,6 +21,11 @@ const registerSchema = z.object({
  */
 export async function POST(req: NextRequest) {
     try {
+        const courseId = req.headers.get('x-course-id');
+        if (!courseId) {
+            return NextResponse.json({ error: 'Unknown course.' }, { status: 404 });
+        }
+
         const body = await req.json();
         const parsed = registerSchema.safeParse(body);
 
@@ -34,11 +39,11 @@ export async function POST(req: NextRequest) {
         const { email, password, name, batchName, roll } = parsed.data;
         const normalizedEmail = email.toLowerCase().trim();
 
-        // 1. Check for existing account
-        const existing = await prisma.user.findUnique({
-            where: { email: normalizedEmail },
-        });
-
+        // Email is globally unique across the whole platform, not just this
+        // course, so the existence check must bypass course-scoped RLS too.
+        const existing = await withCourseContext({ courseId: null, isSuperAdmin: true }, (tx) =>
+            tx.user.findUnique({ where: { email: normalizedEmail } })
+        );
         if (existing) {
             return NextResponse.json(
                 { error: 'An account with this email already exists. Please log in instead.' },
@@ -46,28 +51,32 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // 2. Hash password
-        const passwordHash = await bcrypt.hash(password, 12);
+        const user = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+            // Hash password
+            const passwordHash = await bcrypt.hash(password, 12);
 
-        // 3. Create user in DB
-        const user = await prisma.user.create({
-            data: {
-                email: normalizedEmail,
-                passwordHash,
-                displayName: name,
-                role: AUTH_ROLES.STUDENT,
-                studentBatchName: batchName || null,
-                studentRoll: roll || null,
-                lastLoginAt: new Date(),
-            },
+            // Create user in DB
+            return tx.user.create({
+                data: {
+                    courseId,
+                    email: normalizedEmail,
+                    passwordHash,
+                    displayName: name,
+                    role: AUTH_ROLES.STUDENT,
+                    studentBatchName: batchName || null,
+                    studentRoll: roll || null,
+                    lastLoginAt: new Date(),
+                },
+            });
         });
 
-        // 4. Sign JWT and set cookie (auto-login after registration)
+        // Sign JWT and set cookie (auto-login after registration)
         const token = await signJWT({
             id: user.id,
             email: user.email,
             displayName: user.displayName,
             role: user.role,
+            courseId: user.courseId,
             studentBatchName: user.studentBatchName ?? undefined,
             studentRoll: user.studentRoll ?? undefined,
         });

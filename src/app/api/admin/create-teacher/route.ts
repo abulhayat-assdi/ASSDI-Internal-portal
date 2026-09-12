@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin, hasRequiredPermission } from "@/lib/auth";
 import { AUTH_ROLES } from "@/lib/constants";
 import bcrypt from "bcryptjs";
@@ -10,7 +10,6 @@ import {
     DEFAULT_TEACHER_PERMISSIONS,
     DEFAULT_ADMIN_PERMISSIONS,
     TEACHER_FEATURE_PERMISSIONS,
-    PORTAL_OWNER_EMAIL,
 } from "@/lib/permissions";
 
 const createTeacherSchema = z.object({
@@ -33,9 +32,10 @@ export async function POST(req: NextRequest) {
     try {
         // 1. Auth check — only admins/super_admins can create teachers
         const caller = await getSessionUser(req);
-        if (!caller || !(isAdmin(caller) || hasRequiredPermission(caller, "teachers"))) {
+        if (!caller || !(isAdmin(caller) || hasRequiredPermission(caller, "teachers")) || !caller.courseId) {
             return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
         }
+        const courseId = caller.courseId;
 
         const body = await req.json();
         const parsed = createTeacherSchema.safeParse(body);
@@ -56,8 +56,11 @@ export async function POST(req: NextRequest) {
 
         const normalizedLoginEmail = loginEmail.toLowerCase().trim();
 
-        // 3. Check for existing user
-        const existing = await prisma.user.findUnique({ where: { email: normalizedLoginEmail } });
+        // 3. Check for existing user — email is globally unique across the
+        // platform, so this bypasses course-scoped RLS.
+        const existing = await withCourseContext({ courseId: null, isSuperAdmin: true }, (tx) =>
+            tx.user.findUnique({ where: { email: normalizedLoginEmail } })
+        );
         if (existing) {
             return NextResponse.json({ error: "An account with this email already exists." }, { status: 409 });
         }
@@ -77,9 +80,10 @@ export async function POST(req: NextRequest) {
         }
 
         // 5. Create user and teacher records in a transaction
-        const result = await prisma.$transaction(async (tx: any) => {
+        const result = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
             const user = await tx.user.create({
                 data: {
+                    courseId,
                     email: normalizedLoginEmail,
                     passwordHash,
                     displayName: name,
@@ -91,6 +95,7 @@ export async function POST(req: NextRequest) {
 
             const teacher = await tx.teacher.create({
                 data: {
+                    courseId,
                     teacherId,
                     name,
                     designation: designation || "",

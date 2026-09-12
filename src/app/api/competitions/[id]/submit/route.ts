@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
-import { ensureCompetitionsTablesExist } from "@/lib/competitionsDb";
 
 export const dynamic = "force-dynamic";
 
@@ -10,39 +9,48 @@ export async function POST(
     context: { params: Promise<{ id: string }> }
 ) {
     try {
-        await ensureCompetitionsTablesExist();
         const { id } = await context.params;
         const user = await getSessionUser(req);
-        if (!user) {
+        if (!user || !user.courseId) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
-
-        const competition = await prisma.competition.findUnique({
-            where: { id }
-        });
-
-        if (!competition) {
-            return NextResponse.json({ error: "Competition not found" }, { status: 404 });
-        }
-
-        if (!competition.isActive) {
-            return NextResponse.json({ error: "Competition is not active" }, { status: 400 });
-        }
+        const courseId = user.courseId;
 
         const body = await req.json();
-        
-        const submission = await prisma.competitionSubmission.create({
-            data: {
-                competitionId: id,
-                type: body.type, // 'team' or 'individual'
-                teamName: body.teamName,
-                rollNumber: body.rollNumber,
-                studentName: body.studentName,
-                data: body.data,
+
+        const result = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+            const competition = await tx.competition.findUnique({
+                where: { id, courseId }
+            });
+
+            if (!competition) {
+                return { error: "Competition not found" as const, status: 404 };
             }
+
+            if (!competition.isActive) {
+                return { error: "Competition is not active" as const, status: 400 };
+            }
+
+            const submission = await tx.competitionSubmission.create({
+                data: {
+                    courseId,
+                    competitionId: id,
+                    type: body.type, // 'team' or 'individual'
+                    teamName: body.teamName,
+                    rollNumber: body.rollNumber,
+                    studentName: body.studentName,
+                    data: body.data,
+                }
+            });
+
+            return { submission };
         });
 
-        return NextResponse.json(submission);
+        if ("error" in result) {
+            return NextResponse.json({ error: result.error }, { status: result.status });
+        }
+
+        return NextResponse.json(result.submission);
     } catch (error) {
         console.error("Failed to submit competition data:", error);
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

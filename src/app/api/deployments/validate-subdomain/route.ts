@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 
 const RESERVED_SUBDOMAINS = new Set([
@@ -41,10 +41,14 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        const existing = await prisma.deployment.findUnique({
-            where: { subdomain },
-            select: { id: true },
-        });
+        // Deployment subdomains are a platform-wide namespace — check across
+        // ALL courses via the super-admin RLS bypass.
+        const existing = await withCourseContext({ courseId: null, isSuperAdmin: true }, (tx) =>
+            tx.deployment.findUnique({
+                where: { subdomain },
+                select: { id: true },
+            })
+        );
 
         if (existing && existing.id !== excludeId) {
             return NextResponse.json({ available: false, error: "This subdomain is already taken." });

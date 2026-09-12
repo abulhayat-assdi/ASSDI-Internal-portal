@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin } from "@/lib/auth";
 import path from "path";
 import fs from "fs";
@@ -10,13 +10,17 @@ import fs from "fs";
 export async function GET(req: NextRequest) {
     try {
         const caller = await getSessionUser(req);
-        if (!caller || !isAdmin(caller)) {
+        if (!caller || !isAdmin(caller) || !caller.courseId) {
             return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
+        const courseId = caller.courseId;
 
-        const images = await prisma.heroImage.findMany({
-            orderBy: { order: "asc" },
-        });
+        const images = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+            tx.heroImage.findMany({
+                where: { courseId },
+                orderBy: { order: "asc" },
+            })
+        );
 
         return NextResponse.json({ images });
     } catch (error) {
@@ -29,9 +33,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     try {
         const caller = await getSessionUser(req);
-        if (!caller || !isAdmin(caller)) {
+        if (!caller || !isAdmin(caller) || !caller.courseId) {
             return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
+        const courseId = caller.courseId;
 
         const formData = await req.formData();
         const file = formData.get("file") as File;
@@ -66,21 +71,25 @@ export async function POST(req: NextRequest) {
         const buffer = Buffer.from(await file.arrayBuffer());
         fs.writeFileSync(absolutePath, buffer);
 
-        // Get current max order
-        const maxOrderRecord = await prisma.heroImage.findFirst({
-            orderBy: { order: "desc" },
-            select: { order: true },
-        });
-        const nextOrder = maxOrderRecord ? maxOrderRecord.order + 1 : 0;
+        const heroImage = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+            // Get current max order
+            const maxOrderRecord = await tx.heroImage.findFirst({
+                where: { courseId },
+                orderBy: { order: "desc" },
+                select: { order: true },
+            });
+            const nextOrder = maxOrderRecord ? maxOrderRecord.order + 1 : 0;
 
-        const heroImage = await prisma.heroImage.create({
-            data: {
-                url: `/api/file?path=${storagePath}`,
-                storagePath,
-                label: label || null,
-                order: nextOrder,
-                isActive: true,
-            },
+            return tx.heroImage.create({
+                data: {
+                    courseId,
+                    url: `/api/file?path=${storagePath}`,
+                    storagePath,
+                    label: label || null,
+                    order: nextOrder,
+                    isActive: true,
+                },
+            });
         });
 
         return NextResponse.json({ success: true, image: heroImage });

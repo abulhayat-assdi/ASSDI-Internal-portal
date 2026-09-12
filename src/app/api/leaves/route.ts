@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isTeacherOrAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -8,20 +8,23 @@ export const runtime = "nodejs";
 /** GET /api/leaves?teacherId=...&monthYear=... */
 export async function GET(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!user || !user.courseId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const courseId = user.courseId;
 
     const { searchParams } = new URL(req.url);
     const teacherId = searchParams.get("teacherId");
     const monthYear = searchParams.get("monthYear");
 
-    const where: any = {};
+    const where: any = { courseId };
     if (teacherId) where.teacherId = teacherId;
     if (monthYear) where.monthYear = monthYear;
 
-    const leaves = await prisma.leave.findMany({
-        where,
-        orderBy: { startDate: "desc" },
-    });
+    const leaves = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+        tx.leave.findMany({
+            where,
+            orderBy: { startDate: "desc" },
+        })
+    );
 
     return NextResponse.json(leaves);
 }
@@ -29,26 +32,30 @@ export async function GET(req: NextRequest) {
 /** POST /api/leaves */
 export async function POST(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user || !isTeacherOrAdmin(user)) {
+    if (!user || !isTeacherOrAdmin(user) || !user.courseId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+    const courseId = user.courseId;
 
     try {
         const body = await req.json();
         const { teacherId, teacherName, startDate, endDate, days, type, reason, monthYear } = body;
 
-        const leave = await prisma.leave.create({
-            data: {
-                teacherId,
-                teacherName,
-                startDate,
-                endDate,
-                days: Number(days) || 1,
-                type: type || "Casual",
-                reason: reason || null,
-                monthYear,
-            },
-        });
+        const leave = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+            tx.leave.create({
+                data: {
+                    courseId,
+                    teacherId,
+                    teacherName,
+                    startDate,
+                    endDate,
+                    days: Number(days) || 1,
+                    type: type || "Casual",
+                    reason: reason || null,
+                    monthYear,
+                },
+            })
+        );
 
         return NextResponse.json(leave, { status: 201 });
     } catch (error) {
@@ -60,14 +67,17 @@ export async function POST(req: NextRequest) {
 /** PATCH /api/leaves — update a leave record */
 export async function PATCH(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user || !isTeacherOrAdmin(user)) {
+    if (!user || !isTeacherOrAdmin(user) || !user.courseId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+    const courseId = user.courseId;
 
     try {
         const body = await req.json();
         const { id, ...data } = body;
-        const leave = await prisma.leave.update({ where: { id }, data });
+        const leave = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+            tx.leave.update({ where: { id, courseId }, data })
+        );
         return NextResponse.json(leave);
     } catch (error) {
         console.error("[Leaves PATCH]", error);
@@ -78,14 +88,17 @@ export async function PATCH(req: NextRequest) {
 /** DELETE /api/leaves?id=... */
 export async function DELETE(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user || !isTeacherOrAdmin(user)) {
+    if (!user || !isTeacherOrAdmin(user) || !user.courseId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+    const courseId = user.courseId;
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
     if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
-    await prisma.leave.delete({ where: { id } });
+    await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+        tx.leave.delete({ where: { id, courseId } })
+    );
     return NextResponse.json({ success: true });
 }

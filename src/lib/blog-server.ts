@@ -1,26 +1,14 @@
-import { prisma } from "@/lib/db";
 import type { BlogPost } from "@/services/blogService";
 
-export async function getPublishedPostsServer(limitCount?: number): Promise<BlogPost[]> {
-    try {
-        const posts = await prisma.post.findMany({
-            where: { status: "published" },
-            take: limitCount,
-            orderBy: { publishedAt: "desc" },
-        });
-        return posts as unknown as BlogPost[];
-    } catch (error) {
-        console.error("Error fetching published posts:", error);
-        return [];
-    }
+// Backs the old single-institute public blog (/blog, /blog/[slug]), served on
+// the bare root domain with no course context. Slated for replacement by the
+// course-directory site (multi-tenant Step 5) — until then there's no course
+// to scope posts to, so these just report "no posts" instead of guessing one.
+
+export async function getPublishedPostsServer(_limitCount?: number): Promise<BlogPost[]> {
+    return [];
 }
 
-export async function getPostBySlugServer(slug: string): Promise<BlogPost | null> {
-    try {
-        const post = await prisma.post.findUnique({ where: { slug } });
-        return post as unknown as BlogPost | null;
-    } catch (error) {
-        console.error("Error fetching post by slug:", error);
-        return null;
-    }
+export async function getPostBySlugServer(_slug: string): Promise<BlogPost | null> {
+    return null;
 }

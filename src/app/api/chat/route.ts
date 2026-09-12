@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin } from "@/lib/auth";
 
 // ============================================================
@@ -172,42 +172,47 @@ export async function POST(request: NextRequest) {
     // Admin-student chat: payload has studentUid
     if (body.studentUid !== undefined) {
         const user = await getSessionUser(request);
-        if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        if (!user || !user.courseId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        const courseId = user.courseId;
 
         const { studentUid, sender, text, attachments = [], studentProfileInfo } = body;
 
-        // Upsert chat thread
-        await prisma.chatThread.upsert({
-            where: { studentUid },
-            update: {
-                lastMessageText: text,
-                lastMessageTime: new Date(),
-                ...(sender === "admin"
-                    ? { unreadCountStudent: { increment: 1 } }
-                    : { unreadCountAdmin: { increment: 1 } }),
-            },
-            create: {
-                studentUid,
-                studentName: studentProfileInfo?.name || "Unknown",
-                studentEmail: studentProfileInfo?.email || "",
-                studentBatchName: studentProfileInfo?.batch || "",
-                studentRoll: studentProfileInfo?.roll || "",
-                lastMessageText: text,
-                lastMessageTime: new Date(),
-                unreadCountAdmin: sender === "student" ? 1 : 0,
-                unreadCountStudent: sender === "admin" ? 1 : 0,
-            },
-        });
+        const message = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+            // Upsert chat thread
+            await tx.chatThread.upsert({
+                where: { studentUid },
+                update: {
+                    lastMessageText: text,
+                    lastMessageTime: new Date(),
+                    ...(sender === "admin"
+                        ? { unreadCountStudent: { increment: 1 } }
+                        : { unreadCountAdmin: { increment: 1 } }),
+                },
+                create: {
+                    courseId,
+                    studentUid,
+                    studentName: studentProfileInfo?.name || "Unknown",
+                    studentEmail: studentProfileInfo?.email || "",
+                    studentBatchName: studentProfileInfo?.batch || "",
+                    studentRoll: studentProfileInfo?.roll || "",
+                    lastMessageText: text,
+                    lastMessageTime: new Date(),
+                    unreadCountAdmin: sender === "student" ? 1 : 0,
+                    unreadCountStudent: sender === "admin" ? 1 : 0,
+                },
+            });
 
-        const thread = await prisma.chatThread.findUnique({ where: { studentUid } });
-        const message = await prisma.chatMessage.create({
-            data: {
-                threadId: thread!.id,
-                senderId: user.id,
-                sender,
-                text,
-                attachments,
-            },
+            const thread = await tx.chatThread.findUnique({ where: { studentUid } });
+            return tx.chatMessage.create({
+                data: {
+                    courseId,
+                    threadId: thread!.id,
+                    senderId: user.id,
+                    sender,
+                    text,
+                    attachments,
+                },
+            });
         });
 
         return NextResponse.json({ success: true, id: message.id });
@@ -341,20 +346,21 @@ export async function POST(request: NextRequest) {
 /** DELETE /api/chat?studentUid=... — delete chat thread + all messages */
 export async function DELETE(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user || !isAdmin(user)) {
+    if (!user || !isAdmin(user) || !user.courseId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+    const courseId = user.courseId;
     const { searchParams } = new URL(req.url);
     const studentUid = searchParams.get("studentUid");
     if (!studentUid) return NextResponse.json({ error: "studentUid required" }, { status: 400 });
     try {
-        const thread = await prisma.chatThread.findUnique({ where: { studentUid } });
-        if (!thread) return NextResponse.json({ error: "Not found" }, { status: 404 });
-        await prisma.$transaction(async (tx: any) => {
+        return await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+            const thread = await tx.chatThread.findUnique({ where: { studentUid, courseId } });
+            if (!thread) return NextResponse.json({ error: "Not found" }, { status: 404 });
             await tx.chatMessage.deleteMany({ where: { threadId: thread.id } });
             await tx.chatThread.delete({ where: { id: thread.id } });
+            return NextResponse.json({ success: true });
         });
-        return NextResponse.json({ success: true });
     } catch (error) {
         console.error("[Chat DELETE]", error);
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

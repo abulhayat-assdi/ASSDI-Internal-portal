@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -11,9 +11,10 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(request: NextRequest) {
     const user = await getSessionUser(request);
-    if (!user || !isAdmin(user)) {
+    if (!user || !isAdmin(user) || !user.courseId) {
         return new Response("Unauthorized", { status: 401 });
     }
+    const courseId = user.courseId;
 
     const encoder = new TextEncoder();
     let intervalId: ReturnType<typeof setInterval>;
@@ -22,29 +23,34 @@ export async function GET(request: NextRequest) {
         start(controller) {
             const send = async () => {
                 try {
-                    const pendingFeedback = await prisma.feedback.findMany({
-                        where: { status: "PENDING" },
-                        orderBy: { createdAt: "desc" },
-                        select: {
-                            id: true,
-                            studentName: true,
-                            batch: true,
-                            message: true,
-                            rating: true,
-                            status: true,
-                            createdAt: true,
-                            submittedFrom: true,
-                        },
-                    });
+                    // Fresh transaction per poll tick — this stream stays open
+                    // for a long time, so a single transaction for its whole
+                    // lifetime would hold a pooled connection indefinitely.
+                    const data = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+                        const pendingFeedback = await tx.feedback.findMany({
+                            where: { courseId, status: "PENDING" },
+                            orderBy: { createdAt: "desc" },
+                            select: {
+                                id: true,
+                                studentName: true,
+                                batch: true,
+                                message: true,
+                                rating: true,
+                                status: true,
+                                createdAt: true,
+                                submittedFrom: true,
+                            },
+                        });
 
-                    const pendingClasses = await prisma.class.count({
-                        where: { status: { in: ["PENDING", "REQUEST_TO_COMPLETE"] } },
-                    });
+                        const pendingClasses = await tx.class.count({
+                            where: { courseId, status: { in: ["PENDING", "REQUEST_TO_COMPLETE"] } },
+                        });
 
-                    const data = JSON.stringify({
-                        pendingFeedback,
-                        pendingFeedbackCount: pendingFeedback.length,
-                        pendingClassesCount: pendingClasses,
+                        return JSON.stringify({
+                            pendingFeedback,
+                            pendingFeedbackCount: pendingFeedback.length,
+                            pendingClassesCount: pendingClasses,
+                        });
                     });
 
                     controller.enqueue(encoder.encode(`event: feedback\ndata: ${data}\n\n`));

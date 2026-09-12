@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -12,18 +12,22 @@ export const runtime = "nodejs";
  */
 export async function POST(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user || !isAdmin(user)) {
+    if (!user || !isAdmin(user) || !user.courseId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+    const courseId = user.courseId;
 
     try {
-        const result = await prisma.leave.updateMany({
-            where: {
-                reason: "Auto-generated weekly holiday",
-                type: "Other",
-            },
-            data: { type: "WeeklyHoliday" },
-        });
+        const result = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+            tx.leave.updateMany({
+                where: {
+                    courseId,
+                    reason: "Auto-generated weekly holiday",
+                    type: "Other",
+                },
+                data: { type: "WeeklyHoliday" },
+            })
+        );
 
         return NextResponse.json({ fixed: result.count });
     } catch (error) {

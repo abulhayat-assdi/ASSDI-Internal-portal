@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -12,14 +12,17 @@ export const runtime = "nodejs";
 export async function GET(req: NextRequest) {
     try {
         const user = await getSessionUser(req);
-        if (!user || !isAdmin(user)) {
+        if (!user || !isAdmin(user) || !user.courseId) {
             return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
         }
+        const courseId = user.courseId;
 
-        const pendingClasses = await prisma.class.findMany({
-            where: { status: "PENDING" },
-            orderBy: { date: "asc" }
-        });
+        const pendingClasses = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+            tx.class.findMany({
+                where: { courseId, status: "PENDING" },
+                orderBy: { date: "asc" }
+            })
+        );
 
         return NextResponse.json(pendingClasses);
     } catch (error) {

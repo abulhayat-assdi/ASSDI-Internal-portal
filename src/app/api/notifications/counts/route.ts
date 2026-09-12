@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -13,14 +13,13 @@ export const runtime = "nodejs";
 export async function GET(req: NextRequest) {
     try {
         const user = await getSessionUser(req);
-        if (!user) {
+        if (!user || !user.courseId) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
+        const courseId = user.courseId;
 
         const { searchParams } = new URL(req.url);
         const role = user.role;
-
-        const counts: Record<string, number> = {};
 
         // Helper to get timestamp from query
         const getTs = (path: string) => {
@@ -28,51 +27,58 @@ export async function GET(req: NextRequest) {
             return val ? new Date(parseInt(val, 10)) : new Date(Date.now() - 24 * 60 * 60 * 1000);
         };
 
-        // 1. Homework Submissions (Teacher/Admin)
-        if (isAdmin(user) || role === "teacher") {
-            const ts = getTs("/dashboard/homework");
-            const where: any = {
-                submittedAt: { gt: ts }
-            };
-            
-            // Teachers only see their own homework
-            if (role === "teacher") {
-                where.teacherName = user.displayName;
+        const counts = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+            const counts: Record<string, number> = {};
+
+            // 1. Homework Submissions (Teacher/Admin)
+            if (isAdmin(user) || role === "teacher") {
+                const ts = getTs("/dashboard/homework");
+                const where: any = {
+                    courseId,
+                    submittedAt: { gt: ts }
+                };
+
+                // Teachers only see their own homework
+                if (role === "teacher") {
+                    where.teacherName = user.displayName;
+                }
+
+                counts["/dashboard/homework"] = await tx.homeworkSubmission.count({ where });
             }
 
-            counts["/dashboard/homework"] = await prisma.homeworkSubmission.count({ where });
-        }
+            // 2. Admin Manage Homework
+            if (isAdmin(user)) {
+                const ts = getTs("/dashboard/admin/manage-homework");
+                counts["/dashboard/admin/manage-homework"] = await tx.homeworkSubmission.count({
+                    where: { courseId, submittedAt: { gt: ts } }
+                });
+            }
 
-        // 2. Admin Manage Homework
-        if (isAdmin(user)) {
-            const ts = getTs("/dashboard/admin/manage-homework");
-            counts["/dashboard/admin/manage-homework"] = await prisma.homeworkSubmission.count({
-                where: { submittedAt: { gt: ts } }
-            });
-        }
+            // 3. Contact Messages (Admin only)
+            if (isAdmin(user)) {
+                counts["/dashboard/admin/contact-messages"] = await tx.contactMessage.count({
+                    where: { courseId, status: "unread" }
+                });
+            }
 
-        // 3. Contact Messages (Admin only)
-        if (isAdmin(user)) {
-            counts["/dashboard/admin/contact-messages"] = await prisma.contactMessage.count({
-                where: { status: "unread" }
-            });
-        }
+            // 4. Feedback (Admin only)
+            if (isAdmin(user)) {
+                const ts = getTs("/dashboard/feedback");
+                counts["/dashboard/feedback"] = await tx.feedback.count({
+                    where: { courseId, createdAt: { gt: ts } }
+                });
+            }
 
-        // 4. Feedback (Admin only)
-        if (isAdmin(user)) {
-            const ts = getTs("/dashboard/feedback");
-            counts["/dashboard/feedback"] = await prisma.feedback.count({
-                where: { createdAt: { gt: ts } }
-            });
-        }
+            // 5. Daily Tracker (Admin only)
+            if (isAdmin(user)) {
+                const ts = getTs("/dashboard/tracker");
+                counts["/dashboard/tracker"] = await tx.dailyTrackerReport.count({
+                    where: { courseId, createdAt: { gt: ts } }
+                });
+            }
 
-        // 5. Daily Tracker (Admin only)
-        if (isAdmin(user)) {
-            const ts = getTs("/dashboard/tracker");
-            counts["/dashboard/tracker"] = await prisma.dailyTrackerReport.count({
-                where: { createdAt: { gt: ts } }
-            });
-        }
+            return counts;
+        });
 
         return NextResponse.json({ counts });
     } catch (error) {

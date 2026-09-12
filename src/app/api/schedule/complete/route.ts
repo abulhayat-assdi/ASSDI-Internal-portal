@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { ClassStatus, ScheduleStatus } from "@prisma/client";
 
@@ -9,7 +9,8 @@ export const runtime = "nodejs";
 /** PATCH /api/schedule/complete — mark a class schedule entry as completed (by id) */
 export async function PATCH(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!user || !user.courseId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const courseId = user.courseId;
 
     try {
         const body = await req.json();
@@ -17,10 +18,12 @@ export async function PATCH(req: NextRequest) {
 
         if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
-        const schedule = await prisma.classSchedule.update({
-            where: { id },
-            data: { status: status || "Completed" },
-        });
+        const schedule = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+            tx.classSchedule.update({
+                where: { id, courseId },
+                data: { status: status || "Completed" },
+            })
+        );
 
         return NextResponse.json(schedule);
     } catch (error) {
@@ -38,7 +41,8 @@ export async function PATCH(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!user || !user.courseId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const courseId = user.courseId;
 
     try {
         const body = await req.json();
@@ -52,47 +56,51 @@ export async function POST(req: NextRequest) {
         const scheduleStatus: ScheduleStatus = isComplete ? ScheduleStatus.Completed : ScheduleStatus.Requested;
         const classStatus: ClassStatus = isComplete ? ClassStatus.COMPLETED : ClassStatus.REQUEST_TO_COMPLETE;
 
-        // 1. Update ClassSchedule status
-        await prisma.classSchedule.update({
-            where: { id: scheduleItem.id },
-            data: { status: scheduleStatus },
-        });
-
-        // 2. Upsert Class record (prevent duplicate counts for same class session)
-        const existing = await prisma.class.findFirst({
-            where: {
-                teacherUid: teacherId || user.id,
-                date: scheduleItem.date || "",
-                batch: scheduleItem.batch || "",
-                subject: scheduleItem.subject || "",
-            },
-        });
-
-        if (existing) {
-            await prisma.class.update({
-                where: { id: existing.id },
-                data: {
-                    status: classStatus,
-                    completedByUid: isComplete ? (teacherId || user.id) : existing.completedByUid,
-                    completedAt: isComplete ? new Date() : existing.completedAt,
-                },
+        await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+            // 1. Update ClassSchedule status
+            await tx.classSchedule.update({
+                where: { id: scheduleItem.id, courseId },
+                data: { status: scheduleStatus },
             });
-        } else {
-            await prisma.class.create({
-                data: {
+
+            // 2. Upsert Class record (prevent duplicate counts for same class session)
+            const existing = await tx.class.findFirst({
+                where: {
+                    courseId,
                     teacherUid: teacherId || user.id,
-                    teacherName: teacherName || user.displayName || "",
                     date: scheduleItem.date || "",
-                    startTime: scheduleItem.time || "",
-                    endTime: "",
                     batch: scheduleItem.batch || "",
                     subject: scheduleItem.subject || "",
-                    status: classStatus,
-                    completedByUid: isComplete ? (teacherId || user.id) : null,
-                    completedAt: isComplete ? new Date() : null,
                 },
             });
-        }
+
+            if (existing) {
+                await tx.class.update({
+                    where: { id: existing.id },
+                    data: {
+                        status: classStatus,
+                        completedByUid: isComplete ? (teacherId || user.id) : existing.completedByUid,
+                        completedAt: isComplete ? new Date() : existing.completedAt,
+                    },
+                });
+            } else {
+                await tx.class.create({
+                    data: {
+                        courseId,
+                        teacherUid: teacherId || user.id,
+                        teacherName: teacherName || user.displayName || "",
+                        date: scheduleItem.date || "",
+                        startTime: scheduleItem.time || "",
+                        endTime: "",
+                        batch: scheduleItem.batch || "",
+                        subject: scheduleItem.subject || "",
+                        status: classStatus,
+                        completedByUid: isComplete ? (teacherId || user.id) : null,
+                        completedAt: isComplete ? new Date() : null,
+                    },
+                });
+            }
+        });
 
         return NextResponse.json({ success: true });
     } catch (error) {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +12,8 @@ export const runtime = "nodejs";
  */
 export async function PATCH(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!user || !user.courseId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const courseId = user.courseId;
 
     try {
         const body = await req.json();
@@ -22,12 +23,14 @@ export async function PATCH(req: NextRequest) {
 
         const isStudentRole = user.role === "student";
 
-        await prisma.chatThread.update({
-            where: { id: threadId },
-            data: isStudentRole
-                ? { unreadCountStudent: 0 }
-                : { unreadCountAdmin: 0 },
-        });
+        await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+            tx.chatThread.update({
+                where: { id: threadId, courseId },
+                data: isStudentRole
+                    ? { unreadCountStudent: 0 }
+                    : { unreadCountAdmin: 0 },
+            })
+        );
 
         return NextResponse.json({ success: true });
     } catch (error) {

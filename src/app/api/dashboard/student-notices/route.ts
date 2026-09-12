@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -12,13 +12,17 @@ export const runtime = "nodejs";
 export async function GET(req: NextRequest) {
     try {
         const user = await getSessionUser(req);
-        if (!user) {
+        if (!user || !user.courseId) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
+        const courseId = user.courseId;
 
-        const notices = await prisma.studentNotice.findMany({
-            orderBy: { createdAt: "desc" }
-        });
+        const notices = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+            tx.studentNotice.findMany({
+                where: { courseId },
+                orderBy: { createdAt: "desc" }
+            })
+        );
 
         return NextResponse.json(notices);
     } catch (error) {
@@ -34,23 +38,27 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     try {
         const user = await getSessionUser(req);
-        if (!user || (user.role !== "admin" && user.role !== "teacher")) {
+        if (!user || (user.role !== "admin" && user.role !== "teacher") || !user.courseId) {
             return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
+        const courseId = user.courseId;
 
         const body = await req.json();
         const { title, description, date, priority } = body;
 
-        const notice = await prisma.studentNotice.create({
-            data: {
-                title,
-                description,
-                date: date || new Date().toISOString().split('T')[0],
-                priority: priority || "normal",
-                createdBy: user.id,
-                createdByName: user.displayName || "Admin",
-            }
-        });
+        const notice = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+            tx.studentNotice.create({
+                data: {
+                    courseId,
+                    title,
+                    description,
+                    date: date || new Date().toISOString().split('T')[0],
+                    priority: priority || "normal",
+                    createdBy: user.id,
+                    createdByName: user.displayName || "Admin",
+                }
+            })
+        );
 
         return NextResponse.json(notice);
     } catch (error) {
@@ -62,14 +70,17 @@ export async function POST(req: NextRequest) {
 /** DELETE /api/dashboard/student-notices?id=... */
 export async function DELETE(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user || (user.role !== "admin" && user.role !== "teacher")) {
+    if (!user || (user.role !== "admin" && user.role !== "teacher") || !user.courseId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+    const courseId = user.courseId;
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
     if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
     try {
-        await prisma.studentNotice.delete({ where: { id } });
+        await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+            tx.studentNotice.delete({ where: { id, courseId } })
+        );
         return NextResponse.json({ success: true });
     } catch (error) {
         console.error("[Student-notices DELETE]", error);

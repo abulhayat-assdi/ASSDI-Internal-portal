@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -11,9 +11,10 @@ export const runtime = "nodejs";
  */
 export async function POST(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user || !isAdmin(user)) {
+    if (!user || !isAdmin(user) || !user.courseId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+    const courseId = user.courseId;
 
     try {
         const body = await req.json();
@@ -23,28 +24,32 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "teacherId and monthYear required" }, { status: 400 });
         }
 
-        const leaves = await prisma.leave.findMany({
-            where: { teacherId, monthYear, type: "WeeklyHoliday" },
-            orderBy: { createdAt: "asc" },
+        const deleted = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+            const leaves = await tx.leave.findMany({
+                where: { courseId, teacherId, monthYear, type: "WeeklyHoliday" },
+                orderBy: { createdAt: "asc" },
+            });
+
+            const seen = new Set<string>();
+            const toDelete: string[] = [];
+
+            for (const leave of leaves) {
+                const key = `${leave.startDate}`;
+                if (seen.has(key)) {
+                    toDelete.push(leave.id);
+                } else {
+                    seen.add(key);
+                }
+            }
+
+            if (toDelete.length > 0) {
+                await tx.leave.deleteMany({ where: { courseId, id: { in: toDelete } } });
+            }
+
+            return toDelete.length;
         });
 
-        const seen = new Set<string>();
-        const toDelete: string[] = [];
-
-        for (const leave of leaves) {
-            const key = `${leave.startDate}`;
-            if (seen.has(key)) {
-                toDelete.push(leave.id);
-            } else {
-                seen.add(key);
-            }
-        }
-
-        if (toDelete.length > 0) {
-            await prisma.leave.deleteMany({ where: { id: { in: toDelete } } });
-        }
-
-        return NextResponse.json({ deleted: toDelete.length });
+        return NextResponse.json({ deleted });
     } catch (error) {
         console.error("[Leaves CleanDuplicates]", error);
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

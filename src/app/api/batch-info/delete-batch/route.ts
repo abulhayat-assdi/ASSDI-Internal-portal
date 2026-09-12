@@ -2,16 +2,17 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin } from "@/lib/auth";
 
 // DELETE /api/batch-info/delete-batch?batchName=...
 export async function DELETE(req: NextRequest) {
   try {
     const user = await getSessionUser(req);
-    if (!user || !isAdmin(user)) {
+    if (!user || !isAdmin(user) || !user.courseId) {
       return NextResponse.json({ error: "Forbidden — admin only" }, { status: 403 });
     }
+    const courseId = user.courseId;
 
     const { searchParams } = new URL(req.url);
     const batchName = searchParams.get("batchName");
@@ -20,25 +21,23 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "batchName is required" }, { status: 400 });
     }
 
-    // 1. Delete all student form submissions for this batch (raw SQL — table may not exist)
-    try {
-      await prisma.$executeRaw`
-        DELETE FROM "student_form_submissions" WHERE batch_name = ${batchName}
+    await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+      // 1. Delete all student form submissions for this batch
+      await tx.$executeRaw`
+        DELETE FROM "student_form_submissions" WHERE batch_name = ${batchName} AND course_id = ${courseId}
       `;
-    } catch { /* table may not exist yet */ }
 
-    // 2. Delete batch form record (raw SQL)
-    try {
-      await prisma.$executeRaw`
-        DELETE FROM "batch_forms" WHERE batch_name = ${batchName}
+      // 2. Delete batch form record
+      await tx.$executeRaw`
+        DELETE FROM "batch_forms" WHERE batch_name = ${batchName} AND course_id = ${courseId}
       `;
-    } catch { /* table may not exist yet */ }
 
-    // 3. Delete all BatchStudent records
-    await prisma.batchStudent.deleteMany({ where: { batchName } });
+      // 3. Delete all BatchStudent records
+      await tx.batchStudent.deleteMany({ where: { courseId, batchName } });
 
-    // 4. Delete the Batch record itself
-    await prisma.batch.deleteMany({ where: { name: batchName } });
+      // 4. Delete the Batch record itself
+      await tx.batch.deleteMany({ where: { courseId, name: batchName } });
+    });
 
     return NextResponse.json({ success: true, deleted: batchName });
   } catch (err) {

@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin } from "@/lib/auth";
 import { z } from "zod";
 import { PORTAL_OWNER_EMAIL } from "@/lib/permissions";
@@ -21,9 +21,10 @@ const updateTeacherSchema = z.object({
 export async function POST(req: NextRequest) {
     try {
         const caller = await getSessionUser(req);
-        if (!caller || !isAdmin(caller)) {
+        if (!caller || !isAdmin(caller) || !caller.courseId) {
             return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
         }
+        const courseId = caller.courseId;
 
         const body = await req.json();
         const parsed = updateTeacherSchema.safeParse(body);
@@ -34,27 +35,27 @@ export async function POST(req: NextRequest) {
 
         const { teacherDbId, newLoginEmail, isAdmin: grantAdmin, teacherId } = parsed.data;
 
-        // Find teacher record
-        const teacher = await prisma.teacher.findUnique({ where: { id: teacherDbId } });
-        if (!teacher) {
-            return NextResponse.json({ error: "Teacher not found" }, { status: 404 });
-        }
+        return await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+            // Find teacher record
+            const teacher = await tx.teacher.findUnique({ where: { id: teacherDbId, courseId } });
+            if (!teacher) {
+                return NextResponse.json({ error: "Teacher not found" }, { status: 404 });
+            }
 
-        // Block any role/admin changes on the portal owner
-        const teacherEmail = teacher.loginEmail || teacher.email;
-        if (teacherEmail === PORTAL_OWNER_EMAIL && grantAdmin !== undefined && !grantAdmin) {
-            return NextResponse.json({ error: "The portal owner's admin access cannot be revoked." }, { status: 403 });
-        }
+            // Block any role/admin changes on the portal owner
+            const teacherEmail = teacher.loginEmail || teacher.email;
+            if (teacherEmail === PORTAL_OWNER_EMAIL && grantAdmin !== undefined && !grantAdmin) {
+                return NextResponse.json({ error: "The portal owner's admin access cannot be revoked." }, { status: 403 });
+            }
 
-        // Find corresponding user account
-        const user = await prisma.user.findFirst({
-            where: { email: teacher.loginEmail || teacher.email },
-        });
+            // Find corresponding user account
+            const user = await tx.user.findFirst({
+                where: { courseId, email: teacher.loginEmail || teacher.email },
+            });
 
-        await prisma.$transaction(async (tx: any) => {
             // Update teacher record
             await tx.teacher.update({
-                where: { id: teacherDbId },
+                where: { id: teacherDbId, courseId },
                 data: {
                     ...(newLoginEmail ? { loginEmail: newLoginEmail.toLowerCase().trim() } : {}),
                     ...(grantAdmin !== undefined ? { isAdmin: grantAdmin } : {}),
@@ -69,7 +70,7 @@ export async function POST(req: NextRequest) {
                     : undefined;
 
                 await tx.user.update({
-                    where: { id: user.id },
+                    where: { id: user.id, courseId },
                     data: {
                         ...(newLoginEmail ? { email: newLoginEmail.toLowerCase().trim() } : {}),
                         ...(newRole ? { role: newRole as any } : {}),
@@ -77,9 +78,9 @@ export async function POST(req: NextRequest) {
                     },
                 });
             }
-        });
 
-        return NextResponse.json({ success: true, message: "Teacher updated successfully." });
+            return NextResponse.json({ success: true, message: "Teacher updated successfully." });
+        });
     } catch (error: unknown) {
         console.error("[Update Teacher API] Error:", error);
         const message = error instanceof Error ? error.message : "Failed to update teacher.";

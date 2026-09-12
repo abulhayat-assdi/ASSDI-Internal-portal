@@ -6,7 +6,7 @@ import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import * as cheerio from "cheerio";
 import { readFile } from "fs/promises";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import unzipper from "unzipper";
 import * as fs from "fs";
@@ -112,21 +112,25 @@ async function extractZip(buffer: Buffer, targetDir: string): Promise<boolean> {
 
 export async function GET(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user || user.role !== "student") {
+    if (!user || user.role !== "student" || !user.courseId) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const courseId = user.courseId;
 
     try {
-        const [deployments, dbUser] = await Promise.all([
-            prisma.deployment.findMany({
-                where: { userId: user.id },
-                orderBy: { createdAt: "desc" },
-            }),
-            prisma.user.findUnique({
-                where: { id: user.id },
-                select: { deploymentLimit: true, isDeploymentFrozen: true },
-            }),
-        ]);
+        const { deployments, dbUser } = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+            const [deployments, dbUser] = await Promise.all([
+                tx.deployment.findMany({
+                    where: { courseId, userId: user.id },
+                    orderBy: { createdAt: "desc" },
+                }),
+                tx.user.findUnique({
+                    where: { id: user.id },
+                    select: { deploymentLimit: true, isDeploymentFrozen: true },
+                }),
+            ]);
+            return { deployments, dbUser };
+        });
 
         return NextResponse.json({
             deployments,
@@ -143,21 +147,27 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user || user.role !== "student") {
+    if (!user || user.role !== "student" || !user.courseId) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const courseId = user.courseId;
 
     try {
-        const dbUser = await prisma.user.findUnique({
-            where: { id: user.id },
-            select: { deploymentLimit: true, isDeploymentFrozen: true },
+        const { dbUser, existingCount } = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+            const [dbUser, existingCount] = await Promise.all([
+                tx.user.findUnique({
+                    where: { id: user.id },
+                    select: { deploymentLimit: true, isDeploymentFrozen: true },
+                }),
+                tx.deployment.count({ where: { courseId, userId: user.id } }),
+            ]);
+            return { dbUser, existingCount };
         });
 
         if (dbUser?.isDeploymentFrozen) {
             return NextResponse.json({ error: "Your deployment access has been frozen by an administrator." }, { status: 403 });
         }
 
-        const existingCount = await prisma.deployment.count({ where: { userId: user.id } });
         const limit = dbUser?.deploymentLimit ?? 5;
         if (existingCount >= limit) {
             return NextResponse.json({ error: `You have reached your deployment limit of ${limit} projects.` }, { status: 429 });
@@ -175,7 +185,12 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: subdomainValidation.error }, { status: 400 });
         }
 
-        const existing = await prisma.deployment.findUnique({ where: { subdomain: rawSubdomain } });
+        // Deployment subdomains are a platform-wide namespace (separate from
+        // course subdomains), so this check intentionally looks across ALL
+        // courses, not just the caller's.
+        const existing = await withCourseContext({ courseId: null, isSuperAdmin: true }, (tx) =>
+            tx.deployment.findUnique({ where: { subdomain: rawSubdomain } })
+        );
         if (existing) {
             return NextResponse.json({ error: "This subdomain is already taken. Please choose another." }, { status: 409 });
         }
@@ -222,15 +237,18 @@ export async function POST(req: NextRequest) {
         }
 
         const liveUrl = buildLiveUrl(rawSubdomain);
-        const deployment = await prisma.deployment.create({
-            data: {
-                userId: user.id,
-                subdomain: rawSubdomain,
-                displayName: displayName || rawSubdomain,
-                folderPath: targetDir,
-                liveUrl,
-            },
-        });
+        const deployment = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+            tx.deployment.create({
+                data: {
+                    courseId,
+                    userId: user.id,
+                    subdomain: rawSubdomain,
+                    displayName: displayName || rawSubdomain,
+                    folderPath: targetDir,
+                    liveUrl,
+                },
+            })
+        );
 
         await injectTrackingPixel(path.join(targetDir, "index.html"), deployment.id);
 

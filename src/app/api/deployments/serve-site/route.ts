@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { readFile, stat } from "fs/promises";
 import path from "path";
 import { createHash } from "crypto";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 
 function getStorageBase(): string {
     const configured = process.env.LOCAL_STORAGE_PATH || process.env.UPLOAD_DIR || "./storage";
@@ -122,27 +122,28 @@ export async function GET(req: NextRequest) {
             const today = getTodayDate();
             const hashedIp = hashIp(clientIp);
 
-            // Find deployment record
-            prisma.deployment.findUnique({ where: { subdomain }, select: { id: true } })
-                .then((deployment) => {
-                    if (deployment) {
-                        return Promise.all([
-                            prisma.deployment.update({
-                                where: { id: deployment.id },
-                                data: { totalVisitors: { increment: 1 } },
-                            }),
-                            prisma.visitorLog.create({
-                                data: {
-                                    deploymentId: deployment.id,
-                                    visitorIp: hashedIp,
-                                    userAgent,
-                                    date: today,
-                                },
-                            }),
-                        ]);
-                    }
-                })
-                .catch((err) => console.error("[Serve-Site Analytics]", err));
+            // Find deployment record (super-admin bypass: subdomain is a
+            // platform-wide namespace, and an anonymous visitor has no course).
+            withCourseContext({ courseId: null, isSuperAdmin: true }, async (tx) => {
+                const deployment = await tx.deployment.findUnique({ where: { subdomain }, select: { id: true, courseId: true } });
+                if (deployment) {
+                    await Promise.all([
+                        tx.deployment.update({
+                            where: { id: deployment.id },
+                            data: { totalVisitors: { increment: 1 } },
+                        }),
+                        tx.visitorLog.create({
+                            data: {
+                                courseId: deployment.courseId,
+                                deploymentId: deployment.id,
+                                visitorIp: hashedIp,
+                                userAgent,
+                                date: today,
+                            },
+                        }),
+                    ]);
+                }
+            }).catch((err) => console.error("[Serve-Site Analytics]", err));
         }
 
         return new NextResponse(fileBuffer, {

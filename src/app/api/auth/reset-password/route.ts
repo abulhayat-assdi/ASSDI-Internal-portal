@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { prisma, withCourseContext } from '@/lib/db';
 import crypto from 'crypto';
 import nodemailer from 'nodemailer';
 import { z } from 'zod';
@@ -56,15 +56,18 @@ export async function POST(req: NextRequest) {
         const { email } = parsed.data;
         const normalizedEmail = email.toLowerCase().trim();
 
-        // Always return success to prevent email enumeration
-        const user = await prisma.user.findUnique({
-            where: { email: normalizedEmail, deletedAt: null },
-        });
+        // Email is globally unique across the platform — this lookup bypasses
+        // course-scoped RLS since the requester isn't necessarily on that
+        // user's course subdomain.
+        const user = await withCourseContext({ courseId: null, isSuperAdmin: true }, (tx) =>
+            tx.user.findUnique({ where: { email: normalizedEmail, deletedAt: null } })
+        );
 
         if (!user) {
             return NextResponse.json({ success: true }); // Don't reveal user existence
         }
 
+        // PasswordResetToken has no course_id / RLS policy — keyed by userId only.
         // Invalidate any existing tokens for this user
         await prisma.passwordResetToken.updateMany({
             where: { userId: user.id, usedAt: null },
@@ -91,7 +94,7 @@ export async function POST(req: NextRequest) {
         const smtpUser = process.env.SMTP_USER || '';
         const defaultFrom = `"ASM Portal" <${smtpUser}>`;
         let fromAddress = process.env.SMTP_FROM || defaultFrom;
-        
+
         // Gmail SMTP requires the sender address to match the authenticated user
         if (process.env.SMTP_HOST?.includes('gmail.com') && smtpUser && !fromAddress.includes(smtpUser)) {
             fromAddress = defaultFrom;
@@ -158,11 +161,8 @@ export async function PATCH(req: NextRequest) {
 
         const { token, password } = parsed.data;
 
-        // Find valid token
-        const resetToken = await prisma.passwordResetToken.findUnique({
-            where: { token },
-            include: { user: true },
-        });
+        // PasswordResetToken has no course_id / RLS policy — keyed by token only.
+        const resetToken = await prisma.passwordResetToken.findUnique({ where: { token } });
 
         if (!resetToken || resetToken.usedAt || resetToken.expiresAt < new Date()) {
             return NextResponse.json(
@@ -171,19 +171,20 @@ export async function PATCH(req: NextRequest) {
             );
         }
 
-        // Hash new password and update
+        // Hash new password and update. The token itself is the credential
+        // here (not a course session), so this bypasses course-scoped RLS.
         const passwordHash = await bcrypt.hash(password, 12);
 
-        await prisma.$transaction([
-            prisma.user.update({
+        await withCourseContext({ courseId: null, isSuperAdmin: true }, async (tx) => {
+            await tx.user.update({
                 where: { id: resetToken.userId },
                 data: { passwordHash },
-            }),
-            prisma.passwordResetToken.update({
+            });
+            await tx.passwordResetToken.update({
                 where: { id: resetToken.id },
                 data: { usedAt: new Date() },
-            }),
-        ]);
+            });
+        });
 
         return NextResponse.json({ success: true });
     } catch (error) {

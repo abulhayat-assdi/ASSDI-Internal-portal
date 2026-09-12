@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import type { TemplateConfig } from "@/lib/cv/constants";
 import { SECTION_LABELS } from "@/lib/cv/constants";
 
@@ -8,10 +8,14 @@ import { SECTION_LABELS } from "@/lib/cv/constants";
 
 async function getCvData(shareSlug: string) {
     try {
-        const draft = await prisma.cvDraft.findFirst({
-            where: { shareSlug, isPublic: true },
-            include: { template: { select: { id: true, name: true, slug: true, config: true } } },
-        });
+        // Public share link — no course context, super-admin bypass to look
+        // up the globally-unique shareSlug.
+        const draft = await withCourseContext({ courseId: null, isSuperAdmin: true }, (tx) =>
+            tx.cvDraft.findFirst({
+                where: { shareSlug, isPublic: true },
+                include: { template: { select: { id: true, name: true, slug: true, config: true } } },
+            })
+        );
         if (!draft) return null;
         // Strip sensitive fields
         const { userId: _u, shareSlug: _s, ...safe } = draft as Record<string, unknown>;

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -38,95 +38,102 @@ function toDayIndex(v: string | number): number {
  */
 export async function POST(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user || !isAdmin(user)) {
+    if (!user || !isAdmin(user) || !user.courseId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+    const courseId = user.courseId;
 
     try {
-        const teachers = await prisma.teacher.findMany({
-            where: { leaveTrackingEnabled: true },
-            select: { teacherId: true, name: true },
-        });
-
-        const now = new Date();
-        const todayStr = now.toISOString().slice(0, 10);
-        const currentMonth = toMonthYear(now);
-
-        const results: { teacher: string; generated: number }[] = [];
-
-        for (const teacher of teachers) {
-            const settings = await prisma.leaveSettings.findUnique({
-                where: { teacherId: teacher.teacherId },
+        const response = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+            const teachers = await tx.teacher.findMany({
+                where: { courseId, leaveTrackingEnabled: true },
+                select: { teacherId: true, name: true },
             });
-            if (!settings) continue;
 
-            const rawHolidays = (settings.weeklyHolidays as (string | number)[]) || [];
-            const weeklyHolidayIndices = rawHolidays
-                .map(toDayIndex)
-                .filter(i => i >= 0 && i <= 6);
+            const now = new Date();
+            const todayStr = now.toISOString().slice(0, 10);
+            const currentMonth = toMonthYear(now);
 
-            if (weeklyHolidayIndices.length === 0) continue;
+            const results: { teacher: string; generated: number }[] = [];
 
-            let startMonth = "2026-01";
-            if (settings.joinDate && settings.joinDate >= "2026-01") {
-                startMonth = settings.joinDate.slice(0, 7);
-            }
+            for (const teacher of teachers) {
+                const settings = await tx.leaveSettings.findUnique({
+                    where: { teacherId: teacher.teacherId },
+                });
+                if (!settings) continue;
 
-            const months = monthsRange(startMonth, currentMonth);
-            let totalGenerated = 0;
+                const rawHolidays = (settings.weeklyHolidays as (string | number)[]) || [];
+                const weeklyHolidayIndices = rawHolidays
+                    .map(toDayIndex)
+                    .filter(i => i >= 0 && i <= 6);
 
-            for (const monthYear of months) {
-                const [year, month] = monthYear.split("-").map(Number);
-                const daysInMonth = new Date(year, month, 0).getDate();
+                if (weeklyHolidayIndices.length === 0) continue;
 
-                for (let day = 1; day <= daysInMonth; day++) {
-                    const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-                    if (dateStr > todayStr) break;
-
-                    const dayIndex = new Date(year, month - 1, day).getDay();
-                    if (!weeklyHolidayIndices.includes(dayIndex)) continue;
-
-                    const existing = await prisma.leave.findFirst({
-                        where: {
-                            teacherId: teacher.teacherId,
-                            startDate: dateStr,
-                            OR: [
-                                { type: "WeeklyHoliday" },
-                                { reason: "Auto-generated weekly holiday" },
-                            ],
-                        },
-                    });
-                    if (existing) continue;
-
-                    await prisma.leave.create({
-                        data: {
-                            teacherId: teacher.teacherId,
-                            teacherName: settings.teacherName,
-                            startDate: dateStr,
-                            endDate: dateStr,
-                            days: 1,
-                            type: "WeeklyHoliday",
-                            reason: "Auto-generated weekly holiday",
-                            monthYear,
-                        },
-                    });
-                    totalGenerated++;
+                let startMonth = "2026-01";
+                if (settings.joinDate && settings.joinDate >= "2026-01") {
+                    startMonth = settings.joinDate.slice(0, 7);
                 }
+
+                const months = monthsRange(startMonth, currentMonth);
+                let totalGenerated = 0;
+
+                for (const monthYear of months) {
+                    const [year, month] = monthYear.split("-").map(Number);
+                    const daysInMonth = new Date(year, month, 0).getDate();
+
+                    for (let day = 1; day <= daysInMonth; day++) {
+                        const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                        if (dateStr > todayStr) break;
+
+                        const dayIndex = new Date(year, month - 1, day).getDay();
+                        if (!weeklyHolidayIndices.includes(dayIndex)) continue;
+
+                        const existing = await tx.leave.findFirst({
+                            where: {
+                                courseId,
+                                teacherId: teacher.teacherId,
+                                startDate: dateStr,
+                                OR: [
+                                    { type: "WeeklyHoliday" },
+                                    { reason: "Auto-generated weekly holiday" },
+                                ],
+                            },
+                        });
+                        if (existing) continue;
+
+                        await tx.leave.create({
+                            data: {
+                                courseId,
+                                teacherId: teacher.teacherId,
+                                teacherName: settings.teacherName,
+                                startDate: dateStr,
+                                endDate: dateStr,
+                                days: 1,
+                                type: "WeeklyHoliday",
+                                reason: "Auto-generated weekly holiday",
+                                monthYear,
+                            },
+                        });
+                        totalGenerated++;
+                    }
+                }
+
+                await tx.leaveSettings.update({
+                    where: { teacherId: teacher.teacherId },
+                    data: { lastAutoGeneratedDate: currentMonth },
+                });
+
+                results.push({ teacher: teacher.name, generated: totalGenerated });
             }
 
-            await prisma.leaveSettings.update({
-                where: { teacherId: teacher.teacherId },
-                data: { lastAutoGeneratedDate: currentMonth },
-            });
-
-            results.push({ teacher: teacher.name, generated: totalGenerated });
-        }
-
-        return NextResponse.json({
-            success: true,
-            results,
-            totalGenerated: results.reduce((s, r) => s + r.generated, 0),
+            return {
+                success: true,
+                results,
+                totalGenerated: results.reduce((s, r) => s + r.generated, 0),
+            };
         });
+
+        return NextResponse.json(response);
     } catch (error) {
         console.error("[Leaves SyncAll]", error);
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

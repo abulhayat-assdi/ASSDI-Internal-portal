@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isTeacherOrAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -12,9 +12,10 @@ export const runtime = "nodejs";
  */
 export async function PATCH(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user || !isTeacherOrAdmin(user)) {
+    if (!user || !isTeacherOrAdmin(user) || !user.courseId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+    const courseId = user.courseId;
 
     const body = await req.json();
     const { batchName, roll, photo } = body as { batchName: string; roll: string; photo: string | null };
@@ -24,15 +25,17 @@ export async function PATCH(req: NextRequest) {
     }
 
     try {
-        await prisma.batchStudent.update({
-            where: { batchName_roll: { batchName, roll } },
-            data: { photo: photo || null },
-        });
+        await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+            await tx.batchStudent.update({
+                where: { courseId_batchName_roll: { courseId, batchName, roll } },
+                data: { photo: photo || null },
+            });
 
-        // Sync photo to the student's User account so Navbar picks it up
-        await prisma.user.updateMany({
-            where: { studentBatchName: batchName, studentRoll: roll },
-            data: { profileImageUrl: photo || null },
+            // Sync photo to the student's User account so Navbar picks it up
+            await tx.user.updateMany({
+                where: { courseId, studentBatchName: batchName, studentRoll: roll },
+                data: { profileImageUrl: photo || null },
+            });
         });
 
         return NextResponse.json({ success: true });

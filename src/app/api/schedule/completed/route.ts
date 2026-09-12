@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isTeacherOrAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -12,9 +12,10 @@ export const runtime = "nodejs";
  */
 export async function GET(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user || !isTeacherOrAdmin(user)) {
+    if (!user || !isTeacherOrAdmin(user) || !user.courseId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+    const courseId = user.courseId;
 
     const { searchParams } = new URL(req.url);
     const batch = searchParams.get("batch");
@@ -24,10 +25,12 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        const classes = await prisma.class.findMany({
-            where: { batch },
-            orderBy: { date: "asc" },
-        });
+        const classes = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+            tx.class.findMany({
+                where: { courseId, batch },
+                orderBy: { date: "asc" },
+            })
+        );
 
         // Map to the FirestoreClass shape the client expects
         const result = classes.map(c => ({

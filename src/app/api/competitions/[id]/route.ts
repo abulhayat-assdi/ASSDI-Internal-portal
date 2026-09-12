@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
-import { getSessionUser, isAdmin, isTeacherOrAdmin } from "@/lib/auth";
-import { ensureCompetitionsTablesExist } from "@/lib/competitionsDb";
+import { withCourseContext } from "@/lib/db";
+import { getSessionUser, isTeacherOrAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -10,20 +9,18 @@ export async function GET(
     context: { params: Promise<{ id: string }> }
 ) {
     try {
-        await ensureCompetitionsTablesExist();
         const { id } = await context.params;
-        const { searchParams } = new URL(req.url);
-        const isPublic = searchParams.get("public") === "true" || req.headers.get("referer")?.includes("/competitions/");
         const user = await getSessionUser(req);
-        
-        // Public form access allowed for GET requests
-        if (!isPublic && !user) {
-            // Still allow fetching basic active competition info for public submission forms
+        const courseId = user?.courseId || req.headers.get("x-course-id");
+        if (!courseId) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const competition = await prisma.competition.findUnique({
-            where: { id }
-        });
+        const competition = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+            tx.competition.findUnique({
+                where: { id, courseId }
+            })
+        );
 
         if (!competition) {
             return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -43,24 +40,27 @@ export async function PUT(
     try {
         const { id } = await context.params;
         const user = await getSessionUser(req);
-        if (!user || !isTeacherOrAdmin(user)) {
+        if (!user || !isTeacherOrAdmin(user) || !user.courseId) {
             return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
+        const courseId = user.courseId;
 
         const body = await req.json();
-        
-        const competition = await prisma.competition.update({
-            where: { id },
-            data: {
-                title: body.title,
-                description: body.description,
-                batchName: body.batchName,
-                schema: body.schema,
-                isActive: body.isActive,
-                startDate: body.startDate ? new Date(body.startDate) : undefined,
-                endDate: body.endDate ? new Date(body.endDate) : undefined,
-            }
-        });
+
+        const competition = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+            tx.competition.update({
+                where: { id, courseId },
+                data: {
+                    title: body.title,
+                    description: body.description,
+                    batchName: body.batchName,
+                    schema: body.schema,
+                    isActive: body.isActive,
+                    startDate: body.startDate ? new Date(body.startDate) : undefined,
+                    endDate: body.endDate ? new Date(body.endDate) : undefined,
+                }
+            })
+        );
 
         return NextResponse.json(competition);
     } catch (error) {
@@ -76,13 +76,16 @@ export async function DELETE(
     try {
         const { id } = await context.params;
         const user = await getSessionUser(req);
-        if (!user || !isTeacherOrAdmin(user)) {
+        if (!user || !isTeacherOrAdmin(user) || !user.courseId) {
             return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
+        const courseId = user.courseId;
 
-        await prisma.competition.delete({
-            where: { id }
-        });
+        await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+            tx.competition.delete({
+                where: { id, courseId }
+            })
+        );
 
         return NextResponse.json({ success: true });
     } catch (error) {

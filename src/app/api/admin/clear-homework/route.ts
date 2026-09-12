@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { withCourseContext } from '@/lib/db';
 import { getSessionUser, isAdmin } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -7,12 +7,17 @@ export const dynamic = 'force-dynamic';
 // GET — show counts before deletion (admin only)
 export async function GET(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user || !isAdmin(user)) {
+    if (!user || !isAdmin(user) || !user.courseId) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
+    const courseId = user.courseId;
 
-    const submissions = await prisma.homeworkSubmission.count();
-    const assignments = await prisma.homeworkAssignment.count();
+    const { submissions, assignments } = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+        const submissions = await tx.homeworkSubmission.count({ where: { courseId } });
+        const assignments = await tx.homeworkAssignment.count({ where: { courseId } });
+        return { submissions, assignments };
+    });
+
     return NextResponse.json({
         message: 'Call POST to delete all homework. This cannot be undone.',
         homeworkSubmissions: submissions,
@@ -23,13 +28,17 @@ export async function GET(req: NextRequest) {
 // POST — delete all homework submissions and assignments (admin only)
 export async function POST(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user || !isAdmin(user)) {
+    if (!user || !isAdmin(user) || !user.courseId) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
+    const courseId = user.courseId;
 
     try {
-        const deletedSubmissions = await prisma.homeworkSubmission.deleteMany({});
-        const deletedAssignments = await prisma.homeworkAssignment.deleteMany({});
+        const { deletedSubmissions, deletedAssignments } = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+            const deletedSubmissions = await tx.homeworkSubmission.deleteMany({ where: { courseId } });
+            const deletedAssignments = await tx.homeworkAssignment.deleteMany({ where: { courseId } });
+            return { deletedSubmissions, deletedAssignments };
+        });
         return NextResponse.json({
             success: true,
             deleted: {

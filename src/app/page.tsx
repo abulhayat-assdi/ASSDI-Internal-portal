@@ -3,20 +3,14 @@ import StudentVideoTestimonials from "@/components/ui/StudentVideoTestimonials";
 import TargetAudience from "@/components/ui/TargetAudience";
 import Header from "@/components/ui/Header";
 import Footer from "@/components/ui/Footer";
-import { prisma } from "@/lib/db";
 import { getCmsContent } from "@/lib/getCmsContent";
 
+// This is the old single-institute public homepage, served on the bare root
+// domain with no course context. Slated for replacement by the
+// course-directory site (multi-tenant Step 5) — until then there's no course
+// to scope hero images to.
 async function getActiveHeroImages(): Promise<string[]> {
-    try {
-        const images = await prisma.heroImage.findMany({
-            where: { isActive: true },
-            orderBy: { order: "asc" },
-            select: { url: true },
-        });
-        return images.map((img: { url: string }) => img.url);
-    } catch {
-        return [];
-    }
+    return [];
 }
 
 const navLinks = [

@@ -2,20 +2,16 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { cvAutoSaveSchema } from "@/lib/cv/schemas";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const user = await getSessionUser(req);
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!user || !user.courseId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const courseId = user.courseId;
 
     const { id } = await params;
-
-    const draft = await prisma.cvDraft.findUnique({ where: { id }, select: { userId: true } });
-    if (!draft) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    if (draft.userId !== user.id) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-
     const body = await req.json();
     const parsed = cvAutoSaveSchema.safeParse(body);
     if (!parsed.success) return NextResponse.json({ error: "Invalid data" }, { status: 400 });
@@ -53,6 +49,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         return NextResponse.json({ success: true });
     }
 
-    await prisma.cvDraft.update({ where: { id }, data: updateData });
-    return NextResponse.json({ success: true });
+    return withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+        const draft = await tx.cvDraft.findUnique({ where: { id, courseId }, select: { userId: true } });
+        if (!draft) return NextResponse.json({ error: "Not found" }, { status: 404 });
+        if (draft.userId !== user.id) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+        await tx.cvDraft.update({ where: { id, courseId }, data: updateData });
+        return NextResponse.json({ success: true });
+    });
 }

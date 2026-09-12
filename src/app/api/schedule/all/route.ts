@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isTeacherOrAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -27,24 +27,27 @@ const getCurrentWeekRange = () => {
  */
 export async function GET(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user || !isTeacherOrAdmin(user)) {
+    if (!user || !isTeacherOrAdmin(user) || !user.courseId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+    const courseId = user.courseId;
 
     const { searchParams } = new URL(req.url);
     const all = searchParams.get("all") === "true";
 
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = { courseId };
     if (!all) {
         const { start, end } = getCurrentWeekRange();
         where.date = { gte: start, lte: end };
     }
 
     try {
-        const schedules = await prisma.classSchedule.findMany({
-            where,
-            orderBy: [{ date: "asc" }, { time: "asc" }],
-        });
+        const schedules = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+            tx.classSchedule.findMany({
+                where,
+                orderBy: [{ date: "asc" }, { time: "asc" }],
+            })
+        );
         return NextResponse.json(schedules);
     } catch (error) {
         console.error("[schedule/all GET]", error);
