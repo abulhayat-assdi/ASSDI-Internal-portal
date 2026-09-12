@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { prisma, withCourseContext, type CourseContext } from '@/lib/db';
 import { signJWT } from '@/lib/auth';
 import { COOKIES } from '@/lib/constants';
 import { PORTAL_OWNER_EMAIL } from '@/lib/permissions';
@@ -63,9 +63,26 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        const user = await prisma.user.findFirst({
-            where: { email: normalizedEmail, deletedAt: null },
-        });
+        // Middleware resolves the host to a course (or the reserved admin host)
+        // and attaches these headers before the request reaches this route.
+        const courseId = req.headers.get('x-course-id');
+        const isSuperAdminHost = req.headers.get('x-is-super-admin-host') === '1';
+
+        if (!courseId && !isSuperAdminHost) {
+            return NextResponse.json({ error: 'Unknown course.' }, { status: 404 });
+        }
+
+        const ctx: CourseContext = isSuperAdminHost
+            ? { courseId: null, isSuperAdmin: true }
+            : { courseId, isSuperAdmin: false };
+
+        const user = await withCourseContext(ctx, (tx) =>
+            tx.user.findFirst({
+                where: isSuperAdminHost
+                    ? { email: normalizedEmail, role: 'super_admin', deletedAt: null }
+                    : { email: normalizedEmail, courseId, deletedAt: null },
+            })
+        );
 
         if (!user) {
             recordFailedAttempt(normalizedEmail);
@@ -81,7 +98,8 @@ export async function POST(req: NextRequest) {
         // Successful login — clear failed attempt counter
         clearFailedAttempts(normalizedEmail);
 
-        // Clean up expired sessions (housekeeping only — no cap on concurrent logins)
+        // ActiveSession has no course_id / RLS policy (pure auth housekeeping,
+        // always looked up by userId) — the plain prisma client is fine here.
         await prisma.activeSession.deleteMany({
             where: { expiresAt: { lt: new Date() } },
         });
@@ -93,13 +111,17 @@ export async function POST(req: NextRequest) {
             create: { userId: user.id, expiresAt: sessionExpiry },
         });
 
-        const enforceRole = user.email === PORTAL_OWNER_EMAIL && user.role !== 'super_admin'
+        // Permanent-super-admin safety net only applies on the admin host —
+        // a course subdomain login must never silently grant platform-wide access.
+        const enforceRole = isSuperAdminHost && user.email === PORTAL_OWNER_EMAIL && user.role !== 'super_admin'
             ? { role: 'super_admin' as const }
             : {};
-        await prisma.user.update({
-            where: { id: user.id },
-            data: { lastLoginAt: new Date(), ...enforceRole },
-        });
+        await withCourseContext(ctx, (tx) =>
+            tx.user.update({
+                where: { id: user.id },
+                data: { lastLoginAt: new Date(), ...enforceRole },
+            })
+        );
         if (enforceRole.role) user.role = enforceRole.role;
 
         const token = await signJWT({
@@ -107,6 +129,7 @@ export async function POST(req: NextRequest) {
             email: user.email,
             displayName: user.displayName,
             role: user.role,
+            courseId: user.courseId,
             teacherId: user.teacherId ?? undefined,
             studentBatchName: user.studentBatchName ?? undefined,
             studentRoll: user.studentRoll ?? undefined,

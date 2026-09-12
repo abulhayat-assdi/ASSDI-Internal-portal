@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { COOKIES, APP_PATHS } from '@/lib/constants';
-import { verifyJWT } from '@/lib/auth';
+import { verifyJWT, type JWTPayload } from '@/lib/auth';
+import { extractCourseSlug, isSuperAdminHost, getCourseBySlug, isCourseUsable } from '@/lib/course';
+
+// Node.js middleware (stable since Next 15.2) — required because course
+// resolution below hits Postgres via Prisma, which needs the Node runtime.
+export const runtime = 'nodejs';
 
 const PUBLIC_API_ROUTES = [
     '/api/chat',
@@ -24,55 +29,41 @@ const isPublicAssetPath = (pathname: string) =>
     pathname.startsWith('/cv/') ||
     pathname === '/favicon.ico';
 
-function getStudentSubdomain(request: NextRequest): string | null {
-    const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || '';
-    const baseDomain = (process.env.NEXT_PUBLIC_BASE_DOMAIN || 'tasm-skill.asf.bd').toLowerCase();
-    const hostWithoutPort = host.split(':')[0].toLowerCase();
+const isPublicRoute = (pathname: string) =>
+    isPublicAssetPath(pathname) || PUBLIC_API_ROUTES.some((route) => pathname.startsWith(route));
 
-    // Dev mode: myproject.localhost:3000
-    if (hostWithoutPort.endsWith('.localhost')) {
-        const parts = hostWithoutPort.split('.');
-        if (parts.length > 1 && parts[0] !== 'localhost' && parts[0] !== 'www') {
-            return parts[0];
-        }
-        return null;
-    }
-
-    // Production mode: myproject.tasm-skill.asf.bd
-    if (hostWithoutPort.endsWith(baseDomain) && hostWithoutPort !== baseDomain) {
-        const prefix = hostWithoutPort.slice(0, -(baseDomain.length + 1));
-        const reserved = new Set(['www', 'api', 'admin', 'app', 'portal', 'mail']);
-        if (prefix && !reserved.has(prefix)) {
-            return prefix;
-        }
-    }
-
-    return null;
+/**
+ * Any subdomain at all, no course lookup — this is the pre-existing
+ * "mini-netlify" student site hosting feature. It's unrelated to courses and
+ * is only consulted as a fallback once a course-slug lookup has missed, so a
+ * student's deployment subdomain keeps working exactly as before.
+ */
+function rewriteToDeploymentServe(request: NextRequest, subdomain: string, pathname: string) {
+    const serveUrl = new URL('/api/deployments/serve-site', request.url);
+    serveUrl.searchParams.set('subdomain', subdomain);
+    serveUrl.searchParams.set('path', pathname);
+    return NextResponse.rewrite(serveUrl);
 }
 
-const verifyAndGetRole = async (token: string): Promise<string | undefined> => {
+async function verifyAndGetPayload(token: string): Promise<JWTPayload | undefined> {
     try {
-        const payload = await verifyJWT(token);
-        return payload.role;
+        return await verifyJWT(token);
     } catch {
         return undefined;
     }
-};
+}
 
-export async function middleware(request: NextRequest) {
+function getSessionPayload(request: NextRequest): Promise<JWTPayload | undefined> | undefined {
+    const token = request.cookies.get(COOKIES.SESSION)?.value;
+    const hasSessionShape = typeof token === 'string' && token.split('.').length === 3 && token.length > 50;
+    return hasSessionShape ? verifyAndGetPayload(token!) : undefined;
+}
+
+/** Legacy single-tenant guard, unchanged — used for the bare root domain until it becomes the course directory. */
+async function legacySingleTenantGuard(request: NextRequest): Promise<NextResponse> {
     const { pathname } = request.nextUrl;
 
-    // 1. Check for student subdomain host
-    const subdomain = getStudentSubdomain(request);
-    if (subdomain) {
-        // Rewrite to public serve-site route
-        const serveUrl = new URL('/api/deployments/serve-site', request.url);
-        serveUrl.searchParams.set('subdomain', subdomain);
-        serveUrl.searchParams.set('path', pathname);
-        return NextResponse.rewrite(serveUrl);
-    }
-
-    if (isPublicAssetPath(pathname) || PUBLIC_API_ROUTES.some(route => pathname.startsWith(route))) {
+    if (isPublicRoute(pathname)) {
         return NextResponse.next();
     }
 
@@ -81,30 +72,106 @@ export async function middleware(request: NextRequest) {
     const isAuthPage = pathname === APP_PATHS.LOGIN || pathname === APP_PATHS.STUDENT_LOGIN;
     const isApiRequest = pathname.startsWith('/api');
 
-    const session = request.cookies.get(COOKIES.SESSION)?.value;
-    const hasSession = typeof session === 'string' && session.split('.').length === 3 && session.length > 50;
-    const role = hasSession ? await verifyAndGetRole(session!) : undefined;
+    const payload = await getSessionPayload(request);
+    const role = payload?.role;
 
-    if (isAuthPage && hasSession && role) {
-        if (role === 'student') {
-            return NextResponse.redirect(new URL(APP_PATHS.STUDENT_DASHBOARD, request.url));
-        }
-        return NextResponse.redirect(new URL(APP_PATHS.DASHBOARD, request.url));
+    if (isAuthPage && role) {
+        return NextResponse.redirect(
+            new URL(role === 'student' ? APP_PATHS.STUDENT_DASHBOARD : APP_PATHS.DASHBOARD, request.url)
+        );
     }
 
-    if (!hasSession || !role) {
-        if (isApiRequest) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        if (isStudentPath) {
-            return NextResponse.redirect(new URL(APP_PATHS.STUDENT_LOGIN, request.url));
-        }
-        if (isDashboardPath) {
-            return NextResponse.redirect(new URL(APP_PATHS.LOGIN, request.url));
-        }
+    if (!role) {
+        if (isApiRequest) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        if (isStudentPath) return NextResponse.redirect(new URL(APP_PATHS.STUDENT_LOGIN, request.url));
+        if (isDashboardPath) return NextResponse.redirect(new URL(APP_PATHS.LOGIN, request.url));
     }
 
     return NextResponse.next();
+}
+
+/** Course-subdomain guard — same shape as the legacy guard, plus a course-match check on top of role. */
+async function courseGuard(request: NextRequest, course: { id: string; slug: string }): Promise<NextResponse> {
+    const { pathname } = request.nextUrl;
+
+    const attachCourseHeaders = (res: NextResponse) => {
+        res.headers.set('x-course-id', course.id);
+        res.headers.set('x-course-slug', course.slug);
+        return res;
+    };
+
+    if (isPublicRoute(pathname)) {
+        return attachCourseHeaders(NextResponse.next());
+    }
+
+    const isDashboardPath = pathname.startsWith(APP_PATHS.DASHBOARD);
+    const isStudentPath = pathname.startsWith(APP_PATHS.STUDENT_DASHBOARD);
+    const isAuthPage = pathname === APP_PATHS.LOGIN || pathname === APP_PATHS.STUDENT_LOGIN;
+    const isApiRequest = pathname.startsWith('/api');
+
+    const payload = await getSessionPayload(request);
+    // super_admin sessions are never valid on a course subdomain — they operate
+    // from the admin host (and, later, via short-lived impersonation tokens).
+    const sessionMatchesCourse = !!payload && payload.role !== 'super_admin' && payload.courseId === course.id;
+    const role = sessionMatchesCourse ? payload!.role : undefined;
+
+    let response: NextResponse;
+
+    if (isAuthPage && role) {
+        response = NextResponse.redirect(
+            new URL(role === 'student' ? APP_PATHS.STUDENT_DASHBOARD : APP_PATHS.DASHBOARD, request.url)
+        );
+    } else if (!role) {
+        if (isApiRequest) {
+            response = NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        } else if (isStudentPath) {
+            response = NextResponse.redirect(new URL(APP_PATHS.STUDENT_LOGIN, request.url));
+        } else if (isDashboardPath) {
+            response = NextResponse.redirect(new URL(APP_PATHS.LOGIN, request.url));
+        } else {
+            response = NextResponse.next();
+        }
+        // A cookie that exists but doesn't belong to this course (e.g. left
+        // over from another course's subdomain) — clear it so it stops
+        // getting resent here.
+        if (payload && !sessionMatchesCourse) {
+            response.cookies.delete(COOKIES.SESSION);
+        }
+    } else {
+        response = NextResponse.next();
+    }
+
+    return attachCourseHeaders(response);
+}
+
+export async function middleware(request: NextRequest) {
+    const { pathname } = request.nextUrl;
+    const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || '';
+
+    // 1. Reserved super-admin host (admin.<base domain>) — no course resolution.
+    if (isSuperAdminHost(host)) {
+        const response = NextResponse.next();
+        response.headers.set('x-is-super-admin-host', '1');
+        return response;
+    }
+
+    // 2. Course subdomain resolution.
+    const courseSlug = extractCourseSlug(host);
+    if (courseSlug) {
+        const course = await getCourseBySlug(courseSlug);
+
+        if (!course || !isCourseUsable(course)) {
+            // Not a known/active course — fall back to the pre-existing
+            // student mini-site deployment hosting under the same subdomain.
+            return rewriteToDeploymentServe(request, courseSlug, pathname);
+        }
+
+        return courseGuard(request, course);
+    }
+
+    // 3. Bare root domain — still the old single-tenant site until Step 5
+    // replaces it with the course directory.
+    return legacySingleTenantGuard(request);
 }
 
 export const config = {
@@ -112,4 +179,3 @@ export const config = {
         '/((?!_next/static|_next/image|favicon.ico).*)',
     ],
 };
-

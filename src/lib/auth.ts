@@ -2,7 +2,7 @@ import { SignJWT, jwtVerify } from 'jose';
 import { NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import { COOKIES } from './constants';
-import { prisma } from './db';
+import { withCourseContext, type CourseContext } from './db';
 import { getEffectivePermissions, PermissionKey } from './permissions';
 
 
@@ -11,10 +11,18 @@ export interface JWTPayload {
     email: string;
     displayName: string;
     role: string;
+    /** null for super_admin (platform-wide); a course id for everyone else */
+    courseId?: string | null;
     teacherId?: string;
     studentBatchName?: string;
     studentRoll?: string;
     permissions?: string[];
+}
+
+/** Derives the RLS context a session's own DB lookups should run under. */
+function courseContextFor(payload: Pick<JWTPayload, 'role' | 'courseId'>): CourseContext {
+    if (payload.role === 'super_admin') return { courseId: null, isSuperAdmin: true };
+    return { courseId: payload.courseId ?? null, isSuperAdmin: false };
 }
 
 function getJWTSecret(): Uint8Array {
@@ -43,26 +51,45 @@ export async function verifyJWT(token: string): Promise<JWTPayload> {
     return payload as unknown as JWTPayload;
 }
 
+/**
+ * Re-reads the user's current role/permissions/course from the DB and merges
+ * them into the JWT payload. Runs inside the RLS course context the JWT
+ * itself claims — if that claim is stale or forged, the lookup simply finds
+ * no matching row (RLS + the courseId in the where-clause both gate it) and
+ * the caller falls back to the JWT's own (unverified-fresh) values.
+ *
+ * NOTE: this trusts payload.courseId for scoping the lookup. It is the
+ * middleware's job to reject a request whose payload.courseId doesn't match
+ * the course of the subdomain being visited — by the time code reaches here,
+ * that match is assumed to already hold.
+ */
+async function applyDbUserOverrides(payload: JWTPayload): Promise<JWTPayload> {
+    const ctx = courseContextFor(payload);
+    const dbUser = await withCourseContext(ctx, (tx) =>
+        tx.user.findUnique({
+            where: { id: payload.id },
+            select: { role: true, permissions: true, displayName: true, studentBatchName: true, studentRoll: true, courseId: true },
+        })
+    );
+
+    if (dbUser) {
+        payload.role = dbUser.role;
+        payload.courseId = dbUser.courseId;
+        payload.permissions = getEffectivePermissions(dbUser.role, dbUser.permissions as string[]);
+        if (dbUser.displayName) payload.displayName = dbUser.displayName;
+        if (dbUser.studentBatchName) payload.studentBatchName = dbUser.studentBatchName;
+        if (dbUser.studentRoll) payload.studentRoll = dbUser.studentRoll;
+    }
+
+    return payload;
+}
+
 export async function getSessionUser(request: NextRequest): Promise<JWTPayload | null> {
     try {
         const token = request.cookies.get(COOKIES.SESSION)?.value;
         if (!token) return null;
         const payload = await verifyJWT(token);
-        
-        const dbUser = await prisma.user.findUnique({
-            where: { id: payload.id },
-            select: { role: true, permissions: true, displayName: true, studentBatchName: true, studentRoll: true }
-        });
-        
-        if (dbUser) {
-            payload.role = dbUser.role;
-            payload.permissions = getEffectivePermissions(dbUser.role, dbUser.permissions as string[]);
-            if (dbUser.displayName) payload.displayName = dbUser.displayName;
-            if (dbUser.studentBatchName) payload.studentBatchName = dbUser.studentBatchName;
-            if (dbUser.studentRoll) payload.studentRoll = dbUser.studentRoll;
-        }
-        
-        return payload;
+        return await applyDbUserOverrides(payload);
     } catch {
         return null;
     }
@@ -74,21 +101,7 @@ export async function getServerSessionUser(): Promise<JWTPayload | null> {
         const token = cookieStore.get(COOKIES.SESSION)?.value;
         if (!token) return null;
         const payload = await verifyJWT(token);
-        
-        const dbUser = await prisma.user.findUnique({
-            where: { id: payload.id },
-            select: { role: true, permissions: true, displayName: true, studentBatchName: true, studentRoll: true }
-        });
-        
-        if (dbUser) {
-            payload.role = dbUser.role;
-            payload.permissions = getEffectivePermissions(dbUser.role, dbUser.permissions as string[]);
-            if (dbUser.displayName) payload.displayName = dbUser.displayName;
-            if (dbUser.studentBatchName) payload.studentBatchName = dbUser.studentBatchName;
-            if (dbUser.studentRoll) payload.studentRoll = dbUser.studentRoll;
-        }
-        
-        return payload;
+        return await applyDbUserOverrides(payload);
     } catch {
         return null;
     }
@@ -98,7 +111,7 @@ export async function getSessionUserFromRequestOrBearer(request: NextRequest): P
     try {
         let payload: JWTPayload | null = null;
         const cookieToken = request.cookies.get(COOKIES.SESSION)?.value;
-        
+
         if (cookieToken) {
             payload = await verifyJWT(cookieToken);
         } else {
@@ -108,20 +121,9 @@ export async function getSessionUserFromRequestOrBearer(request: NextRequest): P
                 payload = await verifyJWT(bearerToken);
             }
         }
-        
+
         if (payload) {
-            const dbUser = await prisma.user.findUnique({
-                where: { id: payload.id },
-                select: { role: true, permissions: true, displayName: true, studentBatchName: true, studentRoll: true }
-            });
-            if (dbUser) {
-                payload.role = dbUser.role;
-                payload.permissions = getEffectivePermissions(dbUser.role, dbUser.permissions as string[]);
-                if (dbUser.displayName) payload.displayName = dbUser.displayName;
-                if (dbUser.studentBatchName) payload.studentBatchName = dbUser.studentBatchName;
-                if (dbUser.studentRoll) payload.studentRoll = dbUser.studentRoll;
-            }
-            return payload;
+            return await applyDbUserOverrides(payload);
         }
 
         return null;
