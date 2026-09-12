@@ -90,6 +90,52 @@ async function legacySingleTenantGuard(request: NextRequest): Promise<NextRespon
     return NextResponse.next();
 }
 
+const SUPER_ADMIN_LOGIN_PATH = '/super-admin/login';
+const SUPER_ADMIN_HOME_PATH = '/super-admin';
+
+/** Super-admin host guard — only super_admin sessions may pass; everyone else goes to its login page. */
+async function superAdminGuard(request: NextRequest): Promise<NextResponse> {
+    const { pathname } = request.nextUrl;
+
+    const attachHeader = (res: NextResponse) => {
+        res.headers.set('x-is-super-admin-host', '1');
+        return res;
+    };
+
+    if (isPublicRoute(pathname)) {
+        return attachHeader(NextResponse.next());
+    }
+
+    const isLoginPage = pathname === SUPER_ADMIN_LOGIN_PATH;
+    const isApiRequest = pathname.startsWith('/api');
+
+    const payload = await getSessionPayload(request);
+    const isSuperAdmin = payload?.role === 'super_admin';
+
+    let response: NextResponse;
+
+    if (isLoginPage && isSuperAdmin) {
+        response = NextResponse.redirect(new URL(SUPER_ADMIN_HOME_PATH, request.url));
+    } else if (!isSuperAdmin) {
+        if (isApiRequest) {
+            response = NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        } else if (isLoginPage) {
+            response = NextResponse.next();
+        } else {
+            response = NextResponse.redirect(new URL(SUPER_ADMIN_LOGIN_PATH, request.url));
+        }
+        if (payload) {
+            // A course-scoped (or otherwise non-super-admin) session cookie
+            // has no business on this host — clear it.
+            response.cookies.delete(COOKIES.SESSION);
+        }
+    } else {
+        response = NextResponse.next();
+    }
+
+    return attachHeader(response);
+}
+
 /** Course-subdomain guard — same shape as the legacy guard, plus a course-match check on top of role. */
 async function courseGuard(request: NextRequest, course: { id: string; slug: string }): Promise<NextResponse> {
     const { pathname } = request.nextUrl;
@@ -150,9 +196,7 @@ export async function middleware(request: NextRequest) {
 
     // 1. Reserved super-admin host (admin.<base domain>) — no course resolution.
     if (isSuperAdminHost(host)) {
-        const response = NextResponse.next();
-        response.headers.set('x-is-super-admin-host', '1');
-        return response;
+        return superAdminGuard(request);
     }
 
     // 2. Course subdomain resolution.
