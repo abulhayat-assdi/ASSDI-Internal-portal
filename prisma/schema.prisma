@@ -106,12 +106,90 @@ enum ActorRole {
   TEACHER
 }
 
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+  TRIAL
+  ARCHIVED
+}
+
+// ============================================================
+// COURSES (Tenants) — one row per course/subdomain
+// ============================================================
+
+model Course {
+  id           String       @id @default(cuid())
+  slug         String       @unique
+  name         String
+  tagline      String?
+  logoUrl      String?      @map("logo_url")
+  faviconUrl   String?      @map("favicon_url")
+  primaryColor String       @default("#1a56db") @map("primary_color")
+  accentColor  String       @default("#f3f4f6") @map("accent_color")
+  status       TenantStatus @default(ACTIVE)
+  settings     Json         @default("{}")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  users                    User[]
+  teachers                 Teacher[]
+  classes                  Class[]
+  classSchedules           ClassSchedule[]
+  batches                  Batch[]
+  batchStudents            BatchStudent[]
+  notices                  Notice[]
+  studentNotices           StudentNotice[]
+  homeworkSubmissions      HomeworkSubmission[]
+  homeworkAssignments      HomeworkAssignment[]
+  feedback                 Feedback[]
+  contactMessages          ContactMessage[]
+  chatThreads              ChatThread[]
+  chatMessages             ChatMessage[]
+  activityLogs             ActivityLog[]
+  leaves                   Leave[]
+  leaveSettings            LeaveSettings[]
+  resources                Resource[]
+  moduleFolders            ModuleFolder[]
+  moduleResources          ModuleResource[]
+  posts                    Post[]
+  blogComments             BlogComment[]
+  examResults              ExamResult[]
+  routines                 Routine[]
+  policies                 Policy[]
+  cmsContent               CmsContent[]
+  successStories           SuccessStory[]
+  videoTestimonials        VideoTestimonial[]
+  cvDrafts                 CvDraft[]
+  cvVersions               CvVersion[]
+  dailyTrackerReports      DailyTrackerReport[]
+  studentUpdateRequests    StudentUpdateRequest[]
+  studentExamBatchRecords  StudentExamBatchRecord[]
+  courseModules            CourseModule[]
+  heroImages               HeroImage[]
+  batchForms               BatchForm[]
+  studentFormSubmissions   StudentFormSubmission[]
+  videoStories             VideoStory[]
+  batchClassCounts         BatchClassCount[]
+  studentLeaveRequests     StudentLeaveRequest[]
+  deployments              Deployment[]
+  visitorLogs              VisitorLog[]
+  competitionFormTemplates CompetitionFormTemplate[]
+  competitions             Competition[]
+  competitionSubmissions   CompetitionSubmission[]
+  competitionGroups        CompetitionGroup[]
+
+  @@index([slug])
+  @@index([status])
+  @@map("courses")
+}
+
 // ============================================================
 // AUTHENTICATION
 // ============================================================
 
 model User {
   id                   String    @id @default(uuid())
+  courseId             String?   @map("course_id")
   email                String    @unique
   passwordHash         String    @map("password_hash")
   displayName          String    @map("display_name")
@@ -130,6 +208,7 @@ model User {
   deploymentLimit      Int       @default(5)    @map("deployment_limit")
   isDeploymentFrozen   Boolean   @default(false) @map("is_deployment_frozen")
 
+  course              Course?               @relation(fields: [courseId], references: [id], onDelete: Cascade)
   passwordResetTokens PasswordResetToken[]
   activityLogs        ActivityLog[]
   chatMessages        ChatMessage[]
@@ -139,6 +218,7 @@ model User {
 
   @@index([email])
   @@index([role])
+  @@index([courseId])
   @@index([studentBatchName, studentRoll])
   @@map("users")
 }
@@ -176,6 +256,7 @@ model PasswordResetToken {
 
 model Teacher {
   id                   String   @id @default(uuid())
+  courseId             String   @map("course_id")
   teacherId            String   @unique @map("teacher_id")
   name                 String
   designation          String   @default("")
@@ -191,11 +272,13 @@ model Teacher {
   createdAt            DateTime @default(now()) @map("created_at")
   updatedAt            DateTime @updatedAt @map("updated_at")
 
+  course       Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
   leaves       Leave[]
   leaveSettings LeaveSettings?
 
   @@index([teacherId])
   @@index([order])
+  @@index([courseId])
   @@map("teachers")
 }
 
@@ -205,6 +288,7 @@ model Teacher {
 
 model Class {
   id             String      @id @default(uuid())
+  courseId       String      @map("course_id")
   teacherUid     String      @map("teacher_uid")
   teacherName    String      @map("teacher_name")
   date           String
@@ -219,15 +303,19 @@ model Class {
   createdAt      DateTime    @default(now()) @map("created_at")
   updatedAt      DateTime    @updatedAt @map("updated_at")
 
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
   @@index([teacherUid])
   @@index([status])
   @@index([date])
   @@index([batch])
+  @@index([courseId])
   @@map("classes")
 }
 
 model ClassSchedule {
   id          String         @id @default(uuid())
+  courseId    String         @map("course_id")
   teacherId   String         @map("teacher_id")
   teacherName String         @map("teacher_name")
   date        String
@@ -239,9 +327,12 @@ model ClassSchedule {
   createdAt   DateTime       @default(now()) @map("created_at")
   updatedAt   DateTime       @updatedAt @map("updated_at")
 
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
   @@index([teacherId])
   @@index([date])
   @@index([batch])
+  @@index([courseId])
   @@map("class_schedules")
 }
 
@@ -251,19 +342,24 @@ model ClassSchedule {
 
 model Batch {
   id        String      @id @default(uuid())
-  name      String      @unique
+  courseId  String      @map("course_id")
+  name      String
   status    BatchStatus @default(active)
   createdAt DateTime    @default(now()) @map("created_at")
   updatedAt DateTime    @updatedAt @map("updated_at")
 
+  course   Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
   students BatchStudent[]
 
+  @@unique([courseId, name])
   @@index([status])
+  @@index([courseId])
   @@map("batches")
 }
 
 model BatchStudent {
   id                 String          @id @default(uuid())
+  courseId           String          @map("course_id")
   batchId            String          @map("batch_id")
   batchName          String          @map("batch_name")
   roll               String
@@ -302,12 +398,14 @@ model BatchStudent {
   tShirtSize         String?         @map("t_shirt_size")
   courseGoal         String?         @map("course_goal")
 
-  batch Batch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  batch  Batch  @relation(fields: [batchId], references: [id], onDelete: Cascade)
 
-  @@unique([batchName, roll])
+  @@unique([courseId, batchName, roll])
   @@index([batchName])
   @@index([batchType])
   @@index([courseStatus])
+  @@index([courseId])
   @@map("batch_students")
 }
 
@@ -317,6 +415,7 @@ model BatchStudent {
 
 model Notice {
   id            String   @id @default(uuid())
+  courseId      String   @map("course_id")
   title         String
   description   String
   date          String
@@ -326,12 +425,16 @@ model Notice {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
   @@index([createdAt])
+  @@index([courseId])
   @@map("notices")
 }
 
 model StudentNotice {
   id            String   @id @default(uuid())
+  courseId      String   @map("course_id")
   title         String
   description   String
   date          String
@@ -341,7 +444,10 @@ model StudentNotice {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
   @@index([createdAt])
+  @@index([courseId])
   @@map("student_notices")
 }
 
@@ -351,6 +457,7 @@ model StudentNotice {
 
 model HomeworkSubmission {
   id               String   @id @default(uuid())
+  courseId         String   @map("course_id")
   studentUid       String   @map("student_uid")
   studentName      String   @map("student_name")
   studentRoll      String   @map("student_roll")
@@ -367,15 +474,19 @@ model HomeworkSubmission {
   submittedAt      DateTime @default(now()) @map("submitted_at")
   deletedAt        DateTime? @map("deleted_at")
 
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
   @@index([studentUid])
   @@index([teacherName])
   @@index([studentBatchName])
   @@index([submittedAt])
+  @@index([courseId])
   @@map("homework_submissions")
 }
 
 model HomeworkAssignment {
   id          String   @id @default(uuid())
+  courseId    String   @map("course_id")
   teacherUid  String   @map("teacher_uid")
   teacherName String   @map("teacher_name")
   title       String
@@ -384,9 +495,12 @@ model HomeworkAssignment {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
   @@index([teacherUid])
   @@index([batchName])
   @@index([deadlineDate])
+  @@index([courseId])
   @@map("homework_assignments")
 }
 
@@ -396,6 +510,7 @@ model HomeworkAssignment {
 
 model Feedback {
   id            String         @id @default(uuid())
+  courseId      String         @map("course_id")
   studentName   String         @map("student_name")
   batch         String
   role          String         @default("")
@@ -408,8 +523,11 @@ model Feedback {
   createdAt     DateTime       @default(now()) @map("created_at")
   updatedAt     DateTime       @updatedAt @map("updated_at")
 
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
   @@index([status])
   @@index([createdAt])
+  @@index([courseId])
   @@map("feedback")
 }
 
@@ -419,6 +537,7 @@ model Feedback {
 
 model ContactMessage {
   id               String        @id @default(uuid())
+  courseId         String        @map("course_id")
   subject          String
   message          String
   studentUid       String        @map("student_uid")
@@ -432,13 +551,17 @@ model ContactMessage {
   createdAt        DateTime      @default(now()) @map("created_at")
   updatedAt        DateTime      @updatedAt @map("updated_at")
 
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
   @@index([studentUid])
   @@index([status])
+  @@index([courseId])
   @@map("contact_messages")
 }
 
 model ChatThread {
   id               String    @id @default(uuid())
+  courseId         String    @map("course_id")
   studentUid       String    @unique @map("student_uid")
   studentName      String    @map("student_name")
   studentEmail     String    @map("student_email")
@@ -451,14 +574,17 @@ model ChatThread {
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
 
+  course   Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
   messages ChatMessage[]
 
   @@index([lastMessageTime])
+  @@index([courseId])
   @@map("chat_threads")
 }
 
 model ChatMessage {
   id          String   @id @default(uuid())
+  courseId    String   @map("course_id")
   threadId    String   @map("thread_id")
   senderId    String?  @map("sender_id")
   sender      String   // 'student' | 'admin'
@@ -466,11 +592,13 @@ model ChatMessage {
   attachments Json     @default("[]")
   createdAt   DateTime @default(now()) @map("created_at")
 
+  course Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
   thread ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
   user   User?      @relation(fields: [senderId], references: [id], onDelete: SetNull)
 
   @@index([threadId])
   @@index([createdAt])
+  @@index([courseId])
   @@map("chat_messages")
 }
 
@@ -480,6 +608,7 @@ model ChatMessage {
 
 model ActivityLog {
   id          String    @id @default(uuid())
+  courseId    String    @map("course_id")
   actorUid    String    @map("actor_uid")
   actorRole   ActorRole @map("actor_role")
   actionType  String    @map("action_type")
@@ -488,11 +617,13 @@ model ActivityLog {
   description String
   createdAt   DateTime  @default(now()) @map("created_at")
 
-  actor User? @relation(fields: [actorUid], references: [id], onDelete: SetNull)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  actor  User?  @relation(fields: [actorUid], references: [id], onDelete: SetNull)
 
   @@index([actorUid])
   @@index([createdAt])
   @@index([actionType])
+  @@index([courseId])
   @@map("activity_logs")
 }
 
@@ -502,6 +633,7 @@ model ActivityLog {
 
 model Leave {
   id          String    @id @default(uuid())
+  courseId    String    @map("course_id")
   teacherId   String    @map("teacher_id")
   teacherName String    @map("teacher_name")
   startDate   String    @map("start_date")
@@ -513,16 +645,19 @@ model Leave {
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
+  course  Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   teacher Teacher? @relation(fields: [teacherId], references: [teacherId], onDelete: Cascade)
 
   @@index([teacherId])
   @@index([monthYear])
   @@index([type])
+  @@index([courseId])
   @@map("leaves")
 }
 
 model LeaveSettings {
   id                   String   @id @default(uuid())
+  courseId             String   @map("course_id")
   teacherId            String   @unique @map("teacher_id")
   teacherName          String   @map("teacher_name")
   weeklyHolidays       Json     @default("[]") @map("weekly_holidays")
@@ -531,8 +666,10 @@ model LeaveSettings {
   createdAt            DateTime @default(now()) @map("created_at")
   updatedAt            DateTime @updatedAt @map("updated_at")
 
+  course  Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
   teacher Teacher @relation(fields: [teacherId], references: [teacherId], onDelete: Cascade)
 
+  @@index([courseId])
   @@map("leave_settings")
 }
 
@@ -542,6 +679,7 @@ model LeaveSettings {
 
 model Resource {
   id          String   @id @default(uuid())
+  courseId    String   @map("course_id")
   title       String
   description String?
   fileType    String   @map("file_type")
@@ -553,12 +691,16 @@ model Resource {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
   @@index([createdAt])
+  @@index([courseId])
   @@map("resources")
 }
 
 model ModuleFolder {
   id                String        @id @default(uuid())
+  courseId          String        @map("course_id")
   teacherUid        String        @default("") @map("teacher_uid")
   teacherName       String        @default("") @map("teacher_name")
   parentFolderId    String?       @map("parent_folder_id")
@@ -569,17 +711,20 @@ model ModuleFolder {
   createdAt         DateTime      @default(now()) @map("created_at")
   updatedAt         DateTime      @updatedAt @map("updated_at")
 
+  course       Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
   parentFolder ModuleFolder?  @relation("SubFolders", fields: [parentFolderId], references: [id], onDelete: Cascade)
   subFolders   ModuleFolder[] @relation("SubFolders")
   resources    ModuleResource[]
 
   @@index([teacherUid])
   @@index([parentFolderId])
+  @@index([courseId])
   @@map("module_folders")
 }
 
 model ModuleResource {
   id                 String       @id @default(uuid())
+  courseId           String       @map("course_id")
   moduleId           String       @default("") @map("module_id")
   moduleTitle        String       @default("") @map("module_title")
   teacherName        String       @default("") @map("teacher_name")
@@ -598,11 +743,13 @@ model ModuleResource {
   uploadedAt         DateTime     @default(now()) @map("uploaded_at")
   updatedAt          DateTime     @updatedAt @map("updated_at")
 
+  course Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
   folder ModuleFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
 
   @@index([moduleTitle])
   @@index([teacherUid])
   @@index([folderId])
+  @@index([courseId])
   @@map("module_resources")
 }
 
@@ -612,8 +759,9 @@ model ModuleResource {
 
 model Post {
   id              String     @id @default(uuid())
+  courseId        String     @map("course_id")
   title           String
-  slug            String     @unique
+  slug            String
   excerpt         String     @default("")
   featuredImage   String?    @map("featured_image")
   content         String
@@ -626,25 +774,31 @@ model Post {
   createdAt       DateTime   @default(now()) @map("created_at")
   updatedAt       DateTime   @updatedAt @map("updated_at")
 
+  course   Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
   comments BlogComment[]
 
+  @@unique([courseId, slug])
   @@index([status])
   @@index([slug])
   @@index([createdAt])
+  @@index([courseId])
   @@map("posts")
 }
 
 model BlogComment {
   id        String   @id @default(uuid())
+  courseId  String   @map("course_id")
   postId    String   @map("post_id")
   name      String
   email     String?
   content   String
   createdAt DateTime @default(now()) @map("created_at")
 
-  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@index([postId])
+  @@index([courseId])
   @@map("blog_comments")
 }
 
@@ -654,6 +808,7 @@ model BlogComment {
 
 model ExamResult {
   id               String   @id @default(uuid())
+  courseId         String   @map("course_id")
   studentUid       String   @map("student_uid")
   studentName      String   @map("student_name")
   studentRoll      String   @map("student_roll")
@@ -666,8 +821,11 @@ model ExamResult {
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
   @@index([studentUid])
   @@index([studentBatchName])
+  @@index([courseId])
   @@map("exam_results")
 }
 
@@ -677,6 +835,7 @@ model ExamResult {
 
 model Routine {
   id          String   @id @default(uuid())
+  courseId    String   @map("course_id")
   batchName   String   @map("batch_name")
   fileUrl     String   @map("file_url")
   storagePath String   @map("storage_path")
@@ -685,7 +844,10 @@ model Routine {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
   @@index([batchName])
+  @@index([courseId])
   @@map("routines")
 }
 
@@ -695,6 +857,7 @@ model Routine {
 
 model Policy {
   id            String   @id @default(uuid())
+  courseId      String   @map("course_id")
   title         String
   content       String   @default("")
   category      String?
@@ -710,8 +873,11 @@ model Policy {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
   @@index([kind])
   @@index([sortOrder])
+  @@index([courseId])
   @@map("policies")
 }
 
@@ -721,12 +887,17 @@ model Policy {
 
 model CmsContent {
   id        String   @id @default(uuid())
-  key       String   @unique
+  courseId  String   @map("course_id")
+  key       String
   value     Json
   updatedBy String?  @map("updated_by")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, key])
+  @@index([courseId])
   @@map("cms_content")
 }
 
@@ -736,6 +907,7 @@ model CmsContent {
 
 model SuccessStory {
   id            String   @id @default(uuid())
+  courseId      String   @map("course_id")
   name          String
   batch         String
   role          String   @default("")
@@ -748,7 +920,10 @@ model SuccessStory {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
   @@index([isPublished])
+  @@index([courseId])
   @@map("success_stories")
 }
 
@@ -758,6 +933,7 @@ model SuccessStory {
 
 model VideoTestimonial {
   id          String   @id @default(uuid())
+  courseId    String   @map("course_id")
   title       String
   videoUrl    String   @map("video_url")
   videoId     String   @default("") @map("video_id")
@@ -769,14 +945,19 @@ model VideoTestimonial {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
   @@index([isPublished])
   @@index([order])
+  @@index([courseId])
   @@map("video_testimonials")
 }
 
 // ============================================================
 // CV BUILDER
 // ============================================================
+// NOTE: CvTemplate is a shared, platform-level design library —
+// intentionally NOT scoped to a course (same templates for all courses).
 
 model CvTemplate {
   id          String   @id @default(uuid())
@@ -797,6 +978,7 @@ model CvTemplate {
 
 model CvDraft {
   id              String   @id @default(uuid())
+  courseId        String   @map("course_id")
   userId          String   @map("user_id")
   templateId      String   @map("template_id")
   title           String   @default("My CV")
@@ -836,6 +1018,7 @@ model CvDraft {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
+  course   Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
   user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   template CvTemplate @relation(fields: [templateId], references: [id])
   versions CvVersion[]
@@ -844,20 +1027,24 @@ model CvDraft {
   @@index([templateId])
   @@index([shareSlug])
   @@index([createdAt])
+  @@index([courseId])
   @@map("cv_drafts")
 }
 
 model CvVersion {
   id        String   @id @default(uuid())
+  courseId  String   @map("course_id")
   draftId   String   @map("draft_id")
   snapshot  Json
   label     String?
   createdAt DateTime @default(now()) @map("created_at")
 
-  draft CvDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  course Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  draft  CvDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
 
   @@index([draftId])
   @@index([createdAt])
+  @@index([courseId])
   @@map("cv_versions")
 }
 
@@ -867,6 +1054,7 @@ model CvVersion {
 
 model DailyTrackerReport {
   id          String   @id @default(uuid())
+  courseId    String   @map("course_id")
   batchName   String   @map("batch_name")
   date        String
   reportData  Json     @map("report_data")
@@ -874,8 +1062,11 @@ model DailyTrackerReport {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
   @@index([batchName])
   @@index([date])
+  @@index([courseId])
   @@map("daily_tracker_reports")
 }
 
@@ -885,6 +1076,7 @@ model DailyTrackerReport {
 
 model StudentUpdateRequest {
   id               String    @id @default(uuid())
+  courseId         String    @map("course_id")
   studentUid       String    @map("student_uid")
   studentName      String    @map("student_name")
   studentBatchName String    @map("student_batch_name")
@@ -897,8 +1089,11 @@ model StudentUpdateRequest {
   reviewedAt       DateTime? @map("reviewed_at")
   submittedAt      DateTime  @default(now()) @map("submitted_at")
 
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
   @@index([studentUid])
   @@index([status])
+  @@index([courseId])
   @@map("student_update_requests")
 }
 
@@ -908,6 +1103,7 @@ model StudentUpdateRequest {
 
 model StudentExamBatchRecord {
   id        String   @id @default(uuid())
+  courseId  String   @map("course_id")
   batchName String   @map("batch_name")
   roll      String
   name      String
@@ -915,18 +1111,22 @@ model StudentExamBatchRecord {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@unique([batchName, roll])
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, batchName, roll])
   @@index([batchName])
+  @@index([courseId])
   @@map("student_exam_batch_records")
 }
 
 // ============================================================
-// COURSE MODULES (Admin-managed curriculum)
+// COURSE MODULES (Admin-managed curriculum, belongs to a Course)
 // ============================================================
 
 model CourseModule {
   id          String   @id @default(cuid())
-  slug        String   @unique
+  courseId    String   @map("course_id")
+  slug        String
   title       String
   description String   @default("")
   pdfLink     String   @default("") @map("pdf_link")
@@ -937,8 +1137,12 @@ model CourseModule {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt      @map("updated_at")
 
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, slug])
   @@index([slug])
   @@index([order])
+  @@index([courseId])
   @@map("course_modules")
 }
 
@@ -948,6 +1152,7 @@ model CourseModule {
 
 model HeroImage {
   id          String   @id @default(uuid())
+  courseId    String   @map("course_id")
   url         String
   storagePath String   @map("storage_path")
   label       String?
@@ -956,8 +1161,11 @@ model HeroImage {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
   @@index([order])
   @@index([isActive])
+  @@index([courseId])
   @@map("hero_images")
 }
 
@@ -967,20 +1175,25 @@ model HeroImage {
 
 model BatchForm {
   id        String   @id @default(uuid())
-  batchName String   @unique @map("batch_name")
+  courseId  String   @map("course_id")
+  batchName String   @map("batch_name")
   formSlug  String   @unique @map("form_slug")
   isActive  Boolean  @default(true) @map("is_active")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  course      Course                   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   submissions StudentFormSubmission[]
 
+  @@unique([courseId, batchName])
   @@index([formSlug])
+  @@index([courseId])
   @@map("batch_forms")
 }
 
 model StudentFormSubmission {
   id               String    @id @default(uuid())
+  courseId         String    @map("course_id")
   batchFormId      String    @map("batch_form_id")
   batchName        String    @map("batch_name")
   roll             String
@@ -1010,11 +1223,13 @@ model StudentFormSubmission {
   submittedAt      DateTime  @default(now()) @map("submitted_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
 
+  course    Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
   batchForm BatchForm @relation(fields: [batchFormId], references: [id], onDelete: Cascade)
 
-  @@unique([batchName, roll])
+  @@unique([courseId, batchName, roll])
   @@index([batchName])
   @@index([status])
+  @@index([courseId])
   @@map("student_form_submissions")
 }
 
@@ -1024,6 +1239,7 @@ model StudentFormSubmission {
 
 model VideoStory {
   id          String   @id @default(uuid())
+  courseId    String   @map("course_id")
   youtubeUrl  String   @map("youtube_url")
   videoId     String   @map("video_id")
   title       String
@@ -1034,7 +1250,10 @@ model VideoStory {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
   @@index([order])
+  @@index([courseId])
   @@map("video_stories")
 }
 
@@ -1044,13 +1263,17 @@ model VideoStory {
 
 model BatchClassCount {
   id          String   @id @default(uuid())
+  courseId    String   @map("course_id")
   batchName   String   @map("batch_name")
   subjectName String   @map("subject_name")
   classCount  Int      @default(0) @map("class_count")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  @@unique([batchName, subjectName])
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, batchName, subjectName])
+  @@index([courseId])
   @@map("batch_class_counts")
 }
 
@@ -1066,6 +1289,7 @@ enum StudentLeaveStatus {
 
 model StudentLeaveRequest {
   id               String             @id @default(uuid())
+  courseId         String             @map("course_id")
   studentUid       String             @map("student_uid")
   studentName      String             @map("student_name")
   studentRoll      String             @map("student_roll")
@@ -1082,11 +1306,14 @@ model StudentLeaveRequest {
   createdAt        DateTime           @default(now()) @map("created_at")
   updatedAt        DateTime           @updatedAt @map("updated_at")
 
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
   @@index([studentUid])
   @@index([studentBatchName])
   @@index([studentRoll])
   @@index([studentPhone])
   @@index([status])
+  @@index([courseId])
   @@map("student_leave_requests")
 }
 
@@ -1096,6 +1323,7 @@ model StudentLeaveRequest {
 
 model Deployment {
   id            String   @id @default(uuid())
+  courseId      String   @map("course_id")
   userId        String   @map("user_id")
   subdomain     String   @unique
   displayName   String   @default("") @map("display_name")
@@ -1105,26 +1333,31 @@ model Deployment {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
+  course      Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   visitorLogs VisitorLog[]
 
   @@index([userId])
   @@index([subdomain])
+  @@index([courseId])
   @@map("deployments")
 }
 
 model VisitorLog {
   id           String   @id @default(uuid())
+  courseId     String   @map("course_id")
   deploymentId String   @map("deployment_id")
   visitorIp    String   @map("visitor_ip")   // SHA-256 hashed for privacy
   userAgent    String?  @map("user_agent")
   date         String                         // "YYYY-MM-DD" for daily bucketing
   createdAt    DateTime @default(now()) @map("created_at")
 
+  course     Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
   deployment Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
 
   @@index([deploymentId])
   @@index([date])
+  @@index([courseId])
   @@map("visitor_logs")
 }
 
@@ -1134,16 +1367,21 @@ model VisitorLog {
 
 model CompetitionFormTemplate {
   id          String   @id @default(uuid())
+  courseId    String   @map("course_id")
   name        String   // e.g., "Default Form 1"
   schema      Json     // Array of predefined questions
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId])
   @@map("competition_form_templates")
 }
 
 model Competition {
   id          String   @id @default(uuid())
+  courseId    String   @map("course_id")
   title       String   // e.g., "Battle of Cups"
   description String?
   batchName   String   @map("batch_name")
@@ -1154,14 +1392,17 @@ model Competition {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
+  course      Course                   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   submissions CompetitionSubmission[]
 
   @@index([batchName])
+  @@index([courseId])
   @@map("competitions")
 }
 
 model CompetitionSubmission {
   id          String   @id @default(uuid())
+  courseId    String   @map("course_id")
   competitionId String @map("competition_id")
   type        String   // "team" or "individual"
   teamName    String?  @map("team_name")
@@ -1170,15 +1411,18 @@ model CompetitionSubmission {
   data        Json     // The answers provided (e.g., cups sold, profit, etc.)
   submittedAt DateTime @default(now()) @map("submitted_at")
 
+  course      Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
   competition Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
 
   @@index([competitionId])
   @@index([type])
+  @@index([courseId])
   @@map("competition_submissions")
 }
 
 model CompetitionGroup {
   id            String   @id @default(uuid())
+  courseId      String   @map("course_id")
   competitionId String?  @map("competition_id")
   batchName     String   @map("batch_name")
   groupName     String   @map("group_name")
@@ -1186,8 +1430,11 @@ model CompetitionGroup {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
   @@index([batchName])
   @@index([competitionId])
+  @@index([courseId])
   @@map("competition_groups")
 }
 
