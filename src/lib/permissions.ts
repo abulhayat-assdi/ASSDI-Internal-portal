@@ -1,5 +1,5 @@
 // ============================================================
-// ASM Portal — Permission System
+// As-Sunnah Skill Development Institute — Permission System
 // ============================================================
 
 export const PORTAL_OWNER_EMAIL = "mohammadabulhayatt@gmail.com";
@@ -23,10 +23,6 @@ export type PermissionKey =
     | "admin_notices"
     | "admin_contact"
     | "admin_resources"
-    | "admin_blog"
-    | "admin_testimonials"
-    | "admin_success"
-    | "admin_cms"
     | "admin_course_modules"
     | "admin_deployments"
     | "access_management";
@@ -59,10 +55,6 @@ export const PERMISSION_META: Record<PermissionKey, PermissionMeta> = {
     admin_notices: { label: "Student Notices", path: "/dashboard/admin/student-updates", group: "admin", icon: "🔔" },
     admin_contact: { label: "Contact Messages", path: "/dashboard/admin/contact-messages", group: "admin", icon: "📩" },
     admin_resources: { label: "Admin: Resources", path: "/dashboard/admin/resource-management", group: "admin", icon: "🗂️" },
-    admin_blog: { label: "Blog Management", path: "/dashboard/admin/blog", group: "admin", icon: "📝" },
-    admin_testimonials: { label: "Video Testimonials", path: "/dashboard/admin/home-video-testimonials", group: "admin", icon: "🎥" },
-    admin_success: { label: "Success Stories", path: "/dashboard/admin/success-stories", group: "admin", icon: "🎬" },
-    admin_cms: { label: "CMS / Pages", path: "/dashboard/admin/manage-pages", group: "admin", icon: "🖥️" },
     admin_course_modules: { label: "Manage Course Modules", path: "/dashboard/admin/course-modules", group: "admin", icon: "📚" },
     admin_deployments: { label: "Student Deployments", path: "/dashboard/admin/deployments", group: "admin", icon: "🚀" },
     access_management: { label: "Access Management", path: "/dashboard/admin/access-management", group: "system", icon: "🔑" },
@@ -92,8 +84,7 @@ export const DEFAULT_TEACHER_PERMISSIONS: PermissionKey[] = [
 export const DEFAULT_ADMIN_PERMISSIONS: PermissionKey[] = [
     "teachers", "batch_info",
     "admin_panel", "admin_homework", "admin_results", "admin_leave",
-    "admin_notices", "admin_contact", "admin_resources", "admin_blog",
-    "admin_testimonials", "admin_success", "admin_cms", "admin_course_modules",
+    "admin_notices", "admin_contact", "admin_resources", "admin_course_modules",
     "admin_deployments",
 ];
 

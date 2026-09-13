@@ -97,13 +97,21 @@ const SUPER_ADMIN_HOME_PATH = '/super-admin';
 async function superAdminGuard(request: NextRequest): Promise<NextResponse> {
     const { pathname } = request.nextUrl;
 
-    const attachHeader = (res: NextResponse) => {
+    // NextResponse.next() header mutations only affect the *response* sent to
+    // the browser — they never reach downstream Route Handlers or Server
+    // Components. To make x-is-super-admin-host visible to req.headers /
+    // headers() further down the pipeline, it has to go through the
+    // `request` init option, which re-signs the request itself.
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set('x-is-super-admin-host', '1');
+    const passThrough = () => {
+        const res = NextResponse.next({ request: { headers: requestHeaders } });
         res.headers.set('x-is-super-admin-host', '1');
         return res;
     };
 
     if (isPublicRoute(pathname)) {
-        return attachHeader(NextResponse.next());
+        return passThrough();
     }
 
     const isLoginPage = pathname === SUPER_ADMIN_LOGIN_PATH;
@@ -112,15 +120,16 @@ async function superAdminGuard(request: NextRequest): Promise<NextResponse> {
     const payload = await getSessionPayload(request);
     const isSuperAdmin = payload?.role === 'super_admin';
 
-    let response: NextResponse;
-
     if (isLoginPage && isSuperAdmin) {
-        response = NextResponse.redirect(new URL(SUPER_ADMIN_HOME_PATH, request.url));
-    } else if (!isSuperAdmin) {
+        return NextResponse.redirect(new URL(SUPER_ADMIN_HOME_PATH, request.url));
+    }
+
+    if (!isSuperAdmin) {
+        let response: NextResponse;
         if (isApiRequest) {
             response = NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         } else if (isLoginPage) {
-            response = NextResponse.next();
+            response = passThrough();
         } else {
             response = NextResponse.redirect(new URL(SUPER_ADMIN_LOGIN_PATH, request.url));
         }
@@ -129,25 +138,31 @@ async function superAdminGuard(request: NextRequest): Promise<NextResponse> {
             // has no business on this host — clear it.
             response.cookies.delete(COOKIES.SESSION);
         }
-    } else {
-        response = NextResponse.next();
+        return response;
     }
 
-    return attachHeader(response);
+    return passThrough();
 }
 
 /** Course-subdomain guard — same shape as the legacy guard, plus a course-match check on top of role. */
 async function courseGuard(request: NextRequest, course: { id: string; slug: string }): Promise<NextResponse> {
     const { pathname } = request.nextUrl;
 
-    const attachCourseHeaders = (res: NextResponse) => {
+    // See the matching comment in superAdminGuard: response.headers.set()
+    // never reaches downstream Route Handlers/Server Components — only the
+    // `request` init option on NextResponse.next() does.
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set('x-course-id', course.id);
+    requestHeaders.set('x-course-slug', course.slug);
+    const passThrough = () => {
+        const res = NextResponse.next({ request: { headers: requestHeaders } });
         res.headers.set('x-course-id', course.id);
         res.headers.set('x-course-slug', course.slug);
         return res;
     };
 
     if (isPublicRoute(pathname)) {
-        return attachCourseHeaders(NextResponse.next());
+        return passThrough();
     }
 
     const isDashboardPath = pathname.startsWith(APP_PATHS.DASHBOARD);
@@ -161,13 +176,14 @@ async function courseGuard(request: NextRequest, course: { id: string; slug: str
     const sessionMatchesCourse = !!payload && payload.role !== 'super_admin' && payload.courseId === course.id;
     const role = sessionMatchesCourse ? payload!.role : undefined;
 
-    let response: NextResponse;
-
     if (isAuthPage && role) {
-        response = NextResponse.redirect(
+        return NextResponse.redirect(
             new URL(role === 'student' ? APP_PATHS.STUDENT_DASHBOARD : APP_PATHS.DASHBOARD, request.url)
         );
-    } else if (!role) {
+    }
+
+    if (!role) {
+        let response: NextResponse;
         if (isApiRequest) {
             response = NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         } else if (isStudentPath) {
@@ -175,7 +191,7 @@ async function courseGuard(request: NextRequest, course: { id: string; slug: str
         } else if (isDashboardPath) {
             response = NextResponse.redirect(new URL(APP_PATHS.LOGIN, request.url));
         } else {
-            response = NextResponse.next();
+            response = passThrough();
         }
         // A cookie that exists but doesn't belong to this course (e.g. left
         // over from another course's subdomain) — clear it so it stops
@@ -183,11 +199,10 @@ async function courseGuard(request: NextRequest, course: { id: string; slug: str
         if (payload && !sessionMatchesCourse) {
             response.cookies.delete(COOKIES.SESSION);
         }
-    } else {
-        response = NextResponse.next();
+        return response;
     }
 
-    return attachCourseHeaders(response);
+    return passThrough();
 }
 
 export async function middleware(request: NextRequest) {

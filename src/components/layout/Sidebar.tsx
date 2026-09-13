@@ -58,18 +58,6 @@ const teacherAdminNavSections: NavSection[] = [
         ]
     },
     {
-        id: "cms_website",
-        title: "CMS & Website",
-        icon: "🌐",
-        items: [
-            { href: "/dashboard/admin/manage-pages", label: "Manage Pages", icon: "🌐", permission: "admin_cms" },
-            { href: "/dashboard/admin/hero-images", label: "Hero Images", icon: "🖼️", permission: "admin_cms" },
-            { href: "/dashboard/admin/blog", label: "Blog Management", icon: "📝", permission: "admin_blog", feature: "blog" },
-            { href: "/dashboard/admin/home-video-testimonials", label: "Home Videos", icon: "🎥", permission: "admin_testimonials", feature: "video_testimonials" },
-            { href: "/dashboard/admin/success-stories", label: "Success Stories", icon: "🎬", permission: "admin_success", feature: "success_stories" },
-        ]
-    },
-    {
         id: "resources_activities",
         title: "Resources & Activities",
         icon: "📑",

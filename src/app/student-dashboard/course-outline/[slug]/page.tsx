@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { getModuleData } from "@/data/modules";
 import { Metadata } from 'next';
-import CurriculumTimeline from "@/app/modules/[slug]/CurriculumTimeline";
+import CurriculumTimeline from "@/components/course-modules/CurriculumTimeline";
 import BackButton from "@/components/ui/BackButton";
 
 type Props = {

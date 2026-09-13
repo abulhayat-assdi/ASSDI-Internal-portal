@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
         // Send email
         const transporter = getTransporter();
         const smtpUser = process.env.SMTP_USER || '';
-        const defaultFrom = `"ASM Portal" <${smtpUser}>`;
+        const defaultFrom = `"As-Sunnah Skill Development Institute" <${smtpUser}>`;
         let fromAddress = process.env.SMTP_FROM || defaultFrom;
 
         // Gmail SMTP requires the sender address to match the authenticated user
@@ -104,12 +104,12 @@ export async function POST(req: NextRequest) {
             await transporter.sendMail({
                 from: fromAddress,
                 to: user.email,
-                subject: 'Reset Your ASM Portal Password',
+                subject: 'Reset Your As-Sunnah Skill Development Institute Password',
                 html: `
                     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                         <h2 style="color: #1a1a2e;">Password Reset Request</h2>
                         <p>Hello ${user.displayName},</p>
-                        <p>We received a request to reset your ASM Internal Portal password.</p>
+                        <p>We received a request to reset your As-Sunnah Skill Development Institute (Internal Portal) password.</p>
                         <p>Click the button below to set a new password. This link expires in <strong>${TOKEN_EXPIRY_HOURS} hours</strong>.</p>
                         <div style="text-align: center; margin: 30px 0;">
                             <a href="${resetUrl}" style="
@@ -124,7 +124,7 @@ export async function POST(req: NextRequest) {
                         </div>
                         <p style="color: #666; font-size: 14px;">If you didn't request this, you can safely ignore this email.</p>
                         <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
-                        <p style="color: #999; font-size: 12px;">ASM Internal Portal &mdash; This is an automated message.</p>
+                        <p style="color: #999; font-size: 12px;">As-Sunnah Skill Development Institute — Internal Portal. This is an automated message.</p>
                     </div>
                 `,
             });

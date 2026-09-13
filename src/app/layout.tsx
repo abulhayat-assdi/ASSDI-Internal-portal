@@ -3,8 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "@/styles/globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ConfirmProvider } from "@/contexts/ConfirmContext";
-import MobileBottomNav from "@/components/ui/MobileBottomNav";
 import { withCourseContext } from "@/lib/db";
+import { getCourseById } from "@/lib/course";
 import { headers } from "next/headers";
 
 const geistSans = Geist({
@@ -17,23 +17,36 @@ const geistMono = Geist_Mono({
     subsets: ["latin"],
 });
 
-const SITE_URL = "https://tasm-skill.asf.bd";
-const SITE_NAME = "TASM Skill";
-const SITE_TITLE = "Sales & Marketing";
-const SITE_DESCRIPTION =
-    "আস-সুন্নাহ স্কিল ডেভেলপমেন্ট ইনস্টিটিউটে Sales & Marketing, Digital Marketing, Career Planning সহ ৯টি প্রফেশনাল মডিউল শিখুন। বাংলাদেশের সেরা ব্যবহারিক ট্রেনিং প্রোগ্রাম।";
+// The bare root domain (no x-course-id) is the course-directory site and gets
+// the institute's own metadata. A course subdomain is just a login portal now —
+// no public marketing content — so it gets the course's own name/branding
+// and is kept out of search results rather than the old institute's SEO copy.
+const PLATFORM_NAME = "As-Sunnah Skill Development Institute";
+const PLATFORM_TITLE = "As-Sunnah Skill Development Institute — Internal Portal";
+const PLATFORM_DESCRIPTION =
+    "Internal course portal for As-Sunnah Skill Development Institute — sign in to your course.";
 
 export async function generateMetadata(): Promise<Metadata> {
+    const courseId = (await headers()).get("x-course-id");
+
+    if (!courseId) {
+        return {
+            title: { default: PLATFORM_TITLE, template: `%s | ${PLATFORM_NAME}` },
+            description: PLATFORM_DESCRIPTION,
+            robots: { index: true, follow: true },
+            icons: { icon: "/favicon.ico" },
+        };
+    }
+
+    const course = await getCourseById(courseId).catch(() => null);
+
     let faviconUrl: string | undefined;
     try {
-        const courseId = (await headers()).get("x-course-id");
-        if (!courseId) throw new Error("no course context (root domain)");
-
         const cmsRecord = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
             tx.cmsContent.findUnique({ where: { courseId_key: { courseId, key: "site_settings" } } })
         );
         const cms = cmsRecord?.value as Record<string, unknown> | null;
-        const logoUrl = cms?.logoUrl as string | undefined;
+        const logoUrl = (cms?.logoUrl as string | undefined) ?? course?.logoUrl ?? undefined;
         // Convert /api/file?path=uploads/... → /uploads/... (static public path, no auth needed)
         if (logoUrl?.startsWith("/api/file?path=")) {
             faviconUrl = "/" + logoUrl.replace("/api/file?path=", "");
@@ -44,59 +57,13 @@ export async function generateMetadata(): Promise<Metadata> {
         // use default icon
     }
 
+    const courseName = course?.name ?? "Course Portal";
+
     return {
-        metadataBase: new URL(SITE_URL),
-        title: {
-            default: SITE_TITLE,
-            template: `%s | ${SITE_NAME}`,
-        },
-        description: SITE_DESCRIPTION,
-        keywords: [
-            "TASM Skill",
-            "As-Sunnah Skill Development",
-            "sales marketing course Bangladesh",
-            "সেলস মার্কেটিং কোর্স",
-            "ডিজিটাল মার্কেটিং কোর্স ঢাকা",
-            "digital marketing training Bangladesh",
-            "career development course Bangladesh",
-            "sales training Dhaka",
-            "marketing course Bangladesh",
-            "ASF skill Bangladesh",
-        ],
-        authors: [{ name: "TASM Skill — As-Sunnah Foundation" }],
-        openGraph: {
-            type: "website",
-            locale: "bn_BD",
-            url: SITE_URL,
-            siteName: SITE_NAME,
-            title: SITE_TITLE,
-            description: SITE_DESCRIPTION,
-            images: [
-                {
-                    url: "/og-image.png",
-                    width: 1200,
-                    height: 630,
-                    alt: "TASM Skill — Sales & Marketing Training Bangladesh",
-                },
-            ],
-        },
-        twitter: {
-            card: "summary_large_image",
-            title: SITE_TITLE,
-            description: SITE_DESCRIPTION,
-            images: ["/og-image.png"],
-        },
-        robots: {
-            index: true,
-            follow: true,
-            googleBot: {
-                index: true,
-                follow: true,
-                "max-video-preview": -1,
-                "max-image-preview": "large",
-                "max-snippet": -1,
-            },
-        },
+        title: { default: courseName, template: `%s | ${courseName}` },
+        description: course?.tagline || `Sign in to ${courseName}.`,
+        // Login-only portal, no public marketing content — keep it out of search results.
+        robots: { index: false, follow: false },
         icons: faviconUrl
             ? { icon: faviconUrl, apple: faviconUrl }
             : { icon: "/favicon.ico" },
@@ -110,14 +77,6 @@ export default async function RootLayout({
 }>) {
     return (
         <html lang="bn" suppressHydrationWarning>
-            <head>
-                <style>{`
-                    :root {
-                        --tenant-primary: #1a56db;
-                        --tenant-accent: #f3f4f6;
-                    }
-                `}</style>
-            </head>
             <body
                 className={`${geistSans.variable} ${geistMono.variable} antialiased`}
                 suppressHydrationWarning
@@ -125,7 +84,6 @@ export default async function RootLayout({
                 <AuthProvider>
                     <ConfirmProvider>
                         {children}
-                        <MobileBottomNav />
                     </ConfirmProvider>
                 </AuthProvider>
             </body>

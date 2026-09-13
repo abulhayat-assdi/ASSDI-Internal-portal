@@ -1,3 +1,4 @@
+import { cache as reactCache } from 'react';
 import type { Course } from '@prisma/client';
 import { withCourseContext } from './db';
 
@@ -85,12 +86,56 @@ export async function getCourseBySlug(slug: string): Promise<Course | null> {
   return course;
 }
 
-export async function getCourseById(id: string): Promise<Course | null> {
+// Deduped per-request: the root layout's generateMetadata and the page it
+// renders both look up the same course, so this avoids a duplicate query.
+export const getCourseById = reactCache(async (id: string): Promise<Course | null> => {
   return withCourseContext({ courseId: null, isSuperAdmin: true }, (tx) =>
     tx.course.findUnique({ where: { id } })
   );
-}
+});
 
 export function isCourseUsable(course: Course): boolean {
   return course.status === 'ACTIVE' || course.status === 'TRIAL';
+}
+
+// ── Public course directory ─────────────────────────────────────────────────
+// Backs the course-directory site on the bare root domain — a public listing,
+// so only safe-to-show fields are selected (no settings/internal columns).
+
+export interface PublicCourseSummary {
+  slug: string;
+  name: string;
+  tagline: string | null;
+  logoUrl: string | null;
+  primaryColor: string;
+}
+
+/** Builds an absolute URL for a given subdomain of the current request's host. */
+function buildSubdomainUrl(currentHost: string, subdomain: string, path = ''): string {
+  const [rawHostname, port] = currentHost.split(':');
+  const hostname = rawHostname.replace(/^www\./, '');
+  const isLocal = hostname === 'localhost' || hostname.endsWith('.localhost');
+  const protocol = isLocal ? 'http' : 'https';
+  const portSuffix = port ? `:${port}` : '';
+  return `${protocol}://${subdomain}.${hostname}${portSuffix}${path}`;
+}
+
+/** Builds an absolute URL for a course's own subdomain from the current request's host. */
+export function buildCourseUrl(currentHost: string, slug: string): string {
+  return buildSubdomainUrl(currentHost, slug);
+}
+
+/** Builds an absolute URL for the reserved super-admin host from the current request's host. */
+export function buildSuperAdminUrl(currentHost: string, path = '/super-admin/login'): string {
+  return buildSubdomainUrl(currentHost, SUPER_ADMIN_SUBDOMAIN, path);
+}
+
+export async function listPublicCourses(): Promise<PublicCourseSummary[]> {
+  return withCourseContext({ courseId: null, isSuperAdmin: true }, (tx) =>
+    tx.course.findMany({
+      where: { status: { in: ['ACTIVE', 'TRIAL'] } },
+      orderBy: { name: 'asc' },
+      select: { slug: true, name: true, tagline: true, logoUrl: true, primaryColor: true },
+    })
+  );
 }

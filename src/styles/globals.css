@@ -4,36 +4,11 @@
   --background: #f8fafc;
   --foreground: #1f2937;
 
-  /* Brand Greens */
-  --brand-50: #f0fdf4;
-  --brand-100: #dcfce7;
-  --brand-200: #bbf7d0;
-  --brand-300: #86efac;
-  --brand-400: #4ade80;
-  --brand-500: #22c55e;
-  --brand-600: #16a34a;
-  --brand-700: #15803d;
-  --brand-800: #166534;
-  --brand-900: #145231;
-
-  /* Surface Colors */
-  --surface-app: #f8fafc;
-  --surface-card: #ffffff;
-  --surface-hover: #f3f4f6;
-  --surface-border: #e5e7eb;
-  --surface-muted: #f9fafb;
-
   /* Text Colors */
   --text-primary: #1f2937;
   --text-secondary: #6b7280;
   --text-muted: #9ca3af;
   --text-light: #ffffff;
-
-  /* Status Colors */
-  --status-success: #10b981;
-  --status-danger: #ef4444;
-  --status-warning: #f59e0b;
-  --status-info: #3b82f6;
 }
 
 @theme inline {
@@ -41,48 +16,51 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* Brand Greens — registered under --color-* so Tailwind actually
+     generates the text-brand-*, bg-brand-*, ring-brand-* utilities that
+     already appear in the codebase (e.g. the CV editor's checkboxes). */
+  --color-brand-50: #f0fdf4;
+  --color-brand-100: #dcfce7;
+  --color-brand-200: #bbf7d0;
+  --color-brand-300: #86efac;
+  --color-brand-400: #4ade80;
+  --color-brand-500: #22c55e;
+  --color-brand-600: #16a34a;
+  --color-brand-700: #15803d;
+  --color-brand-800: #166534;
+  --color-brand-900: #145231;
+
+  /* Surface Colors */
+  --color-surface-app: #f8fafc;
+  --color-surface-card: #ffffff;
+  --color-surface-hover: #f3f4f6;
+  --color-surface-border: #e5e7eb;
+  --color-surface-muted: #f9fafb;
+
+  /* Status Colors */
+  --color-status-success: #10b981;
+  --color-status-danger: #ef4444;
+  --color-status-warning: #f59e0b;
+  --color-status-info: #3b82f6;
 }
 
 body {
-  background: var(--surface-app);
+  background: var(--color-surface-app);
   color: var(--text-primary);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
 
 @layer base {
-  h1:not(.no-gradient), 
-  h2:not(.no-gradient), 
-  h3:not(.no-gradient), 
-  h4:not(.no-gradient), 
-  h5:not(.no-gradient), 
+  h1:not(.no-gradient),
+  h2:not(.no-gradient),
+  h3:not(.no-gradient),
+  h4:not(.no-gradient),
+  h5:not(.no-gradient),
   h6:not(.no-gradient) {
     background-image: linear-gradient(to right, #0f172a, #059669);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
-  }
-
-  /* Automatically target Subheadings (paragraphs following headings) to match the slate/emerald theme */
-  h1 ~ p:not(.no-gradient), 
-  h2 ~ p:not(.no-gradient), 
-  h3 ~ p:not(.no-gradient),
-  h4 ~ p:not(.no-gradient) {
-    color: #334155; /* Premium Slate-700 color */
-  }
-}
-
-@layer utilities {
-  .no-gradient,
-  .text-white h1,
-  .text-white h2,
-  .text-white h3,
-  .text-white h4,
-  .text-white h5,
-  .text-white h6 {
-    background-image: none !important;
-    -webkit-background-clip: border-box !important;
-    background-clip: border-box !important;
-    color: #ffffff !important;
-    -webkit-text-fill-color: #ffffff !important;
   }
 }
