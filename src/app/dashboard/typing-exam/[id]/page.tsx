@@ -4,6 +4,9 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import * as XLSX from "xlsx";
+import { motion, useReducedMotion } from "framer-motion";
+import { ArrowLeft, Download, Copy, Check, Link2, Users, AlertTriangle, ClipboardList } from "lucide-react";
+import { AmbientOrbs, GLASS_PANEL, RESULT_META, fadeUp, staggerContainer } from "@/components/typing-exam/ui";
 
 type Exam = {
   id: string;
@@ -40,12 +43,6 @@ type Attempt = {
   durationTakenSeconds: number;
   result: "PASS" | "AVERAGE" | "FAIL";
   submittedAt: string;
-};
-
-const resultBadge: Record<Attempt["result"], string> = {
-  PASS: "bg-green-100 text-green-700",
-  AVERAGE: "bg-amber-100 text-amber-700",
-  FAIL: "bg-red-100 text-red-600",
 };
 
 /** "5 Sep 26" */
@@ -141,6 +138,7 @@ function exportToExcel(exam: Exam, attempts: Attempt[]) {
 export default function TypingExamResultsPage() {
   const params = useParams<{ id: string }>();
   const examId = params.id;
+  const reduceMotion = useReducedMotion();
 
   const [exam, setExam] = useState<Exam | null>(null);
   const [attempts, setAttempts] = useState<Attempt[]>([]);
@@ -186,17 +184,24 @@ export default function TypingExamResultsPage() {
   }
 
   if (loading) {
-    return <div className="p-6 max-w-5xl mx-auto text-gray-400 py-10 text-center">লোড হচ্ছে...</div>;
+    return (
+      <div className="p-6 max-w-5xl mx-auto text-center py-16">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-brand-600 border-t-transparent mx-auto" />
+      </div>
+    );
   }
 
   if (fetchError || !exam) {
     return (
       <div className="p-6 max-w-5xl mx-auto">
-        <div className="px-4 py-3 rounded-xl text-sm bg-red-50 text-red-700 border border-red-200">
+        <AmbientOrbs />
+        <div className={`${GLASS_PANEL} rounded-2xl p-8 flex items-center gap-3 text-sm text-red-700`}>
+          <AlertTriangle className="h-5 w-5 shrink-0" strokeWidth={2} />
           ডেটা লোড হয়নি: {fetchError || "Exam পাওয়া যায়নি"}
         </div>
-        <Link href="/dashboard/typing-exam" className="text-blue-600 text-sm mt-4 inline-block">
-          ← এক্সাম তালিকায় ফিরে যান
+        <Link href="/dashboard/typing-exam" className="text-brand-700 text-sm mt-4 inline-flex items-center gap-1">
+          <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2.5} />
+          এক্সাম তালিকায় ফিরে যান
         </Link>
       </div>
     );
@@ -204,89 +209,109 @@ export default function TypingExamResultsPage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
-      <Link href="/dashboard/typing-exam" className="text-blue-600 text-sm mb-4 inline-block">
-        ← এক্সাম তালিকায় ফিরে যান
+      <AmbientOrbs />
+
+      <Link
+        href="/dashboard/typing-exam"
+        className="text-brand-700 text-sm mb-4 inline-flex items-center gap-1 hover:text-brand-800 transition-colors"
+      >
+        <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2.5} />
+        এক্সাম তালিকায় ফিরে যান
       </Link>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-6">
+      <motion.div
+        initial={reduceMotion ? undefined : { opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, ease: "easeOut" }}
+        className={`${GLASS_PANEL} rounded-2xl p-5 mb-6`}
+      >
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-xl font-bold text-gray-800">{exam.title}</h1>
+              <h1 className="no-gradient text-xl font-bold text-slate-800">{exam.title}</h1>
               <span
-                className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                  exam.accessType === "PUBLIC" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"
+                className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${
+                  exam.accessType === "PUBLIC" ? "bg-violet-100 text-violet-700" : "bg-blue-100 text-blue-700"
                 }`}
               >
+                {exam.accessType === "PUBLIC" ? <Link2 className="h-3 w-3" /> : <Users className="h-3 w-3" />}
                 {exam.accessType === "PUBLIC" ? "Public" : "Internal"}
               </span>
               <span
                 className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                  exam.isActive ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+                  exam.isActive ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
                 }`}
               >
                 {exam.isActive ? "চালু" : "বন্ধ"}
               </span>
             </div>
-            {exam.description && <p className="text-sm text-gray-500 mt-1">{exam.description}</p>}
+            {exam.description && <p className="text-sm text-slate-500 mt-1">{exam.description}</p>}
           </div>
 
-          <button
+          <motion.button
             onClick={handleExport}
             disabled={attempts.length === 0}
-            className="text-sm px-3 py-1.5 rounded-lg border border-green-300 text-green-700 bg-green-50 hover:bg-green-100 disabled:opacity-50 disabled:bg-transparent transition-colors font-medium whitespace-nowrap"
+            whileHover={reduceMotion || attempts.length === 0 ? undefined : { scale: 1.03 }}
+            whileTap={reduceMotion || attempts.length === 0 ? undefined : { scale: 0.97 }}
+            className="cursor-pointer flex items-center gap-1.5 text-sm px-3.5 py-2 rounded-xl border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium whitespace-nowrap"
           >
-            ⬇ Excel ডাউনলোড
-          </button>
+            <Download className="h-4 w-4" strokeWidth={2} />
+            Excel ডাউনলোড
+          </motion.button>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 text-sm">
-          <div>
-            <p className="text-xs text-gray-400">Pass বার</p>
-            <p className="text-gray-700 font-medium">{exam.passWpm} WPM / {exam.passAccuracy}%</p>
+          <div className="rounded-xl bg-white/60 p-3">
+            <p className="text-xs text-slate-400">Pass বার</p>
+            <p className="text-slate-700 font-medium">{exam.passWpm} WPM / {exam.passAccuracy}%</p>
           </div>
-          <div>
-            <p className="text-xs text-gray-400">Fail বার</p>
-            <p className="text-gray-700 font-medium">{exam.failWpm} WPM / {exam.failAccuracy}%</p>
+          <div className="rounded-xl bg-white/60 p-3">
+            <p className="text-xs text-slate-400">Fail বার</p>
+            <p className="text-slate-700 font-medium">{exam.failWpm} WPM / {exam.failAccuracy}%</p>
           </div>
-          <div>
-            <p className="text-xs text-gray-400">সময়সীমা</p>
-            <p className="text-gray-700 font-medium">{exam.durationSeconds} সেকেন্ড</p>
+          <div className="rounded-xl bg-white/60 p-3">
+            <p className="text-xs text-slate-400">সময়সীমা</p>
+            <p className="text-slate-700 font-medium">{exam.durationSeconds} সেকেন্ড</p>
           </div>
-          <div>
-            <p className="text-xs text-gray-400">
+          <div className="rounded-xl bg-white/60 p-3">
+            <p className="text-xs text-slate-400">
               {exam.accessType === "INTERNAL" ? "ব্যাচ" : "সর্বোচ্চ Attempt (স্টুডেন্ট)"}
             </p>
-            <p className="text-gray-700 font-medium">
+            <p className="text-slate-700 font-medium">
               {exam.accessType === "INTERNAL" ? exam.batchNames.join(", ") || "—" : exam.maxAttempts}
             </p>
           </div>
         </div>
 
         {exam.accessType === "PUBLIC" && exam.publicSlug && (
-          <div className="mt-4 flex items-center gap-2 bg-purple-50 border border-purple-200 rounded-lg px-3 py-2">
-            <span className="text-sm text-purple-700 flex-1 truncate">
-              /typing-exam/{exam.publicSlug}
-            </span>
-            <button
+          <div className="mt-4 flex items-center gap-2 bg-violet-50 border border-violet-200 rounded-xl px-3 py-2">
+            <span className="text-sm text-violet-700 flex-1 truncate">/typing-exam/{exam.publicSlug}</span>
+            <motion.button
+              whileTap={reduceMotion ? undefined : { scale: 0.95 }}
               onClick={() => copyLink(exam.publicSlug!)}
-              className="text-xs px-2.5 py-1 rounded-md bg-purple-600 hover:bg-purple-700 text-white font-medium whitespace-nowrap"
+              className="cursor-pointer flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white font-medium whitespace-nowrap"
             >
-              {copied ? "✓ কপি হয়েছে" : "কপি করুন"}
-            </button>
+              {copied ? <Check className="h-3.5 w-3.5" strokeWidth={2.5} /> : <Copy className="h-3.5 w-3.5" strokeWidth={2} />}
+              {copied ? "কপি হয়েছে" : "কপি করুন"}
+            </motion.button>
           </div>
         )}
-      </div>
+      </motion.div>
 
-      <h2 className="text-lg font-bold text-gray-800 mb-3">Attempts ({attempts.length})</h2>
+      <h2 className="no-gradient text-lg font-bold text-slate-800 mb-3">Attempts ({attempts.length})</h2>
 
       {attempts.length === 0 ? (
-        <div className="text-gray-400 py-10 text-center">এখনো কোনো Attempt জমা পড়েনি।</div>
+        <div className={`${GLASS_PANEL} rounded-2xl p-14 text-center`}>
+          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+            <ClipboardList className="h-7 w-7" strokeWidth={1.5} />
+          </div>
+          <p className="text-slate-400 text-sm">এখনো কোনো Attempt জমা পড়েনি।</p>
+        </div>
       ) : (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
+        <div className={`${GLASS_PANEL} rounded-2xl overflow-x-auto`}>
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100 text-left text-gray-500">
+              <tr className="border-b border-slate-100 text-left text-slate-500">
                 <th className="px-4 py-3 font-medium">Try</th>
                 <th className="px-4 py-3 font-medium">Name</th>
                 <th className="px-4 py-3 font-medium">Roll</th>
@@ -298,27 +323,37 @@ export default function TypingExamResultsPage() {
                 <th className="px-4 py-3 font-medium">Submitted At</th>
               </tr>
             </thead>
-            <tbody>
+            <motion.tbody
+              variants={reduceMotion ? undefined : staggerContainer}
+              initial={reduceMotion ? undefined : "hidden"}
+              animate={reduceMotion ? undefined : "show"}
+            >
               {attempts.map((a) => (
-                <tr key={a.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50">
-                  <td className="px-4 py-3 text-gray-500 whitespace-nowrap">#{a.attemptNumber}</td>
-                  <td className="px-4 py-3 text-gray-800 font-medium whitespace-nowrap">{a.name || "—"}</td>
-                  <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{a.roll || "—"}</td>
-                  <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{a.phone || "—"}</td>
-                  <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{a.batchName || (a.takerType === "PUBLIC" ? "Public" : "—")}</td>
-                  <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{a.wpm}</td>
-                  <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{a.accuracy}%</td>
+                <motion.tr
+                  key={a.id}
+                  variants={reduceMotion ? undefined : fadeUp}
+                  className="border-b border-slate-50 last:border-0 hover:bg-slate-50/80 transition-colors"
+                >
+                  <td className="px-4 py-3 text-slate-500 whitespace-nowrap">#{a.attemptNumber}</td>
+                  <td className="px-4 py-3 text-slate-800 font-medium whitespace-nowrap">{a.name || "—"}</td>
+                  <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{a.roll || "—"}</td>
+                  <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{a.phone || "—"}</td>
+                  <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
+                    {a.batchName || (a.takerType === "PUBLIC" ? "Public" : "—")}
+                  </td>
+                  <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{a.wpm}</td>
+                  <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{a.accuracy}%</td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${resultBadge[a.result]}`}>
-                      {a.result}
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${RESULT_META[a.result].badge}`}>
+                      {RESULT_META[a.result].label}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                  <td className="px-4 py-3 text-slate-500 whitespace-nowrap">
                     {new Date(a.submittedAt).toLocaleString("bn-BD")}
                   </td>
-                </tr>
+                </motion.tr>
               ))}
-            </tbody>
+            </motion.tbody>
           </table>
         </div>
       )}
