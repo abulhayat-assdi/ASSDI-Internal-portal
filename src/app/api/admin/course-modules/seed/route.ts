@@ -1,9 +1,9 @@
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { Prisma } from "@prisma/client";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin } from "@/lib/auth";
-import { revalidatePath } from "next/cache";
 import { modulesData } from "@/data/modules";
 
 const TEACHER_INFO: Record<string, { name: string; email: string }> = {
@@ -102,99 +102,52 @@ const SLUG_ORDER = [
 ];
 
 export async function POST(req: NextRequest) {
-    try {
-        const caller = await getSessionUser(req);
-        if (!caller || !isAdmin(caller)) {
-            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-        }
+    const caller = await getSessionUser(req);
+    if (!caller || !isAdmin(caller) || !caller.courseId) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    const courseId = caller.courseId;
 
-        // Check if the table exists
-        const tableCheck = await prisma.$queryRaw<{ exists: boolean }[]>`
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables
-                WHERE table_schema = 'public'
-                AND table_name = 'course_modules'
-            ) as exists
-        `;
-
-        if (!tableCheck[0]?.exists) {
-            return NextResponse.json(
-                {
-                    error: "course_modules table does not exist. Please run the database migration first.",
-                    fix: "Run: npx prisma migrate deploy  (on VPS)  OR  npx prisma migrate dev  (locally)",
-                },
-                { status: 500 }
-            );
-        }
-
-        // Ensure seed_key column exists and backfill any blanks
-        await prisma.$executeRaw`
-            ALTER TABLE course_modules
-            ADD COLUMN IF NOT EXISTS seed_key TEXT NOT NULL DEFAULT ''
-        `;
-        await prisma.$executeRaw`
-            UPDATE course_modules SET seed_key = slug
-            WHERE seed_key = '' OR seed_key IS NULL
-        `;
-
-        const results: string[] = [];
+    const results = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+        const out: string[] = [];
 
         for (let i = 0; i < SLUG_ORDER.length; i++) {
             const slug = SLUG_ORDER[i];
             const data = modulesData[slug];
             if (!data) continue;
 
-            const bullets = CARD_BULLETS[slug] ?? [];
-            const curriculum = data.modules;
-            const teacher = TEACHER_INFO[slug] ?? { name: "", email: "" };
-
-            // Check by seed_key — not slug — so renamed modules are never re-imported
-            const existing = await prisma.$queryRaw<{ id: string }[]>`
-                SELECT id FROM course_modules WHERE seed_key = ${slug} LIMIT 1
-            `;
-
-            if (existing.length > 0) {
-                results.push(`${slug}: skipped (already seeded)`);
+            // Matched by seedKey — not slug — so a module the admin has since
+            // renamed in this course is never re-imported as a duplicate.
+            const existing = await tx.courseModule.findFirst({ where: { courseId, seedKey: slug } });
+            if (existing) {
+                out.push(`${slug}: skipped (already seeded)`);
                 continue;
             }
 
-            const id = `cm_${Date.now()}_${i}`;
-            const now = new Date().toISOString();
+            const bullets = CARD_BULLETS[slug] ?? [];
+            const teacher = TEACHER_INFO[slug] ?? { name: "", email: "" };
 
-            await prisma.$executeRaw`
-                INSERT INTO course_modules (id, slug, title, description, pdf_link, bullets, curriculum, is_published, "order", teacher_name, teacher_email, seed_key, created_at, updated_at)
-                VALUES (
-                    ${id},
-                    ${slug},
-                    ${data.title},
-                    ${data.description},
-                    ${""},
-                    ${JSON.stringify(bullets)}::jsonb,
-                    ${JSON.stringify(curriculum)}::jsonb,
-                    ${true},
-                    ${i},
-                    ${teacher.name},
-                    ${teacher.email},
-                    ${slug},
-                    ${now}::timestamptz,
-                    ${now}::timestamptz
-                )
-            `;
+            await tx.courseModule.create({
+                data: {
+                    courseId,
+                    slug,
+                    title: data.title,
+                    description: data.description,
+                    bullets,
+                    curriculum: data.modules as unknown as Prisma.InputJsonValue,
+                    isPublished: true,
+                    order: i,
+                    teacherName: teacher.name,
+                    teacherEmail: teacher.email,
+                    seedKey: slug,
+                },
+            });
 
-            results.push(`${slug}: created`);
+            out.push(`${slug}: created`);
         }
 
-        revalidatePath("/modules");
-        return NextResponse.json({ results });
-    } catch (error) {
-        console.error("[CourseModules Seed] Error:", error);
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        return NextResponse.json(
-            {
-                error: msg,
-                hint: "If this is a 'table does not exist' error, run: npx prisma migrate deploy",
-            },
-            { status: 500 }
-        );
-    }
+        return out;
+    });
+
+    return NextResponse.json({ results });
 }

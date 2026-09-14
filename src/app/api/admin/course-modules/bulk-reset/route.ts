@@ -1,63 +1,48 @@
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { Prisma } from "@prisma/client";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin } from "@/lib/auth";
-import { revalidatePath } from "next/cache";
 import { modulesData } from "@/data/modules";
 
-// Resets title + description + curriculum for every DB module that has a
-// matching entry in modulesData (matched by slug first, then seed_key).
+// Resets title + description + curriculum for every module in this course that
+// has a matching entry in modulesData (matched by slug first, then seedKey).
 // Modules with no matching data file entry are left untouched.
 export async function POST(req: NextRequest) {
-    try {
-        const caller = await getSessionUser(req);
-        if (!caller || !isAdmin(caller)) {
-            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-        }
+    const caller = await getSessionUser(req);
+    if (!caller || !isAdmin(caller) || !caller.courseId) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    const courseId = caller.courseId;
 
-        const dbModules = await prisma.$queryRaw<
-            { id: string; slug: string; seed_key: string; title: string }[]
-        >`SELECT id, slug, seed_key, title FROM course_modules ORDER BY "order"`;
+    const results = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+        const dbModules = await tx.courseModule.findMany({
+            where: { courseId },
+            orderBy: { order: "asc" },
+        });
 
-        const results: { slug: string; status: string }[] = [];
-        const now = new Date().toISOString();
+        const out: { slug: string; status: string }[] = [];
 
         for (const row of dbModules) {
-            // Try slug first, then seed_key as fallback
-            const dataKey = modulesData[row.slug]
-                ? row.slug
-                : modulesData[row.seed_key]
-                ? row.seed_key
-                : null;
+            const dataKey = modulesData[row.slug] ? row.slug : modulesData[row.seedKey] ? row.seedKey : null;
 
             if (!dataKey) {
-                results.push({ slug: row.slug, status: "skipped (no data file)" });
+                out.push({ slug: row.slug, status: "skipped (no data file)" });
                 continue;
             }
 
             const data = modulesData[dataKey];
+            await tx.courseModule.update({
+                where: { id: row.id, courseId },
+                data: { title: data.title, description: data.description, curriculum: data.modules as unknown as Prisma.InputJsonValue },
+            });
 
-            await prisma.$executeRaw`
-                UPDATE course_modules SET
-                    title       = ${data.title},
-                    description = ${data.description},
-                    curriculum  = ${JSON.stringify(data.modules)}::jsonb,
-                    updated_at  = ${now}::timestamptz
-                WHERE id = ${row.id}
-            `;
-
-            results.push({ slug: row.slug, status: `updated from '${dataKey}'` });
+            out.push({ slug: row.slug, status: `updated from '${dataKey}'` });
         }
 
-        revalidatePath("/modules");
+        return out;
+    });
 
-        return NextResponse.json({ results });
-    } catch (error) {
-        console.error("[bulk-reset] Error:", error);
-        return NextResponse.json(
-            { error: error instanceof Error ? error.message : "Unknown" },
-            { status: 500 }
-        );
-    }
+    return NextResponse.json({ results });
 }

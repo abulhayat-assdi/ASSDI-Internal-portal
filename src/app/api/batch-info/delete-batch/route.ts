@@ -23,14 +23,10 @@ export async function DELETE(req: NextRequest) {
 
     await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
       // 1. Delete all student form submissions for this batch
-      await tx.$executeRaw`
-        DELETE FROM "student_form_submissions" WHERE batch_name = ${batchName} AND course_id = ${courseId}
-      `;
+      await tx.studentFormSubmission.deleteMany({ where: { courseId, batchName } });
 
       // 2. Delete batch form record
-      await tx.$executeRaw`
-        DELETE FROM "batch_forms" WHERE batch_name = ${batchName} AND course_id = ${courseId}
-      `;
+      await tx.batchForm.deleteMany({ where: { courseId, batchName } });
 
       // 3. Delete all BatchStudent records
       await tx.batchStudent.deleteMany({ where: { courseId, batchName } });

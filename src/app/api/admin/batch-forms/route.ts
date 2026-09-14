@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin, hasRequiredPermission } from "@/lib/auth";
 import { randomUUID } from "crypto";
 
@@ -21,101 +21,64 @@ function makeSlug(batchName: string): string {
   return `${base}-${rand}`;
 }
 
-type RawBatchForm = {
-  id: string;
-  batch_name: string;
-  form_slug: string;
-  is_active: boolean;
-  created_at: Date;
-  updated_at: Date;
-};
-
-type RawBatch = { name: string };
-
-type PendingCount = { batch_name: string; cnt: bigint };
-
 // GET /api/admin/batch-forms
 export async function GET(req: NextRequest) {
-  try {
-    const user = await getSessionUser(req);
-    if (!user || !(isAdmin(user) || hasRequiredPermission(user, "admin_panel"))) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+  const user = await getSessionUser(req);
+  if (!user || !user.courseId || !(isAdmin(user) || hasRequiredPermission(user, "admin_panel"))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  const courseId = user.courseId;
 
-    // Fetch all batches
-    const batches = await prisma.$queryRaw<RawBatch[]>`
-      SELECT name FROM "batches" ORDER BY created_at DESC
-    `;
+  const result = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+    const batches = await tx.batch.findMany({ where: { courseId }, orderBy: { createdAt: "desc" } });
 
-    // Auto-create BatchForm for any batch that doesn't have one
+    // Auto-create a BatchForm for any batch that doesn't have one yet
     for (const batch of batches) {
-      const existing = await prisma.$queryRaw<{ id: string }[]>`
-        SELECT id FROM "batch_forms" WHERE batch_name = ${batch.name} LIMIT 1
-      `;
-      if (existing.length === 0) {
-        const id = randomUUID();
-        const slug = makeSlug(batch.name);
-        await prisma.$executeRaw`
-          INSERT INTO "batch_forms" (id, batch_name, form_slug, is_active, created_at, updated_at)
-          VALUES (${id}, ${batch.name}, ${slug}, true, NOW(), NOW())
-          ON CONFLICT DO NOTHING
-        `;
+      const existing = await tx.batchForm.findUnique({
+        where: { courseId_batchName: { courseId, batchName: batch.name } },
+      });
+      if (!existing) {
+        await tx.batchForm.create({
+          data: { courseId, batchName: batch.name, formSlug: makeSlug(batch.name), isActive: true },
+        });
       }
     }
 
-    // Fetch all forms
-    const forms = await prisma.$queryRaw<RawBatchForm[]>`
-      SELECT * FROM "batch_forms" ORDER BY created_at DESC
-    `;
+    const forms = await tx.batchForm.findMany({ where: { courseId }, orderBy: { createdAt: "desc" } });
 
-    // Pending submission counts
-    const pendingCounts = await prisma.$queryRaw<PendingCount[]>`
-      SELECT batch_name, COUNT(id) as cnt
-      FROM "student_form_submissions"
-      WHERE status = 'pending'
-      GROUP BY batch_name
-    `;
-    const pendingMap = new Map(pendingCounts.map((p) => [p.batch_name, Number(p.cnt)]));
+    const pendingCounts = await tx.studentFormSubmission.groupBy({
+      by: ["batchName"],
+      where: { courseId, status: "pending" },
+      _count: { id: true },
+    });
+    const pendingMap = new Map(pendingCounts.map((p) => [p.batchName, p._count.id]));
 
-    const result = forms.map((f) => ({
+    return forms.map((f) => ({
       id: f.id,
-      batchName: f.batch_name,
-      formSlug: f.form_slug,
-      isActive: f.is_active,
-      createdAt: f.created_at,
-      pendingCount: pendingMap.get(f.batch_name) ?? 0,
+      batchName: f.batchName,
+      formSlug: f.formSlug,
+      isActive: f.isActive,
+      createdAt: f.createdAt,
+      pendingCount: pendingMap.get(f.batchName) ?? 0,
     }));
+  });
 
-    return NextResponse.json(result);
-  } catch (err) {
-    console.error("[GET /api/admin/batch-forms]", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Unknown error" },
-      { status: 500 }
-    );
-  }
+  return NextResponse.json(result);
 }
 
 // PATCH /api/admin/batch-forms — toggle isActive
 export async function PATCH(req: NextRequest) {
-  try {
-    const user = await getSessionUser(req);
-    if (!user || !(isAdmin(user) || hasRequiredPermission(user, "admin_panel"))) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    const { batchName, isActive } = await req.json();
-    await prisma.$executeRaw`
-      UPDATE "batch_forms" SET is_active = ${isActive}, updated_at = NOW()
-      WHERE batch_name = ${batchName}
-    `;
-
-    return NextResponse.json({ success: true });
-  } catch (err) {
-    console.error("[PATCH /api/admin/batch-forms]", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Unknown error" },
-      { status: 500 }
-    );
+  const user = await getSessionUser(req);
+  if (!user || !user.courseId || !(isAdmin(user) || hasRequiredPermission(user, "admin_panel"))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+  const courseId = user.courseId;
+
+  const { batchName, isActive } = await req.json();
+
+  await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+    tx.batchForm.updateMany({ where: { courseId, batchName }, data: { isActive } })
+  );
+
+  return NextResponse.json({ success: true });
 }

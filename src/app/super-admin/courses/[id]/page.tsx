@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback, use } from "react";
+import { useEffect, useState, useCallback, use, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Trash2, UserPlus, Loader2 } from "lucide-react";
+import { ArrowLeft, Trash2, UserPlus, Loader2, Upload, X } from "lucide-react";
 
 const BASE_DOMAIN = process.env.NEXT_PUBLIC_BASE_DOMAIN || "tasm-skill.asf.bd";
 
@@ -25,6 +25,7 @@ interface Course {
     name: string;
     slug: string;
     tagline: string | null;
+    logoUrl: string | null;
     status: string;
     primaryColor: string;
     accentColor: string;
@@ -62,6 +63,8 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
     const [tagline, setTagline] = useState("");
     const [status, setStatus] = useState("ACTIVE");
     const [features, setFeatures] = useState<Record<string, boolean>>({});
+    const [uploadingLogo, setUploadingLogo] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const [newAdminName, setNewAdminName] = useState("");
     const [newAdminEmail, setNewAdminEmail] = useState("");
@@ -108,6 +111,60 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
             setError(err instanceof Error ? err.message : "সংরক্ষণ করা যায়নি।");
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleLogoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        e.target.value = "";
+        if (!file) return;
+
+        setError("");
+        setMessage("");
+        setUploadingLogo(true);
+        try {
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("folder", `images/courses/${id}`);
+            const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+            const uploadData = await uploadRes.json();
+            if (!uploadRes.ok) throw new Error(uploadData.error || "লোগো আপলোড করা যায়নি।");
+
+            const patchRes = await fetch(`/api/saas/courses/${id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ logoUrl: uploadData.url }),
+            });
+            const patchData = await patchRes.json();
+            if (!patchRes.ok) throw new Error(patchData.error || "লোগো সংরক্ষণ করা যায়নি।");
+
+            setCourse(patchData.course);
+            setMessage("লোগো আপলোড হয়েছে।");
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "লোগো আপলোড করা যায়নি।");
+        } finally {
+            setUploadingLogo(false);
+        }
+    };
+
+    const handleRemoveLogo = async () => {
+        setError("");
+        setMessage("");
+        setUploadingLogo(true);
+        try {
+            const res = await fetch(`/api/saas/courses/${id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ logoUrl: null }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "লোগো সরানো যায়নি।");
+            setCourse(data.course);
+            setMessage("লোগো সরানো হয়েছে।");
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "লোগো সরানো যায়নি।");
+        } finally {
+            setUploadingLogo(false);
         }
     };
 
@@ -207,6 +264,48 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
                 </a>
 
                 <div className="mt-5 space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1.5">কোর্স লোগো</label>
+                        <div className="flex items-center gap-3">
+                            <div className="w-16 h-16 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden shrink-0">
+                                {course.logoUrl ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={course.logoUrl} alt={`${course.name} logo`} className="w-full h-full object-contain" />
+                                ) : (
+                                    <Upload className="w-5 h-5 text-slate-300" />
+                                )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif"
+                                    onChange={handleLogoSelect}
+                                    className="hidden"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    disabled={uploadingLogo}
+                                    className="flex items-center gap-1.5 text-sm font-medium text-slate-700 border border-slate-300 px-3.5 py-2 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
+                                >
+                                    {uploadingLogo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                                    {course.logoUrl ? "লোগো পরিবর্তন করুন" : "লোগো আপলোড করুন"}
+                                </button>
+                                {course.logoUrl && (
+                                    <button
+                                        type="button"
+                                        onClick={handleRemoveLogo}
+                                        disabled={uploadingLogo}
+                                        className="text-slate-400 hover:text-red-500 p-2 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
+                                        title="লোগো সরিয়ে ফেলুন"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1.5">কোর্সের নাম</label>
                         <input

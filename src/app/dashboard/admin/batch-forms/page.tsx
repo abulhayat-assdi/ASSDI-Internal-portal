@@ -44,8 +44,6 @@ export default function BatchFormsAdminPage() {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState("");
   const [copiedSlug, setCopiedSlug] = useState("");
-  const [settingUp, setSettingUp] = useState(false);
-  const [setupMsg, setSetupMsg] = useState("");
 
   const [viewBatch, setViewBatch] = useState<string | null>(null);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
@@ -67,20 +65,6 @@ export default function BatchFormsAdminPage() {
     }
     setLoading(false);
   }, []);
-
-  async function runSetup() {
-    setSettingUp(true);
-    setSetupMsg("");
-    const res = await fetch("/api/admin/batch-forms/setup-db", { method: "POST" });
-    const data = await res.json().catch(() => ({}));
-    if (res.ok) {
-      setSetupMsg("✅ " + (data.message || "Setup complete!"));
-      fetchForms();
-    } else {
-      setSetupMsg("❌ " + (data.error || "Setup failed"));
-    }
-    setSettingUp(false);
-  }
 
   useEffect(() => { fetchForms(); }, [fetchForms]);
 
@@ -146,31 +130,16 @@ export default function BatchFormsAdminPage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
-      <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Batch Form Management</h1>
-          <p className="text-gray-500 text-sm mt-1">
-            প্রতিটি ব্যাচের জন্য ফর্ম লিংক শেয়ার করুন এবং স্টুডেন্টদের জমা দেওয়া তথ্য Approve / Reject করুন।
-          </p>
-        </div>
-        <button
-          onClick={runSetup}
-          disabled={settingUp}
-          className="shrink-0 px-4 py-2 text-sm font-medium rounded-xl border border-indigo-300 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-50 transition-colors"
-        >
-          {settingUp ? "⏳ Setting up..." : "⚙️ Setup / Fix Database"}
-        </button>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-800">Batch Form Management</h1>
+        <p className="text-gray-500 text-sm mt-1">
+          প্রতিটি ব্যাচের জন্য ফর্ম লিংক শেয়ার করুন এবং স্টুডেন্টদের জমা দেওয়া তথ্য Approve / Reject করুন।
+        </p>
       </div>
-
-      {setupMsg && (
-        <div className={`mb-4 px-4 py-3 rounded-xl text-sm font-medium ${setupMsg.startsWith("✅") ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
-          {setupMsg}
-        </div>
-      )}
 
       {fetchError && (
         <div className="mb-4 px-4 py-3 rounded-xl text-sm bg-red-50 text-red-700 border border-red-200">
-          ডেটা লোড হয়নি: {fetchError} — উপরে &quot;Setup / Fix Database&quot; বাটনে ক্লিক করুন।
+          ডেটা লোড হয়নি: {fetchError}
         </div>
       )}
 

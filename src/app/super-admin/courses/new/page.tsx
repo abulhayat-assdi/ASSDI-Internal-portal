@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Upload, Loader2, X } from "lucide-react";
 
 const BASE_DOMAIN = process.env.NEXT_PUBLIC_BASE_DOMAIN || "tasm-skill.asf.bd";
 
@@ -21,11 +21,36 @@ export default function NewCoursePage() {
     const [slug, setSlug] = useState("");
     const [slugTouched, setSlugTouched] = useState(false);
     const [tagline, setTagline] = useState("");
+    const [logoUrl, setLogoUrl] = useState("");
+    const [uploadingLogo, setUploadingLogo] = useState(false);
     const [adminName, setAdminName] = useState("");
     const [adminEmail, setAdminEmail] = useState("");
     const [adminPassword, setAdminPassword] = useState("");
     const [error, setError] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleLogoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        e.target.value = "";
+        if (!file) return;
+
+        setError("");
+        setUploadingLogo(true);
+        try {
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("folder", "images/courses");
+            const res = await fetch("/api/upload", { method: "POST", body: formData });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "লোগো আপলোড করা যায়নি।");
+            setLogoUrl(data.url);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "লোগো আপলোড করা যায়নি।");
+        } finally {
+            setUploadingLogo(false);
+        }
+    };
 
     const handleNameChange = (value: string) => {
         setName(value);
@@ -50,6 +75,7 @@ export default function NewCoursePage() {
                     name: name.trim(),
                     slug: slug.trim(),
                     tagline: tagline.trim() || undefined,
+                    logoUrl: logoUrl || undefined,
                     ...(adminName && adminEmail && adminPassword
                         ? { adminName: adminName.trim(), adminEmail: adminEmail.trim(), adminPassword }
                         : {}),
@@ -118,6 +144,48 @@ export default function NewCoursePage() {
                             placeholder="এক লাইনে কোর্সের পরিচিতি"
                             className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
                         />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1.5">কোর্স লোগো (ঐচ্ছিক)</label>
+                        <div className="flex items-center gap-3">
+                            <div className="w-16 h-16 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden shrink-0">
+                                {logoUrl ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={logoUrl} alt="Course logo" className="w-full h-full object-contain" />
+                                ) : (
+                                    <Upload className="w-5 h-5 text-slate-300" />
+                                )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif"
+                                    onChange={handleLogoSelect}
+                                    className="hidden"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    disabled={uploadingLogo}
+                                    className="flex items-center gap-1.5 text-sm font-medium text-slate-700 border border-slate-300 px-3.5 py-2 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
+                                >
+                                    {uploadingLogo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                                    {logoUrl ? "লোগো পরিবর্তন করুন" : "লোগো আপলোড করুন"}
+                                </button>
+                                {logoUrl && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setLogoUrl("")}
+                                        className="text-slate-400 hover:text-red-500 p-2 rounded-lg hover:bg-red-50 transition-colors"
+                                        title="লোগো সরিয়ে ফেলুন"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                )}
+                            </div>
+                        </div>
                     </div>
 
                     <div className="pt-2 border-t border-slate-100">

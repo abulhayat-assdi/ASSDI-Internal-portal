@@ -73,7 +73,6 @@ export default function ResourceManagementPage() {
     const [batchNames,  setBatchNames]    = useState<string[]>([]);
     const [loading,     setLoading]       = useState(true);
     const [dbError,     setDbError]       = useState(false);
-    const [isSettingUp, setIsSettingUp]   = useState(false);
 
     // ── Folder modal ──────────────────────────────────────────────────────
     const [folderModal,     setFolderModal]     = useState(false);
@@ -90,22 +89,6 @@ export default function ResourceManagementPage() {
     const [uploadProgress,   setUploadProgress]   = useState(0);
     const [isUploading,      setIsUploading]      = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
-
-    // ── One-click DB setup ─────────────────────────────────────────────────
-    const handleDbSetup = async () => {
-        setIsSettingUp(true);
-        try {
-            const res = await fetch("/api/admin/resource-library/setup-db", { method: "POST" });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || "Setup failed");
-            setDbError(false);
-            await fetchAll();
-        } catch (err) {
-            alert("Setup failed: " + (err instanceof Error ? err.message : err));
-        } finally {
-            setIsSettingUp(false);
-        }
-    };
 
     // ── Load data ──────────────────────────────────────────────────────────
     const fetchAll = useCallback(async () => {
@@ -513,16 +496,6 @@ export default function ResourceManagementPage() {
                     </div>
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                    <button
-                        onClick={handleDbSetup}
-                        disabled={isSettingUp}
-                        title="Run DB migration for Resource Library"
-                        className="px-3 py-2 bg-amber-500 text-white text-sm font-bold rounded-xl hover:bg-amber-600 disabled:opacity-60 flex items-center gap-1.5"
-                    >
-                        {isSettingUp ? (
-                            <><span className="inline-block w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin"></span> Setting up...</>
-                        ) : <><span>⚙</span> Init DB</>}
-                    </button>
                     <button onClick={() => openCreateFolder(null)}
                         className="px-4 py-2 bg-purple-600 text-white text-sm font-bold rounded-xl hover:bg-purple-700 transition-colors flex items-center gap-2">
                         <span>📁</span> New Folder
@@ -534,21 +507,18 @@ export default function ResourceManagementPage() {
                 </div>
             </div>
 
-            {/* DB Setup Banner — only when schema error detected */}
+            {/* Error banner */}
             {dbError && (
-                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 flex items-center justify-between gap-4">
+                <div className="bg-red-50 border border-red-200 rounded-2xl p-6 flex items-center justify-between gap-4">
                     <div>
-                        <p className="font-bold text-amber-800">Database setup required</p>
-                        <p className="text-sm text-amber-600 mt-1">Resource Library-র জন্য DB columns তৈরি হয়নি। উপরে অথবা নিচের বাটনে ক্লিক করুন।</p>
+                        <p className="font-bold text-red-800">লোড করা যায়নি</p>
+                        <p className="text-sm text-red-600 mt-1">Resource Library-র ডেটা লোড করতে সমস্যা হয়েছে।</p>
                     </div>
                     <button
-                        onClick={handleDbSetup}
-                        disabled={isSettingUp}
-                        className="px-5 py-2.5 bg-amber-600 text-white font-bold rounded-xl hover:bg-amber-700 disabled:opacity-60 whitespace-nowrap text-sm flex items-center gap-2"
+                        onClick={fetchAll}
+                        className="px-5 py-2.5 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 whitespace-nowrap text-sm"
                     >
-                        {isSettingUp ? (
-                            <><span className="inline-block w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></span> Setting up...</>
-                        ) : "Initialize Database"}
+                        আবার চেষ্টা করুন
                     </button>
                 </div>
             )}

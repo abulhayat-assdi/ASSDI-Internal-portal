@@ -59,8 +59,6 @@ export default function CourseModulesAdminPage() {
     const [bulkResetting, setBulkResetting] = useState(false);
     const [resettingSlug, setResettingSlug] = useState<string | null>(null);
     const [dbError, setDbError] = useState<string | null>(null);
-    const [settingUp, setSettingUp] = useState(false);
-    const [migrating, setMigrating] = useState(false);
 
     // Editor state
     const [mode, setMode] = useState<"list" | "create" | "edit">("list");
@@ -88,28 +86,8 @@ export default function CourseModulesAdminPage() {
     }, []);
 
     useEffect(() => {
-        // Auto-migrate columns then load
-        setMigrating(true);
-        fetch("/api/admin/course-modules/add-teacher-fields", { method: "POST" })
-            .then(() => fetch("/api/admin/course-modules/add-seed-key", { method: "POST" }))
-            .finally(() => { setMigrating(false); load(); });
+        load();
     }, [load]);
-
-    // ── One-click DB setup (creates table via raw SQL) ───────
-    const handleSetupDB = async () => {
-        setSettingUp(true);
-        try {
-            const res = await fetch("/api/admin/course-modules/setup-db", { method: "POST" });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error);
-            await load();
-            success("Database Ready!", data.message);
-        } catch (err: unknown) {
-            toastError("Setup Failed", err instanceof Error ? err.message : "Unknown error");
-        } finally {
-            setSettingUp(false);
-        }
-    };
 
     // ── Seed initial data ────────────────────────────────────
     const handleSeed = async () => {
@@ -190,7 +168,7 @@ export default function CourseModulesAdminPage() {
 
     // ── Delete ───────────────────────────────────────────────
     const handleDelete = async (m: CourseModule) => {
-        const ok = await confirm({ message: `"${m.title}" module টি permanently delete করবেন? Public site থেকেও সরে যাবে।`, variant: "danger" });
+        const ok = await confirm({ message: `"${m.title}" module টি permanently delete করবেন?`, variant: "danger" });
         if (!ok) return;
         try {
             const res = await fetch(`/api/admin/course-modules/${m.id}`, { method: "DELETE" });
@@ -433,7 +411,7 @@ export default function CourseModulesAdminPage() {
                                         placeholder="sales-mastery"
                                         className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#059669]/30 focus:border-[#059669] font-mono"
                                     />
-                                    <p className="text-xs text-gray-400">URL: /modules/<strong>{form.slug || "..."}</strong></p>
+                                    <p className="text-xs text-gray-400">URL: /dashboard/course-modules/<strong>{form.slug || "..."}</strong></p>
                                 </div>
 
                                 {/* Description */}
@@ -504,7 +482,7 @@ export default function CourseModulesAdminPage() {
                                 <div className="flex items-center justify-between">
                                     <div>
                                         <label className="text-sm font-semibold text-gray-700">Card Bullet Points</label>
-                                        <p className="text-xs text-gray-400 mt-0.5">/modules পেইজের card-এ এই bullet গুলো দেখাবে</p>
+                                        <p className="text-xs text-gray-400 mt-0.5">Course Modules পেইজের card-এ এই bullet গুলো দেখাবে</p>
                                     </div>
                                     <button
                                         type="button"
@@ -546,9 +524,9 @@ export default function CourseModulesAdminPage() {
 
                             {/* Preview hint */}
                             <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-sm text-blue-700">
-                                <strong>Preview:</strong> Card টি <a href="/modules" target="_blank" className="underline">/modules</a> পেইজে দেখাবে — Title বড় হরফে, তারপর প্রতিটি bullet checkmark সহ।
+                                <strong>Preview:</strong> Card টি <a href="/dashboard/course-modules" target="_blank" className="underline">Course Modules</a> পেইজে দেখাবে — Title বড় হরফে, তারপর প্রতিটি bullet checkmark সহ।
                                 "See Full Module" বাটনে ক্লিক করলে{" "}
-                                <a href={`/modules/${form.slug}`} target="_blank" className="underline">/modules/{form.slug || "..."}</a> curriculum পেইজ ওপেন হবে।
+                                <a href={`/dashboard/course-modules/${form.slug}`} target="_blank" className="underline">/dashboard/course-modules/{form.slug || "..."}</a> curriculum পেইজ ওপেন হবে।
                             </div>
                         </div>
                     )}
@@ -710,7 +688,7 @@ export default function CourseModulesAdminPage() {
                         <div className="w-1 h-10 bg-[#059669] rounded-full" />
                         <div>
                             <h1 className="text-3xl font-bold text-[#1f2937]">Course Modules</h1>
-                            <p className="text-[#6b7280] mt-1">Public site-এর module গুলো manage করুন</p>
+                            <p className="text-[#6b7280] mt-1">এই কোর্সের module গুলো manage করুন</p>
                         </div>
                     </div>
                     <div className="flex gap-3 flex-wrap">
@@ -779,31 +757,16 @@ export default function CourseModulesAdminPage() {
                         <div className="w-8 h-8 border-2 border-[#059669]/20 border-t-[#059669] rounded-full animate-spin" />
                     </div>
                 ) : dbError ? (
-                    /* ── DB not set up yet ── */
                     <div className="bg-white rounded-2xl border border-dashed border-red-200 p-16 text-center">
-                        <div className="text-5xl mb-4">🗄️</div>
-                        <h3 className="text-xl font-bold text-gray-700 mb-2">Database table তৈরি হয়নি</h3>
-                        <p className="text-gray-400 mb-2 text-sm max-w-md mx-auto">
-                            প্রথমবার ব্যবহারের আগে database-এ table তৈরি করতে হবে।<br />
-                            নিচের বাটনে ক্লিক করুন — এটা automatically table তৈরি করবে।
-                        </p>
+                        <div className="text-5xl mb-4">⚠️</div>
+                        <h3 className="text-xl font-bold text-gray-700 mb-2">Module লোড করা যায়নি</h3>
                         <p className="text-xs text-red-400 mb-6 font-mono bg-red-50 px-3 py-1.5 rounded inline-block">{dbError}</p>
-                        <div className="flex gap-3 justify-center">
-                            <button
-                                onClick={handleSetupDB}
-                                disabled={settingUp}
-                                className="flex items-center gap-2 px-6 py-3 bg-[#059669] text-white font-semibold rounded-xl hover:bg-[#047857] transition-colors text-sm shadow-sm"
-                            >
-                                {settingUp ? (
-                                    <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                ) : (
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7M4 7c0-2 1-3 3-3h10c2 0 3 1 3 3M4 7h16" />
-                                    </svg>
-                                )}
-                                {settingUp ? "Setting up..." : "Setup Database Table"}
-                            </button>
-                        </div>
+                        <button
+                            onClick={load}
+                            className="px-6 py-3 bg-[#059669] text-white font-semibold rounded-xl hover:bg-[#047857] transition-colors text-sm shadow-sm"
+                        >
+                            আবার চেষ্টা করুন
+                        </button>
                     </div>
                 ) : modules.length === 0 ? (
                     <div className="bg-white rounded-2xl border border-dashed border-gray-300 p-16 text-center">
@@ -840,7 +803,7 @@ export default function CourseModulesAdminPage() {
                                         </span>
                                         <div className="flex-1 min-w-0">
                                             <h3 className="font-bold text-[#1f2937] leading-snug line-clamp-2">{m.title}</h3>
-                                            <p className="text-xs text-gray-400 font-mono mt-0.5">/modules/{m.slug}</p>
+                                            <p className="text-xs text-gray-400 font-mono mt-0.5">/dashboard/course-modules/{m.slug}</p>
                                         </div>
                                         <span className={`px-2 py-0.5 rounded-full text-xs font-semibold flex-shrink-0 ${m.isPublished ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
                                             {m.isPublished ? "Live" : "Draft"}
@@ -875,7 +838,7 @@ export default function CourseModulesAdminPage() {
                                     {/* Actions */}
                                     <div className="flex gap-2 pt-3 border-t border-gray-100">
                                         <a
-                                            href={`/modules/${m.slug}`}
+                                            href={`/dashboard/course-modules/${m.slug}`}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
