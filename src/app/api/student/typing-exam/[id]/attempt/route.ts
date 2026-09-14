@@ -3,6 +3,7 @@ import { withCourseContext } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { scoreAttempt, gradeAttempt } from "@/lib/typing-exam/scoring";
 import { loadVisibleExam } from "@/lib/typing-exam/visibility";
+import { checkRetryPassword } from "@/lib/typing-exam/retryGate";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -24,13 +25,14 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const studentBatchName = user.studentBatchName || "";
     const { id } = await params;
 
-    let body: { typedText?: unknown; elapsedSeconds?: unknown };
+    let body: { typedText?: unknown; elapsedSeconds?: unknown; retryPassword?: unknown };
     try {
         body = await req.json();
     } catch {
         return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
     }
     const { typedText, elapsedSeconds } = body;
+    const retryPassword = typeof body.retryPassword === "string" ? body.retryPassword : undefined;
     if (typeof typedText !== "string" || typeof elapsedSeconds !== "number") {
         return NextResponse.json({ error: "typedText and elapsedSeconds are required" }, { status: 400 });
     }
@@ -43,28 +45,27 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
             }
             const { exam } = result;
 
-            const attemptsUsed = await tx.typingExamAttempt.count({
-                where: {
-                    courseId,
-                    examId: exam.id,
-                    takerType: "STUDENT",
-                    studentUserId: user.id,
-                },
-            });
-
-            if (attemptsUsed >= exam.maxAttempts) {
-                return NextResponse.json(
-                    { error: "You have used all your attempts for this exam" },
-                    { status: 403 }
-                );
+            const gate = await checkRetryPassword(
+                tx,
+                courseId,
+                exam.id,
+                { studentUserId: user.id },
+                exam.retryPasswordHash,
+                retryPassword
+            );
+            if (!gate.ok) {
+                return NextResponse.json(gate.body, { status: gate.status });
             }
+            const attemptsUsed = gate.attemptsUsed;
 
             // Defend against a tampered client-side timer.
             const clampedElapsed = Math.max(1, Math.min(elapsedSeconds, exam.durationSeconds));
+            // Defend against an over-long submission inflating totalChars/accuracy.
+            const clampedTypedText = typedText.slice(0, exam.examText.length);
 
             const { correctChars, totalChars, wpm, accuracy } = scoreAttempt({
                 originalText: exam.examText,
-                typedText,
+                typedText: clampedTypedText,
                 elapsedSeconds: clampedElapsed,
             });
 

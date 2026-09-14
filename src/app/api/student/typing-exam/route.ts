@@ -62,9 +62,7 @@ export async function GET(req: NextRequest) {
                     title: exam.title,
                     description: exam.description,
                     durationSeconds: exam.durationSeconds,
-                    maxAttempts: exam.maxAttempts,
                     attemptsUsed,
-                    canAttempt: attemptsUsed < exam.maxAttempts,
                     lastResult: latest
                         ? { wpm: latest.wpm, accuracy: latest.accuracy, result: latest.result }
                         : undefined,

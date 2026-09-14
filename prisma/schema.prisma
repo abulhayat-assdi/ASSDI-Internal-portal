@@ -1480,7 +1480,6 @@ model TypingExam {
   batchNames  Json     @default("[]") @map("batch_names") // string[] of Batch.name
 
   durationSeconds Int  @default(60) @map("duration_seconds")
-  maxAttempts     Int  @default(1)  @map("max_attempts")   // enforced for STUDENT attempts only
 
   passWpm      Float @map("pass_wpm")
   passAccuracy Float @map("pass_accuracy")
@@ -1496,8 +1495,15 @@ model TypingExam {
   scheduleEnd   DateTime? @map("schedule_end")
 
   // PUBLIC access
-  publicSlug         String? @unique @map("public_slug")
-  publicPasswordHash String? @map("public_password_hash") // required to submit a 2nd+ attempt from the same phone
+  publicSlug String? @unique @map("public_slug")
+
+  // Retry gate — one fixed password per exam (both INTERNAL and PUBLIC).
+  // First attempt by any taker never needs it; every attempt after the
+  // first must supply the plaintext password, verified via bcrypt against
+  // this hash. Required at the API layer on create; nullable at the DB
+  // level on purpose so a schema migration never needs to backfill a hash
+  // nobody knows the plaintext of.
+  retryPasswordHash String? @map("retry_password_hash")
 
   createdByUid  String @map("created_by_uid")
   createdByName String @default("") @map("created_by_name")

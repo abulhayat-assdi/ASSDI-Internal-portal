@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { loadVisibleExam } from "@/lib/typing-exam/visibility";
+import { checkRetryPassword } from "@/lib/typing-exam/retryGate";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -9,11 +10,13 @@ export const runtime = "nodejs";
 type RouteParams = { params: Promise<{ id: string }> };
 
 /**
- * GET /api/student/typing-exam/[id]
- * Returns the exam passage + duration for a student who is eligible to
- * start it. Does not create an attempt row (the attempt endpoint does).
+ * POST /api/student/typing-exam/[id]/retry-check
+ * Lightweight pre-check for the inline "Try Again" password prompt, so the
+ * student gets instant feedback before the runner is re-mounted. This is
+ * NOT the authoritative gate — the attempt POST independently re-verifies
+ * the password itself and must never trust that this call succeeded.
  */
-export async function GET(req: NextRequest, { params }: RouteParams) {
+export async function POST(req: NextRequest, { params }: RouteParams) {
     const user = await getSessionUser(req);
     if (!user || user.role !== "student" || !user.courseId) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -21,6 +24,9 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const courseId = user.courseId;
     const studentBatchName = user.studentBatchName || "";
     const { id } = await params;
+
+    const body = await req.json().catch(() => ({}));
+    const password = typeof body.password === "string" ? body.password : undefined;
 
     try {
         return await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
@@ -30,25 +36,22 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             }
             const { exam } = result;
 
-            const attemptsUsed = await tx.typingExamAttempt.count({
-                where: {
-                    courseId,
-                    examId: exam.id,
-                    takerType: "STUDENT",
-                    studentUserId: user.id,
-                },
-            });
+            const gate = await checkRetryPassword(
+                tx,
+                courseId,
+                exam.id,
+                { studentUserId: user.id },
+                exam.retryPasswordHash,
+                password
+            );
+            if (!gate.ok) {
+                return NextResponse.json(gate.body, { status: gate.status });
+            }
 
-            return NextResponse.json({
-                id: exam.id,
-                title: exam.title,
-                examText: exam.examText,
-                durationSeconds: exam.durationSeconds,
-                attemptsUsed,
-            });
+            return NextResponse.json({ ok: true });
         });
     } catch (error) {
-        console.error("[Student TypingExam Detail GET]", error);
+        console.error("[Student TypingExam Retry-Check POST]", error);
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 }

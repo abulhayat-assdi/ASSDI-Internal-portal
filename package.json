@@ -11,6 +11,7 @@
     "start": "next start",
     "cpanel-start": "NODE_ENV=production node server.js",
     "lint": "next lint",
+    "test": "vitest run",
     "deploy": "firebase deploy --only hosting",
     "seed:typing-game-catalog": "tsx scripts/typing-game-seed-catalog.ts"
   },
@@ -63,6 +64,8 @@
     "eslint-config-next": "^15.0.0",
     "tailwindcss": "^4",
     "tsx": "^4.19.2",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.0"
   }
 }

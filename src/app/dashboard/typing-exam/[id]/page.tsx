@@ -16,7 +16,6 @@ type Exam = {
   batchNames: string[];
   isActive: boolean;
   durationSeconds: number;
-  maxAttempts: number;
   passWpm: number;
   passAccuracy: number;
   failWpm: number;
@@ -274,11 +273,9 @@ export default function TypingExamResultsPage() {
             <p className="text-slate-700 font-medium">{exam.durationSeconds} সেকেন্ড</p>
           </div>
           <div className="rounded-xl bg-white/60 p-3">
-            <p className="text-xs text-slate-400">
-              {exam.accessType === "INTERNAL" ? "ব্যাচ" : "সর্বোচ্চ Attempt (স্টুডেন্ট)"}
-            </p>
+            <p className="text-xs text-slate-400">{exam.accessType === "INTERNAL" ? "ব্যাচ" : "মোট Attempt"}</p>
             <p className="text-slate-700 font-medium">
-              {exam.accessType === "INTERNAL" ? exam.batchNames.join(", ") || "—" : exam.maxAttempts}
+              {exam.accessType === "INTERNAL" ? exam.batchNames.join(", ") || "—" : attempts.length}
             </p>
           </div>
         </div>

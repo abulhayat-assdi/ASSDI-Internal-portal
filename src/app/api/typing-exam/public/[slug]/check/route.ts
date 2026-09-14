@@ -2,9 +2,9 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
 import { withCourseContext } from "@/lib/db";
 import { normalizePhone } from "@/lib/typing-exam/identity";
+import { checkRetryPassword } from "@/lib/typing-exam/retryGate";
 
 type RouteParams = { params: Promise<{ slug: string }> };
 
@@ -75,18 +75,11 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   const normalizedPhone = normalizePhone(phone);
   const courseId = exam.courseId;
 
-  const priorAttempts = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
-    tx.typingExamAttempt.count({
-      where: { courseId, examId: exam.id, takerType: "PUBLIC", publicPhone: normalizedPhone },
-    })
+  const gate = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+    checkRetryPassword(tx, courseId, exam.id, { publicPhone: normalizedPhone }, exam.retryPasswordHash, password)
   );
-
-  if (priorAttempts > 0) {
-    const passwordOk =
-      !!password && !!exam.publicPasswordHash && (await bcrypt.compare(password, exam.publicPasswordHash));
-    if (!passwordOk) {
-      return NextResponse.json({ needsPassword: true }, { status: 401 });
-    }
+  if (!gate.ok) {
+    return NextResponse.json(gate.body, { status: gate.status });
   }
 
   return NextResponse.json({

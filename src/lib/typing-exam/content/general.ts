@@ -1,9 +1,12 @@
-// Bundled passage bank for the Typing Test Exam feature. Independent from
-// src/lib/typing-game/content — this assessment tool owns its own text.
+// Original seed passages (pre-expansion). Kept as a small always-available
+// fallback category alongside the larger topical categories.
+import type { ExamPassage } from "./types";
 
-export type ExamTextLanguage = "en" | "bn";
+function wc(text: string): number {
+  return text.trim().split(/\s+/).length;
+}
 
-const ENGLISH_PASSAGES: string[] = [
+const ENGLISH_TEXTS: string[] = [
   "The quick brown fox jumps over the lazy dog while the morning sun rises slowly over the quiet hills. Learning to type quickly and accurately takes regular practice and a calm, focused mind.",
   "Technology has changed the way people learn, work, and communicate with each other. Students who practice typing every day usually notice a steady improvement in both their speed and accuracy over time.",
   "A good typist keeps their eyes on the screen instead of the keyboard, trusting their fingers to find the right keys. This habit, built through patient practice, saves a great deal of time in the long run.",
@@ -12,7 +15,7 @@ const ENGLISH_PASSAGES: string[] = [
   "Clear communication starts with clear writing, and clear writing depends on being able to get your thoughts onto the screen without your hands slowing you down. That is exactly what typing practice builds.",
 ];
 
-const BANGLA_PASSAGES: string[] = [
+const BANGLA_TEXTS: string[] = [
   "সকালের সূর্য ধীরে ধীরে পাহাড়ের ওপর দিয়ে উঠে আসে এবং চারদিক আলোয় ভরে যায়। নিয়মিত অনুশীলনের মাধ্যমে দ্রুত ও নির্ভুলভাবে টাইপ করা শেখা সম্ভব।",
   "প্রযুক্তি মানুষের শেখার, কাজ করার এবং যোগাযোগ করার পদ্ধতি সম্পূর্ণভাবে বদলে দিয়েছে। যারা প্রতিদিন টাইপিং অনুশীলন করে তাদের গতি ও নির্ভুলতা উভয়ই ধীরে ধীরে বৃদ্ধি পায়।",
   "একজন দক্ষ টাইপিস্ট কীবোর্ডের দিকে না তাকিয়ে স্ক্রিনের দিকে তাকিয়ে থাকেন এবং তার আঙুলের ওপর আস্থা রাখেন। এই অভ্যাস দীর্ঘমেয়াদে অনেক সময় বাঁচিয়ে দেয়।",
@@ -21,16 +24,21 @@ const BANGLA_PASSAGES: string[] = [
   "স্পষ্ট যোগাযোগ শুরু হয় স্পষ্ট লেখার মাধ্যমে, আর স্পষ্ট লেখা নির্ভর করে দ্রুত ও সঠিকভাবে টাইপ করার সক্ষমতার ওপর। নিয়মিত অনুশীলনই এই দক্ষতা গড়ে তোলে।",
 ];
 
-function pickRandom<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-
-/** Resolve one fixed passage for a BANK-sourced exam. Picked once at creation time. */
-export function pickBankPassage(language: ExamTextLanguage): string {
-  return language === "bn" ? pickRandom(BANGLA_PASSAGES) : pickRandom(ENGLISH_PASSAGES);
-}
-
-export const EXAM_TEXT_LANGUAGES: { value: ExamTextLanguage; label: string }[] = [
-  { value: "en", label: "English" },
-  { value: "bn", label: "বাংলা" },
+export const generalPassages: ExamPassage[] = [
+  ...ENGLISH_TEXTS.map((text, i) => ({
+    id: `en-general-${String(i + 1).padStart(3, "0")}`,
+    language: "en" as const,
+    category: "General",
+    title: `General Practice ${i + 1}`,
+    wordCount: wc(text),
+    text,
+  })),
+  ...BANGLA_TEXTS.map((text, i) => ({
+    id: `bn-general-${String(i + 1).padStart(3, "0")}`,
+    language: "bn" as const,
+    category: "General",
+    title: `সাধারণ অনুশীলন ${i + 1}`,
+    wordCount: wc(text),
+    text,
+  })),
 ];

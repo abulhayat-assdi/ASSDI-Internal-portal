@@ -63,7 +63,6 @@ export async function POST(req: NextRequest) {
     accessType,
     batchNames,
     durationSeconds,
-    maxAttempts,
     passWpm,
     passAccuracy,
     failWpm,
@@ -71,7 +70,7 @@ export async function POST(req: NextRequest) {
     textSource,
     textLanguage,
     customText,
-    publicPassword,
+    retryPassword,
     scheduleStart,
     scheduleEnd,
   } = body;
@@ -122,15 +121,12 @@ export async function POST(req: NextRequest) {
     examText = pickBankPassage(resolvedLanguage);
   }
 
-  let publicSlug: string | null = null;
-  let publicPasswordHash: string | null = null;
-  if (resolvedAccessType === "PUBLIC") {
-    if (!publicPassword || typeof publicPassword !== "string" || !publicPassword.trim()) {
-      return NextResponse.json({ error: "Public exam-এর জন্য retry password আবশ্যক" }, { status: 400 });
-    }
-    publicSlug = makePublicExamSlug(title);
-    publicPasswordHash = await bcrypt.hash(publicPassword, 10);
+  if (!retryPassword || typeof retryPassword !== "string" || !retryPassword.trim()) {
+    return NextResponse.json({ error: "Retry password আবশ্যক" }, { status: 400 });
   }
+  const retryPasswordHash = await bcrypt.hash(retryPassword, 10);
+
+  const publicSlug: string | null = resolvedAccessType === "PUBLIC" ? makePublicExamSlug(title) : null;
 
   const exam = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
     tx.typingExam.create({
@@ -141,7 +137,6 @@ export async function POST(req: NextRequest) {
         accessType: resolvedAccessType,
         batchNames: resolvedBatchNames,
         durationSeconds: Number(durationSeconds) > 0 ? Number(durationSeconds) : 60,
-        maxAttempts: Number(maxAttempts) > 0 ? Number(maxAttempts) : 1,
         passWpm: thresholds.passWpm,
         passAccuracy: thresholds.passAccuracy,
         failWpm: thresholds.failWpm,
@@ -152,7 +147,7 @@ export async function POST(req: NextRequest) {
         scheduleStart: scheduleStart ? new Date(scheduleStart) : null,
         scheduleEnd: scheduleEnd ? new Date(scheduleEnd) : null,
         publicSlug,
-        publicPasswordHash,
+        retryPasswordHash,
         createdByUid: user.id,
         createdByName: user.displayName ?? "",
         createdByRole: user.role ?? "",

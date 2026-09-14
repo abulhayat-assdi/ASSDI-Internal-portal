@@ -2,10 +2,10 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
 import { withCourseContext } from "@/lib/db";
 import { normalizePhone } from "@/lib/typing-exam/identity";
 import { scoreAttempt, gradeAttempt } from "@/lib/typing-exam/scoring";
+import { checkRetryPassword } from "@/lib/typing-exam/retryGate";
 
 type RouteParams = { params: Promise<{ slug: string }> };
 
@@ -56,22 +56,25 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   const courseId = exam.courseId;
 
   const result = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
-    const priorAttempts = await tx.typingExamAttempt.count({
-      where: { courseId, examId: exam.id, takerType: "PUBLIC", publicPhone: normalizedPhone },
-    });
-
-    if (priorAttempts > 0) {
-      const passwordOk =
-        !!password && !!exam.publicPasswordHash && (await bcrypt.compare(password, exam.publicPasswordHash));
-      if (!passwordOk) {
-        return { status: 401 as const, body: { needsPassword: true } };
-      }
+    const gate = await checkRetryPassword(
+      tx,
+      courseId,
+      exam.id,
+      { publicPhone: normalizedPhone },
+      exam.retryPasswordHash,
+      password
+    );
+    if (!gate.ok) {
+      return { status: gate.status, body: gate.body };
     }
+    const priorAttempts = gate.attemptsUsed;
 
     const clampedElapsed = Math.min(Math.max(elapsedSeconds, 0), exam.durationSeconds);
+    // Defend against an over-long submission inflating totalChars/accuracy.
+    const clampedTypedText = typedText.slice(0, exam.examText.length);
     const score = scoreAttempt({
       originalText: exam.examText,
-      typedText,
+      typedText: clampedTypedText,
       elapsedSeconds: clampedElapsed,
     });
     const gradeResult = gradeAttempt(score.wpm, score.accuracy, {

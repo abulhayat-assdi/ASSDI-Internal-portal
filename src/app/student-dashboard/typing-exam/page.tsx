@@ -11,9 +11,7 @@ interface TypingExamListItem {
     title: string;
     description: string;
     durationSeconds: number;
-    maxAttempts: number;
     attemptsUsed: number;
-    canAttempt: boolean;
     lastResult?: { wpm: number; accuracy: number; result: "PASS" | "AVERAGE" | "FAIL" };
 }
 
@@ -126,10 +124,12 @@ export default function StudentTypingExamListPage() {
                                         <Timer className="h-3.5 w-3.5" strokeWidth={2} />
                                         {formatDuration(exam.durationSeconds)}
                                     </span>
-                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100/80 px-3 py-1">
-                                        <Repeat2 className="h-3.5 w-3.5" strokeWidth={2} />
-                                        চেষ্টা: {exam.attemptsUsed}/{exam.maxAttempts}
-                                    </span>
+                                    {exam.attemptsUsed > 0 && (
+                                        <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100/80 px-3 py-1">
+                                            <Repeat2 className="h-3.5 w-3.5" strokeWidth={2} />
+                                            চেষ্টা: {exam.attemptsUsed} বার হয়েছে
+                                        </span>
+                                    )}
                                 </div>
 
                                 {resultMeta && exam.lastResult && (
@@ -143,19 +143,13 @@ export default function StudentTypingExamListPage() {
                                 )}
 
                                 <div className="pt-2 border-t border-slate-100">
-                                    {exam.canAttempt ? (
-                                        <Link
-                                            href={`/student-dashboard/typing-exam/${exam.id}`}
-                                            className="group inline-flex items-center justify-center gap-1.5 py-2.5 px-5 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-xl shadow-md shadow-brand-600/20 transition-all"
-                                        >
-                                            শুরু করুন
-                                            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" strokeWidth={2.5} />
-                                        </Link>
-                                    ) : (
-                                        <span className="inline-flex items-center gap-1.5 py-2.5 px-5 text-sm font-semibold text-slate-500 bg-slate-100 rounded-xl">
-                                            আপনার সব চেষ্টা শেষ হয়ে গেছে
-                                        </span>
-                                    )}
+                                    <Link
+                                        href={`/student-dashboard/typing-exam/${exam.id}`}
+                                        className="group inline-flex items-center justify-center gap-1.5 py-2.5 px-5 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-xl shadow-md shadow-brand-600/20 transition-all"
+                                    >
+                                        {exam.attemptsUsed > 0 ? "আবার শুরু করুন" : "শুরু করুন"}
+                                        <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" strokeWidth={2.5} />
+                                    </Link>
                                 </div>
                             </motion.div>
                         );

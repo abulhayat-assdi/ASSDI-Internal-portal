@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import ExamRunner from "@/components/typing-exam/ExamRunner";
+import ExamResultPanel from "@/components/typing-exam/ExamResultPanel";
 
 type Stage = "loading" | "not_found" | "not_active" | "identity" | "running" | "result";
 
@@ -185,31 +186,15 @@ export default function PublicTypingExamPage() {
   }
 
   if (stage === "result" && resultData) {
-    const badge =
-      resultData.result === "PASS"
-        ? { text: "উত্তীর্ণ", cls: "bg-emerald-50 text-emerald-600 border-emerald-200" }
-        : resultData.result === "AVERAGE"
-        ? { text: "মোটামুটি", cls: "bg-amber-50 text-amber-600 border-amber-200" }
-        : { text: "অনুত্তীর্ণ", cls: "bg-red-50 text-red-600 border-red-200" };
     return (
-      <Centered>
-        <div className={`inline-block px-4 py-1.5 rounded-full border text-sm font-bold mb-4 ${badge.cls}`}>
-          {badge.text}
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4 py-10">
+        <div className="max-w-md w-full space-y-4">
+          <ExamResultPanel result={resultData} variant="public" displayName={name} />
+          <p className="text-center text-slate-400 text-xs">
+            আপনার পরীক্ষা সফলভাবে জমা হয়েছে। এই পাতাটি বন্ধ করে দিতে পারেন।
+          </p>
         </div>
-        <p className="no-gradient text-xl font-bold text-slate-800 mb-1">{name}</p>
-        <p className="text-slate-400 text-xs mb-6">পরীক্ষার ফলাফল</p>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-            <p className="no-gradient text-2xl font-extrabold text-slate-800">{resultData.wpm}</p>
-            <p className="text-xs text-slate-400 mt-1">WPM</p>
-          </div>
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-            <p className="no-gradient text-2xl font-extrabold text-slate-800">{resultData.accuracy}%</p>
-            <p className="text-xs text-slate-400 mt-1">Accuracy</p>
-          </div>
-        </div>
-        <p className="text-slate-400 text-xs mt-6">আপনার পরীক্ষা সফলভাবে জমা হয়েছে। এই পাতাটি বন্ধ করে দিতে পারেন।</p>
-      </Centered>
+      </div>
     );
   }
 

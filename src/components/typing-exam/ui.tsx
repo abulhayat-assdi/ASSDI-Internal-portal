@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "framer-motion";
 import type { Variants } from "framer-motion";
 
 /**
@@ -24,6 +25,13 @@ export function AmbientOrbs() {
       <div className="absolute bottom-0 left-1/4 w-72 h-72 rounded-full bg-slate-300/25 blur-3xl" />
     </div>
   );
+}
+
+/** Bangla "X মিনিট Y সেকেন্ড" duration label, shared by the ready screen and exam timer. */
+export function formatDurationLabel(durationSeconds: number): string {
+  const minutes = Math.floor(durationSeconds / 60);
+  const seconds = durationSeconds % 60;
+  return `${minutes} মিনিট${seconds > 0 ? ` ${seconds} সেকেন্ড` : ""}`;
 }
 
 export type ResultTier = "PASS" | "AVERAGE" | "FAIL";
@@ -60,3 +68,39 @@ export const modalPanel: Variants = {
   show: { opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 320, damping: 28 } },
   exit: { opacity: 0, y: 12, scale: 0.98, transition: { duration: 0.15 } },
 };
+
+/** Small pill toggle between two/more options — shared by the exam create/edit form. */
+export function SegmentedToggle<T extends string>({
+  value,
+  onChange,
+  options,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  options: { value: T; label: string }[];
+}) {
+  return (
+    <div className="inline-flex rounded-xl bg-slate-100 p-1 gap-1">
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          type="button"
+          aria-pressed={value === opt.value}
+          onClick={() => onChange(opt.value)}
+          className={`cursor-pointer relative rounded-lg px-4 py-1.5 text-sm font-medium transition-colors ${
+            value === opt.value ? "text-white" : "text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          {value === opt.value && (
+            <motion.span
+              layoutId="segmented-active"
+              className="absolute inset-0 rounded-lg bg-brand-600"
+              transition={{ type: "spring", stiffness: 400, damping: 30 }}
+            />
+          )}
+          <span className="relative">{opt.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}

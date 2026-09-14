@@ -63,12 +63,6 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     if (Number.isNaN(n) || n <= 0) return NextResponse.json({ error: "সময়সীমা সঠিক নয়" }, { status: 400 });
     data.durationSeconds = n;
   }
-  if (body.maxAttempts !== undefined) {
-    const n = Number(body.maxAttempts);
-    if (Number.isNaN(n) || n <= 0) return NextResponse.json({ error: "সর্বোচ্চ Attempt সংখ্যা সঠিক নয়" }, { status: 400 });
-    data.maxAttempts = n;
-  }
-
   if (existing.accessType === "INTERNAL" && body.batchNames !== undefined) {
     if (!Array.isArray(body.batchNames) || body.batchNames.length === 0) {
       return NextResponse.json({ error: "অন্তত একটি ব্যাচ নির্বাচন করুন" }, { status: 400 });
@@ -117,9 +111,11 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     }
   }
 
-  // PUBLIC-only fields — accessType itself is never changed after creation (publicSlug stays fixed)
-  if (existing.accessType === "PUBLIC" && typeof body.publicPassword === "string" && body.publicPassword.trim()) {
-    data.publicPasswordHash = await bcrypt.hash(body.publicPassword, 10);
+  // Retry password — optional on edit (blank/omitted = keep existing password).
+  // Applies to both INTERNAL and PUBLIC exams. accessType itself is never
+  // changed after creation (publicSlug stays fixed).
+  if (typeof body.retryPassword === "string" && body.retryPassword.trim()) {
+    data.retryPasswordHash = await bcrypt.hash(body.retryPassword, 10);
   }
 
   const updated = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>

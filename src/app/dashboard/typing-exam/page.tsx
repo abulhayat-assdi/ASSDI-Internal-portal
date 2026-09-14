@@ -13,16 +13,12 @@ import {
   Power,
   Trash2,
   Users,
-  Lock,
-  Type,
-  Gauge,
-  Calendar,
+  Pencil,
   Keyboard,
   AlertTriangle,
 } from "lucide-react";
 import { AmbientOrbs, GLASS_PANEL, fadeUp, staggerContainer, modalBackdrop, modalPanel } from "@/components/typing-exam/ui";
-
-type Batch = { id: string; name: string };
+import ExamForm, { emptyExamFormValues, type ExamFormValues, type Batch } from "./_components/ExamForm";
 
 type ExamEntry = {
   id: string;
@@ -32,7 +28,6 @@ type ExamEntry = {
   batchNames: string[];
   isActive: boolean;
   durationSeconds: number;
-  maxAttempts: number;
   passWpm: number;
   passAccuracy: number;
   failWpm: number;
@@ -46,64 +41,6 @@ type ExamEntry = {
   attemptCount: number;
 };
 
-const emptyForm = {
-  title: "",
-  description: "",
-  accessType: "INTERNAL" as "INTERNAL" | "PUBLIC",
-  batchNames: [] as string[],
-  durationSeconds: 60,
-  maxAttempts: 1,
-  passWpm: 40,
-  passAccuracy: 90,
-  failWpm: 20,
-  failAccuracy: 75,
-  textSource: "BANK" as "CUSTOM" | "BANK",
-  textLanguage: "en",
-  customText: "",
-  publicPassword: "",
-  scheduleStart: "",
-  scheduleEnd: "",
-};
-
-const fieldClass =
-  "w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white/80 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all";
-const labelClass = "block text-sm font-medium text-slate-700 mb-1.5";
-
-function SegmentedToggle<T extends string>({
-  value,
-  onChange,
-  options,
-}: {
-  value: T;
-  onChange: (v: T) => void;
-  options: { value: T; label: string }[];
-}) {
-  return (
-    <div className="inline-flex rounded-xl bg-slate-100 p-1 gap-1">
-      {options.map((opt) => (
-        <button
-          key={opt.value}
-          type="button"
-          aria-pressed={value === opt.value}
-          onClick={() => onChange(opt.value)}
-          className={`cursor-pointer relative rounded-lg px-4 py-1.5 text-sm font-medium transition-colors ${
-            value === opt.value ? "text-white" : "text-slate-500 hover:text-slate-700"
-          }`}
-        >
-          {value === opt.value && (
-            <motion.span
-              layoutId="segmented-active"
-              className="absolute inset-0 rounded-lg bg-brand-600"
-              transition={{ type: "spring", stiffness: 400, damping: 30 }}
-            />
-          )}
-          <span className="relative">{opt.label}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
 export default function TypingExamAdminPage() {
   const [exams, setExams] = useState<ExamEntry[]>([]);
   const [batches, setBatches] = useState<Batch[]>([]);
@@ -112,7 +49,6 @@ export default function TypingExamAdminPage() {
   const reduceMotion = useReducedMotion();
 
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState(emptyForm);
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
   const [createdLink, setCreatedLink] = useState("");
@@ -138,15 +74,6 @@ export default function TypingExamAdminPage() {
     fetchExams();
   }, [fetchExams]);
 
-  function toggleBatch(name: string) {
-    setForm((f) => ({
-      ...f,
-      batchNames: f.batchNames.includes(name)
-        ? f.batchNames.filter((b) => b !== name)
-        : [...f.batchNames, name],
-    }));
-  }
-
   async function toggleActive(exam: ExamEntry) {
     await fetch(`/api/typing-exam/${exam.id}`, {
       method: "PATCH",
@@ -165,21 +92,19 @@ export default function TypingExamAdminPage() {
   }
 
   function openCreateForm() {
-    setForm(emptyForm);
     setFormError("");
     setCreatedLink("");
     setShowForm(true);
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleCreateSubmit(values: ExamFormValues) {
     setFormError("");
     setSaving(true);
 
     const res = await fetch("/api/typing-exam", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify(values),
     });
 
     setSaving(false);
@@ -316,6 +241,13 @@ export default function TypingExamAdminPage() {
                   <BarChart3 className="h-3.5 w-3.5" strokeWidth={2} />
                   রেজাল্ট দেখুন
                 </Link>
+                <Link
+                  href={`/dashboard/typing-exam/${exam.id}/edit`}
+                  className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors font-medium"
+                >
+                  <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
+                  এডিট
+                </Link>
                 <motion.button
                   whileTap={reduceMotion ? undefined : { scale: 0.95 }}
                   onClick={() => toggleActive(exam)}
@@ -402,240 +334,14 @@ export default function TypingExamAdminPage() {
                   </button>
                 </div>
               ) : (
-                <form onSubmit={handleSubmit} className="p-5 space-y-5">
-                  {formError && (
-                    <div className="px-3 py-2 rounded-lg text-sm bg-red-50 text-red-700 border border-red-200">
-                      {formError}
-                    </div>
-                  )}
-
-                  <div>
-                    <label className={labelClass}>শিরোনাম *</label>
-                    <input
-                      required
-                      value={form.title}
-                      onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-                      className={fieldClass}
-                      placeholder="যেমন: Batch 12 — টাইপিং স্পিড টেস্ট"
-                    />
-                  </div>
-
-                  <div>
-                    <label className={labelClass}>বিবরণ (ঐচ্ছিক)</label>
-                    <textarea
-                      value={form.description}
-                      onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                      rows={2}
-                      className={`${fieldClass} resize-none`}
-                    />
-                  </div>
-
-                  <div>
-                    <label className={labelClass}>Access Type</label>
-                    <SegmentedToggle
-                      value={form.accessType}
-                      onChange={(v) => setForm((f) => ({ ...f, accessType: v }))}
-                      options={[
-                        { value: "INTERNAL", label: "Internal (নির্দিষ্ট ব্যাচ)" },
-                        { value: "PUBLIC", label: "Public (ওপেন লিংক)" },
-                      ]}
-                    />
-                  </div>
-
-                  {form.accessType === "INTERNAL" ? (
-                    <div>
-                      <label className={`${labelClass} flex items-center gap-1.5`}>
-                        <Users className="h-3.5 w-3.5" strokeWidth={2} />
-                        ব্যাচ নির্বাচন করুন *
-                      </label>
-                      {batches.length === 0 ? (
-                        <p className="text-xs text-slate-400">কোনো active ব্যাচ পাওয়া যায়নি।</p>
-                      ) : (
-                        <div className="flex flex-wrap gap-2">
-                          {batches.map((b) => (
-                            <button
-                              type="button"
-                              key={b.id}
-                              onClick={() => toggleBatch(b.name)}
-                              className={`cursor-pointer text-sm px-3 py-1.5 rounded-lg border transition-colors ${
-                                form.batchNames.includes(b.name)
-                                  ? "border-brand-400 bg-brand-50 text-brand-700"
-                                  : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                              }`}
-                            >
-                              {b.name}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div>
-                      <label className={`${labelClass} flex items-center gap-1.5`}>
-                        <Lock className="h-3.5 w-3.5" strokeWidth={2} />
-                        Retry Password *
-                      </label>
-                      <input
-                        required
-                        type="text"
-                        value={form.publicPassword}
-                        onChange={(e) => setForm((f) => ({ ...f, publicPassword: e.target.value }))}
-                        className={fieldClass}
-                        placeholder="দ্বিতীয়বার Attempt দিতে এই পাসওয়ার্ড লাগবে"
-                      />
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className={labelClass}>সময়সীমা (সেকেন্ড) *</label>
-                      <input
-                        required
-                        type="number"
-                        min={10}
-                        value={form.durationSeconds}
-                        onChange={(e) => setForm((f) => ({ ...f, durationSeconds: Number(e.target.value) }))}
-                        className={fieldClass}
-                      />
-                    </div>
-                    <div>
-                      <label className={labelClass}>সর্বোচ্চ Attempt (স্টুডেন্ট) *</label>
-                      <input
-                        required
-                        type="number"
-                        min={1}
-                        value={form.maxAttempts}
-                        onChange={(e) => setForm((f) => ({ ...f, maxAttempts: Number(e.target.value) }))}
-                        className={fieldClass}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className={`${labelClass} flex items-center gap-1.5`}>
-                      <Type className="h-3.5 w-3.5" strokeWidth={2} />
-                      Text Source
-                    </label>
-                    <div className="mb-2">
-                      <SegmentedToggle
-                        value={form.textSource}
-                        onChange={(v) => setForm((f) => ({ ...f, textSource: v }))}
-                        options={[
-                          { value: "BANK", label: "Bank থেকে (র‍্যান্ডম)" },
-                          { value: "CUSTOM", label: "Custom (নিজে লিখুন)" },
-                        ]}
-                      />
-                    </div>
-                    {form.textSource === "BANK" ? (
-                      <select
-                        value={form.textLanguage}
-                        onChange={(e) => setForm((f) => ({ ...f, textLanguage: e.target.value }))}
-                        className={fieldClass}
-                      >
-                        <option value="en">English</option>
-                        <option value="bn">বাংলা</option>
-                      </select>
-                    ) : (
-                      <textarea
-                        required
-                        value={form.customText}
-                        onChange={(e) => setForm((f) => ({ ...f, customText: e.target.value }))}
-                        rows={4}
-                        className={fieldClass}
-                        placeholder="এক্সামের জন্য প্যাসেজ লিখুন..."
-                      />
-                    )}
-                  </div>
-
-                  <div>
-                    <p className={`${labelClass} flex items-center gap-1.5`}>
-                      <Gauge className="h-3.5 w-3.5" strokeWidth={2} />
-                      রেজাল্ট থ্রেশহোল্ড
-                    </p>
-                    <p className="text-xs text-slate-400 mb-2">
-                      উভয় মেট্রিক Pass বারের উপরে থাকলে PASS, যেকোনো একটি Fail বারের নিচে নামলে FAIL, বাকিটা AVERAGE।
-                    </p>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs text-slate-500 mb-1">Pass WPM *</label>
-                        <input
-                          required
-                          type="number"
-                          value={form.passWpm}
-                          onChange={(e) => setForm((f) => ({ ...f, passWpm: Number(e.target.value) }))}
-                          className={fieldClass}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-slate-500 mb-1">Pass Accuracy % *</label>
-                        <input
-                          required
-                          type="number"
-                          value={form.passAccuracy}
-                          onChange={(e) => setForm((f) => ({ ...f, passAccuracy: Number(e.target.value) }))}
-                          className={fieldClass}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-slate-500 mb-1">Fail WPM *</label>
-                        <input
-                          required
-                          type="number"
-                          value={form.failWpm}
-                          onChange={(e) => setForm((f) => ({ ...f, failWpm: Number(e.target.value) }))}
-                          className={fieldClass}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-slate-500 mb-1">Fail Accuracy % *</label>
-                        <input
-                          required
-                          type="number"
-                          value={form.failAccuracy}
-                          onChange={(e) => setForm((f) => ({ ...f, failAccuracy: Number(e.target.value) }))}
-                          className={fieldClass}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className={`${labelClass} flex items-center gap-1.5`}>
-                      <Calendar className="h-3.5 w-3.5" strokeWidth={2} />
-                      শিডিউল (ঐচ্ছিক)
-                    </label>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs text-slate-500 mb-1">শুরু</label>
-                        <input
-                          type="datetime-local"
-                          value={form.scheduleStart}
-                          onChange={(e) => setForm((f) => ({ ...f, scheduleStart: e.target.value }))}
-                          className={fieldClass}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-slate-500 mb-1">শেষ</label>
-                        <input
-                          type="datetime-local"
-                          value={form.scheduleEnd}
-                          onChange={(e) => setForm((f) => ({ ...f, scheduleEnd: e.target.value }))}
-                          className={fieldClass}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <motion.button
-                    type="submit"
-                    disabled={saving}
-                    whileHover={reduceMotion || saving ? undefined : { scale: 1.01 }}
-                    whileTap={reduceMotion || saving ? undefined : { scale: 0.99 }}
-                    className="cursor-pointer w-full bg-brand-600 hover:bg-brand-700 disabled:bg-brand-300 text-white font-semibold py-3 rounded-xl shadow-md shadow-brand-600/20 transition-colors"
-                  >
-                    {saving ? "তৈরি হচ্ছে..." : "এক্সাম তৈরি করুন"}
-                  </motion.button>
-                </form>
+                <ExamForm
+                  mode="create"
+                  initialValues={emptyExamFormValues}
+                  batches={batches}
+                  onSubmit={handleCreateSubmit}
+                  saving={saving}
+                  error={formError}
+                />
               )}
             </motion.div>
           </motion.div>
