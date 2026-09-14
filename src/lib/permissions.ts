@@ -25,7 +25,9 @@ export type PermissionKey =
     | "admin_resources"
     | "admin_course_modules"
     | "admin_deployments"
-    | "access_management";
+    | "access_management"
+    | "typing_game_teacher"
+    | "admin_typing_game";
 
 export type PermissionGroup = "teacher" | "management" | "admin" | "system";
 
@@ -58,6 +60,8 @@ export const PERMISSION_META: Record<PermissionKey, PermissionMeta> = {
     admin_course_modules: { label: "Manage Course Modules", path: "/dashboard/admin/course-modules", group: "admin", icon: "📚" },
     admin_deployments: { label: "Student Deployments", path: "/dashboard/admin/deployments", group: "admin", icon: "🚀" },
     access_management: { label: "Access Management", path: "/dashboard/admin/access-management", group: "system", icon: "🔑" },
+    typing_game_teacher: { label: "Typing Adventure (Teacher)", path: "/dashboard/typing-game/teacher", group: "teacher", icon: "⌨️" },
+    admin_typing_game: { label: "Typing Adventure (Admin)", path: "/dashboard/typing-game/admin", group: "admin", icon: "⌨️" },
 };
 
 export const PERMISSION_GROUPS: { key: PermissionGroup; label: string }[] = [
@@ -77,7 +81,7 @@ export const ADMIN_TEACHER_MARKER = "__role:admin_teacher";
 export const DEFAULT_TEACHER_PERMISSIONS: PermissionKey[] = [
     "schedule", "routine", "batch_info", "resources", "course_modules",
     "policies", "feedback", "tracker", "homework", "leave_tracking",
-    "teachers", "admin_results",
+    "teachers", "admin_results", "typing_game_teacher",
 ];
 
 // Default admin permissions (management/admin pages only — no teacher features)
@@ -85,13 +89,14 @@ export const DEFAULT_ADMIN_PERMISSIONS: PermissionKey[] = [
     "teachers", "batch_info",
     "admin_panel", "admin_homework", "admin_results", "admin_leave",
     "admin_notices", "admin_contact", "admin_resources", "admin_course_modules",
-    "admin_deployments",
+    "admin_deployments", "admin_typing_game",
 ];
 
 // Teacher-feature permissions added to admin when "Include teacher features" is checked
 export const TEACHER_FEATURE_PERMISSIONS: PermissionKey[] = [
     "schedule", "routine", "resources", "course_modules",
     "policies", "feedback", "tracker", "homework", "leave_tracking",
+    "typing_game_teacher",
 ];
 
 /** Strip internal metadata markers — only real page keys remain. */

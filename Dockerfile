@@ -40,10 +40,14 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 
-# Explicitly copy the generated prisma client and engines
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma/client ./node_modules/@prisma/client
+# Full node_modules from the builder stage (deps' install + the prisma
+# client generated on top of it there) — not just .prisma/@prisma/client —
+# because scripts/*.js run as plain `node` scripts outside Next's standalone
+# bundle/tracing, so anything they import (pg, for
+# scripts/typing-game-migrate.js) must physically exist here.
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
+COPY --from=builder --chown=nextjs:nodejs /app/supabase-migrations ./supabase-migrations
 
 RUN npm install -g prisma@6
 
@@ -60,4 +64,4 @@ ENV HOSTNAME="0.0.0.0"
 
 # Entrypoint runs as root → fixes volume permissions → drops to nextjs
 ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["sh", "-c", "node scripts/startup.js && node prisma/seed.js && node server.js"]
+CMD ["sh", "-c", "node scripts/startup.js && node scripts/typing-game-migrate.js && node prisma/seed.js && node server.js"]

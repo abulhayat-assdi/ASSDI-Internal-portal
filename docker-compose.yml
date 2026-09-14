@@ -20,6 +20,26 @@ services:
       - storage_data:/storage
     restart: "no"
 
+  # PostgREST fronts the `typing_game` Postgres schema only. Internal-only
+  # (no published port) — the app container is the sole caller, using the
+  # student's own ASM session JWT as the bearer token (see
+  # src/lib/typing-game/postgrest-client.ts). No Supabase Auth/GoTrue here;
+  # ASM's existing auth is the only identity provider.
+  postgrest:
+    image: postgrest/postgrest:v12.2.0
+    restart: always
+    environment:
+      PGRST_DB_URI: postgresql://authenticator:${PGRST_AUTHENTICATOR_PASSWORD}@db:5432/${DB_NAME:-asm_portal}
+      PGRST_DB_SCHEMAS: typing_game
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      PGRST_JWT_SECRET_IS_BASE64: "false"
+      PGRST_JWT_ROLE_CLAIM_KEY: ".pg_role"
+      PGRST_DB_POOL: "10"
+    depends_on:
+      db:
+        condition: service_started
+
   app:
     build:
       context: .
@@ -37,11 +57,18 @@ services:
       LOCAL_STORAGE_PATH: /app/storage
       NEXT_PUBLIC_BASE_DOMAIN: ${NEXT_PUBLIC_BASE_DOMAIN:-tasm-skill.asf.bd}
       SAAS_OWNER_EMAIL: ${SAAS_OWNER_EMAIL}
+      # Authenticator role password for the typing-game Postgres bootstrap
+      # (0039_auth_shim.sql creates the role); also consumed by the postgrest
+      # service above. Same value both places.
+      PGRST_AUTHENTICATOR_PASSWORD: ${PGRST_AUTHENTICATOR_PASSWORD}
+      POSTGREST_URL: http://postgrest:3000
     depends_on:
       db:
         condition: service_started
       init-storage:
         condition: service_completed_successfully
+      postgrest:
+        condition: service_started
     ports:
       - "3000:3000"
     volumes:

@@ -15,6 +15,7 @@ export const ALL_FEATURES: FeatureDefinition[] = [
     { key: 'leave_tracking', label: 'Leave Tracking', description: 'শিক্ষকের ছুটি ম্যানেজমেন্ট' },
     { key: 'chat', label: 'Chat System', description: 'ছাত্র-admin chat সিস্টেম' },
     { key: 'deployments', label: 'Student Deployments', description: 'Mini-Netlify — ছাত্রদের সাইট হোস্টিং ফিচার' },
+    { key: 'typing_game', label: 'Typing Adventure', description: 'গেমিফাইড টাইপিং প্র্যাকটিস — কোর্স/মিশন/লিডারবোর্ড সহ' },
 ];
 
 export type FeatureKey = string;

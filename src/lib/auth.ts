@@ -17,6 +17,17 @@ export interface JWTPayload {
     studentBatchName?: string;
     studentRoll?: string;
     permissions?: string[];
+    /**
+     * Mirrors `id`. Required by PostgREST/Postgres for the typing-game bridge:
+     * our own `auth.uid()` shim resolves the caller from this claim.
+     */
+    sub?: string;
+    /**
+     * Fixed Postgres role name PostgREST switches to for the typing-game
+     * schema — always 'authenticated'. Deliberately distinct from `role`
+     * above (which is the app's own student/teacher/admin/super_admin role).
+     */
+    pg_role?: string;
 }
 
 /** Derives the RLS context a session's own DB lookups should run under. */
@@ -38,7 +49,10 @@ export async function signJWT(payload: JWTPayload): Promise<string> {
     // Default to 30d to match SESSION_MAX_AGE cookie (was 24h — caused "expired token" failures)
     const expiresIn = process.env.JWT_EXPIRES_IN || '30d';
 
-    return new SignJWT({ ...payload })
+    // sub/pg_role are additive PostgREST-bridge claims (see JWTPayload) — every
+    // session token carries them so the same cookie doubles as the typing-game
+    // bearer token, with no separate login.
+    return new SignJWT({ ...payload, sub: payload.id, pg_role: 'authenticated' })
         .setProtectedHeader({ alg: 'HS256' })
         .setIssuedAt()
         .setExpirationTime(expiresIn)

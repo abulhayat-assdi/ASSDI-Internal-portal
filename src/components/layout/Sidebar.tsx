@@ -71,6 +71,15 @@ const teacherAdminNavSections: NavSection[] = [
         ]
     },
     {
+        id: "typing_game",
+        title: "Typing Adventure",
+        icon: "⌨️",
+        items: [
+            { href: "/dashboard/typing-game/admin", label: "Admin Console", icon: "⌨️", permission: "admin_typing_game", feature: "typing_game" },
+            { href: "/dashboard/typing-game/teacher", label: "Teacher Console", icon: "⌨️", permission: "typing_game_teacher", feature: "typing_game" },
+        ]
+    },
+    {
         id: "system_admin",
         title: "System Admin",
         icon: "⚙️",
@@ -95,6 +104,7 @@ const studentNavItems: NavItem[] = [
     { href: "/student-dashboard/profile", label: "Profile", icon: "👤", permission: null },
     { href: "/student-dashboard/leave", label: "Leave Request", icon: "🏖️", permission: null },
     { href: "/student-dashboard/cv", label: "My CV", icon: "📄", permission: null, feature: "cv_builder" },
+    { href: "/student-dashboard/typing-game/dashboard", label: "Typing Adventure", icon: "⌨️", permission: null, feature: "typing_game" },
 ];
 
 export default function Sidebar() {
