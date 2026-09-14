@@ -11,7 +11,8 @@
     "start": "next start",
     "cpanel-start": "NODE_ENV=production node server.js",
     "lint": "next lint",
-    "deploy": "firebase deploy --only hosting"
+    "deploy": "firebase deploy --only hosting",
+    "seed:typing-game-catalog": "tsx scripts/typing-game-seed-catalog.ts"
   },
   "dependencies": {
     "@emailjs/browser": "^4.4.1",
@@ -54,12 +55,14 @@
     "@types/browser-image-compression": "^1.0.1",
     "@types/node": "^20",
     "@types/nodemailer": "^7.0.11",
+    "@types/pg": "^8.11.10",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@types/unzipper": "^0.10.11",
     "eslint": "^9",
     "eslint-config-next": "^15.0.0",
     "tailwindcss": "^4",
+    "tsx": "^4.19.2",
     "typescript": "^5"
   }
 }
