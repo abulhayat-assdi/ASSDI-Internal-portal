@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Timer, Zap, Target } from "lucide-react";
+import { Timer, Zap, Target, Percent } from "lucide-react";
 import { scoreAttempt } from "@/lib/typing-exam/scoring";
-import { GLASS_PANEL } from "@/components/typing-exam/ui";
+import { GLASS_PANEL, StatPill } from "@/components/typing-exam/ui";
 import ExamReadyScreen from "@/components/typing-exam/ExamReadyScreen";
 import ExamCountdown from "@/components/typing-exam/ExamCountdown";
 import ExamFullscreenBanner from "@/components/typing-exam/ExamFullscreenBanner";
@@ -135,10 +135,14 @@ export default function ExamRunner({
   }, []);
 
   const handleChange = (value: string) => {
-    setTypedText(value);
-    if (value.length >= examText.length) {
-      finish(value);
-    }
+    // No early submit: reaching the end of the passage no longer
+    // auto-finishes the attempt (nor is there a manual submit button —
+    // see the "running" phase JSX below). Only the countdown timer hitting
+    // 0 calls finish(). Clamp at examText.length purely so the value can't
+    // grow unbounded once there's nothing left to compare against —
+    // backspacing/retyping within that bound to fix mistakes while waiting
+    // for time to run out is still fully allowed.
+    setTypedText(value.length > examText.length ? value.slice(0, examText.length) : value);
   };
 
   const live = useMemo(() => {
@@ -152,96 +156,102 @@ export default function ExamRunner({
   const seconds = String(secondsLeft % 60).padStart(2, "0");
   const timeUrgent = secondsLeft <= 10 && phase === "running";
   const timeProgress = Math.max(0, Math.min(100, (secondsLeft / durationSeconds) * 100));
+  const charProgress = examText.length > 0 ? Math.round((typedText.length / examText.length) * 100) : 0;
+
+  // While the browser has this container as the fullscreen element, own the
+  // whole viewport with a solid light background and center everything —
+  // without this, the fullscreened box (which is only as tall as its own
+  // content) leaves the browser's default black ::backdrop showing through
+  // above/below it, and nothing recenters the content for the new size.
+  const rootClass = isFullscreen
+    ? "fixed inset-0 z-40 flex items-center justify-center overflow-y-auto bg-gradient-to-b from-white via-slate-50 to-white px-4 py-10 sm:px-8"
+    : "relative";
+  const phaseWrapClass = isFullscreen ? "w-full max-w-4xl" : "";
 
   return (
-    <div ref={containerRef} className="relative">
-      <AnimatePresence mode="wait">
-        {phase === "ready" && (
-          <motion.div key="ready" exit={reduceMotion ? undefined : { opacity: 0, scale: 0.98 }}>
-            <ExamReadyScreen
-              durationSeconds={durationSeconds}
-              attemptsUsed={attemptsUsed}
-              onVerifyRetryPassword={onVerifyRetryPassword}
-              requestFullscreen={requestFullscreen}
-              onStart={handleReadyStart}
-            />
-          </motion.div>
-        )}
+    <div ref={containerRef} className={rootClass}>
+      <div className={phaseWrapClass}>
+        <AnimatePresence mode="wait">
+          {phase === "ready" && (
+            <motion.div
+              key="ready"
+              className="mx-auto max-w-xl"
+              exit={reduceMotion ? undefined : { opacity: 0, scale: 0.98 }}
+            >
+              <ExamReadyScreen
+                durationSeconds={durationSeconds}
+                attemptsUsed={attemptsUsed}
+                onVerifyRetryPassword={onVerifyRetryPassword}
+                requestFullscreen={requestFullscreen}
+                onStart={handleReadyStart}
+              />
+            </motion.div>
+          )}
 
-        {(phase === "countdown" || phase === "running") && (
-          <motion.div
-            key="exam"
-            initial={reduceMotion ? undefined : { opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
-            className="space-y-4"
-          >
-            <div className={`${GLASS_PANEL} rounded-2xl px-5 py-4`}>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <motion.div
-                  className={`flex items-center gap-2 text-2xl font-bold tabular-nums ${timeUrgent ? "text-red-600" : "text-slate-800"}`}
-                  animate={timeUrgent && !reduceMotion ? { scale: [1, 1.08, 1] } : { scale: 1 }}
-                  transition={{ duration: 0.6, repeat: timeUrgent && !reduceMotion ? Infinity : 0 }}
-                >
-                  <Timer className="h-5 w-5" strokeWidth={2} />
-                  {minutes}:{seconds}
-                </motion.div>
-                <div className="flex gap-3 text-sm">
-                  <span className="flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-blue-700">
-                    <Zap className="h-3.5 w-3.5" strokeWidth={2.25} />
-                    WPM <strong className="tabular-nums">{live.wpm}</strong>
-                  </span>
-                  <span className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-emerald-700">
-                    <Target className="h-3.5 w-3.5" strokeWidth={2.25} />
-                    Accuracy <strong className="tabular-nums">{live.accuracy}%</strong>
-                  </span>
-                </div>
+          {(phase === "countdown" || phase === "running") && (
+            <motion.div
+              key="exam"
+              initial={reduceMotion ? undefined : { opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+              className="space-y-8"
+            >
+              <div className="flex flex-wrap items-center justify-center gap-2.5">
+                <StatPill icon={Timer} value={`${minutes}:${seconds}`} tone={timeUrgent ? "urgent" : "neutral"} big pulse={timeUrgent} />
+                <StatPill icon={Zap} label="WPM" value={live.wpm} tone="blue" />
+                <StatPill icon={Target} label="Accuracy" value={`${live.accuracy}%`} tone="emerald" />
+                <StatPill icon={Percent} label="সম্পন্ন" value={`${charProgress}%`} tone="violet" />
               </div>
-              <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+
+              <div className="mx-auto h-1.5 w-full max-w-xl overflow-hidden rounded-full bg-slate-100">
                 <motion.div
                   className={`h-full rounded-full ${timeUrgent ? "bg-red-500" : "bg-brand-500"}`}
                   animate={{ width: `${timeProgress}%` }}
                   transition={{ duration: 0.5, ease: "linear" }}
                 />
               </div>
-            </div>
 
-            <AnimatePresence>
-              {phase === "running" && !isFullscreen && <ExamFullscreenBanner onReenter={requestFullscreen} />}
-            </AnimatePresence>
+              <AnimatePresence>
+                {phase === "running" && !isFullscreen && <ExamFullscreenBanner onReenter={requestFullscreen} />}
+              </AnimatePresence>
 
-            <TypingField
-              examText={examText}
-              typedText={typedText}
-              onChange={handleChange}
-              disabled={phase !== "running" || submitting}
-            />
+              <TypingField
+                examText={examText}
+                typedText={typedText}
+                onChange={handleChange}
+                disabled={phase !== "running" || submitting}
+              />
 
-            <motion.button
-              onClick={() => finish(typedText)}
-              disabled={phase !== "running" || submitting}
-              whileHover={reduceMotion || submitting ? undefined : { scale: 1.02 }}
-              whileTap={reduceMotion || submitting ? undefined : { scale: 0.98 }}
-              className="cursor-pointer rounded-xl bg-slate-800 px-6 py-2.5 font-semibold text-white shadow-md transition-colors hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+              <AnimatePresence>
+                {phase === "running" && charProgress >= 100 && (
+                  <motion.div
+                    initial={reduceMotion ? undefined : { opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={reduceMotion ? undefined : { opacity: 0, y: 8 }}
+                    transition={{ duration: 0.25, ease: "easeOut" }}
+                    className="mx-auto flex max-w-xl items-center justify-center gap-2 rounded-xl bg-emerald-50 px-4 py-3 text-center text-sm font-medium text-emerald-700"
+                  >
+                    সম্পন্ন! সময় শেষ না হওয়া পর্যন্ত অপেক্ষা করুন — তারপর স্বয়ংক্রিয়ভাবে জমা হয়ে যাবে।
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          )}
+
+          {phase === "finished" && (
+            <motion.div
+              key="finished"
+              initial={reduceMotion ? undefined : { opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+              className={`${GLASS_PANEL} rounded-2xl p-8 text-center`}
             >
-              {submitting ? "জমা হচ্ছে..." : "জমা দিন"}
-            </motion.button>
-          </motion.div>
-        )}
-
-        {phase === "finished" && (
-          <motion.div
-            key="finished"
-            initial={reduceMotion ? undefined : { opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
-            className={`${GLASS_PANEL} rounded-2xl p-8 text-center`}
-          >
-            <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-brand-600 border-t-transparent" />
-            <p className="mt-3 text-sm text-slate-500">জমা হচ্ছে...</p>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-brand-600 border-t-transparent" />
+              <p className="mt-3 text-sm text-slate-500">জমা হচ্ছে...</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       {phase === "countdown" && <ExamCountdown onComplete={handleCountdownComplete} />}
     </div>

@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import type { Variants } from "framer-motion";
+import type { LucideIcon } from "lucide-react";
 
 /**
  * Shared visual language for the Typing Test Exam feature — a light
@@ -68,6 +69,47 @@ export const modalPanel: Variants = {
   show: { opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 320, damping: 28 } },
   exit: { opacity: 0, y: 12, scale: 0.98, transition: { duration: 0.15 } },
 };
+
+const STAT_PILL_TONES = {
+  neutral: "bg-slate-100 text-slate-700",
+  urgent: "bg-red-50 text-red-600",
+  blue: "bg-blue-50 text-blue-700",
+  emerald: "bg-emerald-50 text-emerald-700",
+  violet: "bg-violet-50 text-violet-700",
+} as const;
+
+/**
+ * Small centered stat badge used on the exam-taking "running" screen (timer,
+ * WPM, accuracy, progress) — always light-themed regardless of the value, so
+ * the fullscreen exam view never picks up a dark surface.
+ */
+export function StatPill({
+  icon: Icon,
+  label,
+  value,
+  tone = "neutral",
+  big,
+  pulse,
+}: {
+  icon: LucideIcon;
+  label?: string;
+  value: string | number;
+  tone?: keyof typeof STAT_PILL_TONES;
+  big?: boolean;
+  pulse?: boolean;
+}) {
+  return (
+    <motion.span
+      className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 font-semibold tabular-nums ${STAT_PILL_TONES[tone]} ${big ? "text-lg" : "text-sm"}`}
+      animate={pulse ? { scale: [1, 1.06, 1] } : { scale: 1 }}
+      transition={{ duration: 0.6, repeat: pulse ? Infinity : 0 }}
+    >
+      <Icon className={big ? "h-4.5 w-4.5" : "h-3.5 w-3.5"} strokeWidth={2.25} />
+      {label ? <span className="font-normal opacity-80">{label}</span> : null}
+      {value}
+    </motion.span>
+  );
+}
 
 /** Small pill toggle between two/more options — shared by the exam create/edit form. */
 export function SegmentedToggle<T extends string>({

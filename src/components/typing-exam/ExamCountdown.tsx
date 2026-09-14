@@ -39,7 +39,7 @@ export default function ExamCountdown({ onComplete }: ExamCountdownProps) {
   }, [step]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/85 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-b from-white via-slate-50 to-white backdrop-blur-sm">
       <AnimatePresence mode="wait">
         <motion.div
           key={step}
@@ -47,7 +47,7 @@ export default function ExamCountdown({ onComplete }: ExamCountdownProps) {
           animate={{ opacity: 1, scale: 1 }}
           exit={reduceMotion ? undefined : { opacity: 0, scale: 1.4 }}
           transition={{ duration: reduceMotion ? 0.15 : 0.35, ease: "easeOut" }}
-          className="select-none text-8xl font-extrabold tabular-nums text-white sm:text-9xl"
+          className={`select-none text-8xl font-extrabold tabular-nums sm:text-9xl ${step === 0 ? "text-brand-600" : "text-slate-800"}`}
         >
           {step === 0 ? "শুরু!" : step}
         </motion.div>
