@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import * as XLSX from "xlsx";
 
 type Exam = {
   id: string;
@@ -34,6 +35,9 @@ type Attempt = {
   attemptNumber: number;
   wpm: number;
   accuracy: number;
+  correctChars: number;
+  totalChars: number;
+  durationTakenSeconds: number;
   result: "PASS" | "AVERAGE" | "FAIL";
   submittedAt: string;
 };
@@ -44,19 +48,94 @@ const resultBadge: Record<Attempt["result"], string> = {
   FAIL: "bg-red-100 text-red-600",
 };
 
-function toCsv(exam: Exam, attempts: Attempt[]): string {
-  const header = ["Name", "Roll", "Batch", "WPM", "Accuracy", "Result", "Submitted At"];
-  const rows = attempts.map((a) => [
-    a.name,
-    a.roll,
-    a.batchName || "Public",
-    String(a.wpm),
-    String(a.accuracy),
-    a.result,
-    new Date(a.submittedAt).toISOString(),
+/** "5 Sep 26" */
+function formatSheetDate(date: Date): string {
+  const day = date.getDate();
+  const month = date.toLocaleString("en-US", { month: "short" });
+  const year = String(date.getFullYear()).slice(-2);
+  return `${day} ${month} ${year}`;
+}
+
+/** "5:10:44 PM" */
+function formatSheetTime(date: Date): string {
+  let hours = date.getHours();
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const seconds = String(date.getSeconds()).padStart(2, "0");
+  const ampm = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12 || 12;
+  return `${hours}:${minutes}:${seconds} ${ampm}`;
+}
+
+function exportToExcel(exam: Exam, attempts: Attempt[]) {
+  const wb = XLSX.utils.book_new();
+  const sheetData: (string | number)[][] = [];
+
+  sheetData.push([exam.title]);
+  sheetData.push([
+    `Access Type: ${exam.accessType === "PUBLIC" ? "Public" : "Internal"}`,
+    `Total Submissions: ${attempts.length}`,
+    `Generated on: ${new Date().toLocaleString()}`,
   ]);
-  const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
-  return [header, ...rows].map((row) => row.map(escape).join(",")).join("\n");
+  sheetData.push([]);
+
+  sheetData.push([
+    "Type",
+    "Try",
+    "Name",
+    "Roll",
+    "Mobile Number",
+    "Batch",
+    "WPM",
+    "Accuracy (%)",
+    "Correct Chars",
+    "Total Typed Chars",
+    "Time Taken (sec)",
+    "Result",
+    "Date",
+    "Time",
+  ]);
+
+  attempts.forEach((a) => {
+    const submittedAt = new Date(a.submittedAt);
+    sheetData.push([
+      a.takerType === "STUDENT" ? "Student" : "Public",
+      a.attemptNumber,
+      a.name || "-",
+      a.roll || "-",
+      a.phone || "-",
+      a.batchName || "-",
+      a.wpm,
+      a.accuracy,
+      a.correctChars,
+      a.totalChars,
+      a.durationTakenSeconds,
+      a.result,
+      formatSheetDate(submittedAt),
+      formatSheetTime(submittedAt),
+    ]);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(sheetData);
+  ws["!cols"] = [
+    { wch: 10 }, // Type
+    { wch: 6 },  // Try
+    { wch: 22 }, // Name
+    { wch: 12 }, // Roll
+    { wch: 16 }, // Mobile Number
+    { wch: 18 }, // Batch
+    { wch: 8 },  // WPM
+    { wch: 12 }, // Accuracy
+    { wch: 13 }, // Correct Chars
+    { wch: 15 }, // Total Typed Chars
+    { wch: 14 }, // Time Taken
+    { wch: 10 }, // Result
+    { wch: 11 }, // Date
+    { wch: 13 }, // Time
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, "Results");
+  const safeTitle = exam.title.replace(/[^\w\-]+/g, "_").slice(0, 60);
+  XLSX.writeFile(wb, `${safeTitle}_results_${new Date().toISOString().split("T")[0]}.xlsx`);
 }
 
 export default function TypingExamResultsPage() {
@@ -101,18 +180,9 @@ export default function TypingExamResultsPage() {
     setTimeout(() => setCopied(false), 2000);
   }
 
-  function exportCsv() {
+  function handleExport() {
     if (!exam) return;
-    const csv = toCsv(exam, attempts);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${exam.title.replace(/[^\w\-]+/g, "_")}_results.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    exportToExcel(exam, attempts);
   }
 
   if (loading) {
@@ -162,11 +232,11 @@ export default function TypingExamResultsPage() {
           </div>
 
           <button
-            onClick={exportCsv}
+            onClick={handleExport}
             disabled={attempts.length === 0}
-            className="text-sm px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors font-medium whitespace-nowrap"
+            className="text-sm px-3 py-1.5 rounded-lg border border-green-300 text-green-700 bg-green-50 hover:bg-green-100 disabled:opacity-50 disabled:bg-transparent transition-colors font-medium whitespace-nowrap"
           >
-            ⬇ CSV Export
+            ⬇ Excel ডাউনলোড
           </button>
         </div>
 
@@ -217,8 +287,10 @@ export default function TypingExamResultsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 text-left text-gray-500">
+                <th className="px-4 py-3 font-medium">Try</th>
                 <th className="px-4 py-3 font-medium">Name</th>
                 <th className="px-4 py-3 font-medium">Roll</th>
+                <th className="px-4 py-3 font-medium">Mobile Number</th>
                 <th className="px-4 py-3 font-medium">Batch</th>
                 <th className="px-4 py-3 font-medium">WPM</th>
                 <th className="px-4 py-3 font-medium">Accuracy</th>
@@ -229,9 +301,11 @@ export default function TypingExamResultsPage() {
             <tbody>
               {attempts.map((a) => (
                 <tr key={a.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50">
+                  <td className="px-4 py-3 text-gray-500 whitespace-nowrap">#{a.attemptNumber}</td>
                   <td className="px-4 py-3 text-gray-800 font-medium whitespace-nowrap">{a.name || "—"}</td>
                   <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{a.roll || "—"}</td>
-                  <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{a.batchName || "Public"}</td>
+                  <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{a.phone || "—"}</td>
+                  <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{a.batchName || (a.takerType === "PUBLIC" ? "Public" : "—")}</td>
                   <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{a.wpm}</td>
                   <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{a.accuracy}%</td>
                   <td className="px-4 py-3 whitespace-nowrap">
