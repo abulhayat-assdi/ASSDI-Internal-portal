@@ -5,11 +5,7 @@ import { RecommendationCard } from "@/components/typing-game/recommendation-card
 import { SkillOverview } from "@/components/typing-game/skill-overview";
 
 /** Recommended: personal plan with reasons, focus, and benefits. */
-export default async function RecommendedPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function RecommendedPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "adaptive");
   const { store } = await adaptivePageContext(locale);

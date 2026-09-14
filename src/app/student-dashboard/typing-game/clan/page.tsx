@@ -11,11 +11,7 @@ import { ClanLockedPreviews } from "@/components/typing-game/clan-locked-preview
 import { ClanMissionActions } from "@/components/typing-game/clan-mission-actions";
 
 /** Student clan dashboard: identity, rank, contributors, missions, help. */
-export default async function ClanPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function ClanPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "clans");
   const tw = getTranslator(locale, "wars");

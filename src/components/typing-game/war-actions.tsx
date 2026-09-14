@@ -52,18 +52,18 @@ export function WarActions({
     setError(false);
     let ok = false;
     if (action === "accept") {
-      ok = await post(`/api/wars/${warId}/accept`, { accept: true });
+      ok = await post(`/api/typing-game/wars/${warId}/accept`, { accept: true });
     } else if (action === "decline") {
-      ok = await post(`/api/wars/${warId}/accept`, { accept: false });
+      ok = await post(`/api/typing-game/wars/${warId}/accept`, { accept: false });
     } else if (action === "submit") {
       if (!attemptId) {
         setError(true);
         setBusy(false);
         return;
       }
-      ok = await post(`/api/wars/${warId}/submit`, { attemptId });
+      ok = await post(`/api/typing-game/wars/${warId}/submit`, { attemptId });
     } else {
-      ok = await post(`/api/wars/${warId}/${action}`);
+      ok = await post(`/api/typing-game/wars/${warId}/${action}`);
     }
     setBusy(false);
     if (!ok) {

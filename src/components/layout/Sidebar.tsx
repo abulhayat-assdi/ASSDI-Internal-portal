@@ -76,6 +76,7 @@ const teacherAdminNavSections: NavSection[] = [
         icon: "⌨️",
         items: [
             { href: "/dashboard/typing-game/admin", label: "Admin Console", icon: "⌨️", permission: "admin_typing_game", feature: "typing_game" },
+            { href: "/dashboard/typing-game/admin/flags", label: "Typing Adventure Flags", icon: "🚩", permission: "admin_typing_game", feature: "typing_game" },
             { href: "/dashboard/typing-game/teacher", label: "Teacher Console", icon: "⌨️", permission: "typing_game_teacher", feature: "typing_game" },
         ]
     },

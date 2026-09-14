@@ -40,7 +40,7 @@ export function ClanMissionActions({
           className="tap-btn tap-btn-primary tap-btn-sm"
           disabled={busy}
           onClick={() => {
-            void call(`/api/clan/missions/${missionId}/start`);
+            void call(`/api/typing-game/clan/missions/${missionId}/start`);
           }}
         >
           {t("startMission")}
@@ -52,7 +52,7 @@ export function ClanMissionActions({
           className="tap-btn tap-btn-secondary tap-btn-sm"
           disabled={busy}
           onClick={() => {
-            void call(`/api/clan/missions/${missionId}/sync`);
+            void call(`/api/typing-game/clan/missions/${missionId}/sync`);
           }}
         >
           {t("syncMission")}

@@ -4,11 +4,7 @@ import { clanPageContext } from "@/lib/typing-game/server/clan-pages";
 import { ClanMissionActions } from "@/components/typing-game/clan-mission-actions";
 
 /** Clan mission board: aggregate progress, start/sync actions. */
-export default async function ClanMissionsPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function ClanMissionsPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "clans");
   const { session, store } = await clanPageContext(locale);

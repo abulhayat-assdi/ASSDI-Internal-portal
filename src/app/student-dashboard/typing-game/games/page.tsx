@@ -5,11 +5,7 @@ import { recommendGame } from "@/lib/typing-game/server/student";
 import { enrichGames } from "@/lib/typing-game/server/games";
 import { GamesExplorer } from "@/components/typing-game/games-explorer";
 
-export default async function GamesPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function GamesPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "games");
   const { session, store } = await studentContext(locale);

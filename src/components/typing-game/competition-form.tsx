@@ -102,7 +102,7 @@ export function CompetitionForm({
       registrationEndsAt: null,
     };
     try {
-      const url = initial.id ? `/api/competitions/${initial.id}` : "/api/competitions";
+      const url = initial.id ? `/api/typing-game/competitions/${initial.id}` : "/api/typing-game/competitions";
       const res = await fetch(url, {
         method: initial.id ? "PATCH" : "POST",
         headers: { "content-type": "application/json" },
@@ -115,7 +115,7 @@ export function CompetitionForm({
       const data = (await res.json()) as { id?: string };
       const id = initial.id ?? data.id;
       if (publish && id) {
-        const pub = await fetch(`/api/competitions/${id}/publish`, {
+        const pub = await fetch(`/api/typing-game/competitions/${id}/publish`, {
           method: "POST",
         });
         if (!pub.ok) {

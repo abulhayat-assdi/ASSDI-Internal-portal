@@ -29,7 +29,7 @@ export function PlayButton({
     setError(null);
     try {
       const res = await fetch(
-        `/api/games/${encodeURIComponent(gameSlug)}/attempts/start`,
+        `/api/typing-game/games/${encodeURIComponent(gameSlug)}/attempts/start`,
         {
           method: "POST",
           headers: { "content-type": "application/json" },

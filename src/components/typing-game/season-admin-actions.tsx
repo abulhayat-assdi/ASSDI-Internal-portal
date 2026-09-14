@@ -36,7 +36,7 @@ export function SeasonAdminActions({
               headers: { "content-type": "application/json" },
               body: JSON.stringify(body),
             };
-      const res = await fetch(`/api/admin/seasons/${seasonId}/${action}`, init);
+      const res = await fetch(`/api/typing-game/admin/seasons/${seasonId}/${action}`, init);
       if (!res.ok) return false;
       router.refresh();
       return true;

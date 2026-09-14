@@ -130,7 +130,8 @@ export interface StaffStore {
   listAssignments(): Promise<AssignmentState[]>;
   listOrgs(): Promise<OrgState[]>;
   getAudit(limit: number): Promise<AuditRow[]>;
-  getFlags(): Promise<FlagState[]>;
+  /** null orgId = platform-wide defaults (super_admin); else effective flags for that org (org override wins over the global default). */
+  getFlags(orgId: string | null): Promise<FlagState[]>;
   getUserDetail(userId: string): Promise<{
     userId: string;
     fullName: string;
@@ -166,7 +167,8 @@ export interface StaffStore {
   lookupUserByEmail(email: string): Promise<{ userId: string; fullName: string; email: string } | null>;
   grantRole(userId: string, role: string, orgId?: string): Promise<void>;
   revokeRole(userId: string, role: string): Promise<void>;
-  setFlag(key: string, enabled: boolean): Promise<void>;
+  /** null orgId = global default row (super_admin only); else the caller's own org override (fn_set_org_flag enforces is_org_admin). */
+  setFlag(key: string, enabled: boolean, orgId: string | null): Promise<void>;
   setGameActive(slug: string, active: boolean): Promise<void>;
 }
 
@@ -341,7 +343,7 @@ export function createMemoryStaffStore(
     listAssignments: () => Promise.resolve(fx.assignments ?? []),
     listOrgs: () => Promise.resolve(fx.orgs ?? []),
     getAudit: (limit) => Promise.resolve((fx.audit ?? []).slice(0, limit)),
-    getFlags: () => Promise.resolve(fx.flags ?? []),
+    getFlags: (_orgId) => Promise.resolve(fx.flags ?? []),
     getUserDetail: (userId) =>
       Promise.resolve(fx.userDetails?.[userId] ?? null),
     createCourse: (input) => {
@@ -400,9 +402,9 @@ export function createMemoryStaffStore(
       log("revokeRole", [userId, role]);
       return Promise.resolve();
     },
-    setFlag: (key, enabled) => {
+    setFlag: (key, enabled, orgId) => {
       guard("setFlag");
-      log("setFlag", [key, enabled]);
+      log("setFlag", [key, enabled, orgId]);
       return Promise.resolve();
     },
     setGameActive: (slug, active) => {
@@ -805,22 +807,31 @@ export function createSupabaseStaffStore(client: PostgrestClient): StaffStore {
       });
     },
 
-    async getFlags() {
+    async getFlags(orgId) {
       const res = await client
         .from("feature_flags")
-        .select("key, enabled, description")
+        .select("key, enabled, description, org_id")
         .order("key");
       if (res.error || !Array.isArray(res.data)) return [];
-      return res.data.filter(isRecord).flatMap((d) => {
-        if (typeof d.key !== "string") return [];
-        return [
-          {
-            key: d.key,
-            enabled: d.enabled === true,
-            description: str(d.description),
-          },
-        ];
-      });
+      const rows = res.data.filter(isRecord);
+      // Global (org_id IS NULL) rows are the platform defaults; an org's own
+      // row (if any) overrides just the `enabled` value for that org — the
+      // description always comes from the global row.
+      const globalByKey = new Map<string, { enabled: boolean; description: string }>();
+      const orgEnabledByKey = new Map<string, boolean>();
+      for (const d of rows) {
+        if (typeof d.key !== "string") continue;
+        if (d.org_id == null) {
+          globalByKey.set(d.key, { enabled: d.enabled === true, description: str(d.description) });
+        } else if (orgId && d.org_id === orgId) {
+          orgEnabledByKey.set(d.key, d.enabled === true);
+        }
+      }
+      return Array.from(globalByKey.entries()).map(([key, g]) => ({
+        key,
+        description: g.description,
+        enabled: orgEnabledByKey.has(key) ? orgEnabledByKey.get(key)! : g.enabled,
+      }));
     },
 
     async getUserDetail(userId) {
@@ -972,8 +983,26 @@ export function createSupabaseStaffStore(client: PostgrestClient): StaffStore {
       if (res.error) throw mapStoreError(res.error);
     },
 
-    async setFlag(key, enabled) {
-      const res = await client.from("feature_flags").update({ enabled }).eq("key", key);
+    async setFlag(key, enabled, orgId) {
+      if (orgId == null) {
+        // Global default row — super_admin only (RLS enforces this too).
+        const res = await client
+          .from("feature_flags")
+          .update({ enabled })
+          .eq("key", key)
+          .is("org_id", null);
+        if (res.error) throw mapStoreError(res.error);
+        return;
+      }
+      // Org-scoped override — goes through fn_set_org_flag rather than a raw
+      // upsert because the (key, org_id) unique index is partial
+      // (WHERE org_id IS NOT NULL), which PostgREST's upsert can't target
+      // directly; the function also re-checks is_org_admin(orgId) itself.
+      const res = await client.rpc("fn_set_org_flag", {
+        p_key: key,
+        p_org_id: orgId,
+        p_enabled: enabled,
+      });
       if (res.error) throw mapStoreError(res.error);
     },
 

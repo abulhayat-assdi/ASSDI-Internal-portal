@@ -20,7 +20,7 @@ export function SeasonForm({ locale }: { locale: Locale }) {
     setSaving(true);
     setError(false);
     try {
-      const res = await fetch("/api/admin/seasons", {
+      const res = await fetch("/api/typing-game/admin/seasons", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({

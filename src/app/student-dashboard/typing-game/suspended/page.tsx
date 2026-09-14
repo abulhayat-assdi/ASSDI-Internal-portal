@@ -3,11 +3,7 @@ import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n"
 import { LogoutButton } from "@/components/typing-game/logout-button";
 
 /** Public landing for non-active accounts (message only, no data). */
-export default function SuspendedPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default function SuspendedPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "auth");
   return (

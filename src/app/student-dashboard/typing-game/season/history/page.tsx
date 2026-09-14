@@ -4,11 +4,7 @@ import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n"
 import { seasonPageContext } from "@/lib/typing-game/server/season-pages";
 
 /** Season history: every visible season with its final status. */
-export default async function SeasonHistoryPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function SeasonHistoryPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "seasons");
   const { store } = await seasonPageContext(locale);

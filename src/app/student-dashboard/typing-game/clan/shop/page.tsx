@@ -7,11 +7,7 @@ import { PurchaseButton } from "@/components/typing-game/purchase-button";
 import { InventoryActions } from "@/components/typing-game/inventory-actions";
 
 /** Clan Market: clan cosmetics for leaders, plus the clan vault. */
-export default async function ClanShopPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function ClanShopPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "shop");
   const { session, store: clanStore } = await clanPageContext(locale);

@@ -8,11 +8,7 @@ import { competitionPageContext } from "@/lib/typing-game/server/competition-pag
 import { CompetitionForm } from "@/components/typing-game/competition-form";
 
 /** Admin competition creation across scoped batches. */
-export default async function AdminCompetitionNewPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function AdminCompetitionNewPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "competitions");
   await competitionPageContext(locale);

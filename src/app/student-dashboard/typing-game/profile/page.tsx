@@ -11,11 +11,7 @@ import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n"
 import { studentContext } from "@/lib/typing-game/server/student-pages";
 import { getStudentProfile } from "@/lib/typing-game/server/student";
 
-export default async function ProfilePage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function ProfilePage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "profile");
   const { session, store } = await studentContext(locale);

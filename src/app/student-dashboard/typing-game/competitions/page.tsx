@@ -5,11 +5,7 @@ import { statusSection } from "@/lib/typing-game/competitions";
 import { CompetitionCard } from "@/components/typing-game/competition-card";
 
 /** Student competition hub: upcoming / registration / live / completed. */
-export default async function CompetitionsPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function CompetitionsPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "competitions");
   const { session, store } = await competitionPageContext(locale);

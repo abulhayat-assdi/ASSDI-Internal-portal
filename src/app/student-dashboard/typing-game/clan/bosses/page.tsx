@@ -4,11 +4,7 @@ import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n"
 import { bossPageContext } from "@/lib/typing-game/server/boss-pages";
 
 /** Student boss lobby: definitions plus my clan's battles. */
-export default async function BossLobbyPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function BossLobbyPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "bosses");
   const { store } = await bossPageContext(locale);

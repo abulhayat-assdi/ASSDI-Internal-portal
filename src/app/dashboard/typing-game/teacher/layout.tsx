@@ -19,6 +19,11 @@ export default async function TeacherLayout({
   let allowed = false;
   if (client) {
     try {
+      await client.rpc("fn_provision_staff_from_asm");
+    } catch (err) {
+      console.error("[typing-game] fn_provision_staff_from_asm failed:", err);
+    }
+    try {
       await requireTeacher(client);
       allowed = true;
     } catch (e) {

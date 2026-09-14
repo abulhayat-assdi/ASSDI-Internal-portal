@@ -32,7 +32,7 @@ export function RewardAdminControls({
     setBusy(true);
     setFailed(false);
     try {
-      const res = await fetch("/api/admin/rewards/ads/policy", {
+      const res = await fetch("/api/typing-game/admin/rewards/ads/policy", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({

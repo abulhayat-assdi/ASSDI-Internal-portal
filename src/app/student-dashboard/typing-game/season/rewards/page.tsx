@@ -4,11 +4,7 @@ import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n"
 import { seasonPageContext } from "@/lib/typing-game/server/season-pages";
 
 /** Season rewards view: tier ladder and final-note framing. */
-export default async function SeasonRewardsPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function SeasonRewardsPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "seasons");
   const { session, store } = await seasonPageContext(locale);

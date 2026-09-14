@@ -8,11 +8,7 @@ import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n"
 import { studentContext } from "@/lib/typing-game/server/student-pages";
 import { getProgressData } from "@/lib/typing-game/server/student";
 
-export default async function ProgressPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function ProgressPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "progress");
   const { session, store } = await studentContext(locale);

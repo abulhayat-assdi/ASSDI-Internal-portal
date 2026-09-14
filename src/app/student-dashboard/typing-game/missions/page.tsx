@@ -4,11 +4,7 @@ import { missionPageContext } from "@/lib/typing-game/server/mission-pages";
 import { StudentMissionCard } from "@/components/typing-game/mission-card";
 
 /** Student quest hub: today's quests, weekly challenge, special quests. */
-export default async function MissionsPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function MissionsPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "missions");
   const { session, store } = await missionPageContext(locale);

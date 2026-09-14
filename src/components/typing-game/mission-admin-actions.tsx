@@ -46,12 +46,12 @@ export function MissionAdminActions({
 
   async function toggle(): Promise<void> {
     const action = status === "active" ? "deactivate" : "activate";
-    const ok = await call(`/api/admin/missions/${missionId}/${action}`);
+    const ok = await call(`/api/typing-game/admin/missions/${missionId}/${action}`);
     if (!ok) setError(true);
   }
 
   async function addObjective(): Promise<void> {
-    const ok = await call(`/api/admin/missions/${missionId}/objectives`, {
+    const ok = await call(`/api/typing-game/admin/missions/${missionId}/objectives`, {
       kind,
       target: { count },
     });

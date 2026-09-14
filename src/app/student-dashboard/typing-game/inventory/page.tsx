@@ -5,11 +5,7 @@ import { InventoryActions } from "@/components/typing-game/inventory-actions";
 import { previewUrl } from "@/components/typing-game/shop-card";
 
 /** Personal inventory: owned, equipped, consumables, expired. */
-export default async function InventoryPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function InventoryPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "shop");
   const { store } = await shopPageContext(locale);

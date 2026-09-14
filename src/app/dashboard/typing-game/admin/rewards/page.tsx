@@ -8,11 +8,7 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 }
 
 /** Admin rewarded-ads console: policy, definitions, funnel. */
-export default async function AdminRewardsPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function AdminRewardsPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "rewards");
   const { store } = await rewardedPageContext(locale);

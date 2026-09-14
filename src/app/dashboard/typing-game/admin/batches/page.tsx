@@ -7,11 +7,7 @@ import { createSupabaseStaffStore } from "@/lib/typing-game/server/staff-store";
 import { ForbiddenBlock } from "@/components/typing-game/forbidden-block";
 import { CreateBatchForm, PatchToggle } from "@/components/typing-game/admin-forms";
 
-export default async function BatchesPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function BatchesPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "staff");
   const session = await getSession();
@@ -70,7 +66,7 @@ export default async function BatchesPage({
                     <td>
                       <PatchToggle
                         locale={locale}
-                        url={`/api/admin/batches/${b.id}`}
+                        url={`/api/typing-game/admin/batches/${b.id}`}
                         body={{ isActive: !b.isActive }}
                         label={b.isActive ? t("deactivate") : t("activate")}
                         active={b.isActive}

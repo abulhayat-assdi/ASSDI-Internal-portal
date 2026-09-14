@@ -39,7 +39,7 @@ export function TournamentAdminActions({
               body: JSON.stringify(body),
             };
       const res = await fetch(
-        `/api/admin/tournaments/${tournamentId}/${action}`,
+        `/api/typing-game/admin/tournaments/${tournamentId}/${action}`,
         init,
       );
       if (!res.ok) return false;

@@ -4,11 +4,7 @@ import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n"
 import { shopPageContext } from "@/lib/typing-game/server/shop-pages";
 
 /** Admin shop list (drafts included via RLS admin policy). */
-export default async function AdminShopPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function AdminShopPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "shop");
   const { store } = await shopPageContext(locale);

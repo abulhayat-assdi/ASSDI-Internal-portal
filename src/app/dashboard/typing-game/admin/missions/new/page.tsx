@@ -3,11 +3,7 @@ import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n"
 import { MissionForm } from "@/components/typing-game/mission-form";
 
 /** Admin mission creation (configuration form, not a visual editor). */
-export default function AdminMissionNewPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default function AdminMissionNewPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "missions");
   return (

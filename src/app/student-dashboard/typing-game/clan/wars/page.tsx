@@ -8,11 +8,7 @@ import { userDbClient } from "@/lib/typing-game/server/auth";
 import { createSupabaseStudentStore } from "@/lib/typing-game/server/student-store";
 
 /** Student war hub: live / upcoming / completed + challenge entry. */
-export default async function ClanWarsPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function ClanWarsPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "wars");
   const { session, store } = await warPageContext(locale);

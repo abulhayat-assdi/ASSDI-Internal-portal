@@ -7,11 +7,7 @@ import { getTeacherDashboard } from "@/lib/typing-game/server/staff-data";
 import { CompetitionForm } from "@/components/typing-game/competition-form";
 
 /** Teacher competition creation (assigned batches + game catalog). */
-export default async function TeacherCompetitionNewPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function TeacherCompetitionNewPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "competitions");
   const session = await getSession();

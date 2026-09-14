@@ -6,11 +6,7 @@ import { statusSection } from "@/lib/typing-game/competitions";
 import { CompetitionCard } from "@/components/typing-game/competition-card";
 
 /** Teacher competitions: visible (RLS-scoped) list + creation entry. */
-export default async function TeacherCompetitionsPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function TeacherCompetitionsPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "competitions");
   const { session, store } = await competitionPageContext(locale);

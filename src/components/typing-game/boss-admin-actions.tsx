@@ -58,7 +58,7 @@ export function BossAdminActions({
             onClick={() => {
               void (async () => {
                 const ok = await call(
-                  `/api/admin/bosses/${bossId}/${status === "active" ? "deactivate" : "activate"}`,
+                  `/api/typing-game/admin/bosses/${bossId}/${status === "active" ? "deactivate" : "activate"}`,
                   "POST",
                 );
                 if (!ok) setError(true);
@@ -89,7 +89,7 @@ export function BossAdminActions({
             onClick={() => {
               void (async () => {
                 const now = Date.now();
-                const ok = await call("/api/admin/bosses/instances", "POST", {
+                const ok = await call("/api/typing-game/admin/bosses/instances", "POST", {
                   bossId,
                   clanId: clanId.trim(),
                   startAt: new Date(now).toISOString(),
@@ -113,7 +113,7 @@ export function BossAdminActions({
             onClick={() => {
               void (async () => {
                 const ok = await call(
-                  `/api/admin/bosses/instances/${instanceId}/activate`,
+                  `/api/typing-game/admin/bosses/instances/${instanceId}/activate`,
                   "POST",
                 );
                 if (!ok) setError(true);
@@ -129,7 +129,7 @@ export function BossAdminActions({
             onClick={() => {
               void (async () => {
                 const ok = await call(
-                  `/api/admin/bosses/instances/${instanceId}/advance`,
+                  `/api/typing-game/admin/bosses/instances/${instanceId}/advance`,
                   "POST",
                 );
                 if (!ok) setError(true);
@@ -145,7 +145,7 @@ export function BossAdminActions({
             onClick={() => {
               void (async () => {
                 const ok = await call(
-                  `/api/admin/bosses/instances/${instanceId}/finalize`,
+                  `/api/typing-game/admin/bosses/instances/${instanceId}/finalize`,
                   "POST",
                 );
                 if (!ok) setError(true);

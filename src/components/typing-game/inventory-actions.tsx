@@ -66,7 +66,7 @@ export function InventoryActions({
             disabled={busy}
             onClick={() => {
               void run(
-                "/api/inventory/equip",
+                "/api/typing-game/inventory/equip",
                 clanId
                   ? { itemId, equip: !equipped, clanId }
                   : { itemId, equip: !equipped },
@@ -82,7 +82,7 @@ export function InventoryActions({
             className="tap-btn tap-btn-secondary tap-btn-sm"
             disabled={busy || quantity === 0}
             onClick={() => {
-              void run("/api/inventory/use", { itemId });
+              void run("/api/typing-game/inventory/use", { itemId });
             }}
           >
             {t("use")} ({quantity} {t("charges")})

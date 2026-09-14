@@ -19,11 +19,7 @@ function contentLists(): { words: string[]; sentences: string[] } {
 }
 
 /** Personal practice: quick actions plus a curated weak-key drill. */
-export default async function PracticePage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function PracticePage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "adaptive");
   const { store } = await adaptivePageContext(locale);

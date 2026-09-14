@@ -23,7 +23,7 @@ export function ShopAdminActions({
     setBusy(true);
     setFailed(false);
     try {
-      const res = await fetch(`/api/admin/shop/${itemId}/${action}`, {
+      const res = await fetch(`/api/typing-game/admin/shop/${itemId}/${action}`, {
         method: "POST",
       });
       if (!res.ok) {

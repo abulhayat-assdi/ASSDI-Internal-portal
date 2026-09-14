@@ -45,21 +45,21 @@ export function ClanAdminActions({
   }
 
   async function save(): Promise<void> {
-    const ok = await call(`/api/admin/clans/${clanId}`, "PATCH", { motto });
+    const ok = await call(`/api/typing-game/admin/clans/${clanId}`, "PATCH", { motto });
     if (ok) setMotto("");
     else setError(true);
   }
 
   async function toggle(active: boolean): Promise<void> {
     const ok = await call(
-      `/api/admin/clans/${clanId}/${active ? "activate" : "deactivate"}`,
+      `/api/typing-game/admin/clans/${clanId}/${active ? "activate" : "deactivate"}`,
       "POST",
     );
     if (!ok) setError(true);
   }
 
   async function assign(): Promise<void> {
-    const ok = await call(`/api/admin/clans/${clanId}/roles`, "POST", {
+    const ok = await call(`/api/typing-game/admin/clans/${clanId}/roles`, "POST", {
       userId: userId.trim(),
       role,
     });
@@ -68,7 +68,7 @@ export function ClanAdminActions({
   }
 
   async function link(): Promise<void> {
-    const ok = await call(`/api/admin/clans/${clanId}/missions/link`, "POST", {
+    const ok = await call(`/api/typing-game/admin/clans/${clanId}/missions/link`, "POST", {
       missionId: missionId.trim(),
     });
     if (ok) setMissionId("");

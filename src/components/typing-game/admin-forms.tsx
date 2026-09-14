@@ -69,7 +69,7 @@ export function CreateCourseForm({
         e.preventDefault();
         void s.run(
           async () =>
-            api("/api/admin/courses", {
+            api("/api/typing-game/admin/courses", {
               method: "POST",
               body: JSON.stringify({ organizationId: orgId, title, slug }),
             }),
@@ -150,7 +150,7 @@ export function CreateBatchForm({
         e.preventDefault();
         void s.run(
           async () =>
-            api("/api/admin/batches", {
+            api("/api/typing-game/admin/batches", {
               method: "POST",
               body: JSON.stringify({ courseId, name, joinCode: joinCode || undefined }),
             }),
@@ -216,7 +216,7 @@ export function MembershipEditor({
   const [active, setActive] = useState(isActive);
   const s = useSubmit();
   async function patch(op: Record<string, unknown>): Promise<boolean> {
-    const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}`, {
+    const res = await fetch(`/api/typing-game/admin/users/${encodeURIComponent(userId)}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       credentials: "same-origin",
@@ -302,7 +302,7 @@ export function AccountStatusSelect({
           setValue(next);
           void s.run(
             async () =>
-              api(`/api/admin/users/${encodeURIComponent(userId)}`, {
+              api(`/api/typing-game/admin/users/${encodeURIComponent(userId)}`, {
                 method: "PATCH",
                 body: JSON.stringify({ op: "status", status: next }),
               }),
@@ -342,7 +342,7 @@ export function AssignmentForm({
         const isCourse = target.startsWith("course:");
         void s.run(
           async () =>
-            api("/api/admin/assignments", {
+            api("/api/typing-game/admin/assignments", {
               method: "POST",
               body: JSON.stringify({
                 email,
@@ -497,7 +497,7 @@ export function FlagToggle({
       </div>
       <PatchToggle
         locale={locale}
-        url={`/api/admin/flags/${encodeURIComponent(flagKey)}`}
+        url={`/api/typing-game/admin/flags/${encodeURIComponent(flagKey)}`}
         body={{ enabled: !enabled }}
         label={enabled ? t("enabled") : t("disabled")}
         active={enabled}

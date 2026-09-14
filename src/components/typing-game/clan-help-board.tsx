@@ -67,7 +67,7 @@ export function ClanHelpBoard({
       setError(true);
       return;
     }
-    const ok = await post("/api/clan/help", {
+    const ok = await post("/api/typing-game/clan/help", {
       requested: n,
       context: context.trim() ? { note: context.trim() } : {},
     });
@@ -85,7 +85,7 @@ export function ClanHelpBoard({
       setError(true);
       return;
     }
-    const ok = await post(`/api/clan/help/${id}/contribute`, { amount: n });
+    const ok = await post(`/api/typing-game/clan/help/${id}/contribute`, { amount: n });
     if (!ok) setError(true);
   }
 

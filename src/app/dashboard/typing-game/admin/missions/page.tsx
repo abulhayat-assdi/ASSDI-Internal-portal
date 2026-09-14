@@ -4,11 +4,7 @@ import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n"
 import { missionPageContext } from "@/lib/typing-game/server/mission-pages";
 
 /** Admin mission list (drafts included via RLS admin policy). */
-export default async function AdminMissionsPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function AdminMissionsPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "missions");
   const { store } = await missionPageContext(locale);

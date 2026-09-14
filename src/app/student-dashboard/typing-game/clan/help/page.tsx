@@ -4,11 +4,7 @@ import { clanPageContext } from "@/lib/typing-game/server/clan-pages";
 import { ClanHelpBoard } from "@/components/typing-game/clan-help-board";
 
 /** Clan help board: request assistance, fund clanmates (bounded). */
-export default async function ClanHelpPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function ClanHelpPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "clans");
   const { session, store } = await clanPageContext(locale);

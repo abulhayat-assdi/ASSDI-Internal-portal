@@ -38,7 +38,7 @@ export function ShopForm({ locale }: { locale: Locale }) {
     setSaving(true);
     setError(false);
     try {
-      const res = await fetch("/api/admin/shop", {
+      const res = await fetch("/api/typing-game/admin/shop", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({

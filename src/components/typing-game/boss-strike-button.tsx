@@ -29,7 +29,7 @@ export function BossStrikeButton({
     setError(false);
     try {
       const res = await fetch(
-        `/api/bosses/${encodeURIComponent(instanceId)}/submit`,
+        `/api/typing-game/bosses/${encodeURIComponent(instanceId)}/submit`,
         {
           method: "POST",
           headers: { "content-type": "application/json" },

@@ -37,7 +37,7 @@ export function BossForm({ locale }: { locale: Locale }) {
             games: [],
           };
         });
-      const res = await fetch("/api/admin/bosses", {
+      const res = await fetch("/api/typing-game/admin/bosses", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({

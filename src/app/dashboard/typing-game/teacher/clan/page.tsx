@@ -4,11 +4,7 @@ import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n"
 import { clanPageContext } from "@/lib/typing-game/server/clan-pages";
 
 /** Teacher clans: assigned batches' clans (RLS-scoped, read-only). */
-export default async function TeacherClanPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function TeacherClanPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "clans");
   const { store } = await clanPageContext(locale);

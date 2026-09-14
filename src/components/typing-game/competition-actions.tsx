@@ -74,13 +74,13 @@ export function CompetitionActions({
           disabled={busy !== null}
           onClick={() => {
             if (a === "register") {
-              void run(a, `/api/competitions/${competitionId}/register`);
+              void run(a, `/api/typing-game/competitions/${competitionId}/register`);
             } else if (a === "attachLatest") {
-              void run(a, `/api/competitions/${competitionId}/attach`, {
+              void run(a, `/api/typing-game/competitions/${competitionId}/attach`, {
                 latest: true,
               });
             } else {
-              void run(a, `/api/competitions/${competitionId}/${a}`);
+              void run(a, `/api/typing-game/competitions/${competitionId}/${a}`);
             }
           }}
         >

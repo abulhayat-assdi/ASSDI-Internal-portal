@@ -4,11 +4,7 @@ import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n"
 import { tournamentPageContext } from "@/lib/typing-game/server/tournament-pages";
 
 /** Admin tournament list (drafts included via RLS admin policy). */
-export default async function AdminTournamentsPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function AdminTournamentsPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "tournaments");
   const { store } = await tournamentPageContext(locale);

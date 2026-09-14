@@ -4,11 +4,7 @@ import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n"
 import { bossPageContext } from "@/lib/typing-game/server/boss-pages";
 
 /** Admin boss definitions (drafts included via RLS admin policy). */
-export default async function AdminBossesPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function AdminBossesPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "bosses");
   const { store } = await bossPageContext(locale);

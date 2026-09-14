@@ -124,7 +124,7 @@ export function GamePlayer({
     setAnnouncement(s.submitting);
     try {
       const res = await fetch(
-        `/api/games/${encodeURIComponent(gameSlug)}/attempts/${encodeURIComponent(attemptId)}/submit`,
+        `/api/typing-game/games/${encodeURIComponent(gameSlug)}/attempts/${encodeURIComponent(attemptId)}/submit`,
         {
           method: "POST",
           headers: { "content-type": "application/json" },

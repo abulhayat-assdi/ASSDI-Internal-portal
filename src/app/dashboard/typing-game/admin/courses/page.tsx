@@ -7,11 +7,7 @@ import { createSupabaseStaffStore } from "@/lib/typing-game/server/staff-store";
 import { ForbiddenBlock } from "@/components/typing-game/forbidden-block";
 import { CreateCourseForm, PatchToggle } from "@/components/typing-game/admin-forms";
 
-export default async function CoursesPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function CoursesPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "staff");
   const session = await getSession();
@@ -67,7 +63,7 @@ export default async function CoursesPage({
                     <td>
                       <PatchToggle
                         locale={locale}
-                        url={`/api/admin/courses/${c.id}`}
+                        url={`/api/typing-game/admin/courses/${c.id}`}
                         body={{ isActive: !c.isActive }}
                         label={c.isActive ? t("deactivate") : t("activate")}
                         active={c.isActive}

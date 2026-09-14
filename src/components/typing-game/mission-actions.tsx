@@ -24,7 +24,7 @@ export function MissionStartButton({
     setError(false);
     try {
       const res = await fetch(
-        `/api/missions/${encodeURIComponent(instanceId)}/start`,
+        `/api/typing-game/missions/${encodeURIComponent(instanceId)}/start`,
         { method: "POST" },
       );
       if (!res.ok) throw new Error(`start failed: ${String(res.status)}`);

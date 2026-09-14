@@ -7,11 +7,7 @@ import { createSupabaseStaffStore } from "@/lib/typing-game/server/staff-store";
 import { getAdminOverview } from "@/lib/typing-game/server/staff-data";
 import { ForbiddenBlock } from "@/components/typing-game/forbidden-block";
 
-export default async function SuperAdminPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function SuperAdminPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "staff");
   const session = await getSession();

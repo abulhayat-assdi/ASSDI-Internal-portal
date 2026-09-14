@@ -4,11 +4,7 @@ import { rewardedPageContext } from "@/lib/typing-game/server/rewarded-pages";
 import { RewardOptIn } from "@/components/typing-game/reward-opt-in";
 
 /** Optional rewards: catalog offers, each honestly labeled. */
-export default async function RewardsPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function RewardsPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "rewards");
   const { store } = await rewardedPageContext(locale);

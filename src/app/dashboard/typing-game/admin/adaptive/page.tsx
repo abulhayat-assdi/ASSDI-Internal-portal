@@ -3,11 +3,7 @@ import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n"
 import { adaptivePageContext } from "@/lib/typing-game/server/adaptive-pages";
 
 /** Admin learning analytics: funnel, completion, global trends. */
-export default async function AdminAdaptivePage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function AdminAdaptivePage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "adaptive");
   const { store } = await adaptivePageContext(locale);

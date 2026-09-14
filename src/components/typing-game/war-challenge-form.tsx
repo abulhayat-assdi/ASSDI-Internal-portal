@@ -25,7 +25,7 @@ export function WarChallengeForm({
     setBusy(true);
     setError(false);
     try {
-      const res = await fetch("/api/wars", {
+      const res = await fetch("/api/typing-game/wars", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({

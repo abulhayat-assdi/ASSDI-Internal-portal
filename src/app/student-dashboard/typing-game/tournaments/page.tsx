@@ -5,11 +5,7 @@ import { tournamentPageContext } from "@/lib/typing-game/server/tournament-pages
 import { TournamentCard } from "@/components/typing-game/tournament-card";
 
 /** Student tournament hub: live cups first, history below. */
-export default async function TournamentsPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function TournamentsPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "tournaments");
   const { store } = await tournamentPageContext(locale);

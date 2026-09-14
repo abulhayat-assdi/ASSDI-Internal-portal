@@ -64,7 +64,7 @@ export function MissionForm({
     setError(false);
     try {
       const res = await fetch(
-        missionId ? `/api/admin/missions/${missionId}` : "/api/admin/missions",
+        missionId ? `/api/typing-game/admin/missions/${missionId}` : "/api/typing-game/admin/missions",
         {
           method: missionId ? "PATCH" : "POST",
           headers: { "content-type": "application/json" },

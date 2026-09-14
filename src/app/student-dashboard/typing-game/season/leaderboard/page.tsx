@@ -5,11 +5,7 @@ import { seasonPageContext } from "@/lib/typing-game/server/season-pages";
 import { SeasonBoard } from "@/components/typing-game/season-board";
 
 /** Full leaderboards for the active (or latest) season. */
-export default async function SeasonLeaderboardPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function SeasonLeaderboardPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "seasons");
   const { store } = await seasonPageContext(locale);

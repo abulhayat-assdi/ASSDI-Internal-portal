@@ -49,7 +49,7 @@ export function RewardOptIn({
   }
 
   async function begin(): Promise<void> {
-    const offer = await post("/api/rewards/ads/offer", {
+    const offer = await post("/api/typing-game/rewards/ads/offer", {
       placement,
       rewardSlug,
     });
@@ -58,12 +58,12 @@ export function RewardOptIn({
       return;
     }
     const { sessionId: sid } = (await offer.json()) as { sessionId: string };
-    const opt = await post(`/api/rewards/ads/${sid}/opt-in`);
+    const opt = await post(`/api/typing-game/rewards/ads/${sid}/opt-in`);
     if (!opt || !opt.ok) {
       setStage("failed");
       return;
     }
-    const started = await post(`/api/rewards/ads/${sid}/start`);
+    const started = await post(`/api/typing-game/rewards/ads/${sid}/start`);
     if (!started || !started.ok) {
       setStage("failed");
       return;
@@ -83,7 +83,7 @@ export function RewardOptIn({
       setStage("failed");
       return;
     }
-    const done = await post(`/api/rewards/ads/${sessionId}/complete`, {
+    const done = await post(`/api/typing-game/rewards/ads/${sessionId}/complete`, {
       providerReference,
     });
     if (!done || !done.ok) {
@@ -131,7 +131,7 @@ export function RewardOptIn({
             onClick={() => {
               setStage("idle");
               setSessionId(null);
-              void post(`/api/rewards/ads/${sessionId}/cancel`);
+              void post(`/api/typing-game/rewards/ads/${sessionId}/cancel`);
             }}
           >
             {t("notNow")}

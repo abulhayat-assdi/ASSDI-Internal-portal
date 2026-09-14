@@ -4,11 +4,7 @@ import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n"
 import { clanPageContext } from "@/lib/typing-game/server/clan-pages";
 
 /** Admin clans: every visible clan with management links. */
-export default async function AdminClansPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function AdminClansPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "clans");
   const { store } = await clanPageContext(locale);

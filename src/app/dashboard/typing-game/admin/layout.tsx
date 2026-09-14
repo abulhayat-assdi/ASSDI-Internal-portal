@@ -18,6 +18,14 @@ export default async function AdminLayout({
   const client = session ? await userDbClient() : null;
   let allowed = false;
   if (client) {
+    // First-time visit: no typing_game.profiles/user_roles row yet for this
+    // ASM admin — idempotent, cheap after the first call (see
+    // fn_provision_staff_from_asm, 0041_staff_provisioning_and_flags.sql).
+    try {
+      await client.rpc("fn_provision_staff_from_asm");
+    } catch (err) {
+      console.error("[typing-game] fn_provision_staff_from_asm failed:", err);
+    }
     try {
       await requireAdmin(client);
       allowed = true;
@@ -46,6 +54,7 @@ export default async function AdminLayout({
           { href: `${base}/wars`, label: tn("adminWars") },
           { href: `${base}/bosses`, label: tn("adminBosses") },
           { href: `${base}/seasons`, label: tn("adminSeasons") },
+          { href: `${base}/flags`, label: t("featureFlags") },
         ]}
       />
       <div className="mx-auto w-full max-w-6xl px-4 py-6">{children}</div>

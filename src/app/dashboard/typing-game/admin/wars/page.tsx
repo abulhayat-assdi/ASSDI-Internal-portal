@@ -4,11 +4,7 @@ import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n"
 import { warPageContext } from "@/lib/typing-game/server/war-pages";
 
 /** Admin war list (RLS-scoped to managed organizations). */
-export default async function AdminWarsPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function AdminWarsPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "wars");
   const { store } = await warPageContext(locale);

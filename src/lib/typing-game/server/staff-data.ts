@@ -151,7 +151,7 @@ export async function getAdminOverview(
     store.listAssignments(),
     store.getAudit(10),
     store.listOrgs(),
-    store.getFlags(),
+    store.getFlags(orgIds ? (orgIds[0] ?? null) : null),
   ]);
   return {
     courses: courses.length,

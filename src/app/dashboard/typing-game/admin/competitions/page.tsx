@@ -6,11 +6,7 @@ import { statusSection } from "@/lib/typing-game/competitions";
 import { CompetitionCard } from "@/components/typing-game/competition-card";
 
 /** Admin competitions: organization-wide oversight (RLS-scoped). */
-export default async function AdminCompetitionsPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function AdminCompetitionsPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "competitions");
   const { session, store } = await competitionPageContext(locale);

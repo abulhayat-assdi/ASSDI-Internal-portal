@@ -28,7 +28,7 @@ export function PurchaseButton({
     setBusy(true);
     setFailed(false);
     try {
-      const res = await fetch(`/api/shop/${itemId}/purchase`, {
+      const res = await fetch(`/api/typing-game/shop/${itemId}/purchase`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(

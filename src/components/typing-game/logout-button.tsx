@@ -13,7 +13,7 @@ export function LogoutButton({ locale }: { locale: Locale }) {
   async function logout(): Promise<void> {
     setBusy(true);
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
+      await fetch("/api/auth/logout", { method: "DELETE" });
     } catch {
       /* logout never strands the UI */
     }

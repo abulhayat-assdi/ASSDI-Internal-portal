@@ -4,11 +4,7 @@ import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n"
 import { seasonPageContext } from "@/lib/typing-game/server/season-pages";
 
 /** Admin season list (drafts included via RLS admin policy). */
-export default async function AdminSeasonsPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function AdminSeasonsPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "seasons");
   const { store } = await seasonPageContext(locale);

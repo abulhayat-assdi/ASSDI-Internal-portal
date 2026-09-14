@@ -5,11 +5,7 @@ import { studentContext } from "@/lib/typing-game/server/student-pages";
 import { recommendGame } from "@/lib/typing-game/server/student";
 import { getWorldMapData } from "@/lib/typing-game/server/games";
 
-export default async function MapPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function MapPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "map");
   const { session, store } = await studentContext(locale);

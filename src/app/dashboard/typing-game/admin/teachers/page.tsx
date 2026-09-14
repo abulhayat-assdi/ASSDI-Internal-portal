@@ -7,11 +7,7 @@ import { createSupabaseStaffStore } from "@/lib/typing-game/server/staff-store";
 import { ForbiddenBlock } from "@/components/typing-game/forbidden-block";
 import { AssignmentForm, DeleteButton } from "@/components/typing-game/admin-forms";
 
-export default async function TeachersPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function TeachersPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "staff");
   const session = await getSession();
@@ -77,7 +73,7 @@ export default async function TeachersPage({
                     <td>
                         <DeleteButton
                           locale={locale}
-                          url={`/api/admin/assignments/${a.id}`}
+                          url={`/api/typing-game/admin/assignments/${a.id}`}
                           label={t("removeAssignment")}
                         />
                       </td>

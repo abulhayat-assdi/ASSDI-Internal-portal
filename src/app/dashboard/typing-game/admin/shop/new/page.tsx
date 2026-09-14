@@ -3,11 +3,7 @@ import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n"
 import { ShopForm } from "@/components/typing-game/shop-form";
 
 /** Admin shop item creation (configuration form). */
-export default function AdminShopNewPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default function AdminShopNewPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "shop");
   return (

@@ -6,11 +6,7 @@ import { SeasonBoard } from "@/components/typing-game/season-board";
 import { CompetitionCountdown } from "@/components/typing-game/competition-countdown";
 
 /** Season hub: banner, countdown, my progress, boards, history. */
-export default async function SeasonHubPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function SeasonHubPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "seasons");
   const { session, store } = await seasonPageContext(locale);

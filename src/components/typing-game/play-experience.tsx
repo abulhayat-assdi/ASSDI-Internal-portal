@@ -115,7 +115,7 @@ export function PlayExperience({
         if (result) {
           // Personal-best flag: does any stored record point at this attempt?
           void fetch(
-            `/api/games/${encodeURIComponent(gameSlug)}/records`,
+            `/api/typing-game/games/${encodeURIComponent(gameSlug)}/records`,
             { credentials: "same-origin" },
           )
             .then((r) => (r.ok ? r.json() : { records: [] }))

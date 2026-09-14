@@ -4,11 +4,7 @@ import { clanPageContext } from "@/lib/typing-game/server/clan-pages";
 import { ClanMembersTable } from "@/components/typing-game/clan-members-table";
 
 /** Full clan member list (privacy-safe columns only). */
-export default async function ClanMembersPage({
-  params,
-}: {
-  params: { locale: string };
-}) {
+export default async function ClanMembersPage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "clans");
   const { session, store } = await clanPageContext(locale);

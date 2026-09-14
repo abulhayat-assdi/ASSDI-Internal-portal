@@ -25,7 +25,7 @@ export function TournamentActions({
     setBusy(true);
     setFailed(false);
     try {
-      const res = await fetch(`/api/tournaments/${tournamentId}/${path}`, {
+      const res = await fetch(`/api/typing-game/tournaments/${tournamentId}/${path}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: "{}",
