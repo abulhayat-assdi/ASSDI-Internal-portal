@@ -1,0 +1,103 @@
+import { NextRequest, NextResponse } from "next/server";
+import { withCourseContext } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth";
+import { scoreAttempt, gradeAttempt } from "@/lib/typing-exam/scoring";
+import { loadVisibleExam } from "@/lib/typing-exam/visibility";
+
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
+type RouteParams = { params: Promise<{ id: string }> };
+
+/**
+ * POST /api/student/typing-exam/[id]/attempt
+ * Authoritative write path: re-validates visibility + attempts-remaining
+ * (never trusts that GET was called first), scores the submission
+ * server-side, and records the attempt.
+ */
+export async function POST(req: NextRequest, { params }: RouteParams) {
+    const user = await getSessionUser(req);
+    if (!user || user.role !== "student" || !user.courseId) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const courseId = user.courseId;
+    const studentBatchName = user.studentBatchName || "";
+    const { id } = await params;
+
+    let body: { typedText?: unknown; elapsedSeconds?: unknown };
+    try {
+        body = await req.json();
+    } catch {
+        return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+    }
+    const { typedText, elapsedSeconds } = body;
+    if (typeof typedText !== "string" || typeof elapsedSeconds !== "number") {
+        return NextResponse.json({ error: "typedText and elapsedSeconds are required" }, { status: 400 });
+    }
+
+    try {
+        return await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+            const result = await loadVisibleExam(tx, courseId, id, studentBatchName);
+            if ("error" in result) {
+                return NextResponse.json({ error: result.error }, { status: result.status });
+            }
+            const { exam } = result;
+
+            const attemptsUsed = await tx.typingExamAttempt.count({
+                where: {
+                    courseId,
+                    examId: exam.id,
+                    takerType: "STUDENT",
+                    studentUserId: user.id,
+                },
+            });
+
+            if (attemptsUsed >= exam.maxAttempts) {
+                return NextResponse.json(
+                    { error: "You have used all your attempts for this exam" },
+                    { status: 403 }
+                );
+            }
+
+            // Defend against a tampered client-side timer.
+            const clampedElapsed = Math.max(1, Math.min(elapsedSeconds, exam.durationSeconds));
+
+            const { correctChars, totalChars, wpm, accuracy } = scoreAttempt({
+                originalText: exam.examText,
+                typedText,
+                elapsedSeconds: clampedElapsed,
+            });
+
+            const gradeResult = gradeAttempt(wpm, accuracy, {
+                passWpm: exam.passWpm,
+                passAccuracy: exam.passAccuracy,
+                failWpm: exam.failWpm,
+                failAccuracy: exam.failAccuracy,
+            });
+
+            await tx.typingExamAttempt.create({
+                data: {
+                    courseId,
+                    examId: exam.id,
+                    takerType: "STUDENT",
+                    studentUserId: user.id,
+                    studentName: user.displayName || "",
+                    studentRoll: user.studentRoll || "",
+                    studentBatchName,
+                    attemptNumber: attemptsUsed + 1,
+                    wpm,
+                    accuracy,
+                    correctChars,
+                    totalChars,
+                    durationTakenSeconds: clampedElapsed,
+                    result: gradeResult,
+                },
+            });
+
+            return NextResponse.json({ wpm, accuracy, result: gradeResult });
+        });
+    } catch (error) {
+        console.error("[Student TypingExam Attempt POST]", error);
+        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    }
+}

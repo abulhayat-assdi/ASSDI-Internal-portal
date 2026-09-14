@@ -113,6 +113,27 @@ enum TenantStatus {
   ARCHIVED
 }
 
+enum TypingExamAccessType {
+  INTERNAL
+  PUBLIC
+}
+
+enum TypingExamTextSource {
+  CUSTOM
+  BANK
+}
+
+enum TypingExamTakerType {
+  STUDENT
+  PUBLIC
+}
+
+enum TypingExamResult {
+  PASS
+  AVERAGE
+  FAIL
+}
+
 // ============================================================
 // COURSES (Tenants) — one row per course/subdomain
 // ============================================================
@@ -177,6 +198,8 @@ model Course {
   competitions             Competition[]
   competitionSubmissions   CompetitionSubmission[]
   competitionGroups        CompetitionGroup[]
+  typingExams              TypingExam[]
+  typingExamAttempts       TypingExamAttempt[]
 
   @@index([slug])
   @@index([status])
@@ -1124,18 +1147,21 @@ model StudentExamBatchRecord {
 // ============================================================
 
 model CourseModule {
-  id          String   @id @default(cuid())
-  courseId    String   @map("course_id")
-  slug        String
-  title       String
-  description String   @default("")
-  pdfLink     String   @default("") @map("pdf_link")
-  bullets     Json     @default("[]")
-  curriculum  Json     @default("[]")
-  isPublished Boolean  @default(true)  @map("is_published")
-  order       Int      @default(0)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt      @map("updated_at")
+  id           String   @id @default(cuid())
+  courseId     String   @map("course_id")
+  slug         String
+  title        String
+  description  String   @default("")
+  pdfLink      String   @default("") @map("pdf_link")
+  bullets      Json     @default("[]")
+  curriculum   Json     @default("[]")
+  isPublished  Boolean  @default(true)  @map("is_published")
+  order        Int      @default(0)
+  teacherName  String   @default("") @map("teacher_name")
+  teacherEmail String   @default("") @map("teacher_email")
+  seedKey      String   @default("") @map("seed_key")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt      @map("updated_at")
 
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
@@ -1216,6 +1242,7 @@ model StudentFormSubmission {
   homeDistrict     String    @default("") @map("home_district")
   category         String    @default("")
   tShirtSize       String    @default("") @map("t_shirt_size")
+  totalPayment     String    @default("") @map("total_payment")
   courseGoal       String    @default("") @map("course_goal")
   status           String    @default("pending")
   adminNote        String?   @map("admin_note")
@@ -1436,5 +1463,95 @@ model CompetitionGroup {
   @@index([competitionId])
   @@index([courseId])
   @@map("competition_groups")
+}
+
+// ============================================================
+// TYPING TEST EXAM (assessment — separate from the Typing Adventure game)
+// ============================================================
+
+model TypingExam {
+  id          String               @id @default(uuid())
+  courseId    String               @map("course_id")
+  title       String
+  description String               @default("")
+  accessType  TypingExamAccessType @default(INTERNAL) @map("access_type")
+
+  // INTERNAL access
+  batchNames  Json     @default("[]") @map("batch_names") // string[] of Batch.name
+
+  durationSeconds Int  @default(60) @map("duration_seconds")
+  maxAttempts     Int  @default(1)  @map("max_attempts")   // enforced for STUDENT attempts only
+
+  passWpm      Float @map("pass_wpm")
+  passAccuracy Float @map("pass_accuracy")
+  failWpm      Float @map("fail_wpm")
+  failAccuracy Float @map("fail_accuracy")
+
+  textSource   TypingExamTextSource @default(CUSTOM) @map("text_source")
+  textLanguage String               @default("en")   @map("text_language")
+  examText     String               @default("")     @map("exam_text") // resolved passage, fixed at creation for fair comparison
+
+  isActive      Boolean   @default(true) @map("is_active")
+  scheduleStart DateTime? @map("schedule_start")
+  scheduleEnd   DateTime? @map("schedule_end")
+
+  // PUBLIC access
+  publicSlug         String? @unique @map("public_slug")
+  publicPasswordHash String? @map("public_password_hash") // required to submit a 2nd+ attempt from the same phone
+
+  createdByUid  String @map("created_by_uid")
+  createdByName String @default("") @map("created_by_name")
+  createdByRole String @default("") @map("created_by_role") // 'admin' | 'teacher'
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt      @map("updated_at")
+
+  course   Course               @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  attempts TypingExamAttempt[]
+
+  @@index([courseId])
+  @@index([accessType])
+  @@index([isActive])
+  @@index([publicSlug])
+  @@map("typing_exams")
+}
+
+model TypingExamAttempt {
+  id       String @id @default(uuid())
+  courseId String @map("course_id")
+  examId   String @map("exam_id")
+
+  takerType TypingExamTakerType @map("taker_type")
+
+  // STUDENT taker
+  studentUserId    String? @map("student_user_id")
+  studentName      String  @default("") @map("student_name")
+  studentRoll      String  @default("") @map("student_roll")
+  studentBatchName String  @default("") @map("student_batch_name")
+
+  // PUBLIC taker
+  publicName  String @default("") @map("public_name")
+  publicRoll  String @default("") @map("public_roll")
+  publicPhone String @default("") @map("public_phone")
+
+  attemptNumber        Int   @default(1) @map("attempt_number")
+  wpm                  Float
+  accuracy             Float
+  correctChars         Int   @default(0) @map("correct_chars")
+  totalChars           Int   @default(0) @map("total_chars")
+  durationTakenSeconds Int   @default(0) @map("duration_taken_seconds")
+  result               TypingExamResult
+
+  startedAt   DateTime @default(now()) @map("started_at")
+  submittedAt DateTime @default(now()) @map("submitted_at")
+
+  course Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  exam   TypingExam @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  @@index([examId])
+  @@index([studentUserId])
+  @@index([publicPhone])
+  @@index([courseId])
+  @@map("typing_exam_attempts")
 }
 

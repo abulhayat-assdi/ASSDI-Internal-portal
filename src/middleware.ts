@@ -21,6 +21,8 @@ const PUBLIC_API_ROUTES = [
     '/api/cv/admin/templates',
     '/api/deployments/pixel',
     '/api/deployments/serve-site',
+    '/api/student-form/',
+    '/api/typing-exam/public/',
 ];
 
 const isPublicAssetPath = (pathname: string) =>

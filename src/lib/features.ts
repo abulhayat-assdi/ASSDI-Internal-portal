@@ -16,6 +16,7 @@ export const ALL_FEATURES: FeatureDefinition[] = [
     { key: 'chat', label: 'Chat System', description: 'ছাত্র-admin chat সিস্টেম' },
     { key: 'deployments', label: 'Student Deployments', description: 'Mini-Netlify — ছাত্রদের সাইট হোস্টিং ফিচার' },
     { key: 'typing_game', label: 'Typing Adventure', description: 'গেমিফাইড টাইপিং প্র্যাকটিস — কোর্স/মিশন/লিডারবোর্ড সহ' },
+    { key: 'typing_exam', label: 'Typing Test Exam', description: 'টাইপিং স্পিড/অ্যাকুরেসি এসেসমেন্ট এক্সাম — ব্যাচভিত্তিক ও পাবলিক লিংক' },
 ];
 
 export type FeatureKey = string;
