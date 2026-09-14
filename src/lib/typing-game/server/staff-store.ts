@@ -854,19 +854,24 @@ export function createSupabaseStaffStore(client: PostgrestClient): StaffStore {
     },
 
     async createCourse(input) {
-      const res = await client
-        .from("courses")
-        .insert({
-          organization_id: input.organizationId,
-          title: input.title,
-          slug: input.slug,
-        })
-        .select("id")
-        .single();
-      if (res.error || !isRecord(res.data) || typeof res.data.id !== "string") {
-        throw mapStoreError(res.error);
-      }
-      return { id: res.data.id };
+      // NOTE: deliberately does NOT chain .select().single() onto the
+      // insert. courses_select_scoped's helper (course_organization_id) is
+      // STABLE and queries typing_game.courses by id — a STABLE function's
+      // snapshot doesn't see a row inserted earlier in the very same
+      // command, so RETURNING's implicit SELECT-policy check on the new row
+      // sees no match and Postgres raises "new row violates row-level
+      // security policy" for a perfectly legitimate org-admin insert. Same
+      // fix applied to createBatch/createAssignment below. Supplying the id
+      // client-side sidesteps the whole RETURNING/RLS-recursion interaction.
+      const id = crypto.randomUUID();
+      const res = await client.from("courses").insert({
+        id,
+        organization_id: input.organizationId,
+        title: input.title,
+        slug: input.slug,
+      });
+      if (res.error) throw mapStoreError(res.error);
+      return { id };
     },
 
     async updateCourse(id, patch) {
@@ -881,20 +886,18 @@ export function createSupabaseStaffStore(client: PostgrestClient): StaffStore {
     },
 
     async createBatch(input) {
-      const res = await client
-        .from("batches")
-        .insert({
-          course_id: input.courseId,
-          name: input.name,
-          join_code: input.joinCode,
-          is_active: input.isActive ?? true,
-        })
-        .select("id")
-        .single();
-      if (res.error || !isRecord(res.data) || typeof res.data.id !== "string") {
-        throw mapStoreError(res.error);
-      }
-      return { id: res.data.id };
+      // See createCourse's comment — same STABLE-helper-vs-RETURNING issue
+      // for batches_select_scoped/batch_organization_id.
+      const id = crypto.randomUUID();
+      const res = await client.from("batches").insert({
+        id,
+        course_id: input.courseId,
+        name: input.name,
+        join_code: input.joinCode,
+        is_active: input.isActive ?? true,
+      });
+      if (res.error) throw mapStoreError(res.error);
+      return { id };
     },
 
     async updateBatch(id, patch) {
