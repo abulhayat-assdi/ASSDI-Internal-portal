@@ -28,6 +28,13 @@ export interface JWTPayload {
      * above (which is the app's own student/teacher/admin/super_admin role).
      */
     pg_role?: string;
+    /**
+     * Set only on impersonated sessions (super-admin "Login as admin").
+     * Carries the issuing super-admin's email + when it started. Survives
+     * applyDbUserOverrides (which only touches known DB-backed fields).
+     */
+    impersonatedBy?: string;
+    impersonatedAt?: string;
 }
 
 /** Derives the RLS context a session's own DB lookups should run under. */

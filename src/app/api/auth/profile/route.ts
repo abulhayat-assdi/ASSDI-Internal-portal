@@ -72,6 +72,7 @@ export async function GET(req: NextRequest) {
                 email: user.email,
                 displayName: user.displayName,
                 role: user.role,
+                courseId: user.courseId,
                 teacherId: enrichedTeacherId,
                 studentBatchName: user.studentBatchName,
                 studentRoll: user.studentRoll,
@@ -79,6 +80,9 @@ export async function GET(req: NextRequest) {
                 permissions,
                 createdAt: user.createdAt,
                 lastLoginAt: user.lastLoginAt,
+                // Super-admin impersonation marker (if this session came from "Login as admin")
+                impersonatedBy: sessionUser.impersonatedBy ?? null,
+                impersonatedAt: sessionUser.impersonatedAt ?? null,
             };
         });
 

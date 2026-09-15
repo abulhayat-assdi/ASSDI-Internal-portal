@@ -3,21 +3,11 @@
 import { useEffect, useState, useCallback, use, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Trash2, UserPlus, Loader2, Upload, X } from "lucide-react";
+import { ArrowLeft, Trash2, UserPlus, Loader2, Upload, X, KeyRound } from "lucide-react";
+import { ALL_FEATURES, getTenantFeatures } from "@/lib/features";
+import { BILLING_PLANS, getBilling, billingDaysLeft, type BillingPlan } from "@/lib/billing";
 
 const BASE_DOMAIN = process.env.NEXT_PUBLIC_BASE_DOMAIN || "tasm-skill.asf.bd";
-
-const FEATURE_LABELS: Record<string, string> = {
-    homework: "হোমওয়ার্ক",
-    resources: "Resource Library",
-    course_modules: "Course Modules",
-    exam_results: "পরীক্ষার ফলাফল",
-    cv_builder: "CV Builder",
-    policies: "Policy & Minutes",
-    leave_tracking: "Leave Tracking",
-    chat: "Chat System",
-    deployments: "Student Deployments",
-};
 
 interface Course {
     id: string;
@@ -28,7 +18,7 @@ interface Course {
     status: string;
     primaryColor: string;
     accentColor: string;
-    settings: { features?: Record<string, boolean> };
+    settings: { features?: Record<string, boolean>; billing?: Record<string, unknown> };
 }
 
 interface Stats {
@@ -62,6 +52,11 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
     const [tagline, setTagline] = useState("");
     const [status, setStatus] = useState("ACTIVE");
     const [features, setFeatures] = useState<Record<string, boolean>>({});
+    const [plan, setPlan] = useState<BillingPlan>("trial");
+    const [expiresAt, setExpiresAt] = useState("");
+    const [maxStudents, setMaxStudents] = useState("");
+    const [maxTeachers, setMaxTeachers] = useState("");
+    const [billingNotes, setBillingNotes] = useState("");
     const [uploadingLogo, setUploadingLogo] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -69,6 +64,8 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
     const [newAdminEmail, setNewAdminEmail] = useState("");
     const [newAdminPassword, setNewAdminPassword] = useState("");
     const [addingAdmin, setAddingAdmin] = useState(false);
+    const [impersonateUserId, setImpersonateUserId] = useState("");
+    const [impersonating, setImpersonating] = useState(false);
 
     const load = useCallback(async () => {
         const [courseRes, adminsRes] = await Promise.all([
@@ -84,7 +81,15 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
             setName(courseData.course.name);
             setTagline(courseData.course.tagline || "");
             setStatus(courseData.course.status);
-            setFeatures(courseData.course.settings?.features || {});
+            // getTenantFeatures দিয়ে resolved defaults সহ লোড করি, যাতে
+            // নতুন ফিচার OFF আর পুরনো ফিচার ON অবস্থায় সঠিকভাবে দেখায়।
+            setFeatures(getTenantFeatures(courseData.course.settings));
+            const b = getBilling(courseData.course.settings);
+            setPlan(b.plan);
+            setExpiresAt(b.expiresAt ? b.expiresAt.slice(0, 10) : "");
+            setMaxStudents(b.maxStudents != null ? String(b.maxStudents) : "");
+            setMaxTeachers(b.maxTeachers != null ? String(b.maxTeachers) : "");
+            setBillingNotes(b.notes || "");
         }
         if (adminsRes.ok) setAdmins(adminsData.admins || []);
         setLoading(false);
@@ -97,10 +102,17 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
         setError("");
         setMessage("");
         try {
+            const billing = {
+                plan,
+                expiresAt: expiresAt ? new Date(expiresAt + "T23:59:59").toISOString() : null,
+                maxStudents: maxStudents === "" ? null : Math.max(0, parseInt(maxStudents, 10) || 0),
+                maxTeachers: maxTeachers === "" ? null : Math.max(0, parseInt(maxTeachers, 10) || 0),
+                notes: billingNotes,
+            };
             const res = await fetch(`/api/saas/courses/${id}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name, tagline: tagline || null, status, features }),
+                body: JSON.stringify({ name, tagline: tagline || null, status, features, billing }),
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "সংরক্ষণ করা যায়নি।");
@@ -196,6 +208,34 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
         if (!confirm("এই অ্যাডমিনের অ্যাক্সেস বাতিল করতে চান?")) return;
         await fetch(`/api/saas/courses/${id}/admins?userId=${userId}`, { method: "DELETE" });
         setAdmins((prev) => prev.filter((a) => a.id !== userId));
+    };
+
+    const handleLoginAsAdmin = async () => {
+        if (!course) return;
+        setError("");
+        setMessage("");
+        setImpersonating(true);
+        try {
+            const res = await fetch(`/api/saas/courses/${id}/impersonate`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(impersonateUserId ? { userId: impersonateUserId } : {}),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "লগইন লিংক তৈরি করা যায়নি।");
+
+            // Same deployment, sibling subdomain: admin.<base> → <slug>.<base>
+            // (port/protocol preserved, so localhost-ও কাজ করে)
+            const u = new URL(window.location.href);
+            const host = u.hostname.replace(/^[^.]+/, data.slug);
+            const target = `${u.protocol}//${host}${u.port ? `:${u.port}` : ""}/api/auth/impersonate?token=${encodeURIComponent(data.token)}`;
+            window.open(target, "_blank", "noopener");
+            setMessage(`${data.targetEmail} হিসেবে পোর্টাল নতুন ট্যাবে খুলছে…`);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "লগইন করা যায়নি।");
+        } finally {
+            setImpersonating(false);
+        }
     };
 
     const handleDeleteCourse = async () => {
@@ -340,22 +380,67 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
                 </div>
             </div>
 
+            {/* Plan & billing */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
+                <h2 className="font-semibold text-slate-800 mb-1">প্ল্যান ও বিলিং</h2>
+                <p className="text-xs text-slate-400 mb-4">
+                    মেয়াদ শেষ হলে কোর্সের সাবডোমেইন Suspended-এর মতো বন্ধ হয়ে যাবে। সিট খালি রাখলে unlimited।
+                    {(() => {
+                        const d = billingDaysLeft({ billing: { plan, expiresAt: expiresAt || null } });
+                        if (d == null) return " (মেয়াদ: আজীবন/আনলিমিটেড)";
+                        return d < 0 ? ` (মেয়াদ শেষ ${-d} দিন আগে!)` : ` (আর ${d} দিন বাকি)`;
+                    })()}
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1.5">প্ল্যান</label>
+                        <select value={plan} onChange={(e) => setPlan(e.target.value as BillingPlan)} className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm">
+                            {BILLING_PLANS.map((p) => (
+                                <option key={p.value} value={p.value}>{p.label}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1.5">মেয়াদ শেষ (Expires)</label>
+                        <input type="date" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} disabled={plan === "lifetime"} className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm disabled:opacity-40" />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1.5">সর্বোচ্চ শিক্ষার্থী</label>
+                        <input type="number" min={0} value={maxStudents} onChange={(e) => setMaxStudents(e.target.value)} placeholder="Unlimited" className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm" />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1.5">সর্বোচ্চ শিক্ষক</label>
+                        <input type="number" min={0} value={maxTeachers} onChange={(e) => setMaxTeachers(e.target.value)} placeholder="Unlimited" className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm" />
+                    </div>
+                    <div className="sm:col-span-2">
+                        <label className="block text-sm font-medium text-slate-700 mb-1.5">পেমেন্ট নোট (bKash trx, মাস ইত্যাদি)</label>
+                        <textarea value={billingNotes} onChange={(e) => setBillingNotes(e.target.value)} rows={2} placeholder="যেমন: Jan–Mar paid, TrxID 9HX…" className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm" />
+                    </div>
+                </div>
+            </div>
+
             {/* Feature toggles */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
                 <h2 className="font-semibold text-slate-800 mb-1">ফিচার অ্যাক্সেস</h2>
-                <p className="text-xs text-slate-400 mb-4">এই কোর্সের ড্যাশবোর্ডে কোন ফিচারগুলো দেখা যাবে তা নিয়ন্ত্রণ করুন।</p>
+                <p className="text-xs text-slate-400 mb-4">এই কোর্সের টিচার/অ্যাডমিন ও স্টুডেন্ট ড্যাশবোর্ডে কোন ফিচারগুলো দেখা যাবে তা নিয়ন্ত্রণ করুন। বন্ধ থাকা ফিচার সাইডবারে দেখাবে না। নতুন ফিচার ডিফল্টভাবে বন্ধ থাকে — চালু করতে টগল অন করুন।</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {Object.entries(FEATURE_LABELS).map(([key, label]) => (
-                        <label key={key} className="flex items-center gap-2 text-sm text-slate-700 py-1">
-                            <input
-                                type="checkbox"
-                                checked={features[key] !== false}
-                                onChange={(e) => setFeatures((prev) => ({ ...prev, [key]: e.target.checked }))}
-                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                            />
-                            {label}
-                        </label>
-                    ))}
+                    {ALL_FEATURES.map((f) => {
+                        const enabled = features[f.key] ?? f.defaultEnabled ?? false;
+                        return (
+                            <label key={f.key} className="flex items-start gap-2.5 text-sm text-slate-700 py-1.5 px-2 rounded-lg hover:bg-slate-50 cursor-pointer" title={f.description}>
+                                <input
+                                    type="checkbox"
+                                    checked={enabled}
+                                    onChange={(e) => setFeatures((prev) => ({ ...prev, [f.key]: e.target.checked }))}
+                                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 mt-0.5"
+                                />
+                                <span>
+                                    <span className="block font-medium">{f.label}</span>
+                                    <span className="block text-xs text-slate-400">{f.description}</span>
+                                </span>
+                            </label>
+                        );
+                    })}
                 </div>
             </div>
 
@@ -366,6 +451,41 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
             >
                 {saving ? "সংরক্ষণ হচ্ছে..." : "পরিবর্তন সংরক্ষণ করুন"}
             </button>
+
+            {/* Portal access — passwordless login as this course's admin */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
+                <h2 className="font-semibold text-slate-800 mb-1">পোর্টাল অ্যাক্সেস</h2>
+                <p className="text-xs text-slate-400 mb-4">
+                    ইমেইল/পাসওয়ার্ড ছাড়াই এই কোর্সের অ্যাডমিন হিসেবে পোর্টালে ঢুকুন। লিংক ৫ মিনিটের জন্য valid ও একবারই ব্যবহারযোগ্য — সব অ্যাক্সেস audit log-এ রেকর্ড হয়।
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3">
+                    {admins.length > 1 && (
+                        <select
+                            value={impersonateUserId}
+                            onChange={(e) => setImpersonateUserId(e.target.value)}
+                            className="px-3.5 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm flex-1"
+                        >
+                            <option value="">ডিফল্ট অ্যাডমিন ({admins[0]?.email})</option>
+                            {admins.map((a) => (
+                                <option key={a.id} value={a.id}>
+                                    {a.displayName} — {a.email}
+                                </option>
+                            ))}
+                        </select>
+                    )}
+                    <button
+                        onClick={handleLoginAsAdmin}
+                        disabled={impersonating || admins.length === 0}
+                        className="flex items-center justify-center gap-1.5 bg-emerald-600 text-white text-sm font-medium px-5 py-2.5 rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 shrink-0"
+                    >
+                        {impersonating ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
+                        {impersonating ? "খুলছে..." : "Login as Admin"}
+                    </button>
+                </div>
+                {admins.length === 0 && (
+                    <p className="text-xs text-amber-600 mt-2">প্রথমে নিচে একজন অ্যাডমিন যোগ করুন, তারপর এই বাটন কাজ করবে।</p>
+                )}
+            </div>
 
             {/* Admins */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6">

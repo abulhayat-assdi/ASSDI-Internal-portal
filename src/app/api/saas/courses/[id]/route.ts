@@ -22,6 +22,13 @@ const updateCourseSchema = z.object({
     accentColor: z.string().optional(),
     status: z.enum(["ACTIVE", "SUSPENDED", "TRIAL", "ARCHIVED"]).optional(),
     features: z.record(z.string(), z.boolean()).optional(),
+    billing: z.object({
+        plan: z.enum(["trial", "monthly", "yearly", "lifetime", "custom"]).optional(),
+        expiresAt: z.string().nullable().optional(),
+        maxStudents: z.number().int().min(0).nullable().optional(),
+        maxTeachers: z.number().int().min(0).nullable().optional(),
+        notes: z.string().max(2000).optional(),
+    }).optional(),
 });
 
 /** GET /api/saas/courses/[id] — course detail + stats (super_admin only) */
@@ -63,7 +70,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (!parsed.success) {
         return NextResponse.json({ error: parsed.error.issues.map((e) => e.message).join(", ") }, { status: 400 });
     }
-    const { slug, features, ...rest } = parsed.data;
+    const { slug, features, billing, ...rest } = parsed.data;
 
     if (slug && RESERVED_SLUGS.has(slug)) {
         return NextResponse.json({ error: `"${slug}" is a reserved subdomain.` }, { status: 400 });
@@ -87,14 +94,40 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
             const currentSettings = (existing.settings as Record<string, unknown>) ?? {};
             const currentFeatures = (currentSettings.features as Record<string, boolean>) ?? {};
-            const nextSettings = features
+            let nextSettings: Record<string, unknown> = features
                 ? { ...currentSettings, features: { ...currentFeatures, ...features } }
-                : currentSettings;
+                : { ...currentSettings };
+            if (billing) {
+                const currentBilling = (currentSettings.billing as Record<string, unknown>) ?? {};
+                nextSettings = {
+                    ...nextSettings,
+                    billing: {
+                        ...currentBilling,
+                        ...Object.fromEntries(Object.entries(billing).filter(([, v]) => v !== undefined)),
+                        updatedAt: new Date().toISOString(),
+                        updatedBy: caller.email,
+                    },
+                };
+            }
 
             const updated = await tx.course.update({
                 where: { id },
                 data: { ...rest, ...(slug ? { slug } : {}), settings: nextSettings as Prisma.InputJsonValue },
             });
+
+            if (billing || rest.status) {
+                await tx.activityLog.create({
+                    data: {
+                        courseId: id,
+                        actorUid: caller.id,
+                        actorRole: "ADMIN",
+                        actionType: "super_admin_course_update",
+                        targetType: "course",
+                        targetId: id,
+                        description: `Super-admin ${caller.email} updated ${[billing ? `billing(${billing.plan ?? "…"})` : "", rest.status ? `status→${rest.status}` : ""].filter(Boolean).join(" ")}`,
+                    },
+                }).catch(() => { /* audit must not block */ });
+            }
 
             return { course: updated, oldSlug: existing.slug };
         });

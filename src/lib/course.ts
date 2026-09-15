@@ -95,7 +95,18 @@ export const getCourseById = reactCache(async (id: string): Promise<Course | nul
 });
 
 export function isCourseUsable(course: Course): boolean {
-  return course.status === 'ACTIVE' || course.status === 'TRIAL';
+  if (course.status !== 'ACTIVE' && course.status !== 'TRIAL') return false;
+  // Expired plan ⇒ treated exactly like SUSPENDED until renewed from
+  // the super-admin panel (see src/lib/billing.ts).
+  try {
+    const billing = (course.settings as { billing?: { plan?: string; expiresAt?: string | null } } | null)?.billing;
+    if (billing && billing.plan !== 'lifetime' && billing.expiresAt) {
+      if (new Date(billing.expiresAt).getTime() < Date.now()) return false;
+    }
+  } catch {
+    // malformed settings — don't lock the course out
+  }
+  return true;
 }
 
 // ── Public course directory ─────────────────────────────────────────────────

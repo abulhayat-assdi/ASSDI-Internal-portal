@@ -52,6 +52,16 @@ export async function POST(req: NextRequest) {
         }
 
         const user = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+            // Seat cap from super-admin billing settings (null = unlimited)
+            const course = await tx.course.findUnique({ where: { id: courseId } });
+            const maxStudents = (course?.settings as { billing?: { maxStudents?: number | null } } | null)?.billing?.maxStudents ?? null;
+            if (typeof maxStudents === "number") {
+                const count = await tx.user.count({ where: { courseId, role: "student", deletedAt: null } });
+                if (count >= maxStudents) {
+                    throw new Error("SEAT_LIMIT: এই কোর্সে শিক্ষার্থী সিট পূর্ণ হয়ে গেছে। অ্যাডমিনের সাথে যোগাযোগ করুন।");
+                }
+            }
+
             // Hash password
             const passwordHash = await bcrypt.hash(password, 12);
 
@@ -109,6 +119,9 @@ export async function POST(req: NextRequest) {
     } catch (error) {
         console.error('[Register API] Error:', error);
         const message = error instanceof Error ? error.message : 'Failed to register account';
+        if (message.startsWith("SEAT_LIMIT:")) {
+            return NextResponse.json({ error: message.replace("SEAT_LIMIT:", "").trim() }, { status: 403 });
+        }
         return NextResponse.json({ error: message }, { status: 500 });
     }
 }

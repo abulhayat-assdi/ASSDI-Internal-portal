@@ -10,6 +10,7 @@ export interface UserProfile {
     email: string;
     displayName: string;
     role: UserRole;
+    courseId?: string | null;
     teacherId?: string;
     studentBatchName?: string;
     studentRoll?: string;
@@ -17,6 +18,9 @@ export interface UserProfile {
     permissions?: string[];
     createdAt: Date | string;
     lastLoginAt?: Date | string;
+    /** Set when this session is a super-admin "Login as admin" session */
+    impersonatedBy?: string | null;
+    impersonatedAt?: string | null;
 }
 
 export interface AuthContextType {

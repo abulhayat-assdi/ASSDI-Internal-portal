@@ -81,6 +81,18 @@ export async function POST(req: NextRequest) {
 
         // 5. Create user and teacher records in a transaction
         const result = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+            // Teacher seat cap from super-admin billing settings (null = unlimited)
+            if (role === AUTH_ROLES.TEACHER) {
+                const course = await tx.course.findUnique({ where: { id: courseId } });
+                const maxTeachers = (course?.settings as { billing?: { maxTeachers?: number | null } } | null)?.billing?.maxTeachers ?? null;
+                if (typeof maxTeachers === "number") {
+                    const count = await tx.user.count({ where: { courseId, role: "teacher", deletedAt: null } });
+                    if (count >= maxTeachers) {
+                        throw new Error("SEAT_LIMIT: এই কোর্সে শিক্ষক সিট পূর্ণ হয়ে গেছে।");
+                    }
+                }
+            }
+
             const user = await tx.user.create({
                 data: {
                     courseId,
@@ -120,6 +132,9 @@ export async function POST(req: NextRequest) {
     } catch (error: unknown) {
         console.error("[Create Teacher API] Error:", error);
         const message = error instanceof Error ? error.message : "Failed to create teacher account.";
+        if (message.startsWith("SEAT_LIMIT:")) {
+            return NextResponse.json({ error: message.replace("SEAT_LIMIT:", "").trim() }, { status: 403 });
+        }
         return NextResponse.json({ error: message }, { status: 500 });
     }
 }
