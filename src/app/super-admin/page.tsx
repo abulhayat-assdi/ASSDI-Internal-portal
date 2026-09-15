@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Building2, Users, GraduationCap, Plus } from "lucide-react";
+import { getBilling, billingDaysLeft, isBillingExpired } from "@/lib/billing";
 
 interface CourseWithStats {
     id: string;
@@ -11,6 +12,7 @@ interface CourseWithStats {
     status: string;
     primaryColor: string;
     createdAt: string;
+    settings: { billing?: Record<string, unknown> };
     stats: { studentCount: number; teacherCount: number; adminCount: number };
 }
 
@@ -103,6 +105,7 @@ export default function SuperAdminDashboard() {
                                     <th className="px-4 py-3 font-medium">কোর্স</th>
                                     <th className="px-4 py-3 font-medium">সাবডোমেইন</th>
                                     <th className="px-4 py-3 font-medium">স্ট্যাটাস</th>
+                                    <th className="px-4 py-3 font-medium">প্ল্যান</th>
                                     <th className="px-4 py-3 font-medium">শিক্ষার্থী</th>
                                     <th className="px-4 py-3 font-medium">শিক্ষক</th>
                                     <th className="px-4 py-3 font-medium">অ্যাডমিন</th>
@@ -130,6 +133,18 @@ export default function SuperAdminDashboard() {
                                             <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLOR[c.status] || "bg-gray-100 text-gray-600"}`}>
                                                 {c.status}
                                             </span>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            {(() => {
+                                                const b = getBilling(c.settings);
+                                                const expired = isBillingExpired(c.settings);
+                                                const left = billingDaysLeft(c.settings);
+                                                return (
+                                                    <span title={b.expiresAt ? `Expires: ${new Date(b.expiresAt).toLocaleDateString()}` : "No expiry"} className={`px-2 py-0.5 rounded-full text-xs font-medium ${expired ? "bg-red-100 text-red-700" : left != null && left <= 7 ? "bg-yellow-100 text-yellow-700" : "bg-slate-100 text-slate-600"}`}>
+                                                        {b.plan}{expired ? " • expired" : left != null ? ` • ${left}d` : ""}
+                                                    </span>
+                                                );
+                                            })()}
                                         </td>
                                         <td className="px-4 py-3 text-slate-600">{c.stats.studentCount}</td>
                                         <td className="px-4 py-3 text-slate-600">{c.stats.teacherCount}</td>
