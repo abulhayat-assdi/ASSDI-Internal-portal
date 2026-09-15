@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Crown } from "lucide-react";
+import { Avatar, Badge, cx } from "@/components/typing-game/ui";
 import type { LeaderboardRow } from "@/lib/typing-game/server/student-store";
 import { getTranslator, type Locale } from "@/lib/typing-game/i18n";
 
@@ -29,7 +31,7 @@ export function LeaderboardTable({
           : t("windowAll");
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap gap-2" role="group" aria-label={t("title")}>
+      <div className="tap-tablist" role="group" aria-label={t("title")}>
         {WINDOWS.map((w) => {
           const active = w === window;
           const text =
@@ -45,11 +47,7 @@ export function LeaderboardTable({
               key={w}
               href={`/student-dashboard/typing-game/leaderboard?window=${w}&batch=${encodeURIComponent(batchId)}`}
               aria-current={active ? "page" : undefined}
-              className={
-                active
-                  ? "tap-btn tap-btn-primary tap-btn-sm"
-                  : "tap-btn tap-btn-secondary tap-btn-sm"
-              }
+              className={cx("tap-tab", active && "tap-tab-active")}
             >
               {text}
             </Link>
@@ -89,21 +87,28 @@ export function LeaderboardTable({
                     }
                   >
                     <td>
-                      {r.rank <= 3 ? (
-                        <span aria-hidden="true">
-                          {r.rank === 1 ? "🥇" : r.rank === 2 ? "🥈" : "🥉"}
-                        </span>
-                      ) : null}{" "}
-                      {r.rank}
+                      <span className="inline-flex items-center gap-1">
+                        {r.rank === 1 ? (
+                          <Crown
+                            className="h-4 w-4"
+                            style={{ color: "var(--tap-warning-500)" }}
+                            aria-hidden="true"
+                          />
+                        ) : r.rank <= 3 ? (
+                          <span aria-hidden="true">{r.rank === 2 ? "🥈" : "🥉"}</span>
+                        ) : null}
+                        {r.rank}
+                      </span>
                     </td>
                     <th scope="row">
-                      {r.fullName}{" "}
-                      <span className="text-ink-faint">({r.rollNumber})</span>
-                      {me ? (
-                        <span className="tap-badge tap-badge-primary ml-2">
-                          {t("you")}
+                      <div className="flex items-center gap-2">
+                        <Avatar name={r.fullName} size="sm" />
+                        <span>
+                          {r.fullName}{" "}
+                          <span className="text-ink-faint">({r.rollNumber})</span>
                         </span>
-                      ) : null}
+                        {me ? <Badge tone="primary">{t("you")}</Badge> : null}
+                      </div>
                     </th>
                     <td>{r.level}</td>
                     <td>{r.xpWindow}</td>

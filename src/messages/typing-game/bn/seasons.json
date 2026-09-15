@@ -7,6 +7,8 @@
   "sectionRewards": "সিজন পুরস্কার",
   "sectionHistory": "পূর্ববর্তী সিজন",
   "emptyBoard": "এখনো কোনো পয়েন্ট নেই।",
+  "you": "আপনি",
+  "seasonProgressPct": "সিজনের {pct}% শেষ হয়েছে",
   "manageTitle": "সিজন",
   "noSeasons": "এখনো কোনো সিজন নেই।",
   "createTitle": "সিজন তৈরি",

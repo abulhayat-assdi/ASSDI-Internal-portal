@@ -65,7 +65,6 @@ const teacherAdminNavSections: NavSection[] = [
             { href: "/dashboard/competitions", label: "Competitions (Forms)", icon: "🏆", permission: "admin_panel" },
             { href: "/dashboard/resources", label: "Resource Library", icon: "🗂️", permission: "resources", feature: "resources" },
             { href: "/dashboard/admin/resource-management", label: "Admin: Resources", icon: "🗂️", permission: "admin_resources", feature: "resources" },
-            { href: "/dashboard/tracker", label: "Daily Tracker", icon: "📋", permission: "tracker", feature: "daily_tracker" },
             { href: "/dashboard/policies", label: "Policy & Minutes", icon: "📋", permission: "policies", feature: "policies" },
             { href: "/dashboard/feedback", label: "Feedback", icon: "💬", permission: "feedback" },
         ]

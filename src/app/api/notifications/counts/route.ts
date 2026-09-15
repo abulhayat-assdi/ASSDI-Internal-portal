@@ -69,14 +69,6 @@ export async function GET(req: NextRequest) {
                 });
             }
 
-            // 5. Daily Tracker (Admin only)
-            if (isAdmin(user)) {
-                const ts = getTs("/dashboard/tracker");
-                counts["/dashboard/tracker"] = await tx.dailyTrackerReport.count({
-                    where: { courseId, createdAt: { gt: ts } }
-                });
-            }
-
             return counts;
         });
 

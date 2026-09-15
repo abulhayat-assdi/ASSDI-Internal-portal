@@ -6,6 +6,8 @@
   "skillTrack": "দক্ষতার স্তর",
   "level": "লেভেল",
   "totalXp": "মোট XP",
+  "xpToNext": "লেভেল {level}-এ যেতে {xp} XP দরকার",
+  "maxLevel": "সর্বোচ্চ লেভেল অর্জিত!",
   "coins": "কয়েন",
   "currentStreak": "বর্তমান ধারা",
   "bestStreak": "সেরা ধারা",

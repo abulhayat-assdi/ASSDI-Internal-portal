@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { LogOut, Trophy } from "lucide-react";
 import { getTranslator, type Locale } from "@/lib/typing-game/i18n";
 
 /** Student entry controls: register / withdraw for one tournament. */
@@ -65,6 +66,7 @@ export function TournamentActions({
             void run("withdraw");
           }}
         >
+          <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
           {t("withdraw")}
         </button>
       ) : (
@@ -76,6 +78,7 @@ export function TournamentActions({
             void run("register");
           }}
         >
+          <Trophy className="h-3.5 w-3.5" aria-hidden="true" />
           {t("register")}
         </button>
       )}

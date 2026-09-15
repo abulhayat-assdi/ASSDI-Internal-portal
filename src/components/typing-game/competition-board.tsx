@@ -32,8 +32,11 @@ export function CompetitionBoard({
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.rank} className={r.isMe ? "tap-row-mine" : undefined}>
-              <td>{r.rank}</td>
+            <tr
+              key={r.rank}
+              className={r.isMe ? "tap-row-mine" : r.rank === 1 ? "tap-row-top" : undefined}
+            >
+              <td>{r.rank === 1 ? "🥇" : r.rank === 2 ? "🥈" : r.rank === 3 ? "🥉" : r.rank}</td>
               <td>{r.displayName}</td>
               <td>{r.batchTitle || "—"}</td>
               <td>{r.score}</td>

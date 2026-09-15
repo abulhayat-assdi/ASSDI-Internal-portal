@@ -1,4 +1,5 @@
-import { EmptyState, PageHeader } from "@/components/typing-game/ui";
+import { Search } from "lucide-react";
+import { EmptyState, Input, PageHeader, SectionHeader, Select } from "@/components/typing-game/ui";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { shopPageContext } from "@/lib/typing-game/server/shop-pages";
 import { ShopCard } from "@/components/typing-game/shop-card";
@@ -34,28 +35,31 @@ export default async function ShopPage(
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={t("marketTitle")} description={t("marketSubtitle")} />
-      <form method="get" className="flex flex-wrap gap-2">
-        <select name="category" className="tap-input" defaultValue={category}>
+      <form method="get" className="flex flex-wrap items-end gap-2">
+        <Select name="category" defaultValue={category}>
           <option value="">{t("allCategories")}</option>
           {categories.map((c) => (
             <option key={c} value={c}>
               {c}
             </option>
           ))}
-        </select>
-        <input
+        </Select>
+        <Input
           name="q"
-          className="tap-input"
           placeholder={t("searchPlaceholder")}
           defaultValue={searchParams.q ?? ""}
         />
-        <button type="submit" className="tap-btn tap-btn-secondary tap-btn-sm">
-          {t("searchPlaceholder")}
+        <button
+          type="submit"
+          className="tap-btn tap-btn-secondary tap-btn-sm"
+          aria-label={t("searchPlaceholder")}
+        >
+          <Search className="h-3.5 w-3.5" aria-hidden="true" />
         </button>
       </form>
       {featured.length > 0 && category === "" && q === "" ? (
         <div className="flex flex-col gap-3">
-          <h2 className="text-base font-bold">{t("featured")}</h2>
+          <SectionHeader title={t("featured")} />
           {featured.map((i) => (
             <ShopCard
               key={i.id}

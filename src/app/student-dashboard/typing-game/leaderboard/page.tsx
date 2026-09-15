@@ -1,4 +1,4 @@
-import { Alert, PageHeader } from "@/components/typing-game/ui";
+import { Alert, Card, CardContent, PageHeader } from "@/components/typing-game/ui";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { studentContext } from "@/lib/typing-game/server/student-pages";
 import {
@@ -33,13 +33,17 @@ export default async function LeaderboardPage(
     return (
       <div className="flex flex-col gap-6">
         <PageHeader title={t("title")} description={t("subtitle")} />
-        <LeaderboardTable
-          locale={locale}
-          rows={board.rows}
-          userId={session.userId}
-          window={board.window}
-          batchId={board.batchId}
-        />
+        <Card>
+          <CardContent>
+            <LeaderboardTable
+              locale={locale}
+              rows={board.rows}
+              userId={session.userId}
+              window={board.window}
+              batchId={board.batchId}
+            />
+          </CardContent>
+        </Card>
       </div>
     );
   } catch (err) {

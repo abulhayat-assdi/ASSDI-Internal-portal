@@ -6,6 +6,8 @@
   "skillTrack": "Skill track",
   "level": "Level",
   "totalXp": "Total XP",
+  "xpToNext": "{xp} XP to level {level}",
+  "maxLevel": "Max level reached!",
   "coins": "Coins",
   "currentStreak": "Current streak",
   "bestStreak": "Best streak",

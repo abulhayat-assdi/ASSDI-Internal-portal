@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Check, Coins, ShoppingCart } from "lucide-react";
 import { getTranslator, type Locale } from "@/lib/typing-game/i18n";
 
 /** Purchase button with confirm step; idempotency key per click session. */
@@ -51,7 +52,12 @@ export function PurchaseButton({
   }
 
   if (done) {
-    return <p className="text-sm text-green-700">{t("purchaseSuccess")}</p>;
+    return (
+      <p className="flex items-center gap-1 text-sm text-green-700">
+        <Check className="h-4 w-4" aria-hidden="true" />
+        {t("purchaseSuccess")}
+      </p>
+    );
   }
   if (!confirming) {
     return (
@@ -64,6 +70,7 @@ export function PurchaseButton({
           setConfirming(true);
         }}
       >
+        <ShoppingCart className="h-3.5 w-3.5" aria-hidden="true" />
         {t("buy")} · {priceCoins} {t("coins")}
       </button>
     );
@@ -75,7 +82,8 @@ export function PurchaseButton({
           {t("actionFailed")}
         </p>
       ) : null}
-      <p className="text-sm">
+      <p className="flex items-center gap-1 text-sm">
+        <Coins className="h-3.5 w-3.5" aria-hidden="true" />
         {t("confirmBuy")} · {priceCoins} {t("coins")}
       </p>
       <div className="flex gap-2">
@@ -87,6 +95,7 @@ export function PurchaseButton({
             void buy();
           }}
         >
+          {busy ? <span className="tap-spinner" aria-hidden="true" /> : <Check className="h-3.5 w-3.5" aria-hidden="true" />}
           {t("confirmBuy")}
         </button>
         <button

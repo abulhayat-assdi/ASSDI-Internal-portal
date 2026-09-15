@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Alert } from "@/components/typing-game/ui";
+import type { GameMechanic } from "@/lib/typing-game/game-engine";
 import {
   GamePlayer,
   type PlayStrings,
@@ -27,6 +28,8 @@ export function PlayExperience({
   expectedText,
   timingKind,
   timingLimit,
+  visual,
+  mechanic,
   strings,
   gameHref,
   mapHref,
@@ -38,6 +41,8 @@ export function PlayExperience({
   expectedText: string;
   timingKind: string;
   timingLimit: number | null;
+  visual: string;
+  mechanic: GameMechanic;
   strings: PlayExperienceStrings;
   gameHref: string;
   mapHref: string;
@@ -61,6 +66,7 @@ export function PlayExperience({
         gameHref={gameHref}
         mapHref={mapHref}
         dashboardHref={dashboardHref}
+        visual={visual}
       />
     );
   }
@@ -109,6 +115,8 @@ export function PlayExperience({
       expectedText={expectedText}
       timingKind={timingKind}
       timingLimit={timingLimit}
+      visual={visual}
+      mechanic={mechanic}
       strings={strings.play}
       backHref={gameHref}
       onDone={(result, snap, extra) => {

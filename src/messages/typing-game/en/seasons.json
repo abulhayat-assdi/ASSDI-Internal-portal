@@ -18,6 +18,8 @@
   "colPoints": "Points",
   "colTier": "Tier",
   "emptyBoard": "No points scored yet.",
+  "you": "You",
+  "seasonProgressPct": "{pct}% through the season",
   "statusDraft": "Draft",
   "statusScheduled": "Scheduled",
   "statusActive": "Active",

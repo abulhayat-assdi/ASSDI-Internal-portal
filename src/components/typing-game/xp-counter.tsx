@@ -35,7 +35,11 @@ export function XpCounter({
     return () => { cancelAnimationFrame(raf); };
   }, [value, durationMs]);
   return (
-    <span className={className} aria-label={String(value)}>
+    <span
+      className={className}
+      aria-label={String(value)}
+      style={{ fontVariantNumeric: "tabular-nums" }}
+    >
       {shown}
     </span>
   );

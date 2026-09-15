@@ -1,11 +1,15 @@
+import { Coins, Flame, Gamepad2, Map, Target, Zap } from "lucide-react";
 import {
   AchievementBadge,
   Avatar,
+  Badge,
   Card,
   CardContent,
   EmptyState,
   PageHeader,
+  SectionHeader,
   StatCard,
+  XpProgress,
 } from "@/components/typing-game/ui";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { studentContext } from "@/lib/typing-game/server/student-pages";
@@ -21,42 +25,87 @@ export default async function ProfilePage({}: {}) {
     return <EmptyState title={t("title")} description={t("noRecords")} />;
   }
 
+  const [levelRow, nextRow] = await Promise.all([
+    store.getLevel(p.level),
+    store.getLevel(p.level + 1),
+  ]);
+  const levelFloor = levelRow?.requiredXp ?? 0;
+  const xpIntoLevel = Math.max(0, p.xpTotal - levelFloor);
+  const xpSpan = nextRow ? Math.max(1, nextRow.requiredXp - levelFloor) : Math.max(1, xpIntoLevel);
+  const xpRemaining = nextRow ? Math.max(0, xpSpan - xpIntoLevel) : 0;
+
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
         title={p.fullName}
         description={`${t("rollNumber")}: ${p.rollNumber} · ${p.batchName} · ${p.courseName}`}
+        actions={p.skillTrack ? <Badge tone="primary">{p.skillTrack}</Badge> : undefined}
       />
 
-      <div className="flex items-center gap-4">
-        <Avatar name={p.fullName} size="lg" />
-        <div>
-          <p className="text-lg font-bold">
-            {t("level")} {p.level}
-          </p>
-          <p className="text-sm text-ink-muted">
-            {t("totalXp")}: {p.xpTotal} · {t("coins")}: {p.coins}
-          </p>
-        </div>
-      </div>
+      <Card>
+        <CardContent>
+          <div className="flex items-center gap-4">
+            <Avatar name={p.fullName} size="lg" />
+            <div>
+              <p className="text-lg font-bold">
+                {t("level")} {p.level}
+              </p>
+              <p className="text-sm text-ink-muted">
+                {t("totalXp")}: {p.xpTotal} · {t("coins")}: {p.coins}
+              </p>
+            </div>
+          </div>
+          <div className="mt-4">
+            <XpProgress
+              level={p.level}
+              current={xpIntoLevel}
+              required={xpSpan}
+              label={`${t("totalXp")}: ${p.xpTotal}`}
+            />
+            <p className="mt-1 text-xs text-ink-muted">
+              {nextRow ? t("xpToNext", { xp: xpRemaining, level: p.level + 1 }) : t("maxLevel")}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
         <StatCard
           label={t("currentStreak")}
           value={p.streak.current}
           hint={`${t("bestStreak")}: ${String(p.streak.best)}`}
+          icon={<Flame className="h-4 w-4" aria-hidden="true" />}
         />
-        <StatCard label={t("averageWpm")} value={Math.round(p.averages.wpm)} />
+        <StatCard
+          label={t("averageWpm")}
+          value={Math.round(p.averages.wpm)}
+          icon={<Zap className="h-4 w-4" aria-hidden="true" />}
+        />
         <StatCard
           label={t("averageAccuracy")}
           value={`${String(Math.round(p.averages.accuracy))}%`}
+          icon={<Target className="h-4 w-4" aria-hidden="true" />}
         />
-        <StatCard label={t("gamesCompleted")} value={p.gamesCompleted} />
+        <StatCard
+          label={t("gamesCompleted")}
+          value={p.gamesCompleted}
+          icon={<Gamepad2 className="h-4 w-4" aria-hidden="true" />}
+        />
+        <StatCard
+          label={t("worldsCompleted")}
+          value={p.worldsCompleted}
+          icon={<Map className="h-4 w-4" aria-hidden="true" />}
+        />
+        <StatCard
+          label={t("coins")}
+          value={p.coins}
+          icon={<Coins className="h-4 w-4" aria-hidden="true" />}
+        />
       </div>
 
       <Card>
         <CardContent>
-          <h2 className="mb-3 text-base font-bold">{t("badges")}</h2>
+          <SectionHeader title={t("badges")} />
           {p.badges.length === 0 ? (
             <p className="text-sm text-ink-muted">{t("noBadges")}</p>
           ) : (
@@ -71,25 +120,22 @@ export default async function ProfilePage({}: {}) {
 
       <Card>
         <CardContent>
-          <h2 className="mb-3 text-base font-bold">{t("achievements")}</h2>
+          <SectionHeader title={t("achievements")} />
           {p.achievements.length === 0 ? (
             <p className="text-sm text-ink-muted">{t("noRecords")}</p>
           ) : (
-            <ul className="flex flex-col gap-1 text-sm">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
               {p.achievements.map((a) => (
-                <li key={a.slug} className="flex justify-between gap-3">
-                  <span>{a.name}</span>
-                  <span className="font-semibold">{a.value}</span>
-                </li>
+                <StatCard key={a.slug} label={a.name} value={a.value} />
               ))}
-            </ul>
+            </div>
           )}
         </CardContent>
       </Card>
 
       <Card>
         <CardContent>
-          <h2 className="mb-3 text-base font-bold">{t("personalRecords")}</h2>
+          <SectionHeader title={t("personalRecords")} />
           {p.records.length === 0 ? (
             <p className="text-sm text-ink-muted">{t("noRecords")}</p>
           ) : (

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Check, Gift, Play, X } from "lucide-react";
 import { getTranslator, type Locale } from "@/lib/typing-game/i18n";
 
 /**
@@ -95,7 +96,12 @@ export function RewardOptIn({
   }
 
   if (stage === "done") {
-    return <p className="text-sm text-green-700">{t("rewardGranted")}</p>;
+    return (
+      <p className="flex items-center gap-1 text-sm text-green-700">
+        <Check className="h-4 w-4" aria-hidden="true" />
+        {t("rewardGranted")}
+      </p>
+    );
   }
   // Google Offerwall renders its own managed choice UI; custom
   // in-app grants stay fail-closed server-side, so no client modal.
@@ -110,9 +116,9 @@ export function RewardOptIn({
   }
   if (stage === "mock" && sessionId) {
     return (
-      <div className="flex flex-col gap-2 rounded border p-3" role="dialog" aria-label={t("mockOnly")}>
-        <p className="text-sm font-bold">{t("mockOnly")}</p>
-        <p className="text-sm text-ink-muted">{t("mockNotice")}</p>
+      <div className="tap-alert tap-alert-info flex flex-col gap-2" role="dialog" aria-label={t("mockOnly")}>
+        <p className="tap-alert-title">{t("mockOnly")}</p>
+        <p className="tap-alert-body">{t("mockNotice")}</p>
         <div className="flex gap-2">
           <button
             type="button"
@@ -122,6 +128,7 @@ export function RewardOptIn({
               void finish();
             }}
           >
+            {busy ? <span className="tap-spinner" aria-hidden="true" /> : <Check className="h-3.5 w-3.5" aria-hidden="true" />}
             {t("simulateComplete")}
           </button>
           <button
@@ -134,6 +141,7 @@ export function RewardOptIn({
               void post(`/api/typing-game/rewards/ads/${sessionId}/cancel`);
             }}
           >
+            <X className="h-3.5 w-3.5" aria-hidden="true" />
             {t("notNow")}
           </button>
         </div>
@@ -143,7 +151,8 @@ export function RewardOptIn({
   if (stage === "offered" || stage === "idle") {
     return (
       <div className="flex flex-col gap-2">
-        <p className="text-sm">
+        <p className="flex items-center gap-1.5 text-sm">
+          <Gift className="h-4 w-4 text-primary-500" aria-hidden="true" />
           {t("watchAd")} · {t("rewardLabel")}: {rewardLabel}
         </p>
         <p className="text-xs text-ink-muted">{t("optInBlurb")}</p>
@@ -157,6 +166,7 @@ export function RewardOptIn({
               void begin();
             }}
           >
+            <Play className="h-3.5 w-3.5" aria-hidden="true" />
             {t("watchAd")}
           </button>
           <button

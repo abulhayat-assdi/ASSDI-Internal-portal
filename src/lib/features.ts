@@ -10,7 +10,6 @@ export const ALL_FEATURES: FeatureDefinition[] = [
     { key: 'course_modules', label: 'Course Modules', description: 'কোর্স মডিউল ম্যানেজমেন্ট' },
     { key: 'exam_results', label: 'পরীক্ষার ফলাফল', description: 'পরীক্ষার ফলাফল এন্ট্রি ও দেখার সিস্টেম' },
     { key: 'cv_builder', label: 'CV Builder', description: 'ছাত্রদের CV তৈরির টুল' },
-    { key: 'daily_tracker', label: 'Daily Tracker', description: 'Daily attendance/progress tracker' },
     { key: 'policies', label: 'Policy & Minutes', description: 'Policy documents ও meeting minutes' },
     { key: 'leave_tracking', label: 'Leave Tracking', description: 'শিক্ষকের ছুটি ম্যানেজমেন্ট' },
     { key: 'chat', label: 'Chat System', description: 'ছাত্র-admin chat সিস্টেম' },

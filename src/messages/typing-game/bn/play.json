@@ -15,5 +15,11 @@
   "failedToStart": "প্রচেষ্টা শুরু করা যায়নি। আবার চেষ্টা করুন।",
   "failedToSubmit": "জমা দেওয়া যায়নি। আপনার রান নিরাপদ — শীঘ্রই আবার চেষ্টা করুন।",
   "focusLost": "ফোকাস হারিয়েছে — চালিয়ে যেতে ট্যাপ করুন",
-  "screenReaderProgress": "{total}টির মধ্যে {done}টি অক্ষর টাইপ হয়েছে"
+  "screenReaderProgress": "{total}টির মধ্যে {done}টি অক্ষর টাইপ হয়েছে",
+  "mechanicCheckpoints": "চেকপয়েন্ট",
+  "mechanicRelay": "রিলে",
+  "mechanicChain": "শেকল",
+  "mechanicWaves": "ঢেউ",
+  "mechanicShield": "ঢাল",
+  "mechanicTargets": "লক্ষ্য"
 }

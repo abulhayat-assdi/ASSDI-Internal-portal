@@ -49,7 +49,6 @@ export default async function AdminLayout({
           { href: `${base}/students`, label: t("students") },
           { href: `${base}/teachers`, label: t("teachers") },
           { href: `${base}/competitions`, label: tn("adminCompetitions") },
-          { href: `${base}/missions`, label: tn("adminMissions") },
           { href: `${base}/clans`, label: tn("adminClans") },
           { href: `${base}/wars`, label: tn("adminWars") },
           { href: `${base}/bosses`, label: tn("adminBosses") },

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Flag, Lock, Send, Trophy, Unlock, Upload } from "lucide-react";
 import { getTranslator, type Locale } from "@/lib/typing-game/i18n";
 
 async function post(url: string, body?: unknown): Promise<boolean> {
@@ -64,29 +65,46 @@ export function CompetitionActions({
     finalize: t("finalize"),
   };
 
+  const icon: Record<string, typeof Send> = {
+    register: Trophy,
+    attachLatest: Upload,
+    publish: Send,
+    open: Unlock,
+    close: Lock,
+    finalize: Flag,
+  };
+
   return (
     <div className="flex flex-wrap gap-2">
-      {actions.map((a) => (
-        <button
-          key={a}
-          type="button"
-          className="tap-btn tap-btn-primary"
-          disabled={busy !== null}
-          onClick={() => {
-            if (a === "register") {
-              void run(a, `/api/typing-game/competitions/${competitionId}/register`);
-            } else if (a === "attachLatest") {
-              void run(a, `/api/typing-game/competitions/${competitionId}/attach`, {
-                latest: true,
-              });
-            } else {
-              void run(a, `/api/typing-game/competitions/${competitionId}/${a}`);
-            }
-          }}
-        >
-          {busy === a ? "…" : label[a]}
-        </button>
-      ))}
+      {actions.map((a) => {
+        const Icon = icon[a] ?? Send;
+        return (
+          <button
+            key={a}
+            type="button"
+            className="tap-btn tap-btn-primary"
+            disabled={busy !== null}
+            onClick={() => {
+              if (a === "register") {
+                void run(a, `/api/typing-game/competitions/${competitionId}/register`);
+              } else if (a === "attachLatest") {
+                void run(a, `/api/typing-game/competitions/${competitionId}/attach`, {
+                  latest: true,
+                });
+              } else {
+                void run(a, `/api/typing-game/competitions/${competitionId}/${a}`);
+              }
+            }}
+          >
+            {busy === a ? (
+              <span className="tap-spinner" aria-hidden="true" />
+            ) : (
+              <Icon className="h-4 w-4" aria-hidden="true" />
+            )}
+            {label[a]}
+          </button>
+        );
+      })}
       {error ? (
         <p role="alert" className="text-sm text-red-600">
           {t("actionFailed")}

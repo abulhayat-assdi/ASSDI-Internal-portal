@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { Card, CardContent, EmptyState, PageHeader } from "@/components/typing-game/ui";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { adaptivePageContext } from "@/lib/typing-game/server/adaptive-pages";
@@ -38,25 +39,31 @@ export default async function RecommendedPage({}: {}) {
         title={t("recommendedTitle")}
         description={t("recommendedSubtitle")}
       />
-      <SkillOverview
-        locale={locale}
-        accuracy={accuracy}
-        wpm={wpm}
-        trends={summary.trends}
-        weaknesses={summary.weaknesses}
-      />
+      <div className="tap-anim-in">
+        <SkillOverview
+          locale={locale}
+          accuracy={accuracy}
+          wpm={wpm}
+          trends={summary.trends}
+          weaknesses={summary.weaknesses}
+        />
+      </div>
       <div className="flex flex-col gap-3">
-        {recommendations.map((r) => (
-          <RecommendationCard key={r.id} locale={locale} recommendation={r} />
+        {recommendations.map((r, i) => (
+          <div key={r.id} className="tap-anim-in" style={{ "--tap-i": i + 1 } as CSSProperties}>
+            <RecommendationCard locale={locale} recommendation={r} />
+          </div>
         ))}
       </div>
-      <Card>
-        <CardContent>
-          <p className="text-xs text-ink-muted">
-            {t("band")}: {summary.band}
-          </p>
-        </CardContent>
-      </Card>
+      <div className="tap-anim-in" style={{ "--tap-i": recommendations.length + 1 } as CSSProperties}>
+        <Card>
+          <CardContent>
+            <p className="text-xs text-ink-muted">
+              {t("band")}: {summary.band}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

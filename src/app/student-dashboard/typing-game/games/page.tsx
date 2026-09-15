@@ -52,6 +52,7 @@ export default async function GamesPage({}: {}) {
           noResults: t("noResults"),
           play: t("play"),
           lockedReason: t("lockedReason"),
+          viewDetails: t("viewDetails"),
           bestScore: t("bestScore"),
           beginner: t("difficultyBeginner"),
           intermediate: t("difficultyIntermediate"),

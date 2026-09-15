@@ -2,6 +2,16 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  Check,
+  FastForward,
+  Flag,
+  RefreshCw,
+  Send,
+  Trophy,
+  Upload,
+  X,
+} from "lucide-react";
 import { getTranslator, type Locale } from "@/lib/typing-game/i18n";
 
 async function post(url: string, body?: unknown): Promise<boolean> {
@@ -84,21 +94,47 @@ export function WarActions({
     submit: t("submitLatest"),
   };
 
+  const icon: Record<string, typeof Send> = {
+    dispatch: Send,
+    accept: Check,
+    decline: X,
+    cancel: Flag,
+    advance: FastForward,
+    sync: RefreshCw,
+    finalize: Trophy,
+    submit: Upload,
+  };
+
+  const variant: Record<string, "primary" | "secondary" | "danger"> = {
+    dispatch: "primary",
+    accept: "primary",
+    decline: "danger",
+    cancel: "danger",
+    advance: "secondary",
+    sync: "secondary",
+    finalize: "primary",
+    submit: "primary",
+  };
+
   return (
     <div className="flex flex-wrap gap-2">
-      {actions.map((a) => (
-        <button
-          key={a}
-          type="button"
-          className="tap-btn tap-btn-primary tap-btn-sm"
-          disabled={busy}
-          onClick={() => {
-            void run(a);
-          }}
-        >
-          {label[a]}
-        </button>
-      ))}
+      {actions.map((a) => {
+        const Icon = icon[a] ?? Send;
+        return (
+          <button
+            key={a}
+            type="button"
+            className={`tap-btn tap-btn-${variant[a] ?? "primary"} tap-btn-sm`}
+            disabled={busy}
+            onClick={() => {
+              void run(a);
+            }}
+          >
+            <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+            {label[a]}
+          </button>
+        );
+      })}
       {error ? (
         <p role="alert" className="text-sm text-red-600">
           {t("actionFailed")}

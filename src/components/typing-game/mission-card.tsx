@@ -1,16 +1,25 @@
+"use client";
+
 import Link from "next/link";
-import { MissionCard as UiMissionCard, ProgressBar } from "@/components/typing-game/ui";
+import { motion } from "framer-motion";
+import { CalendarCheck, CalendarRange, Sparkles } from "lucide-react";
+import {
+  MissionCard as UiMissionCard,
+  ProgressBar,
+  type BadgeTone,
+} from "@/components/typing-game/ui";
 import { getTranslator, type Locale } from "@/lib/typing-game/i18n";
 import type { MissionInstance } from "@/lib/typing-game/server/mission-store";
 
-type StatusKey =
+export type MissionStatusKey =
   | "statusAvailable"
   | "statusActive"
   | "statusCompleted"
   | "statusLocked"
   | "statusExpired";
 
-function statusTone(status: string): StatusKey {
+/** Translation key for a mission instance's status pill. */
+export function missionStatusLabelKey(status: string): MissionStatusKey {
   switch (status) {
     case "completed":
       return "statusCompleted";
@@ -26,6 +35,28 @@ function statusTone(status: string): StatusKey {
       return "statusAvailable";
   }
 }
+
+/** Badge tone for a mission instance's status pill. */
+export function missionStatusTone(status: string): BadgeTone {
+  switch (status) {
+    case "completed":
+      return "success";
+    case "active":
+      return "primary";
+    case "expired":
+      return "danger";
+    case "locked":
+      return "neutral";
+    default:
+      return "neutral";
+  }
+}
+
+const PERIOD_ICON: Record<string, typeof CalendarCheck> = {
+  daily: CalendarCheck,
+  weekly: CalendarRange,
+  event: Sparkles,
+};
 
 /** Student mission card: adventure framing, progress, reward, CTA. */
 export function StudentMissionCard({
@@ -44,28 +75,39 @@ export function StudentMissionCard({
       : mission.period === "weekly"
         ? "trial"
         : "event";
-  const cta =
-    mission.status === "completed"
-      ? null
-      : mission.status === "active"
-        ? t("continueQuest")
-        : t("startQuest");
+  const complete = mission.status === "completed";
+  const cta = complete
+    ? null
+    : mission.status === "active"
+      ? t("continueQuest")
+      : t("startQuest");
+  const Icon = PERIOD_ICON[mission.period] ?? CalendarCheck;
+
   return (
-    <div className="flex flex-col gap-2">
+    <motion.div
+      className="flex flex-col gap-2"
+      initial={complete ? { opacity: 0, scale: 0.94 } : false}
+      animate={complete ? { opacity: 1, scale: [0.94, 1.04, 1] } : { opacity: 1 }}
+      transition={{ duration: 0.5, ease: "easeOut" }}
+    >
       <UiMissionCard
         title={
-          <Link href={`/student-dashboard/typing-game/missions/${mission.instanceId}`}>
+          <Link
+            href={`/student-dashboard/typing-game/missions/${mission.instanceId}`}
+            className="inline-flex items-center gap-1.5"
+          >
+            <Icon className="h-4 w-4 shrink-0" style={{ color: "var(--tap-primary-500)" }} aria-hidden="true" />
             {mission.title}
           </Link>
         }
         description={mission.description || undefined}
         kind={kind}
-        kindLabel={t(statusTone(mission.status))}
+        kindLabel={t(missionStatusLabelKey(mission.status))}
         reward={t("rewardPreview", {
           xp: mission.rewardXp,
           coins: mission.rewardCoins,
         })}
-        complete={mission.status === "completed"}
+        complete={complete}
         action={
           cta ? (
             <Link
@@ -92,6 +134,6 @@ export function StudentMissionCard({
           </p>
         ) : null}
       </div>
-    </div>
+    </motion.div>
   );
 }

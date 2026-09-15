@@ -1,7 +1,20 @@
-import { Card, CardContent, EmptyState, PageHeader } from "@/components/typing-game/ui";
+import { Gift } from "lucide-react";
+import { Badge, Card, CardContent, EmptyState, PageHeader, SectionHeader, type BadgeTone } from "@/components/typing-game/ui";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { rewardedPageContext } from "@/lib/typing-game/server/rewarded-pages";
 import { RewardOptIn } from "@/components/typing-game/reward-opt-in";
+
+const SESSION_STATUS_TONE: Record<string, BadgeTone> = {
+  offered: "neutral",
+  opted_in: "primary",
+  started: "primary",
+  completed: "warning",
+  verified: "warning",
+  rewarded: "success",
+  failed: "danger",
+  expired: "neutral",
+  cancelled: "neutral",
+};
 
 /** Optional rewards: catalog offers, each honestly labeled. */
 export default async function RewardsPage({}: {}) {
@@ -47,10 +60,19 @@ export default async function RewardsPage({}: {}) {
       {sessions.length > 0 ? (
         <Card>
           <CardContent>
-            <ul className="flex flex-col gap-1 text-sm text-ink-muted">
+            <SectionHeader
+              title={
+                <span className="flex items-center gap-2">
+                  <Gift className="h-4 w-4 text-primary-500" aria-hidden="true" />
+                  {t("rewardsTitle")}
+                </span>
+              }
+            />
+            <ul className="flex flex-col gap-2 text-sm">
               {sessions.slice(0, 5).map((s) => (
-                <li key={s.id}>
-                  {s.rewardSlug} · {s.status}
+                <li key={s.id} className="flex items-center justify-between gap-2">
+                  <span className="text-ink-muted">{s.rewardSlug}</span>
+                  <Badge tone={SESSION_STATUS_TONE[s.status] ?? "neutral"}>{s.status}</Badge>
                 </li>
               ))}
             </ul>

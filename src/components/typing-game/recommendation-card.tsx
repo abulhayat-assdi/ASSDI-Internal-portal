@@ -1,7 +1,15 @@
 import Link from "next/link";
-import { Card, CardContent } from "@/components/typing-game/ui";
+import { Compass, Sparkles } from "lucide-react";
 import { getTranslator, type Locale } from "@/lib/typing-game/i18n";
 import type { AdaptiveRecommendation } from "@/lib/typing-game/server/adaptive-store";
+import { GAMES } from "@/lib/typing-game/content";
+import { worldVisual } from "@/lib/typing-game/world-visuals";
+
+const GAME_VISUAL = new Map(GAMES.map((g) => [g.slug, g.theme.visual]));
+const WORLD_OF_GAME = new Map(GAMES.map((g) => [g.slug, g.worldSlug]));
+function visualForGame(slug: string): string {
+  return GAME_VISUAL.get(slug) ?? worldVisual(WORLD_OF_GAME.get(slug) ?? "");
+}
 
 /** One recommendation card: mission-like framing + why + start link. */
 export function RecommendationCard({
@@ -13,31 +21,34 @@ export function RecommendationCard({
 }) {
   const t = getTranslator(locale, "adaptive");
   return (
-    <Card>
-      <CardContent>
-        <p className="text-base font-bold">{recommendation.message}</p>
-        <p className="mt-1 text-sm text-ink-muted">
+    <div data-visual={visualForGame(recommendation.gameSlug)}>
+      <div className="tap-recommend-banner">
+        <p className="tap-hero-eyebrow">
+          <Compass className="h-3.5 w-3.5" aria-hidden="true" /> {t("recommendedTitle")}
+        </p>
+        <p className="relative mt-1 text-base font-bold">{recommendation.message}</p>
+        <p className="relative mt-1 text-sm text-white/85">
           {t("skillFocus")}:{" "}
           {recommendation.targets.length > 0
             ? recommendation.targets.join(", ")
             : recommendation.reason}
         </p>
-        <p className="text-sm text-ink-muted">
+        <p className="relative text-sm text-white/85">
           {t("expectedBenefit")}: {recommendation.benefit}
         </p>
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="relative mt-3 flex flex-wrap items-center gap-2">
           <Link
             href={`/student-dashboard/typing-game/games/${recommendation.gameSlug}`}
             className="tap-btn tap-btn-primary tap-btn-sm"
           >
             {t("startPractice")}
           </Link>
-          <span className="tap-badge" title={t("whySeeing")}>
+          <span className="tap-chip" title={t("whySeeing")}>
             {recommendation.reason}
           </span>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -52,21 +63,31 @@ export function RecommendedNext({
   const t = getTranslator(locale, "adaptive");
   if (!recommendation) return null;
   return (
-    <Card>
-      <CardContent>
-        <div className="flex items-center justify-between gap-3">
+    <div data-visual={visualForGame(recommendation.gameSlug)}>
+      <div className="tap-recommend-banner">
+        <div className="relative flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-base font-bold">{t("recommendedTitle")}</h2>
-            <p className="text-sm">{recommendation.message}</p>
+            <p className="tap-hero-eyebrow">
+              <Sparkles className="h-3.5 w-3.5" aria-hidden="true" /> {t("recommendedTitle")}
+            </p>
+            <p className="mt-1 text-base font-bold">{recommendation.message}</p>
           </div>
-          <Link
-            href={`/student-dashboard/typing-game/recommended`}
-            className="tap-btn tap-btn-secondary tap-btn-sm"
-          >
-            {t("whySeeing")}
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href={`/student-dashboard/typing-game/games/${recommendation.gameSlug}`}
+              className="tap-btn tap-btn-primary tap-btn-sm"
+            >
+              {t("startPractice")}
+            </Link>
+            <Link
+              href={`/student-dashboard/typing-game/recommended`}
+              className="tap-btn tap-btn-secondary tap-btn-sm"
+            >
+              {t("whySeeing")}
+            </Link>
+          </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

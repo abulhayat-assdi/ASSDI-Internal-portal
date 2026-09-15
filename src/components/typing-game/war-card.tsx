@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Card, CardContent } from "@/components/typing-game/ui";
+import { Badge, Card, CardContent, type BadgeTone } from "@/components/typing-game/ui";
 import { getTranslator, type Locale } from "@/lib/typing-game/i18n";
 import type { WarSummary } from "@/lib/typing-game/server/war-store";
 
@@ -43,7 +43,21 @@ function statusKey(status: string): StatusKey {
   }
 }
 
-/** War card with YOUR CLAN vs OPPONENT visual priority. */
+const STATUS_TONE: Record<string, BadgeTone> = {
+  draft: "neutral",
+  challenge_sent: "primary",
+  pending_response: "warning",
+  accepted: "primary",
+  declined: "danger",
+  preparation: "warning",
+  live: "danger",
+  processing: "warning",
+  finalized: "success",
+  cancelled: "neutral",
+  expired: "neutral",
+};
+
+/** War card with YOUR CLAN vs OPPONENT battle framing. */
 export function WarCard({
   locale,
   war,
@@ -57,20 +71,27 @@ export function WarCard({
   const mineFirst = war.myClanId === war.challengerClanId;
   const mine = mineFirst ? war.challengerName : war.defenderName;
   const theirs = mineFirst ? war.defenderName : war.challengerName;
+  const isLive = war.status === "live";
   return (
-    <Card>
+    <Card interactive>
       <CardContent>
         <div className="flex items-start justify-between gap-2">
-          <h3 className="font-bold">
-            <Link href={href}>
-              {t("versus", { a: mine || "—", b: theirs || "—" })}
-            </Link>
-          </h3>
-          <span className="tap-badge">{t(statusKey(war.status))}</span>
+          <Link href={href} className="tap-war-vs flex-1 hover:opacity-90">
+            <span className="tap-war-side">
+              <span className="tap-war-side-name">{mine || "—"}</span>
+            </span>
+            <span className="tap-war-vs-badge">{t("vsBadge")}</span>
+            <span className="tap-war-side tap-war-side-right">
+              <span className="tap-war-side-name">{theirs || "—"}</span>
+            </span>
+          </Link>
         </div>
-        <p className="mt-1 text-sm text-ink-muted">
-          {t("versus", { a: war.challengerName || "—", b: war.defenderName || "—" })}
-        </p>
+        <div className="mt-2 flex items-center gap-2">
+          <Badge tone={STATUS_TONE[war.status] ?? "neutral"}>
+            {isLive ? <span className="tap-live-dot" aria-hidden="true" /> : null}
+            {t(statusKey(war.status))}
+          </Badge>
+        </div>
       </CardContent>
     </Card>
   );

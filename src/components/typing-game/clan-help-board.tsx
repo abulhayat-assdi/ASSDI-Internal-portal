@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardContent, ProgressBar } from "@/components/typing-game/ui";
+import { HeartHandshake } from "lucide-react";
+import { Badge, Card, CardContent, Input, ProgressBar, type BadgeTone } from "@/components/typing-game/ui";
 import { getTranslator, type Locale } from "@/lib/typing-game/i18n";
 import type { HelpRequest } from "@/lib/typing-game/server/clan-store";
 
@@ -26,6 +27,13 @@ function statusKey(status: string): StatusKey {
       return "helpOpen";
   }
 }
+
+const STATUS_TONE: Record<string, BadgeTone> = {
+  open: "primary",
+  partially_fulfilled: "warning",
+  fulfilled: "success",
+  expired: "neutral",
+};
 
 /** Help board: open requests, contribute action, bounded amounts. */
 export function ClanHelpBoard({
@@ -93,32 +101,29 @@ export function ClanHelpBoard({
     <div className="flex flex-col gap-4">
       <Card>
         <CardContent>
-          <h2 className="mb-2 text-base font-bold">{t("requestHelp")}</h2>
+          <h2 className="mb-2 flex items-center gap-2 text-base font-bold">
+            <HeartHandshake className="h-4 w-4 text-primary-500" aria-hidden="true" />
+            {t("requestHelp")}
+          </h2>
           <div className="flex flex-col gap-2">
-            <label className="flex flex-col gap-1 text-sm">
-              {t("helpContext")}
-              <input
-                className="tap-input"
-                value={context}
-                maxLength={120}
-                onChange={(e) => {
-                  setContext(e.target.value);
-                }}
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
-              {t("helpAmount")}
-              <input
-                className="tap-input"
-                type="number"
-                min={1}
-                max={50}
-                value={amount}
-                onChange={(e) => {
-                  setAmount(e.target.value);
-                }}
-              />
-            </label>
+            <Input
+              label={t("helpContext")}
+              value={context}
+              maxLength={120}
+              onChange={(e) => {
+                setContext(e.target.value);
+              }}
+            />
+            <Input
+              label={t("helpAmount")}
+              type="number"
+              min={1}
+              max={50}
+              value={amount}
+              onChange={(e) => {
+                setAmount(e.target.value);
+              }}
+            />
             <button
               type="button"
               className="tap-btn tap-btn-primary"
@@ -148,9 +153,11 @@ export function ClanHelpBoard({
               <Card>
                 <CardContent>
                   <div className="flex items-center justify-between gap-2 text-sm">
-                    <span className="font-bold">
-                      {t(statusKey(r.status))}
-                      {r.mine ? ` · ${t("myRequest")}` : ""}
+                    <span className="flex items-center gap-2 font-bold">
+                      <Badge tone={STATUS_TONE[r.status] ?? "neutral"}>
+                        {t(statusKey(r.status))}
+                      </Badge>
+                      {r.mine ? t("myRequest") : null}
                     </span>
                     <span className="text-ink-muted">
                       {t("helpProgress", {

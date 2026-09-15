@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Play, RefreshCw } from "lucide-react";
 import { getTranslator, type Locale } from "@/lib/typing-game/i18n";
 
 /** Start / refresh buttons for one clan mission run. */
@@ -43,6 +44,7 @@ export function ClanMissionActions({
             void call(`/api/typing-game/clan/missions/${missionId}/start`);
           }}
         >
+          <Play className="h-3.5 w-3.5" aria-hidden="true" />
           {t("startMission")}
         </button>
       ) : null}
@@ -55,6 +57,7 @@ export function ClanMissionActions({
             void call(`/api/typing-game/clan/missions/${missionId}/sync`);
           }}
         >
+          <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
           {t("syncMission")}
         </button>
       ) : null}

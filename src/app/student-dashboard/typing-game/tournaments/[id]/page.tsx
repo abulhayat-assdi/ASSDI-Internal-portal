@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { Card, CardContent, PageHeader } from "@/components/typing-game/ui";
+import { Badge, Card, CardContent, PageHeader, SectionHeader, type BadgeTone } from "@/components/typing-game/ui";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { tournamentPageContext } from "@/lib/typing-game/server/tournament-pages";
 import {
@@ -7,6 +7,17 @@ import {
   TournamentResults,
 } from "@/components/typing-game/tournament-bracket";
 import { TournamentActions } from "@/components/typing-game/tournament-actions";
+
+const STATUS_TONE: Record<string, BadgeTone> = {
+  draft: "neutral",
+  registration_open: "primary",
+  registration_closed: "warning",
+  seeded: "warning",
+  live: "danger",
+  processing: "warning",
+  finalized: "success",
+  cancelled: "neutral",
+};
 
 /**
  * Student tournament detail: theme, registration, bracket, my match,
@@ -41,11 +52,21 @@ export default async function TournamentDetailPage(
     <div className="flex flex-col gap-6">
       <PageHeader
         title={detail.name}
-        description={`${detail.theme.length > 0 ? `${detail.theme} · ` : ""}${detail.status}`}
+        description={
+          <span className="flex flex-wrap items-center gap-2">
+            {detail.theme.length > 0 ? <span>{detail.theme}</span> : null}
+            <Badge tone={STATUS_TONE[detail.status] ?? "neutral"}>
+              {detail.status === "live" ? (
+                <span className="tap-live-dot" aria-hidden="true" />
+              ) : null}
+              {detail.status}
+            </Badge>
+          </span>
+        }
       />
-      <Card>
+      <Card data-visual="grand-arena">
         <CardContent>
-          <h2 className="mb-2 text-base font-bold">{t("sectionDetails")}</h2>
+          <SectionHeader title={t("sectionDetails")} />
           <p className="text-sm text-ink-muted">{detail.description}</p>
           <p className="mt-2 text-sm">
             {t("participants")}: {detail.participantCount} ·{" "}
@@ -62,9 +83,9 @@ export default async function TournamentDetailPage(
         </CardContent>
       </Card>
       {myMatches.length > 0 ? (
-        <Card>
+        <Card className="tap-card-recommended">
           <CardContent>
-            <h2 className="mb-2 text-base font-bold">{t("sectionMyMatch")}</h2>
+            <SectionHeader title={t("sectionMyMatch")} />
             <TournamentBracket
               locale={locale}
               rounds={detail.rounds.map((r) => ({
@@ -76,11 +97,14 @@ export default async function TournamentDetailPage(
           </CardContent>
         </Card>
       ) : null}
-      <TournamentBracket
-        locale={locale}
-        rounds={detail.rounds}
-        highlightId={detail.myParticipantId}
-      />
+      <div className="flex flex-col gap-3">
+        <SectionHeader title={t("sectionBracket")} />
+        <TournamentBracket
+          locale={locale}
+          rounds={detail.rounds}
+          highlightId={detail.myParticipantId}
+        />
+      </div>
       <TournamentResults locale={locale} results={detail.results} />
       {detail.status === "finalized" ? (
         <p className="text-xs text-ink-muted">{t("finalizedNotice")}</p>

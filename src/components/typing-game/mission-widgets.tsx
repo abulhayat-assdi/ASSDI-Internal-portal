@@ -1,7 +1,10 @@
 import Link from "next/link";
-import { Card, CardContent, ProgressBar, RewardCard } from "@/components/typing-game/ui";
+import { ScrollText, Target } from "lucide-react";
+import { Badge, Card, CardContent, RewardCard } from "@/components/typing-game/ui";
 import { getTranslator, type Locale } from "@/lib/typing-game/i18n";
 import type { MissionInstance } from "@/lib/typing-game/server/mission-store";
+import type { CustomMission } from "@/lib/typing-game/server/custom-mission-store";
+import { missionRuleSummary } from "@/lib/typing-game/custom-mission-ui";
 
 /**
  * Completion moment: reward reveal with motion-safe animation only
@@ -32,82 +35,61 @@ export function MissionRewardMoment({
   );
 }
 
-/** Dashboard widgets: today's progress + weekly challenge at a glance. */
+/**
+ * Dashboard widget: up to 3 active custom missions the student hasn't
+ * completed yet (caller filters/caps the list — see dashboard/page.tsx).
+ * Replaces the old daily/weekly auto-mission widget.
+ */
 export function MissionWidgets({
   locale,
-  daily,
-  weekly,
+  missions,
 }: {
   locale: Locale;
-  daily: MissionInstance[];
-  weekly: MissionInstance[];
+  missions: CustomMission[];
 }) {
   const t = getTranslator(locale, "missions");
-  const doneDaily = daily.filter((m) => m.status === "completed").length;
-  const firstWeekly = weekly[0] ?? null;
-  const weeklyDone =
-    firstWeekly?.objectives.filter((o) => o.completed).length ?? 0;
-  const weeklyTotal = firstWeekly?.objectives.length ?? 0;
   return (
-    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-      <Card>
-        <CardContent>
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-base font-bold">{t("dashboardToday")}</h2>
-            <Link
-              href={`/student-dashboard/typing-game/missions`}
-              className="tap-btn tap-btn-secondary tap-btn-sm"
-            >
-              {t("viewAll")}
-            </Link>
-          </div>
-          <p className="mt-1 text-sm text-ink-muted">
-            {t("dashboardProgress", { done: doneDaily, total: daily.length })}
+    <Card>
+      <CardContent>
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="flex items-center gap-1.5 text-base font-bold">
+            <Target className="h-4 w-4 text-primary-500" aria-hidden="true" />
+            {t("widgetTitle")}
+          </h2>
+          <Link
+            href={`/student-dashboard/typing-game/missions`}
+            className="tap-btn tap-btn-secondary tap-btn-sm"
+          >
+            {t("widgetViewAll")}
+          </Link>
+        </div>
+        {missions.length === 0 ? (
+          <p className="mt-1 flex items-center gap-2 text-sm text-ink-muted">
+            <ScrollText className="h-4 w-4 shrink-0" aria-hidden="true" />
+            {t("widgetEmpty")}
           </p>
-          <div className="mt-2 flex flex-col gap-1">
-            {daily.slice(0, 3).map((m) => {
-              const target = m.objectives.reduce(
-                (s, o) => s + Math.max(o.target, 1),
-                0,
-              );
-              const current = m.objectives.reduce(
-                (s, o) => s + Math.min(o.current, Math.max(o.target, 1)),
-                0,
-              );
-              return (
-                <ProgressBar
-                  key={m.instanceId}
-                  value={current}
-                  max={Math.max(target, 1)}
-                  label={m.title}
-                />
-              );
-            })}
+        ) : (
+          <div className="mt-2 flex flex-col gap-2">
+            {missions.slice(0, 3).map((m) => (
+              <Link
+                key={m.id}
+                href={`/student-dashboard/typing-game/missions/${m.id}`}
+                className="tap-mission"
+              >
+                <div className="tap-mission-top">
+                  <h3 className="tap-mission-title">{m.title}</h3>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone="neutral">{missionRuleSummary(t, m)}</Badge>
+                  <span className="text-xs text-ink-muted">
+                    {t("rewardSummary", { xp: m.rewardXp, coins: m.rewardCoins })}
+                  </span>
+                </div>
+              </Link>
+            ))}
           </div>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardContent>
-          <h2 className="text-base font-bold">{t("dashboardWeekly")}</h2>
-          {firstWeekly ? (
-            <>
-              <p className="mt-1 text-sm">{firstWeekly.title}</p>
-              <div className="mt-2">
-                <ProgressBar
-                  value={weeklyDone}
-                  max={Math.max(weeklyTotal, 1)}
-                  label={t("progressOf", {
-                    done: weeklyDone,
-                    total: weeklyTotal,
-                  })}
-                />
-              </div>
-            </>
-          ) : (
-            <p className="mt-1 text-sm text-ink-muted">{t("emptySection")}</p>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

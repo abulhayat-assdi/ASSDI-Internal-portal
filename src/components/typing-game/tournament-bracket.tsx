@@ -1,4 +1,5 @@
-import { Card, CardContent } from "@/components/typing-game/ui";
+import { Crown } from "lucide-react";
+import { Badge, Card, CardContent } from "@/components/typing-game/ui";
 import { getTranslator, type Locale } from "@/lib/typing-game/i18n";
 import type {
   TournamentMatchView,
@@ -39,7 +40,9 @@ export function TournamentMatchCard({
         <span>
           {match.roundName} · {t("round")} {match.roundNo}
         </span>
-        <span className="tap-badge">{isBye ? t("bye") : match.status}</span>
+        <Badge tone={isBye ? "neutral" : match.status === "finalized" ? "success" : "primary"}>
+          {isBye ? t("bye") : match.status}
+        </Badge>
       </div>
       <div className="mt-1 flex items-center justify-between gap-2 text-sm">
         <span className={winner === match.participantA?.id ? "font-bold" : ""}>
@@ -53,8 +56,12 @@ export function TournamentMatchCard({
         </span>
       </div>
       {winner ? (
-        <p className="mt-1 text-xs">
-          {t("winner")}:{" "}
+        <p className="mt-1 flex items-center gap-1 text-xs">
+          <Crown
+            className="h-3.5 w-3.5"
+            style={{ color: "var(--tap-warning-500)" }}
+            aria-hidden="true"
+          />
           {match.participantA?.id === winner
             ? sideLabel(match.participantA, t("tbd"))
             : sideLabel(match.participantB, t("tbd"))}
@@ -93,12 +100,13 @@ export function TournamentBracket({
           </h3>
           <div className="flex flex-col gap-3">
             {round.matches.map((m) => (
-              <TournamentMatchCard
-                key={m.id}
-                locale={locale}
-                match={m}
-                highlightId={highlightId}
-              />
+              <div key={m.id} className="tap-bracket-slot">
+                <TournamentMatchCard
+                  locale={locale}
+                  match={m}
+                  highlightId={highlightId}
+                />
+              </div>
             ))}
           </div>
         </section>
@@ -130,10 +138,19 @@ export function TournamentResults({
           </thead>
           <tbody>
             {results.map((r) => (
-              <tr key={r.participantId}>
+              <tr key={r.participantId} className={r.placement === 1 ? "tap-row-top" : undefined}>
                 <td>
-                  {r.placement}
-                  {r.placement === 1 ? ` · ${t("champion")}` : ""}
+                  <span className="flex items-center gap-1">
+                    {r.placement === 1 ? (
+                      <Crown
+                        className="h-3.5 w-3.5"
+                        style={{ color: "var(--tap-warning-500)" }}
+                        aria-hidden="true"
+                      />
+                    ) : null}
+                    #{r.placement}
+                    {r.placement === 1 ? ` · ${t("champion")}` : ""}
+                  </span>
                 </td>
                 <td>{r.displayName}</td>
               </tr>

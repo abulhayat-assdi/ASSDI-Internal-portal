@@ -12,7 +12,6 @@ export type PermissionKey =
     | "course_modules"
     | "policies"
     | "feedback"
-    | "tracker"
     | "homework"
     | "leave_tracking"
     | "teachers"
@@ -47,7 +46,6 @@ export const PERMISSION_META: Record<PermissionKey, PermissionMeta> = {
     course_modules: { label: "Course Modules", path: "/dashboard/course-modules", group: "teacher", icon: "📚" },
     policies: { label: "Policy & Minutes", path: "/dashboard/policies", group: "teacher", icon: "📋" },
     feedback: { label: "Feedback", path: "/dashboard/feedback", group: "teacher", icon: "💬" },
-    tracker: { label: "Daily Tracker", path: "/dashboard/tracker", group: "teacher", icon: "📋" },
     homework: { label: "Homework", path: "/dashboard/homework", group: "teacher", icon: "📝" },
     leave_tracking: { label: "Leave Tracking", path: "/dashboard/leave-tracking", group: "teacher", icon: "🌴" },
     teachers: { label: "Teacher Directory", path: "/dashboard/teachers", group: "management", icon: "👥" },
@@ -79,11 +77,14 @@ export const ALL_PERMISSION_KEYS = Object.keys(PERMISSION_META) as PermissionKey
 // Never used as an actual page permission — always filtered out from access checks.
 export const ADMIN_TEACHER_MARKER = "__role:admin_teacher";
 
-// Default permissions assigned to a newly created teacher
+// Default permissions assigned to a newly created teacher.
+// typing_game_teacher (Typing Adventure Teacher Console, incl. mission
+// creation) is deliberately excluded — an admin must opt a teacher in
+// explicitly via Access Management, it is not granted by default.
 export const DEFAULT_TEACHER_PERMISSIONS: PermissionKey[] = [
     "schedule", "routine", "batch_info", "resources", "course_modules",
-    "policies", "feedback", "tracker", "homework", "leave_tracking",
-    "teachers", "admin_results", "typing_game_teacher", "typing_exam",
+    "policies", "feedback", "homework", "leave_tracking",
+    "teachers", "admin_results", "typing_exam",
 ];
 
 // Default admin permissions (management/admin pages only — no teacher features)
@@ -97,7 +98,7 @@ export const DEFAULT_ADMIN_PERMISSIONS: PermissionKey[] = [
 // Teacher-feature permissions added to admin when "Include teacher features" is checked
 export const TEACHER_FEATURE_PERMISSIONS: PermissionKey[] = [
     "schedule", "routine", "resources", "course_modules",
-    "policies", "feedback", "tracker", "homework", "leave_tracking",
+    "policies", "feedback", "homework", "leave_tracking",
     "typing_game_teacher", "typing_exam",
 ];
 

@@ -1,4 +1,4 @@
-import { EmptyState, PageHeader } from "@/components/typing-game/ui";
+import { EmptyState, PageHeader, SectionHeader } from "@/components/typing-game/ui";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { competitionPageContext } from "@/lib/typing-game/server/competition-pages";
 import { statusSection } from "@/lib/typing-game/competitions";
@@ -33,7 +33,7 @@ export default async function CompetitionsPage({}: {}) {
       ) : null}
       {sections.map((s) => (
         <section key={s.key} aria-label={s.title}>
-          <h2 className="mb-2 text-base font-bold">{s.title}</h2>
+          <SectionHeader title={s.title} />
           {groups[s.key].length === 0 ? (
             <p className="text-sm text-ink-muted">{t("emptySection")}</p>
           ) : (

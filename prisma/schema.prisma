@@ -182,7 +182,6 @@ model Course {
   videoTestimonials        VideoTestimonial[]
   cvDrafts                 CvDraft[]
   cvVersions               CvVersion[]
-  dailyTrackerReports      DailyTrackerReport[]
   studentUpdateRequests    StudentUpdateRequest[]
   studentExamBatchRecords  StudentExamBatchRecord[]
   courseModules            CourseModule[]
@@ -1069,28 +1068,6 @@ model CvVersion {
   @@index([createdAt])
   @@index([courseId])
   @@map("cv_versions")
-}
-
-// ============================================================
-// DAILY TRACKER
-// ============================================================
-
-model DailyTrackerReport {
-  id          String   @id @default(uuid())
-  courseId    String   @map("course_id")
-  batchName   String   @map("batch_name")
-  date        String
-  reportData  Json     @map("report_data")
-  submittedBy String?  @map("submitted_by")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
-
-  @@index([batchName])
-  @@index([date])
-  @@index([courseId])
-  @@map("daily_tracker_reports")
 }
 
 // ============================================================

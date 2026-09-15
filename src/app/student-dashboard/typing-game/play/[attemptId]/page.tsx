@@ -55,6 +55,7 @@ export default async function PlayPage(
           gameHref={links.gameHref}
           mapHref={links.mapHref}
           dashboardHref={links.dashboardHref}
+          visual={def.theme.visual}
         />
       );
     }
@@ -72,6 +73,8 @@ export default async function PlayPage(
       expectedText={attempt.expectedText}
       timingKind={def.timingRules.kind}
       timingLimit={def.timingRules.limitSeconds ?? null}
+      visual={def.theme.visual}
+      mechanic={def.mechanic}
       strings={{
         play: {
           tapToFocus: play("tapToFocus"),
@@ -89,6 +92,12 @@ export default async function PlayPage(
           failedToSubmit: play("failedToSubmit"),
           focusLost: play("focusLost"),
           screenReaderProgress: play("screenReaderProgress"),
+          mechanicCheckpoints: play("mechanicCheckpoints"),
+          mechanicRelay: play("mechanicRelay"),
+          mechanicChain: play("mechanicChain"),
+          mechanicWaves: play("mechanicWaves"),
+          mechanicShield: play("mechanicShield"),
+          mechanicTargets: play("mechanicTargets"),
         },
         result: resultStrings(result),
       }}

@@ -1,11 +1,26 @@
 import { notFound } from "next/navigation";
-import { Card, CardContent, PageHeader } from "@/components/typing-game/ui";
+import { Swords } from "lucide-react";
+import { Badge, Card, CardContent, PageHeader, SectionHeader, type BadgeTone } from "@/components/typing-game/ui";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { warPageContext } from "@/lib/typing-game/server/war-pages";
 import { WarBoard } from "@/components/typing-game/war-board";
 import { WarActions } from "@/components/typing-game/war-actions";
 import { CompetitionCountdown } from "@/components/typing-game/competition-countdown";
 import { PlayButton } from "@/components/typing-game/play-button";
+
+const STATUS_TONE: Record<string, BadgeTone> = {
+  draft: "neutral",
+  challenge_sent: "primary",
+  pending_response: "warning",
+  accepted: "primary",
+  declined: "danger",
+  preparation: "warning",
+  live: "danger",
+  processing: "warning",
+  finalized: "success",
+  cancelled: "neutral",
+  expired: "neutral",
+};
 
 /**
  * War detail: status-appropriate actions, server-anchored countdowns,
@@ -57,7 +72,14 @@ export default async function WarDetailPage(
           a: war.challengerName || "—",
           b: war.defenderName || "—",
         })}
-        description={war.status}
+        description={
+          <Badge tone={STATUS_TONE[war.status] ?? "neutral"}>
+            {war.status === "live" ? (
+              <span className="tap-live-dot" aria-hidden="true" />
+            ) : null}
+            {war.status}
+          </Badge>
+        }
       />
 
       {(war.status === "preparation" && war.battleStart) ||
@@ -79,7 +101,14 @@ export default async function WarDetailPage(
 
       <Card>
         <CardContent>
-          <h2 className="mb-2 text-base font-bold">{t("allowedGames")}</h2>
+          <SectionHeader
+            title={
+              <span className="flex items-center gap-2">
+                <Swords className="h-4 w-4 text-primary-500" aria-hidden="true" />
+                {t("allowedGames")}
+              </span>
+            }
+          />
           <p className="text-sm">{war.gameSlugs.join(", ") || "—"}</p>
           <p className="mt-1 text-sm text-ink-muted">
             {t("attemptsLeft", {

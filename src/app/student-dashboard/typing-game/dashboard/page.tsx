@@ -1,4 +1,6 @@
 import Link from "next/link";
+import type { CSSProperties } from "react";
+import { CheckCircle2, Flame, Gauge, Trophy, Zap } from "lucide-react";
 import {
   AchievementBadge,
   Badge,
@@ -15,6 +17,8 @@ import { studentContext } from "@/lib/typing-game/server/student-pages";
 import { getStudentDashboard } from "@/lib/typing-game/server/student";
 import { userDbClient } from "@/lib/typing-game/server/auth";
 import { createSupabaseMissionStore } from "@/lib/typing-game/server/mission-store";
+import { createSupabaseCustomMissionStore } from "@/lib/typing-game/server/custom-mission-store";
+import { listActiveIncompleteMissions } from "@/lib/typing-game/server/custom-mission-pages";
 import { WelcomeBanner } from "@/components/typing-game/welcome-banner";
 import { XpCounter } from "@/components/typing-game/xp-counter";
 import { MissionWidgets } from "@/components/typing-game/mission-widgets";
@@ -34,6 +38,12 @@ export default async function DashboardPage({
   const missionClient = await userDbClient();
   const missions = missionClient
     ? await createSupabaseMissionStore(missionClient).getToday(session.userId)
+    : [];
+  const activeCustomMissions = missionClient
+    ? await listActiveIncompleteMissions(
+        createSupabaseCustomMissionStore(missionClient),
+        session.userId,
+      )
     : [];
 
   if (!data || !data.membership) {
@@ -81,30 +91,42 @@ export default async function DashboardPage({
       ) : null}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard
-          label={t("level")}
-          value={<XpCounter value={data.profile.level} durationMs={0} />}
-          hint={data.levelTitle}
-        />
-        <StatCard
-          label={tp("currentStreak")}
-          value={<XpCounter value={data.streak.current} />}
-          hint={`${tp("bestStreak")}: ${String(data.streak.best)}`}
-        />
-        <StatCard
-          label={t("averageWpm")}
-          value={Math.round(data.averages.wpm)}
-          hint={t("averageAccuracy") + ": " + String(Math.round(data.averages.accuracy)) + "%"}
-        />
-        <StatCard
-          label={t("batchRank")}
-          value={data.rank ? `#${String(data.rank.rank)}` : "—"}
-          hint={
-            data.rank
+        {[
+          {
+            icon: <Zap className="h-4 w-4" />,
+            label: t("level"),
+            value: <XpCounter value={data.profile.level} />,
+            hint: data.levelTitle,
+          },
+          {
+            icon: <Flame className="h-4 w-4" />,
+            label: tp("currentStreak"),
+            value: <XpCounter value={data.streak.current} />,
+            hint: `${tp("bestStreak")}: ${String(data.streak.best)}`,
+          },
+          {
+            icon: <Gauge className="h-4 w-4" />,
+            label: t("averageWpm"),
+            value: <XpCounter value={Math.round(data.averages.wpm)} />,
+            hint: t("averageAccuracy") + ": " + String(Math.round(data.averages.accuracy)) + "%",
+          },
+          {
+            icon: <Trophy className="h-4 w-4" />,
+            label: t("batchRank"),
+            value: data.rank ? `#${String(data.rank.rank)}` : "—",
+            hint: data.rank
               ? t("ofStudents").replace("{count}", String(data.rank.total))
-              : t("noActivity")
-          }
-        />
+              : t("noActivity"),
+          },
+        ].map((stat, i) => (
+          <div
+            key={stat.label}
+            className="tap-anim-in"
+            style={{ "--tap-i": i } as CSSProperties}
+          >
+            <StatCard icon={stat.icon} label={stat.label} value={stat.value} hint={stat.hint} />
+          </div>
+        ))}
       </div>
 
       <Card>
@@ -129,11 +151,7 @@ export default async function DashboardPage({
         </CardContent>
       </Card>
 
-      <MissionWidgets
-        locale={locale}
-        daily={missions.filter((m) => m.period === "daily")}
-        weekly={missions.filter((m) => m.period === "weekly")}
-      />
+      <MissionWidgets locale={locale} missions={activeCustomMissions} />
 
       <RecommendedNext
         locale={locale}
@@ -163,14 +181,23 @@ export default async function DashboardPage({
               {data.recentAttempts.map((a) => (
                 <li
                   key={a.id}
-                  className="flex items-center justify-between gap-3 text-sm"
+                  className="flex items-center justify-between gap-3 rounded-xl bg-surface px-3 py-2 text-sm"
                 >
-                  <span className="font-medium">{a.gameSlug}</span>
+                  <span className="flex items-center gap-2 font-medium">
+                    {a.status === "validated" ? (
+                      <CheckCircle2
+                        className="h-4 w-4"
+                        style={{ color: "var(--tap-success-500)" }}
+                        aria-hidden="true"
+                      />
+                    ) : null}
+                    {a.gameSlug}
+                  </span>
                   <span className="flex items-center gap-2">
                     <Badge tone={a.status === "validated" ? "success" : "neutral"}>
                       {a.status}
                     </Badge>
-                    {a.score !== null ? <span>{a.score}</span> : null}
+                    {a.score !== null ? <span className="font-bold">{a.score}</span> : null}
                   </span>
                 </li>
               ))}

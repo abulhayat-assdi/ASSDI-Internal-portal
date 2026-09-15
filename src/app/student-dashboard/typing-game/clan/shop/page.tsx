@@ -1,4 +1,4 @@
-import { Card, CardContent, EmptyState, PageHeader } from "@/components/typing-game/ui";
+import { Badge, Card, CardContent, EmptyState, PageHeader, SectionHeader } from "@/components/typing-game/ui";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { clanPageContext } from "@/lib/typing-game/server/clan-pages";
 import { shopPageContext } from "@/lib/typing-game/server/shop-pages";
@@ -57,16 +57,24 @@ export default async function ClanShopPage({}: {}) {
       )}
       <Card>
         <CardContent>
-          <h2 className="mb-2 text-base font-bold">{t("clanInventoryTitle")}</h2>
+          <SectionHeader title={t("clanInventoryTitle")} />
           {vault.length === 0 ? (
             <p className="text-sm text-ink-muted">{t("emptyInventory")}</p>
           ) : (
             <div className="flex flex-col gap-3">
               {vault.map((v) => (
-                <div key={v.itemId} className="flex flex-col gap-1">
-                  <p className="text-sm font-bold">
+                <div
+                  key={v.itemId}
+                  className={v.equipped ? "tap-owned-ring tap-equipped-ring flex flex-col gap-1 rounded-xl p-2" : "flex flex-col gap-1"}
+                >
+                  <p className="flex flex-wrap items-center gap-1.5 text-sm font-bold">
                     {v.name}
-                    {v.equipped ? ` · ${t("equipped")}` : ""}
+                    {v.equipped ? (
+                      <Badge tone="primary">
+                        <span aria-hidden="true">✓</span>
+                        {t("equipped")}
+                      </Badge>
+                    ) : null}
                   </p>
                   <InventoryActions
                     locale={locale}

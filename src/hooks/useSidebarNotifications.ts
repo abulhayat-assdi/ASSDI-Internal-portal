@@ -34,8 +34,7 @@ export function useSidebarNotifications() {
                 const paths = [
                     "/dashboard/homework",
                     "/dashboard/admin/manage-homework",
-                    "/dashboard/feedback",
-                    "/dashboard/tracker"
+                    "/dashboard/feedback"
                 ];
                 
                 const queryParams = new URLSearchParams();

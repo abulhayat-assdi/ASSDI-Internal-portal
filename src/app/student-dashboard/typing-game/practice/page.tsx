@@ -1,4 +1,7 @@
+import type { CSSProperties } from "react";
 import Link from "next/link";
+import { Gauge, KeyRound, Sparkles, Target, Type, Zap } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Card, CardContent, EmptyState, PageHeader } from "@/components/typing-game/ui";
 import { PROMPT_SETS } from "@/lib/typing-game/content";
 import { buildPracticeDrill } from "@/lib/typing-game/adaptive";
@@ -33,9 +36,9 @@ export default async function PracticePage({}: {}) {
     weakKeys.length > 0 ? buildPracticeDrill(weakKeys, contentLists()) : null;
   const top = recommendations[0] ?? null;
 
-  const actions = [
-    { key: "need-most", label: t("needMost"), game: top?.gameSlug ?? null },
-    { key: "weak-keys", label: t("weakKeys"), game: top?.gameSlug ?? null },
+  const actions: { key: string; label: string; game: string | null; icon: LucideIcon }[] = [
+    { key: "need-most", label: t("needMost"), game: top?.gameSlug ?? null, icon: Sparkles },
+    { key: "weak-keys", label: t("weakKeys"), game: top?.gameSlug ?? null, icon: KeyRound },
     {
       key: "accuracy",
       label: t("accuracy"),
@@ -43,6 +46,7 @@ export default async function PracticePage({}: {}) {
         recommendations.find((r) => r.reason === "LOW_ACCURACY")?.gameSlug ??
         top?.gameSlug ??
         null,
+      icon: Target,
     },
     {
       key: "speed",
@@ -51,8 +55,9 @@ export default async function PracticePage({}: {}) {
         recommendations.find((r) => r.reason === "LOW_WPM")?.gameSlug ??
         top?.gameSlug ??
         null,
+      icon: Zap,
     },
-    { key: "sentences", label: t("sentences"), game: top?.gameSlug ?? null },
+    { key: "sentences", label: t("sentences"), game: top?.gameSlug ?? null, icon: Type },
   ];
 
   return (
@@ -64,24 +69,34 @@ export default async function PracticePage({}: {}) {
           description={t("noRecommendations")}
         />
       ) : null}
-      <Card>
+      <Card className="tap-anim-in">
         <CardContent>
           <div className="flex flex-col gap-2">
-            {actions.map((a) =>
-              a.game ? (
+            {actions.map((a, i) => {
+              if (!a.game) return null;
+              const Icon = a.icon;
+              return (
                 <Link
                   key={a.key}
                   href={`/student-dashboard/typing-game/games/${a.game}`}
-                  className="tap-btn tap-btn-secondary tap-btn-sm"
+                  className="tap-btn tap-btn-secondary tap-btn-sm justify-start tap-anim-in"
+                  style={{ "--tap-i": i } as CSSProperties}
                 >
+                  <Icon className="h-4 w-4 text-primary-500" aria-hidden="true" />
                   {a.label}
                 </Link>
-              ) : null,
-            )}
+              );
+            })}
           </div>
         </CardContent>
       </Card>
       {drill ? <PracticeDrillCard locale={locale} drill={drill} /> : null}
+      {recommendations.length > 0 ? (
+        <div className="flex items-center gap-1.5 text-xs text-ink-faint">
+          <Gauge className="h-3.5 w-3.5" aria-hidden="true" />
+          {t("band")}: {summary?.band ?? ""}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -1,0 +1,1244 @@
+/**
+ * Typing Adventure ("tap-*") design system — the visual layer for every
+ * class name the student/admin components already render (Card, Button,
+ * Badge, HUD, map, missions, tables, forms, …). None of this existed before;
+ * the components were shipped against a spec with no CSS behind it, so the
+ * whole feature rendered as unstyled text. Scoped entirely under `.tap-scope`
+ * (mounted once in the typing-game layout) so it never touches the rest of
+ * the portal. Theme switching follows the existing theme-provider contract:
+ * light by default, `html[data-theme="dark"]` flips it.
+ */
+
+.tap-scope {
+  /* ---- Canvas / ambient ---- */
+  --tap-canvas-1: #eef2ff;
+  --tap-canvas-2: #f5f3ff;
+  --tap-canvas-3: #ecfeff;
+  --tap-orb-a: #a5b4fc;
+  --tap-orb-b: #f0abfc;
+  --tap-orb-c: #67e8f9;
+
+  /* ---- Surfaces (glass) ---- */
+  --tap-surface: rgba(255, 255, 255, 0.68);
+  --tap-surface-solid: #ffffff;
+  --tap-surface-strong: rgba(255, 255, 255, 0.85);
+  --tap-surface-hover: rgba(255, 255, 255, 0.85);
+  --tap-border: rgba(15, 23, 42, 0.08);
+  --tap-border-strong: rgba(15, 23, 42, 0.14);
+  --tap-shadow: 0 8px 30px rgba(76, 29, 149, 0.10), 0 1px 2px rgba(15, 23, 42, 0.05);
+  --tap-shadow-lg: 0 20px 50px rgba(76, 29, 149, 0.16), 0 2px 6px rgba(15, 23, 42, 0.06);
+  --tap-blur: blur(16px);
+
+  /* ---- Ink ---- */
+  --tap-ink: #1e1b3a;
+  --tap-ink-muted: #6b6595;
+  --tap-ink-faint: #9992b8;
+  --tap-ink-on-accent: #ffffff;
+
+  /* ---- Accent scale (primary = violet/indigo adventure hue) ---- */
+  --tap-primary-50: #eef2ff;
+  --tap-primary-100: #e0e7ff;
+  --tap-primary-300: #a5b4fc;
+  --tap-primary-500: #6366f1;
+  --tap-primary-600: #4f46e5;
+  --tap-primary-700: #4338ca;
+  --tap-primary-grad: linear-gradient(135deg, #818cf8 0%, #c084fc 55%, #f472b6 100%);
+
+  --tap-success-500: #10b981;
+  --tap-success-grad: linear-gradient(135deg, #34d399, #10b981);
+  --tap-warning-500: #f59e0b;
+  --tap-warning-grad: linear-gradient(135deg, #fbbf24, #f59e0b);
+  --tap-danger-500: #f43f5e;
+  --tap-danger-grad: linear-gradient(135deg, #fb7185, #e11d48);
+  --tap-legendary-grad: linear-gradient(120deg, #f59e0b, #fbbf24, #f472b6, #f59e0b);
+  --tap-neutral-500: #64748b;
+
+  /* Per-game accent (overridden by [data-visual]; see bottom of file) */
+  --tap-accent-from: #818cf8;
+  --tap-accent-to: #c084fc;
+
+  color: var(--tap-ink);
+  position: relative;
+  isolation: isolate;
+}
+
+html[data-theme="dark"] .tap-scope {
+  --tap-canvas-1: #0b0a1f;
+  --tap-canvas-2: #140f2e;
+  --tap-canvas-3: #0c1a2e;
+  --tap-orb-a: #4c3d9e;
+  --tap-orb-b: #7c2d8f;
+  --tap-orb-c: #0e7c8f;
+
+  --tap-surface: rgba(30, 27, 60, 0.55);
+  --tap-surface-solid: #191534;
+  --tap-surface-strong: rgba(35, 31, 68, 0.85);
+  --tap-surface-hover: rgba(45, 40, 84, 0.85);
+  --tap-border: rgba(255, 255, 255, 0.08);
+  --tap-border-strong: rgba(255, 255, 255, 0.16);
+  --tap-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  --tap-shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.5);
+
+  --tap-ink: #f1f0fb;
+  --tap-ink-muted: #b3aed6;
+  --tap-ink-faint: #786fa3;
+}
+
+/* =========================================================================
+   Ambient canvas
+   ========================================================================= */
+
+.tap-scope {
+  background: linear-gradient(160deg, var(--tap-canvas-1), var(--tap-canvas-2) 45%, var(--tap-canvas-3));
+  min-height: 100%;
+}
+
+.tap-ambient {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  z-index: -1;
+}
+
+.tap-ambient span {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(70px);
+  opacity: 0.5;
+  animation: tap-float 18s ease-in-out infinite;
+}
+
+.tap-ambient span:nth-child(1) { top: -8rem; left: -5rem; width: 26rem; height: 26rem; background: var(--tap-orb-a); }
+.tap-ambient span:nth-child(2) { top: 30%; right: -7rem; width: 24rem; height: 24rem; background: var(--tap-orb-b); animation-delay: -6s; }
+.tap-ambient span:nth-child(3) { bottom: -8rem; left: 20%; width: 22rem; height: 22rem; background: var(--tap-orb-c); animation-delay: -12s; }
+
+@keyframes tap-float {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(2rem, -1.5rem) scale(1.08); }
+}
+
+/* =========================================================================
+   Token-backed utility classes referenced directly in JSX
+   ========================================================================= */
+
+.tap-scope {
+  & .bg-canvas { background: transparent; }
+  & .bg-surface { background: var(--tap-surface); }
+  & .border-line { border-color: var(--tap-border); }
+  & .text-ink { color: var(--tap-ink); }
+  & .text-ink-muted { color: var(--tap-ink-muted); }
+  & .text-ink-faint { color: var(--tap-ink-faint); }
+  & .text-primary-500 { color: var(--tap-primary-500); }
+  & .text-primary-600 { color: var(--tap-primary-600); }
+  & .bg-primary-500 { background: var(--tap-primary-500); }
+  & .bg-primary-600 { background: var(--tap-primary-600); }
+  & .border-primary-500 { border-color: var(--tap-primary-500); }
+  & .border-primary-600 { border-color: var(--tap-primary-600); }
+}
+
+/* =========================================================================
+   Buttons
+   ========================================================================= */
+
+.tap-scope .tap-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  font-weight: 600;
+  border-radius: 0.85rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, background-color 0.15s ease, opacity 0.15s ease;
+  text-decoration: none;
+}
+.tap-scope .tap-btn:active { transform: translateY(1px) scale(0.98); }
+.tap-scope .tap-btn:disabled,
+.tap-scope .tap-btn[aria-busy="true"] { opacity: 0.6; cursor: not-allowed; transform: none; }
+.tap-scope .tap-btn:focus-visible { outline: 2px solid var(--tap-primary-500); outline-offset: 2px; }
+
+.tap-scope .tap-btn-sm { padding: 0.4rem 0.75rem; font-size: 0.8125rem; border-radius: 0.65rem; }
+.tap-scope .tap-btn-md { padding: 0.6rem 1.1rem; font-size: 0.9rem; }
+.tap-scope .tap-btn-lg { padding: 0.85rem 1.5rem; font-size: 1rem; border-radius: 1rem; }
+
+.tap-scope .tap-btn-primary {
+  background: var(--tap-primary-grad);
+  color: #fff;
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.35);
+}
+.tap-scope .tap-btn-primary:not(:disabled):hover { filter: brightness(1.08); box-shadow: 0 10px 26px rgba(99, 102, 241, 0.45); transform: translateY(-1px); }
+
+.tap-scope .tap-btn-secondary {
+  background: var(--tap-surface);
+  backdrop-filter: var(--tap-blur);
+  -webkit-backdrop-filter: var(--tap-blur);
+  border-color: var(--tap-border-strong);
+  color: var(--tap-ink);
+}
+.tap-scope .tap-btn-secondary:not(:disabled):hover { background: var(--tap-surface-hover); border-color: var(--tap-primary-300); }
+
+.tap-scope .tap-btn-ghost {
+  background: transparent;
+  color: var(--tap-ink-muted);
+}
+.tap-scope .tap-btn-ghost:not(:disabled):hover { background: var(--tap-surface); color: var(--tap-ink); }
+
+.tap-scope .tap-btn-danger {
+  background: var(--tap-danger-grad);
+  color: #fff;
+  box-shadow: 0 6px 20px rgba(244, 63, 94, 0.35);
+}
+.tap-scope .tap-btn-danger:not(:disabled):hover { filter: brightness(1.08); transform: translateY(-1px); }
+
+.tap-scope .tap-link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--tap-primary-600);
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.tap-scope .tap-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 0.75rem;
+  background: var(--tap-surface);
+  border: 1px solid var(--tap-border);
+  color: var(--tap-ink);
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+.tap-scope .tap-icon-btn:hover { background: var(--tap-surface-hover); transform: translateY(-1px); }
+.tap-scope .tap-icon-btn-ghost { background: transparent; border-color: transparent; }
+
+.tap-scope .tap-spinner {
+  width: 1em; height: 1em;
+  border-radius: 9999px;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-top-color: #fff;
+  animation: tap-spin 0.7s linear infinite;
+}
+.tap-scope .tap-spinner-lg { width: 2rem; height: 2rem; border-color: var(--tap-border-strong); border-top-color: var(--tap-primary-500); }
+@keyframes tap-spin { to { transform: rotate(360deg); } }
+
+/* =========================================================================
+   Cards
+   ========================================================================= */
+
+.tap-scope .tap-card {
+  background: var(--tap-surface);
+  backdrop-filter: var(--tap-blur);
+  -webkit-backdrop-filter: var(--tap-blur);
+  border: 1px solid var(--tap-border);
+  border-radius: 1.25rem;
+  box-shadow: var(--tap-shadow);
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.tap-scope .tap-card-interactive { cursor: pointer; }
+.tap-scope .tap-card-interactive:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--tap-shadow-lg);
+  border-color: var(--tap-primary-300);
+}
+.tap-scope .tap-card-head { padding: 1.1rem 1.25rem 0; }
+.tap-scope .tap-card-title { font-size: 1.05rem; font-weight: 800; color: var(--tap-ink); }
+.tap-scope .tap-card-desc { margin-top: 0.25rem; font-size: 0.875rem; color: var(--tap-ink-muted); }
+.tap-scope .tap-card-body { padding: 1.25rem; }
+.tap-scope .tap-card-foot { padding: 1rem 1.25rem 1.25rem; display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+/* =========================================================================
+   Badges
+   ========================================================================= */
+
+.tap-scope .tap-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 9999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.tap-scope .tap-badge-neutral { background: var(--tap-surface); color: var(--tap-ink-muted); border: 1px solid var(--tap-border); }
+.tap-scope .tap-badge-primary { background: rgba(99, 102, 241, 0.14); color: var(--tap-primary-600); }
+.tap-scope .tap-badge-success { background: rgba(16, 185, 129, 0.14); color: #047857; }
+.tap-scope .tap-badge-warning { background: rgba(245, 158, 11, 0.16); color: #b45309; }
+.tap-scope .tap-badge-danger { background: rgba(244, 63, 94, 0.14); color: #be123c; }
+html[data-theme="dark"] .tap-scope .tap-badge-success { color: #6ee7b7; }
+html[data-theme="dark"] .tap-scope .tap-badge-warning { color: #fcd34d; }
+html[data-theme="dark"] .tap-scope .tap-badge-danger { color: #fda4af; }
+
+.tap-scope .tap-badge-legendary {
+  color: #fff;
+  background: var(--tap-legendary-grad);
+  background-size: 300% 100%;
+  animation: tap-shimmer 3s linear infinite;
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4);
+}
+@keyframes tap-shimmer { to { background-position: 300% 0; } }
+
+/* =========================================================================
+   Alerts
+   ========================================================================= */
+
+.tap-scope .tap-alert {
+  border-radius: 1rem;
+  padding: 0.9rem 1.1rem;
+  border: 1px solid var(--tap-border);
+  background: var(--tap-surface);
+  backdrop-filter: var(--tap-blur);
+}
+.tap-scope .tap-alert-title { font-weight: 700; margin-bottom: 0.2rem; }
+.tap-scope .tap-alert-body { font-size: 0.875rem; color: var(--tap-ink-muted); }
+.tap-scope .tap-alert-info { border-color: rgba(99, 102, 241, 0.35); }
+.tap-scope .tap-alert-info .tap-alert-title { color: var(--tap-primary-600); }
+.tap-scope .tap-alert-success { border-color: rgba(16, 185, 129, 0.35); }
+.tap-scope .tap-alert-success .tap-alert-title { color: #047857; }
+.tap-scope .tap-alert-warning { border-color: rgba(245, 158, 11, 0.4); }
+.tap-scope .tap-alert-warning .tap-alert-title { color: #b45309; }
+.tap-scope .tap-alert-danger { border-color: rgba(244, 63, 94, 0.4); }
+.tap-scope .tap-alert-danger .tap-alert-title { color: #be123c; }
+
+/* =========================================================================
+   Stats / progress / XP
+   ========================================================================= */
+
+.tap-scope .tap-stat {
+  background: var(--tap-surface);
+  backdrop-filter: var(--tap-blur);
+  border: 1px solid var(--tap-border);
+  border-radius: 1.1rem;
+  padding: 1rem 1.1rem;
+  box-shadow: var(--tap-shadow);
+}
+.tap-scope .tap-stat-top { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.tap-scope .tap-stat-label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--tap-ink-muted); }
+.tap-scope .tap-stat-icon { color: var(--tap-primary-500); }
+.tap-scope .tap-stat-value { margin-top: 0.3rem; font-size: 1.7rem; font-weight: 800; background: var(--tap-primary-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.tap-scope .tap-stat-hint { margin-top: 0.15rem; font-size: 0.78rem; color: var(--tap-ink-faint); }
+
+.tap-scope .tap-progress-track {
+  height: 0.6rem;
+  border-radius: 9999px;
+  background: var(--tap-border-strong);
+  overflow: hidden;
+}
+.tap-scope .tap-progress-fill {
+  height: 100%;
+  border-radius: 9999px;
+  background: var(--tap-primary-grad);
+  transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.tap-scope .tap-ring circle { fill: none; stroke-width: 5; }
+.tap-scope .tap-ring-track { stroke: var(--tap-border-strong); }
+.tap-scope .tap-ring-fill { stroke: url(#tap-ring-gradient, var(--tap-primary-500)); stroke: var(--tap-primary-500); transition: stroke-dasharray 0.5s ease; }
+
+.tap-scope .tap-xp { display: flex; align-items: center; gap: 0.75rem; }
+.tap-scope .tap-xp-level {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 2.75rem; height: 2.75rem; border-radius: 9999px;
+  background: var(--tap-primary-grad); color: #fff; font-weight: 800; font-size: 1rem;
+  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.35); flex-shrink: 0;
+}
+.tap-scope .tap-xp-body { flex: 1; }
+
+/* =========================================================================
+   Page / section headers, breadcrumbs
+   ========================================================================= */
+
+.tap-scope .tap-page-head { display: flex; flex-direction: column; gap: 0.6rem; }
+.tap-scope .tap-page-head-row { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 0.75rem; }
+.tap-scope .tap-page-title { font-size: 1.6rem; font-weight: 800; color: var(--tap-ink); line-height: 1.2; }
+.tap-scope .tap-page-desc { margin-top: 0.15rem; color: var(--tap-ink-muted); font-size: 0.925rem; }
+.tap-scope .tap-page-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+.tap-scope .tap-section-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.75rem; }
+.tap-scope .tap-section-title { font-size: 1.1rem; font-weight: 800; color: var(--tap-ink); }
+.tap-scope .tap-section-desc { font-size: 0.85rem; color: var(--tap-ink-muted); }
+.tap-scope .tap-section-actions { display: flex; gap: 0.5rem; }
+
+.tap-scope .tap-crumbs ol { display: flex; align-items: center; gap: 0.35rem; list-style: none; padding: 0; margin: 0; font-size: 0.8rem; }
+.tap-scope .tap-crumb-link { color: var(--tap-ink-muted); text-decoration: none; }
+.tap-scope .tap-crumb-link:hover { color: var(--tap-primary-600); }
+.tap-scope .tap-crumb-current { color: var(--tap-ink); font-weight: 700; }
+.tap-scope .tap-crumb-sep { color: var(--tap-ink-faint); }
+
+/* =========================================================================
+   Empty / error / loading / skeleton
+   ========================================================================= */
+
+.tap-scope .tap-state {
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  gap: 0.5rem; padding: 3rem 1.5rem;
+  background: var(--tap-surface);
+  border: 1px dashed var(--tap-border-strong);
+  border-radius: 1.25rem;
+}
+.tap-scope .tap-state-icon { font-size: 2.5rem; color: var(--tap-primary-500); }
+.tap-scope .tap-state-title { font-size: 1.15rem; font-weight: 800; color: var(--tap-ink); }
+.tap-scope .tap-state-desc { color: var(--tap-ink-muted); max-width: 32rem; }
+
+.tap-scope .tap-skeleton-stack { display: flex; flex-direction: column; gap: 0.5rem; width: 100%; }
+.tap-scope .tap-skeleton {
+  height: 1rem; border-radius: 0.5rem;
+  background: linear-gradient(90deg, var(--tap-border) 25%, var(--tap-border-strong) 50%, var(--tap-border) 75%);
+  background-size: 200% 100%;
+  animation: tap-skeleton-sweep 1.4s ease-in-out infinite;
+}
+@keyframes tap-skeleton-sweep { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+.tap-scope .tap-sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+}
+
+/* =========================================================================
+   Adventure map / worlds
+   ========================================================================= */
+
+.tap-scope .tap-map { position: relative; min-height: 22rem; padding: 2rem 1rem; }
+.tap-scope .tap-map-path {
+  position: absolute; inset: 2rem 1.5rem;
+  border-radius: 2rem;
+  background:
+    repeating-linear-gradient(120deg, transparent 0 18px, var(--tap-border-strong) 18px 20px);
+  opacity: 0.6;
+}
+.tap-scope .tap-map-nodes {
+  /* Callers (e.g. the adventure map page) supply their own responsive grid
+     for the world tiles; this is just a full-width passthrough wrapper so
+     that grid isn't squeezed into a single auto-fill track. */
+  position: relative;
+  width: 100%;
+}
+
+.tap-scope .tap-world {
+  background: var(--tap-surface);
+  backdrop-filter: var(--tap-blur);
+  border: 1px solid var(--tap-border);
+  border-radius: 1.25rem;
+  overflow: hidden;
+  box-shadow: var(--tap-shadow);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  border-top: 3px solid var(--tap-accent-from);
+}
+.tap-scope .tap-world:hover { transform: translateY(-4px); box-shadow: var(--tap-shadow-lg); }
+.tap-scope .tap-world-art {
+  height: 5.5rem;
+  background: linear-gradient(135deg, var(--tap-accent-from), var(--tap-accent-to));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 2rem;
+}
+.tap-scope .tap-world-body { padding: 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.tap-scope .tap-world-top { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.tap-scope .tap-world-title { font-weight: 800; color: var(--tap-ink); }
+.tap-scope .tap-world-desc { font-size: 0.82rem; color: var(--tap-ink-muted); }
+
+/* =========================================================================
+   Missions
+   ========================================================================= */
+
+.tap-scope .tap-mission {
+  background: var(--tap-surface);
+  backdrop-filter: var(--tap-blur);
+  border: 1px solid var(--tap-border);
+  border-radius: 1.1rem;
+  padding: 1rem 1.1rem;
+  display: flex; flex-direction: column; gap: 0.5rem;
+  box-shadow: var(--tap-shadow);
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+.tap-scope .tap-mission:hover { transform: translateY(-2px); border-color: var(--tap-primary-300); }
+.tap-scope .tap-mission-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.5rem; }
+.tap-scope .tap-mission-title { font-weight: 700; color: var(--tap-ink); }
+.tap-scope .tap-mission-desc { font-size: 0.82rem; color: var(--tap-ink-muted); }
+.tap-scope .tap-mission-reward { font-size: 0.8rem; font-weight: 700; color: var(--tap-warning-500); }
+.tap-scope .tap-mission-done {
+  opacity: 0.75;
+  border-color: rgba(16, 185, 129, 0.4);
+  background: linear-gradient(0deg, rgba(16, 185, 129, 0.08), rgba(16, 185, 129, 0.08)), var(--tap-surface);
+}
+
+/* =========================================================================
+   Locked game card
+   ========================================================================= */
+
+.tap-scope .tap-locked {
+  position: relative;
+  background: var(--tap-surface);
+  border: 1px solid var(--tap-border);
+  border-radius: 1.25rem;
+  overflow: hidden;
+  box-shadow: var(--tap-shadow);
+}
+.tap-scope .tap-locked-preview { position: relative; height: 8rem; filter: grayscale(0.6) blur(1px); }
+.tap-scope .tap-locked-veil {
+  position: absolute; inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex; align-items: center; justify-content: center;
+}
+.tap-scope .tap-locked-veil::after { content: "🔒"; font-size: 1.75rem; }
+.tap-scope .tap-locked-body { padding: 1.1rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.tap-scope .tap-locked-title { font-weight: 800; color: var(--tap-ink-muted); }
+.tap-scope .tap-locked-why { font-size: 0.8rem; color: var(--tap-ink-faint); padding-left: 1.1rem; list-style: disc; }
+.tap-scope .tap-locked-xp { font-size: 0.8rem; font-weight: 700; color: var(--tap-primary-600); }
+
+/* =========================================================================
+   Rewards / shop
+   ========================================================================= */
+
+.tap-scope .tap-reward {
+  background: var(--tap-surface);
+  border: 1px solid var(--tap-border);
+  border-radius: 1.1rem;
+  padding: 1.1rem;
+  text-align: center;
+  box-shadow: var(--tap-shadow);
+}
+.tap-scope .tap-reward-art { font-size: 2.25rem; margin-bottom: 0.4rem; }
+.tap-scope .tap-reward-title { font-weight: 800; }
+.tap-scope .tap-reward-desc { font-size: 0.8rem; color: var(--tap-ink-muted); }
+.tap-scope .tap-reward-amount { font-weight: 800; color: var(--tap-warning-500); margin: 0.35rem 0; }
+.tap-scope .tap-reward-claimed { opacity: 0.6; }
+
+.tap-scope .tap-shop-glyph {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 3rem; height: 3rem; border-radius: 1rem; font-size: 1.5rem;
+  background: linear-gradient(135deg, var(--tap-accent-from), var(--tap-accent-to));
+}
+
+/* =========================================================================
+   Achievement badges
+   ========================================================================= */
+
+.tap-scope .tap-achievement { display: flex; flex-direction: column; align-items: center; gap: 0.35rem; width: 5.5rem; }
+.tap-scope .tap-achievement-icon {
+  width: 3.5rem; height: 3.5rem; border-radius: 9999px;
+  display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: #fff;
+  background: var(--tap-primary-grad); box-shadow: 0 6px 16px rgba(99, 102, 241, 0.35);
+}
+.tap-scope .tap-achievement-name { font-size: 0.72rem; text-align: center; color: var(--tap-ink-muted); font-weight: 600; }
+.tap-scope .tap-achievement-success .tap-achievement-icon { background: var(--tap-success-grad); }
+.tap-scope .tap-achievement-warning .tap-achievement-icon { background: var(--tap-warning-grad); }
+.tap-scope .tap-achievement-danger .tap-achievement-icon { background: var(--tap-danger-grad); }
+.tap-scope .tap-achievement-legendary .tap-achievement-icon { background: var(--tap-legendary-grad); background-size: 300% 100%; animation: tap-shimmer 3s linear infinite; }
+.tap-scope .tap-achievement-locked .tap-achievement-icon { background: var(--tap-border-strong); color: var(--tap-ink-faint); filter: grayscale(1); box-shadow: none; }
+.tap-scope .tap-achievement-locked .tap-achievement-name { color: var(--tap-ink-faint); }
+
+/* =========================================================================
+   Game HUD + live typing stage
+   ========================================================================= */
+
+.tap-scope .tap-hud {
+  background: var(--tap-surface-strong);
+  backdrop-filter: var(--tap-blur);
+  border: 1px solid var(--tap-border);
+  border-radius: 1.5rem;
+  box-shadow: var(--tap-shadow-lg);
+  overflow: hidden;
+}
+.tap-scope .tap-hud-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem;
+  padding: 0.85rem 1.25rem;
+  background: linear-gradient(90deg, var(--tap-accent-from), var(--tap-accent-to));
+  color: #fff;
+}
+.tap-scope .tap-hud-metric {
+  font-weight: 800; font-variant-numeric: tabular-nums;
+  background: rgba(255, 255, 255, 0.18);
+  padding: 0.3rem 0.7rem; border-radius: 9999px; font-size: 0.85rem;
+}
+.tap-scope .tap-hud-actions { display: flex; gap: 0.4rem; margin-left: auto; }
+.tap-scope .tap-hud-actions .tap-btn-secondary { background: rgba(255, 255, 255, 0.22); border-color: rgba(255, 255, 255, 0.35); color: #fff; }
+.tap-scope .tap-hud-actions .tap-btn-secondary:hover { background: rgba(255, 255, 255, 0.32); }
+.tap-scope .tap-hud-actions .tap-btn-ghost { color: rgba(255, 255, 255, 0.85); }
+.tap-scope .tap-hud-stage { padding: 1.75rem 1.25rem; display: flex; justify-content: center; }
+
+.tap-scope .tap-preview {
+  position: relative;
+  width: 100%;
+  max-width: 44rem;
+  border-radius: 1.1rem;
+  background: var(--tap-surface);
+  border: 1px solid var(--tap-border);
+  padding: 1.75rem 0;
+  display: flex; align-items: center; justify-content: center;
+  cursor: text;
+  overflow: hidden;
+}
+.tap-scope .tap-preview-text { position: relative; z-index: 1; }
+.tap-scope .tap-preview-overlay {
+  position: absolute; inset: 0;
+  z-index: 2;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(15, 15, 35, 0.35);
+  backdrop-filter: blur(2px);
+  border-radius: inherit;
+}
+
+.tap-scope .tap-char-todo { color: var(--tap-ink-faint); }
+.tap-scope .tap-char-ok { color: var(--tap-success-500); }
+.tap-scope .tap-char-bad {
+  color: var(--tap-danger-500);
+  background: rgba(244, 63, 94, 0.14);
+  border-radius: 0.2em;
+  animation: tap-shake 0.2s ease;
+}
+.tap-scope .tap-char-current {
+  color: var(--tap-ink);
+  border-bottom: 2px solid var(--tap-primary-500);
+  animation: tap-caret 1s step-end infinite;
+}
+@keyframes tap-caret { 50% { border-color: transparent; } }
+@keyframes tap-shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-2px); } 75% { transform: translateX(2px); } }
+
+.tap-scope .tap-kbd {
+  display: inline-block; padding: 0.15rem 0.5rem; border-radius: 0.4rem;
+  background: var(--tap-surface-solid); border: 1px solid var(--tap-border-strong);
+  box-shadow: 0 2px 0 var(--tap-border-strong);
+  font-family: ui-monospace, monospace; font-size: 0.8rem;
+}
+
+/* =========================================================================
+   Tabs
+   ========================================================================= */
+
+.tap-scope .tap-tablist { display: flex; gap: 0.3rem; padding: 0.3rem; background: var(--tap-surface); border-radius: 1rem; width: fit-content; }
+.tap-scope .tap-tab {
+  padding: 0.5rem 1rem; border-radius: 0.75rem; font-weight: 700; font-size: 0.85rem;
+  color: var(--tap-ink-muted); background: transparent; border: none; cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.tap-scope .tap-tab:hover { color: var(--tap-ink); }
+.tap-scope .tap-tab-active { background: var(--tap-primary-grad); color: #fff; }
+.tap-scope .tap-tabpanel { padding-top: 1rem; }
+
+/* =========================================================================
+   Overlays: modal / dialog / drawer / dropdown / toast / tooltip
+   ========================================================================= */
+
+.tap-scope .tap-scrim {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(15, 15, 35, 0.5);
+  backdrop-filter: blur(2px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 1rem;
+}
+.tap-scope .tap-modal, .tap-scope .tap-dialog {
+  background: var(--tap-surface-strong);
+  backdrop-filter: var(--tap-blur);
+  border: 1px solid var(--tap-border);
+  border-radius: 1.25rem;
+  box-shadow: var(--tap-shadow-lg);
+  padding: 1.5rem;
+  width: 100%;
+  max-width: 28rem;
+  color: var(--tap-ink);
+}
+.tap-scope dialog.tap-dialog { position: fixed; margin: auto; }
+.tap-scope dialog.tap-dialog::backdrop { background: rgba(15, 15, 35, 0.5); backdrop-filter: blur(2px); }
+.tap-scope .tap-modal-title, .tap-scope .tap-dialog-title { font-size: 1.1rem; font-weight: 800; }
+.tap-scope .tap-modal-body, .tap-scope .tap-dialog-body { margin-top: 0.5rem; color: var(--tap-ink-muted); font-size: 0.9rem; }
+.tap-scope .tap-modal-actions { margin-top: 1.25rem; display: flex; justify-content: flex-end; gap: 0.5rem; }
+
+.tap-scope .tap-drawer {
+  position: fixed; top: 0; bottom: 0; right: 0; z-index: 51;
+  width: min(24rem, 100%);
+  background: var(--tap-surface-strong);
+  backdrop-filter: var(--tap-blur);
+  border-left: 1px solid var(--tap-border);
+  box-shadow: var(--tap-shadow-lg);
+  padding: 1.5rem;
+  overflow-y: auto;
+  animation: tap-slide-in-right 0.2s ease;
+}
+.tap-scope .tap-drawer-left { left: 0; right: auto; border-left: none; border-right: 1px solid var(--tap-border); animation: tap-slide-in-left 0.2s ease; }
+.tap-scope .tap-drawer-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+.tap-scope .tap-drawer-title { font-weight: 800; font-size: 1.05rem; }
+@keyframes tap-slide-in-right { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes tap-slide-in-left { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+
+.tap-scope .tap-dropdown { position: relative; display: inline-block; }
+.tap-scope .tap-menu {
+  position: absolute; top: calc(100% + 0.4rem); left: 0; z-index: 30;
+  min-width: 12rem; padding: 0.35rem;
+  background: var(--tap-surface-strong);
+  backdrop-filter: var(--tap-blur);
+  border: 1px solid var(--tap-border);
+  border-radius: 0.9rem;
+  box-shadow: var(--tap-shadow-lg);
+  list-style: none; margin: 0;
+}
+.tap-scope .tap-menu-item {
+  width: 100%; text-align: left; padding: 0.5rem 0.65rem; border-radius: 0.6rem;
+  background: none; border: none; font-size: 0.85rem; color: var(--tap-ink); cursor: pointer;
+}
+.tap-scope .tap-menu-active { background: var(--tap-surface-hover); }
+
+.tap-scope .tap-toasts {
+  position: fixed; bottom: 1.25rem; right: 1.25rem; z-index: 60;
+  display: flex; flex-direction: column; gap: 0.5rem; width: min(22rem, calc(100vw - 2rem));
+}
+.tap-scope .tap-toast {
+  position: relative;
+  background: var(--tap-surface-strong);
+  backdrop-filter: var(--tap-blur);
+  border: 1px solid var(--tap-border);
+  border-left: 4px solid var(--tap-primary-500);
+  border-radius: 0.9rem;
+  padding: 0.75rem 2rem 0.75rem 0.9rem;
+  box-shadow: var(--tap-shadow-lg);
+  font-size: 0.85rem;
+  animation: tap-toast-in 0.2s ease;
+}
+.tap-scope .tap-toast-title { font-weight: 700; margin-bottom: 0.1rem; }
+.tap-scope .tap-toast-success { border-left-color: var(--tap-success-500); }
+.tap-scope .tap-toast-warning { border-left-color: var(--tap-warning-500); }
+.tap-scope .tap-toast-danger { border-left-color: var(--tap-danger-500); }
+.tap-scope .tap-toast .tap-link-btn { position: absolute; top: 0.5rem; right: 0.65rem; font-size: 1rem; text-decoration: none; color: var(--tap-ink-faint); }
+@keyframes tap-toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+.tap-scope .tap-tip { position: relative; display: inline-flex; }
+.tap-scope .tap-tip-bubble {
+  position: absolute; bottom: calc(100% + 0.4rem); left: 50%; transform: translateX(-50%) scale(0.9);
+  background: var(--tap-ink); color: var(--tap-surface-solid);
+  font-size: 0.72rem; padding: 0.3rem 0.55rem; border-radius: 0.5rem;
+  white-space: nowrap; opacity: 0; pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.tap-scope .tap-tip:hover .tap-tip-bubble,
+.tap-scope .tap-tip:focus-within .tap-tip-bubble { opacity: 1; transform: translateX(-50%) scale(1); }
+.tap-scope .tap-tip-bottom .tap-tip-bubble { bottom: auto; top: calc(100% + 0.4rem); }
+
+/* =========================================================================
+   Forms
+   ========================================================================= */
+
+.tap-scope .tap-field { display: flex; flex-direction: column; gap: 0.35rem; }
+.tap-scope .tap-label { font-size: 0.8rem; font-weight: 700; color: var(--tap-ink-muted); }
+.tap-scope .tap-input-wrap {
+  display: flex; align-items: center; gap: 0.4rem;
+  background: var(--tap-surface-solid);
+  border: 1px solid var(--tap-border-strong);
+  border-radius: 0.75rem;
+  padding: 0 0.75rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.tap-scope .tap-input-wrap:focus-within { border-color: var(--tap-primary-500); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15); }
+.tap-scope .tap-input-invalid { border-color: var(--tap-danger-500); }
+.tap-scope .tap-input {
+  flex: 1; border: none; background: none; outline: none;
+  padding: 0.6rem 0; font-size: 0.9rem; color: var(--tap-ink);
+}
+.tap-scope select.tap-select { padding: 0.6rem 0; }
+.tap-scope .tap-hint { font-size: 0.75rem; color: var(--tap-ink-faint); }
+.tap-scope .tap-error-text { font-size: 0.75rem; color: var(--tap-danger-500); font-weight: 600; }
+
+.tap-scope .tap-check { display: flex; align-items: flex-start; gap: 0.6rem; cursor: pointer; }
+.tap-scope .tap-check-box, .tap-scope .tap-radio-dot { width: 1.2rem; height: 1.2rem; accent-color: var(--tap-primary-500); margin-top: 0.1rem; }
+.tap-scope .tap-check-body { display: flex; flex-direction: column; }
+.tap-scope .tap-check-label { font-size: 0.875rem; color: var(--tap-ink); font-weight: 600; }
+
+.tap-scope .tap-switch {
+  position: relative; width: 2.75rem; height: 1.5rem; border-radius: 9999px;
+  background: var(--tap-border-strong); border: none; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 0.5rem; padding: 0;
+}
+.tap-scope .tap-switch-on { background: var(--tap-primary-grad); }
+.tap-scope .tap-switch-thumb {
+  position: absolute; top: 0.15rem; left: 0.15rem;
+  width: 1.2rem; height: 1.2rem; border-radius: 9999px; background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  transition: transform 0.18s ease;
+}
+.tap-scope .tap-switch-on .tap-switch-thumb { transform: translateX(1.25rem); }
+.tap-scope .tap-switch-label { font-size: 0.85rem; margin-left: 3.2rem; }
+
+/* =========================================================================
+   Avatar
+   ========================================================================= */
+
+.tap-scope .tap-avatar {
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 9999px; overflow: hidden;
+  background: var(--tap-primary-grad); color: #fff; font-weight: 800;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+.tap-scope .tap-avatar-sm { width: 2rem; height: 2rem; font-size: 0.7rem; }
+.tap-scope .tap-avatar-md { width: 2.75rem; height: 2.75rem; font-size: 0.9rem; }
+.tap-scope .tap-avatar-lg { width: 4rem; height: 4rem; font-size: 1.3rem; }
+.tap-scope .tap-avatar-img { width: 100%; height: 100%; object-fit: cover; }
+
+/* =========================================================================
+   Tables / leaderboards / brackets
+   ========================================================================= */
+
+.tap-scope .tap-table {
+  width: 100%; border-collapse: separate; border-spacing: 0 0.4rem;
+  font-size: 0.875rem;
+}
+.tap-scope .tap-table th { text-align: left; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--tap-ink-faint); padding: 0 0.9rem 0.35rem; }
+.tap-scope .tap-table td { background: var(--tap-surface); padding: 0.7rem 0.9rem; }
+.tap-scope .tap-table tr td:first-child { border-top-left-radius: 0.75rem; border-bottom-left-radius: 0.75rem; }
+.tap-scope .tap-table tr td:last-child { border-top-right-radius: 0.75rem; border-bottom-right-radius: 0.75rem; }
+.tap-scope .tap-row-top td { background: linear-gradient(90deg, rgba(245, 158, 11, 0.16), var(--tap-surface)); font-weight: 700; }
+.tap-scope .tap-row-me td, .tap-scope .tap-row-mine td { outline: 2px solid var(--tap-primary-500); outline-offset: -2px; font-weight: 700; }
+
+.tap-scope .tap-bracket { display: flex; gap: 1.5rem; overflow-x: auto; padding-bottom: 0.5rem; }
+.tap-scope .tap-bracket-round { display: flex; flex-direction: column; justify-content: space-around; gap: 0.75rem; min-width: 14rem; }
+.tap-scope .tap-match-card-mine { border: 2px solid var(--tap-primary-500) !important; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18); }
+
+/* =========================================================================
+   Per-game accent palette — theme.visual → gradient
+   ========================================================================= */
+
+.tap-scope [data-visual="village"], .tap-scope [data-visual="harbor"] { --tap-accent-from: #34d399; --tap-accent-to: #06b6d4; }
+.tap-scope [data-visual="forge"] { --tap-accent-from: #fb923c; --tap-accent-to: #ef4444; }
+.tap-scope [data-visual="rain"] { --tap-accent-from: #38bdf8; --tap-accent-to: #6366f1; }
+.tap-scope [data-visual="meadow"] { --tap-accent-from: #a3e635; --tap-accent-to: #22c55e; }
+.tap-scope [data-visual="maze"] { --tap-accent-from: #a855f7; --tap-accent-to: #d946ef; }
+.tap-scope [data-visual="city"] { --tap-accent-from: #64748b; --tap-accent-to: #3b82f6; }
+.tap-scope [data-visual="track"] { --tap-accent-from: #fbbf24; --tap-accent-to: #f97316; }
+.tap-scope [data-visual="dojo"] { --tap-accent-from: #ef4444; --tap-accent-to: #be123c; }
+.tap-scope [data-visual="kingdom"] { --tap-accent-from: #8b5cf6; --tap-accent-to: #7c3aed; }
+.tap-scope [data-visual="river"] { --tap-accent-from: #22d3ee; --tap-accent-to: #0d9488; }
+.tap-scope [data-visual="arena"] { --tap-accent-from: #f97316; --tap-accent-to: #fbbf24; }
+.tap-scope [data-visual="grand-arena"] { --tap-accent-from: #facc15; --tap-accent-to: #b91c1c; }
+.tap-scope [data-visual="tunnel"] { --tap-accent-from: #6366f1; --tap-accent-to: #a855f7; }
+.tap-scope [data-visual="temple"] { --tap-accent-from: #eab308; --tap-accent-to: #f59e0b; }
+.tap-scope [data-visual="canyon"] { --tap-accent-from: #f97316; --tap-accent-to: #dc2626; }
+.tap-scope [data-visual="bridge"] { --tap-accent-from: #a8a29e; --tap-accent-to: #d97706; }
+.tap-scope [data-visual="jungle"] { --tap-accent-from: #22c55e; --tap-accent-to: #15803d; }
+.tap-scope [data-visual="sky"] { --tap-accent-from: #38bdf8; --tap-accent-to: #2563eb; }
+.tap-scope [data-visual="space"] { --tap-accent-from: #4338ca; --tap-accent-to: #7c3aed; }
+.tap-scope [data-visual="neon"] { --tap-accent-from: #e879f9; --tap-accent-to: #22d3ee; }
+.tap-scope [data-visual="grid"] { --tap-accent-from: #06b6d4; --tap-accent-to: #3b82f6; }
+.tap-scope [data-visual="forest"] { --tap-accent-from: #10b981; --tap-accent-to: #166534; }
+.tap-scope [data-visual="desert"] { --tap-accent-from: #f59e0b; --tap-accent-to: #ea580c; }
+.tap-scope [data-visual="ocean"] { --tap-accent-from: #0ea5e9; --tap-accent-to: #0891b2; }
+.tap-scope [data-visual="arctic"] { --tap-accent-from: #67e8f9; --tap-accent-to: #38bdf8; }
+.tap-scope [data-visual="vault"] { --tap-accent-from: #8b5cf6; --tap-accent-to: #e879f9; }
+.tap-scope [data-visual="castle"] { --tap-accent-from: #64748b; --tap-accent-to: #1e293b; }
+
+/* =========================================================================
+   Front-door presentation extras (adventure map / games hub / dashboard)
+   ========================================================================= */
+
+@keyframes tap-fade-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.tap-scope .tap-anim-in {
+  animation: tap-fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--tap-i, 0) * 70ms);
+}
+
+.tap-scope .tap-world-locked { opacity: 0.55; filter: grayscale(0.5); }
+.tap-scope .tap-world-locked:hover { transform: none; box-shadow: var(--tap-shadow); }
+.tap-scope .tap-world-complete {
+  border-top-color: var(--tap-success-500);
+  box-shadow: var(--tap-shadow), 0 0 0 1px rgba(16, 185, 129, 0.25);
+}
+.tap-scope .tap-world-icon {
+  display: inline-flex; color: #fff;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.25));
+}
+
+.tap-scope .tap-card-recommended {
+  border-color: var(--tap-primary-300) !important;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.22), var(--tap-shadow-lg);
+}
+
+.tap-scope .tap-game-glyph {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 2.75rem; height: 2.75rem; border-radius: 0.9rem; flex-shrink: 0;
+  background: linear-gradient(135deg, var(--tap-accent-from), var(--tap-accent-to));
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.18);
+}
+.tap-scope .tap-game-glyph-sm { width: 2.1rem; height: 2.1rem; border-radius: 0.65rem; }
+
+.tap-scope .tap-chip {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  padding: 0.25rem 0.65rem; border-radius: 9999px;
+  font-size: 0.72rem; font-weight: 700; white-space: nowrap;
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.tap-scope .tap-hero-banner {
+  position: relative;
+  border-radius: 1.5rem;
+  overflow: hidden;
+  padding: 1.75rem 1.5rem;
+  color: #fff;
+  background: linear-gradient(135deg, var(--tap-accent-from), var(--tap-accent-to));
+  box-shadow: var(--tap-shadow-lg);
+}
+.tap-scope .tap-hero-banner::before {
+  content: "";
+  position: absolute; inset: 0;
+  background: radial-gradient(circle at 88% -20%, rgba(255, 255, 255, 0.38), transparent 55%);
+  pointer-events: none;
+}
+.tap-scope .tap-hero-banner-locked { filter: grayscale(0.35); }
+.tap-scope .tap-hero-eyebrow {
+  position: relative; display: flex; align-items: center; gap: 0.4rem;
+  font-size: 0.75rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.85);
+}
+.tap-scope .tap-hero-title { position: relative; margin-top: 0.3rem; font-size: 1.6rem; font-weight: 800; }
+.tap-scope .tap-hero-desc {
+  position: relative; margin-top: 0.4rem; max-width: 40rem;
+  color: rgba(255, 255, 255, 0.92); font-size: 0.9rem;
+}
+.tap-scope .tap-hero-meta { position: relative; margin-top: 1rem; display: flex; flex-wrap: wrap; gap: 0.4rem; }
+
+.tap-scope .tap-play-cta {
+  box-shadow: 0 10px 30px rgba(99, 102, 241, 0.45), 0 0 0 4px rgba(255, 255, 255, 0.14);
+  animation: tap-pulse-glow 2.6s ease-in-out infinite;
+}
+@keyframes tap-pulse-glow {
+  0%, 100% { box-shadow: 0 10px 30px rgba(99, 102, 241, 0.45), 0 0 0 4px rgba(255, 255, 255, 0.12); }
+  50% { box-shadow: 0 14px 38px rgba(99, 102, 241, 0.6), 0 0 0 7px rgba(255, 255, 255, 0.2); }
+}
+
+.tap-scope .tap-welcome-banner {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.25rem;
+  padding: 1.25rem 1.4rem;
+  color: #fff;
+  background: var(--tap-legendary-grad);
+  background-size: 300% 100%;
+  animation: tap-shimmer 8s linear infinite;
+  box-shadow: var(--tap-shadow-lg);
+}
+.tap-scope .tap-welcome-banner::before {
+  content: "";
+  position: absolute; inset: 0;
+  background: radial-gradient(circle at 92% 0%, rgba(255, 255, 255, 0.4), transparent 55%);
+  pointer-events: none;
+}
+.tap-scope .tap-welcome-banner .tap-alert-title { position: relative; color: #fff; font-size: 1.05rem; }
+.tap-scope .tap-welcome-banner .tap-alert-body { position: relative; color: rgba(255, 255, 255, 0.95); }
+
+.tap-scope .tap-recommend-banner {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.25rem;
+  padding: 1.1rem 1.3rem;
+  color: #fff;
+  background: linear-gradient(120deg, var(--tap-accent-from), var(--tap-accent-to));
+  box-shadow: var(--tap-shadow-lg);
+}
+.tap-scope .tap-recommend-banner::before {
+  content: "";
+  position: absolute; inset: 0;
+  background: radial-gradient(circle at 6% 110%, rgba(255, 255, 255, 0.32), transparent 55%);
+  pointer-events: none;
+}
+
+/* =========================================================================
+   Bracket match cards + connectors (tournaments)
+   ========================================================================= */
+
+.tap-scope .tap-match-card {
+  background: var(--tap-surface);
+  backdrop-filter: var(--tap-blur);
+  border: 1px solid var(--tap-border);
+  border-radius: 0.9rem;
+  padding: 0.7rem 0.85rem;
+  box-shadow: var(--tap-shadow);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.tap-scope .tap-match-card[data-status="bye"] { opacity: 0.6; border-style: dashed; }
+.tap-scope .tap-match-card[data-status="finalized"] { border-color: var(--tap-border-strong); }
+.tap-scope .tap-bracket-slot { position: relative; display: flex; align-items: center; flex: 1; }
+.tap-scope .tap-bracket-slot > .tap-match-card { width: 100%; }
+.tap-scope .tap-bracket-round:not(:last-child) .tap-bracket-slot::after {
+  content: ""; position: absolute; top: 50%; right: -0.75rem;
+  width: 0.75rem; height: 1px; background: var(--tap-border-strong);
+}
+.tap-scope .tap-bracket-round:not(:first-child) .tap-bracket-slot::before {
+  content: ""; position: absolute; top: 50%; left: -0.75rem;
+  width: 0.75rem; height: 1px; background: var(--tap-border-strong);
+}
+
+/* =========================================================================
+   War battle bars (clan vs clan)
+   ========================================================================= */
+
+.tap-scope .tap-war-vs { display: flex; align-items: center; gap: 0.75rem; }
+.tap-scope .tap-war-side { flex: 1; min-width: 0; }
+.tap-scope .tap-war-side-right { text-align: right; }
+.tap-scope .tap-war-side-name {
+  font-weight: 800; font-size: 0.9rem; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.tap-scope .tap-war-side-score {
+  font-size: 1.4rem; font-weight: 800; font-variant-numeric: tabular-nums;
+  background: var(--tap-primary-grad); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.tap-scope .tap-war-side-score-muted { background: none; -webkit-text-fill-color: initial; color: var(--tap-ink-muted); }
+.tap-scope .tap-war-vs-badge {
+  flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+  width: 2.1rem; height: 2.1rem; border-radius: 9999px;
+  background: var(--tap-surface-solid); border: 1px solid var(--tap-border-strong);
+  font-size: 0.68rem; font-weight: 800; color: var(--tap-ink-muted);
+}
+.tap-scope .tap-war-bar {
+  position: relative; height: 0.65rem; border-radius: 9999px; overflow: hidden;
+  background: var(--tap-border-strong); display: flex;
+}
+.tap-scope .tap-war-bar-a { height: 100%; background: var(--tap-primary-grad); transition: width 0.5s ease; }
+.tap-scope .tap-war-bar-b {
+  height: 100%; margin-left: auto;
+  background: linear-gradient(135deg, #94a3b8, #475569);
+  transition: width 0.5s ease;
+}
+
+.tap-scope .tap-live-dot {
+  display: inline-block; width: 0.45rem; height: 0.45rem; border-radius: 9999px;
+  background: #fff; animation: tap-live-pulse 1.6s ease-in-out infinite;
+}
+@keyframes tap-live-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7); }
+  70% { box-shadow: 0 0 0 6px rgba(255, 255, 255, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+}
+
+/* =========================================================================
+   Countdown (competitions / wars)
+   ========================================================================= */
+
+.tap-scope .tap-countdown {
+  display: inline-flex; align-items: baseline; gap: 0.5rem;
+  padding: 0.55rem 1.1rem; border-radius: 9999px;
+  background: var(--tap-surface-strong);
+  backdrop-filter: var(--tap-blur);
+  -webkit-backdrop-filter: var(--tap-blur);
+  border: 1px solid var(--tap-border);
+  box-shadow: var(--tap-shadow);
+}
+.tap-scope .tap-countdown-label {
+  font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--tap-ink-muted);
+}
+.tap-scope .tap-countdown-value {
+  font-size: 1.3rem; font-weight: 800; font-variant-numeric: tabular-nums;
+  background: var(--tap-primary-grad); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.tap-scope .tap-countdown-urgent .tap-countdown-value {
+  background: var(--tap-danger-grad); -webkit-background-clip: text; background-clip: text;
+}
+
+/* =========================================================================
+   Avatar stacks + ownership rings (clan roster, inventory, shop)
+   ========================================================================= */
+
+.tap-scope .tap-avatar-stack { display: flex; align-items: center; }
+.tap-scope .tap-avatar-stack > * { margin-left: -0.65rem; border: 2px solid var(--tap-surface-solid); border-radius: 9999px; }
+.tap-scope .tap-avatar-stack > *:first-child { margin-left: 0; }
+
+.tap-scope .tap-owned-ring { position: relative; }
+.tap-scope .tap-owned-ring::after {
+  content: ""; position: absolute; inset: -3px; border-radius: inherit;
+  border: 2px solid var(--tap-success-500); pointer-events: none;
+}
+.tap-scope .tap-equipped-ring::after {
+  border-color: var(--tap-primary-500);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+}
+.tap-scope .tap-check-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.3rem; height: 1.3rem; border-radius: 9999px; flex-shrink: 0;
+  background: var(--tap-success-grad); color: #fff;
+}
+
+/* =========================================================================
+   Mechanic skins — thin, purely-presentational layer per game.mechanic,
+   layered around the existing .tap-preview typing box. Never affects
+   keystroke capture/scoring; ambient nodes are aria-hidden + pointer-events:
+   none.
+   ========================================================================= */
+
+.tap-scope .tap-mech-ambient {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+/* falling-catch: glyphs drifting down behind the text */
+.tap-scope .tap-mech-fall-glyph {
+  position: absolute;
+  top: -2rem;
+  font-family: ui-monospace, monospace;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--tap-accent-from);
+  opacity: 0.18;
+  animation-name: tap-mech-fall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+@keyframes tap-mech-fall {
+  from { transform: translateY(-2rem); }
+  to { transform: translateY(340%); }
+}
+
+/* escape-run: moving corridor stripes on both edges */
+.tap-scope .tap-mech-corridor {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 0.6rem;
+  background: repeating-linear-gradient(-45deg, var(--tap-accent-from) 0 8px, transparent 8px 16px);
+  opacity: 0.2;
+  animation: tap-mech-corridor-move 1.2s linear infinite;
+}
+.tap-scope .tap-mech-corridor-left { left: 0; }
+.tap-scope .tap-mech-corridor-right { right: 0; }
+@keyframes tap-mech-corridor-move { to { background-position: 0 32px; } }
+
+/* target-press / collection: soft radar pings */
+.tap-scope .tap-mech-ping {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 9rem; height: 9rem;
+  margin: -4.5rem 0 0 -4.5rem;
+  border-radius: 9999px;
+  border: 2px solid var(--tap-accent-from);
+  opacity: 0;
+  animation: tap-mech-ping 2.6s ease-out infinite;
+}
+.tap-scope .tap-mech-ping-2 { animation-delay: 1.3s; }
+@keyframes tap-mech-ping {
+  0% { transform: scale(0.4); opacity: 0.45; }
+  100% { transform: scale(1.7); opacity: 0; }
+}
+
+/* time-trial / duel-rounds: pulsing urgency ring on the box itself */
+.tap-scope .tap-preview-pulse::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  z-index: 3;
+  border-radius: inherit;
+  border: 2px solid var(--tap-accent-from);
+  opacity: 0.55;
+  pointer-events: none;
+  animation: tap-mech-pulse-ring 1.8s ease-out infinite;
+}
+.tap-scope .tap-preview-urgent::after {
+  border-color: var(--tap-danger-500);
+  animation-duration: 0.75s;
+}
+@keyframes tap-mech-pulse-ring {
+  0% { transform: scale(1); opacity: 0.55; }
+  100% { transform: scale(1.06); opacity: 0; }
+}
+
+/* Segmented progress meta (checkpoints / relay / chain / waves / targets) */
+.tap-scope .tap-mech-meta {
+  display: flex; align-items: center; gap: 0.5rem;
+  font-size: 0.78rem; font-weight: 700; color: var(--tap-ink-muted);
+}
+.tap-scope .tap-mech-meta-icon { color: var(--tap-accent-from); flex-shrink: 0; }
+.tap-scope .tap-mech-dots { display: flex; align-items: center; gap: 0.35rem; }
+.tap-scope .tap-mech-dot {
+  width: 0.55rem; height: 0.55rem; border-radius: 9999px;
+  background: var(--tap-border-strong);
+  transition: background-color 0.3s ease, transform 0.3s ease;
+}
+.tap-scope .tap-mech-dot-filled {
+  background: linear-gradient(135deg, var(--tap-accent-from), var(--tap-accent-to));
+  transform: scale(1.2);
+}
+.tap-scope .tap-mech-ring-wrap { position: relative; display: inline-flex; }
+.tap-scope .tap-mech-ring-value {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-size: 0.72rem; font-weight: 800; color: var(--tap-ink);
+}
+
+/* =========================================================================
+   Boss fight (dedicated screen + strike button)
+   ========================================================================= */
+
+.tap-scope .tap-boss-hp { display: flex; flex-direction: column; gap: 0.6rem; }
+.tap-scope .tap-boss-hp-top { display: flex; align-items: center; gap: 0.75rem; }
+.tap-scope .tap-boss-hp-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 2.75rem; height: 2.75rem; border-radius: 1rem; flex-shrink: 0;
+  background: var(--tap-danger-grad); color: #fff;
+  box-shadow: 0 6px 16px rgba(244, 63, 94, 0.35);
+}
+.tap-scope .tap-boss-hp-body { flex: 1; min-width: 0; }
+.tap-scope .tap-boss-hp-label { font-weight: 800; font-variant-numeric: tabular-nums; }
+.tap-scope .tap-boss-hp-phase { font-size: 0.8rem; color: var(--tap-ink-muted); }
+.tap-scope .tap-boss-hp-track {
+  position: relative;
+  height: 1.1rem;
+  border-radius: 9999px;
+  background: var(--tap-border-strong);
+  overflow: hidden;
+  border: 1px solid var(--tap-border);
+}
+.tap-scope .tap-boss-hp-fill {
+  height: 100%;
+  border-radius: 9999px;
+  box-shadow: 0 0 12px rgba(0, 0, 0, 0.15) inset;
+}
+
+.tap-scope .tap-boss-damage {
+  font-size: 1.9rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  background: var(--tap-legendary-grad);
+  background-size: 300% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: tap-shimmer 3s linear infinite;
+}
+.tap-scope .tap-btn-strike { box-shadow: 0 8px 24px rgba(244, 63, 94, 0.35); }
+.tap-scope .tap-btn-strike:not(:disabled):hover { box-shadow: 0 12px 30px rgba(244, 63, 94, 0.45); }
+
+.tap-scope .tap-boss-rank {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.5rem; height: 1.5rem; border-radius: 9999px;
+  background: var(--tap-surface-solid); border: 1px solid var(--tap-border-strong);
+  font-size: 0.68rem; font-weight: 800; color: var(--tap-ink-muted); flex-shrink: 0;
+}
+
+/* Result-screen level-up glow */
+.tap-scope .tap-result-glow { animation: tap-result-glow 2.4s ease-in-out infinite; }
+@keyframes tap-result-glow {
+  0%, 100% { box-shadow: var(--tap-shadow); }
+  50% { box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.25), var(--tap-shadow-lg); }
+}
+
+/* =========================================================================
+   Motion preference
+   ========================================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .tap-scope * { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+}

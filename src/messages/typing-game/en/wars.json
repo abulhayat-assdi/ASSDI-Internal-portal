@@ -6,6 +6,7 @@
   "sectionCompleted": "Completed",
   "emptySection": "No wars here yet.",
   "versus": "{a} vs {b}",
+  "vsBadge": "VS",
   "statusDraft": "Draft",
   "statusChallengeSent": "Challenge sent",
   "statusPendingResponse": "Awaiting response",

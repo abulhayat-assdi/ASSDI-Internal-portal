@@ -1,3 +1,4 @@
+import { Avatar, Badge, type BadgeTone } from "@/components/typing-game/ui";
 import { getTranslator, type Locale } from "@/lib/typing-game/i18n";
 import type { ClanRosterRow } from "@/lib/typing-game/server/clan-store";
 
@@ -8,6 +9,11 @@ function roleKey(role: string): RoleKey {
   if (role === "co_leader") return "roleCoLeader";
   return "roleMember";
 }
+
+const ROLE_TONE: Record<string, BadgeTone> = {
+  leader: "legendary",
+  co_leader: "primary",
+};
 
 /** Privacy-safe member table: no emails, no auth data, no moderation. */
 export function ClanMembersTable({
@@ -43,10 +49,17 @@ export function ClanMembersTable({
         </thead>
         <tbody>
           {ranked.map((r, i) => (
-            <tr key={r.userId} className={r.isMe ? "tap-row-mine" : undefined}>
-              <td>{i + 1}</td>
+            <tr
+              key={r.userId}
+              className={r.isMe ? "tap-row-mine" : i === 0 ? "tap-row-top" : undefined}
+            >
+              <td>{i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1}</td>
               <td>
-                {r.displayName} · {t(roleKey(r.role))}
+                <div className="flex items-center gap-2">
+                  <Avatar name={r.displayName} size="sm" />
+                  <span>{r.displayName}</span>
+                  <Badge tone={ROLE_TONE[r.role] ?? "neutral"}>{t(roleKey(r.role))}</Badge>
+                </div>
               </td>
               <td>{r.rollNumber || "—"}</td>
               <td>{r.level}</td>

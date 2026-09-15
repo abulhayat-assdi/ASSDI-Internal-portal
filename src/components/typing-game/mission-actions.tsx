@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Alert } from "@/components/typing-game/ui";
 import { getTranslator, type Locale } from "@/lib/typing-game/i18n";
 
 /** Start-quest button: available → active via the API, then refresh. */
@@ -39,20 +40,17 @@ export function MissionStartButton({
     <div className="flex flex-col gap-2">
       <button
         type="button"
-        className="tap-btn tap-btn-primary"
+        className="tap-btn tap-btn-primary tap-btn-lg"
         disabled={busy}
         aria-busy={busy || undefined}
         onClick={() => {
           void start();
         }}
       >
-        {busy ? "…" : (label ?? t("startQuest"))}
+        {busy ? <span className="tap-spinner" aria-hidden="true" /> : null}
+        {label ?? t("startQuest")}
       </button>
-      {error ? (
-        <p role="alert" className="text-sm text-red-600">
-          {t("actionFailed")}
-        </p>
-      ) : null}
+      {error ? <Alert tone="danger">{t("actionFailed")}</Alert> : null}
     </div>
   );
 }

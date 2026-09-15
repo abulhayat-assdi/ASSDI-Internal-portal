@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Alert, Card, CardContent, EmptyState, PageHeader } from "@/components/typing-game/ui";
+import { Alert, Badge, Card, CardContent, EmptyState, PageHeader, SectionHeader, type BadgeTone } from "@/components/typing-game/ui";
 import { getTranslator, type Locale } from "@/lib/typing-game/i18n";
 import {
   formatDateTime,
@@ -13,6 +13,18 @@ import { CompetitionActions } from "./competition-actions";
 import { CompetitionBoard } from "./competition-board";
 import { CompetitionCountdown } from "./competition-countdown";
 import { PlayButton } from "./play-button";
+
+const STATUS_TONE: Record<string, BadgeTone> = {
+  draft: "neutral",
+  scheduled: "neutral",
+  registration_open: "primary",
+  registration_closed: "warning",
+  live: "danger",
+  ended: "warning",
+  processing: "warning",
+  finalized: "success",
+  cancelled: "neutral",
+};
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
@@ -46,10 +58,20 @@ export function CompetitionDetails({
   const mine = board.find((r) => r.isMe) ?? null;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6" data-visual="arena">
       <PageHeader
         title={detail.title}
-        description={`${detail.type} · ${t(statusKey(detail.status))}`}
+        description={
+          <span className="flex flex-wrap items-center gap-2">
+            <span>{detail.type}</span>
+            <Badge tone={STATUS_TONE[detail.status] ?? "neutral"}>
+              {detail.status === "live" ? (
+                <span className="tap-live-dot" aria-hidden="true" />
+              ) : null}
+              {t(statusKey(detail.status))}
+            </Badge>
+          </span>
+        }
       />
 
       <Card>
@@ -132,7 +154,7 @@ export function CompetitionDetails({
       ) : null}
 
       {mine ? (
-        <Card>
+        <Card className="tap-card-recommended">
           <CardContent>
             <p className="text-sm font-bold">
               {t("yourRank", { rank: mine.rank })} ·{" "}
@@ -144,7 +166,7 @@ export function CompetitionDetails({
 
       <Card>
         <CardContent>
-          <h2 className="mb-2 text-base font-bold">{t("viewBoard")}</h2>
+          <SectionHeader title={t("viewBoard")} />
           <CompetitionBoard locale={locale} rows={board} />
         </CardContent>
       </Card>
@@ -179,7 +201,14 @@ export function CompetitionManage({
     <div className="flex flex-col gap-6">
       <PageHeader
         title={detail.title}
-        description={`${detail.type} · ${t(statusKey(detail.status))}`}
+        description={
+          <span className="flex flex-wrap items-center gap-2">
+            <span>{detail.type}</span>
+            <Badge tone={STATUS_TONE[detail.status] ?? "neutral"}>
+              {t(statusKey(detail.status))}
+            </Badge>
+          </span>
+        }
       />
       {actions.length > 0 ? (
         <Card>
@@ -206,7 +235,7 @@ export function CompetitionManage({
       ) : null}
       <Card>
         <CardContent>
-          <h2 className="mb-2 text-base font-bold">{t("viewBoard")}</h2>
+          <SectionHeader title={t("viewBoard")} />
           <CompetitionBoard locale={locale} rows={board} />
         </CardContent>
       </Card>

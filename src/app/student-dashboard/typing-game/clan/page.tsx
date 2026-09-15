@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Card, CardContent, EmptyState } from "@/components/typing-game/ui";
+import { Badge, Card, CardContent, EmptyState, SectionHeader, type BadgeTone } from "@/components/typing-game/ui";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { clanPageContext } from "@/lib/typing-game/server/clan-pages";
 import { userDbClient } from "@/lib/typing-game/server/auth";
@@ -9,6 +9,15 @@ import { ClanMembersTable } from "@/components/typing-game/clan-members-table";
 import { ClanHelpBoard } from "@/components/typing-game/clan-help-board";
 import { ClanLockedPreviews } from "@/components/typing-game/clan-locked-previews";
 import { ClanMissionActions } from "@/components/typing-game/clan-mission-actions";
+
+const MISSION_STATUS_TONE: Record<string, BadgeTone> = {
+  locked: "neutral",
+  available: "primary",
+  active: "warning",
+  completed: "success",
+  expired: "neutral",
+  cancelled: "danger",
+};
 
 /** Student clan dashboard: identity, rank, contributors, missions, help. */
 export default async function ClanPage({}: {}) {
@@ -44,7 +53,7 @@ export default async function ClanPage({}: {}) {
 
   return (
     <div className="flex flex-col gap-6">
-      <ClanBanner locale={locale} clan={clan} />
+      <ClanBanner locale={locale} clan={clan} topMembers={top} />
 
       <div className="flex flex-wrap gap-2">
         <Link
@@ -81,39 +90,46 @@ export default async function ClanPage({}: {}) {
 
       <Card>
         <CardContent>
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-base font-bold">{t("sectionTop")}</h2>
-            <Link
-              href={`/student-dashboard/typing-game/clan/members`}
-              className="tap-btn tap-btn-secondary tap-btn-sm"
-            >
-              {t("viewMembers")}
-            </Link>
-          </div>
-          <div className="mt-2">
-            <ClanMembersTable locale={locale} rows={top} />
-          </div>
+          <SectionHeader
+            title={t("sectionTop")}
+            actions={
+              <Link
+                href={`/student-dashboard/typing-game/clan/members`}
+                className="tap-btn tap-btn-secondary tap-btn-sm"
+              >
+                {t("viewMembers")}
+              </Link>
+            }
+          />
+          <ClanMembersTable locale={locale} rows={top} />
         </CardContent>
       </Card>
 
       <Card>
         <CardContent>
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-base font-bold">{t("sectionMissions")}</h2>
-            <Link
-              href={`/student-dashboard/typing-game/clan/missions`}
-              className="tap-btn tap-btn-secondary tap-btn-sm"
-            >
-              {t("viewMissions")}
-            </Link>
-          </div>
-          <div className="mt-2 flex flex-col gap-2">
+          <SectionHeader
+            title={t("sectionMissions")}
+            actions={
+              <Link
+                href={`/student-dashboard/typing-game/clan/missions`}
+                className="tap-btn tap-btn-secondary tap-btn-sm"
+              >
+                {t("viewMissions")}
+              </Link>
+            }
+          />
+          <div className="flex flex-col gap-3">
             {missions.length === 0 ? (
               <p className="text-sm text-ink-muted">{t("emptySection")}</p>
             ) : null}
             {missions.slice(0, 3).map((m) => (
-              <div key={m.id} className="flex flex-col gap-1 text-sm">
-                <span className="font-bold">{m.title}</span>
+              <div key={m.id} className="tap-mission">
+                <div className="tap-mission-top">
+                  <span className="tap-mission-title">{m.title}</span>
+                  <Badge tone={MISSION_STATUS_TONE[m.status] ?? "neutral"}>
+                    {m.status}
+                  </Badge>
+                </div>
                 <ClanMissionActions
                   locale={locale}
                   missionId={m.id}
@@ -127,31 +143,35 @@ export default async function ClanPage({}: {}) {
 
       <Card>
         <CardContent>
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-base font-bold">{t("sectionHelp")}</h2>
-            <Link
-              href={`/student-dashboard/typing-game/clan/help`}
-              className="tap-btn tap-btn-secondary tap-btn-sm"
-            >
-              {t("viewHelp")}
-            </Link>
-          </div>
-          <div className="mt-2">
-            <ClanHelpBoard locale={locale} requests={help.slice(0, 3)} />
-          </div>
+          <SectionHeader
+            title={t("sectionHelp")}
+            actions={
+              <Link
+                href={`/student-dashboard/typing-game/clan/help`}
+                className="tap-btn tap-btn-secondary tap-btn-sm"
+              >
+                {t("viewHelp")}
+              </Link>
+            }
+          />
+          <ClanHelpBoard locale={locale} requests={help.slice(0, 3)} />
         </CardContent>
       </Card>
 
       <Card>
         <CardContent>
-          <h2 className="mb-2 text-base font-bold">{t("sectionActivity")}</h2>
+          <SectionHeader title={t("sectionActivity")} />
           {activity.length === 0 ? (
             <p className="text-sm text-ink-muted">{t("emptySection")}</p>
           ) : (
-            <ul className="flex flex-col gap-1 text-sm">
+            <ul className="flex flex-col gap-2 text-sm">
               {activity.slice(0, 10).map((a, i) => (
-                <li key={`${a.createdAt}-${String(i)}`}>
-                  {a.kind} · {a.createdAt}
+                <li
+                  key={`${a.createdAt}-${String(i)}`}
+                  className="flex items-center justify-between gap-2 border-b border-line pb-2 last:border-none last:pb-0"
+                >
+                  <span className="font-semibold">{a.kind}</span>
+                  <span className="text-ink-muted">{a.createdAt}</span>
                 </li>
               ))}
             </ul>

@@ -13,7 +13,6 @@ const FEATURE_LABELS: Record<string, string> = {
     course_modules: "Course Modules",
     exam_results: "পরীক্ষার ফলাফল",
     cv_builder: "CV Builder",
-    daily_tracker: "Daily Tracker",
     policies: "Policy & Minutes",
     leave_tracking: "Leave Tracking",
     chat: "Chat System",

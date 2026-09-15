@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import { formatCountdown } from "@/lib/typing-game/competitions";
+
+/** Below this many ms remaining, the countdown pulses to signal urgency. */
+const URGENT_THRESHOLD_MS = 60_000;
 
 /**
  * Presentation-only countdown anchored to server timestamps shipped with the
@@ -43,9 +47,18 @@ export function CompetitionCountdown({
   const estimatedServerNow =
     anchor.serverNow + (Date.now() - anchor.clientAtMount);
   const remaining = Math.max(0, target - estimatedServerNow);
+  const urgent = remaining > 0 && remaining <= URGENT_THRESHOLD_MS;
   return (
-    <p className="text-sm text-ink-muted" suppressHydrationWarning>
-      {label}: {formatCountdown(remaining)}
-    </p>
+    <motion.div
+      className={`tap-countdown${urgent ? " tap-countdown-urgent" : ""}`}
+      suppressHydrationWarning
+      animate={urgent ? { scale: [1, 1.06, 1] } : { scale: 1 }}
+      transition={urgent ? { duration: 1, repeat: Infinity, ease: "easeInOut" } : undefined}
+    >
+      <span className="tap-countdown-label">{label}</span>
+      <span className="tap-countdown-value" suppressHydrationWarning>
+        {formatCountdown(remaining)}
+      </span>
+    </motion.div>
   );
 }

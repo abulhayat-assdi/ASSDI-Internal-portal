@@ -1,4 +1,4 @@
-import { EmptyState, PageHeader } from "@/components/typing-game/ui";
+import { EmptyState, PageHeader, SectionHeader } from "@/components/typing-game/ui";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { warPageContext } from "@/lib/typing-game/server/war-pages";
 import { WarCard } from "@/components/typing-game/war-card";
@@ -59,7 +59,7 @@ export default async function ClanWarsPage({}: {}) {
       ) : null}
       {sections.map((s) => (
         <section key={s.key} aria-label={s.title}>
-          <h2 className="mb-2 text-base font-bold">{s.title}</h2>
+          <SectionHeader title={s.title} />
           {s.items.length === 0 ? (
             <p className="text-sm text-ink-muted">{t("emptySection")}</p>
           ) : (

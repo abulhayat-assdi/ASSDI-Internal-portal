@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Check, Sparkles, X } from "lucide-react";
 import { getTranslator, type Locale } from "@/lib/typing-game/i18n";
 
 /** Equip/unequip + consumable-use controls for one inventory entry. */
@@ -62,7 +63,7 @@ export function InventoryActions({
         {equippable ? (
           <button
             type="button"
-            className="tap-btn tap-btn-secondary tap-btn-sm"
+            className={`tap-btn tap-btn-sm ${equipped ? "tap-btn-secondary" : "tap-btn-primary"}`}
             disabled={busy}
             onClick={() => {
               void run(
@@ -73,6 +74,11 @@ export function InventoryActions({
               );
             }}
           >
+            {equipped ? (
+              <X className="h-3.5 w-3.5" aria-hidden="true" />
+            ) : (
+              <Check className="h-3.5 w-3.5" aria-hidden="true" />
+            )}
             {equipped ? t("unequip") : t("equip")}
           </button>
         ) : null}
@@ -85,6 +91,7 @@ export function InventoryActions({
               void run("/api/typing-game/inventory/use", { itemId });
             }}
           >
+            <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
             {t("use")} ({quantity} {t("charges")})
           </button>
         ) : null}

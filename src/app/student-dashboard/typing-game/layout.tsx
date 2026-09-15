@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import "@/styles/typing-game-theme.css";
 import { StudentNav } from "@/components/typing-game/student-nav";
 import { getSession } from "@/lib/typing-game/server/auth";
 import { userDbClient } from "@/lib/typing-game/server/auth";
@@ -43,7 +44,12 @@ export default async function StudentLayout({
     redirect(`/student-dashboard/typing-game/suspended`);
   }
   return (
-    <div className="min-h-screen bg-canvas">
+    <div className="tap-scope min-h-screen bg-canvas">
+      <div className="tap-ambient" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </div>
       <StudentNav locale={locale} />
       <div className="mx-auto w-full max-w-5xl px-4 py-6">{children}</div>
     </div>

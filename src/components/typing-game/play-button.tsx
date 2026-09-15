@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Play } from "lucide-react";
 import { Alert } from "@/components/typing-game/ui";
 
 export interface PlayButtonStrings {
@@ -50,11 +51,12 @@ export function PlayButton({
     <div className="flex flex-col gap-2">
       <button
         type="button"
-        className="tap-btn tap-btn-primary tap-btn-lg"
+        className="tap-btn tap-btn-primary tap-btn-lg tap-play-cta"
         disabled={busy}
         aria-busy={busy || undefined}
         onClick={() => void start()}
       >
+        {!busy && <Play className="h-5 w-5" fill="currentColor" />}
         {busy ? s.starting : s.play}
       </button>
       {error ? <Alert tone="danger">{error}</Alert> : null}

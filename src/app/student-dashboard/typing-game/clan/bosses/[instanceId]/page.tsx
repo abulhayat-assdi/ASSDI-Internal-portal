@@ -1,5 +1,14 @@
 import { notFound } from "next/navigation";
-import { Card, CardContent, PageHeader, ProgressBar } from "@/components/typing-game/ui";
+import { Clock, Flame, ScrollText, Swords, Trophy } from "lucide-react";
+import {
+  Alert,
+  Badge,
+  Card,
+  CardContent,
+  PageHeader,
+  ProgressBar,
+  type BadgeTone,
+} from "@/components/typing-game/ui";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { bossPageContext } from "@/lib/typing-game/server/boss-pages";
 import { BossHpBar } from "@/components/typing-game/boss-hp-bar";
@@ -8,6 +17,13 @@ import { CompetitionCountdown } from "@/components/typing-game/competition-count
 import { PlayButton } from "@/components/typing-game/play-button";
 import { userDbClient } from "@/lib/typing-game/server/auth";
 import { createSupabaseStudentStore } from "@/lib/typing-game/server/student-store";
+
+const DIFFICULTY_TONE: Record<string, BadgeTone> = {
+  easy: "success",
+  normal: "primary",
+  hard: "warning",
+  nightmare: "legendary",
+};
 
 /**
  * Boss fight screen: HP + phase, countdown, PlayButton (same M4/M6
@@ -38,34 +54,52 @@ export default async function BossFightPage(
       ? await store.getLatestValidAttempt(gameSlug, session.userId)
       : null;
   const serverNow = new Date().toISOString();
-  const finished =
-    state.instance.status === "finalized" ||
-    state.instance.status === "defeated" ||
-    state.instance.status === "expired";
+  const defeated = state.instance.status === "defeated" || state.instance.status === "finalized";
+  const expired = state.instance.status === "expired";
+  const finished = defeated || expired;
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title={state.boss.name} description={state.boss.lore} />
-      <BossHpBar
-        locale={locale}
-        currentHp={state.instance.currentHp}
-        maxHp={state.instance.initialHp}
-        phaseName={
-          phase
-            ? t("phaseLabel", { position: phase.position + 1, name: phase.name })
-            : ""
+      <PageHeader
+        title={
+          <span className="inline-flex items-center gap-2">
+            <Flame className="h-6 w-6" style={{ color: "var(--tap-danger-500)" }} aria-hidden="true" />
+            {state.boss.name}
+          </span>
+        }
+        description={state.boss.lore}
+        actions={
+          <Badge tone={DIFFICULTY_TONE[state.boss.difficulty] ?? "neutral"}>
+            {state.boss.difficulty}
+          </Badge>
         }
       />
-      {state.instance.endAt && state.instance.status === "active" ? (
-        <>
-          <CompetitionCountdown
-            serverNowIso={serverNow}
-            targetIso={state.instance.endAt}
-            label={t("timeLeft", { time: "" }).replace(/:\s*$/, "")}
+
+      <Card>
+        <CardContent className="flex flex-col gap-4">
+          <BossHpBar
+            locale={locale}
+            currentHp={state.instance.currentHp}
+            maxHp={state.instance.initialHp}
+            phaseName={
+              phase
+                ? t("phaseLabel", { position: phase.position + 1, name: phase.name })
+                : ""
+            }
           />
-          <p className="text-xs text-ink-muted">{t("serverTimeNote")}</p>
-        </>
-      ) : null}
+          {state.instance.endAt && state.instance.status === "active" ? (
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-ink-faint" aria-hidden="true" />
+              <CompetitionCountdown
+                serverNowIso={serverNow}
+                targetIso={state.instance.endAt}
+                label={t("timeLeft", { time: "" }).replace(/:\s*$/, "")}
+              />
+            </div>
+          ) : null}
+          <p className="text-xs text-ink-faint">{t("serverTimeNote")}</p>
+        </CardContent>
+      </Card>
 
       {state.instance.status === "active" && gameSlug ? (
         <Card>
@@ -92,26 +126,40 @@ export default async function BossFightPage(
 
       <Card>
         <CardContent>
-          <h2 className="mb-2 text-base font-bold">{t("topDamage")}</h2>
+          <h2 className="mb-3 flex items-center gap-2 text-base font-bold">
+            <Trophy className="h-4 w-4" style={{ color: "var(--tap-warning-500)" }} aria-hidden="true" />
+            {t("topDamage")}
+          </h2>
           {state.top.length === 0 ? (
             <p className="text-sm text-ink-muted">{t("emptySection")}</p>
           ) : (
-            <ul className="flex flex-col gap-1 text-sm">
-              {state.top.map((r) => (
-                <li key={r.name} className="flex justify-between gap-2">
-                  <span>{r.name}</span>
-                  <span>{r.damage}</span>
+            <ol className="flex flex-col gap-1 text-sm">
+              {state.top.map((r, i) => (
+                <li
+                  key={r.name}
+                  className={
+                    r.isMe
+                      ? "tap-row-mine flex items-center justify-between gap-2 rounded-lg px-2 py-1.5"
+                      : "flex items-center justify-between gap-2 px-2 py-1.5"
+                  }
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="tap-boss-rank" aria-hidden="true">#{i + 1}</span>
+                    <span className="truncate">{r.name}</span>
+                  </span>
+                  <span className="font-bold">{r.damage}</span>
                 </li>
               ))}
-            </ul>
+            </ol>
           )}
           {state.mine ? (
-            <div className="mt-2">
+            <div className="mt-3 flex flex-col gap-1">
               <ProgressBar
                 value={state.mine.damage}
                 max={Math.max(state.instance.initialHp, 1)}
                 label={t("myDamage", { damage: state.mine.damage })}
               />
+              <p className="text-xs text-ink-muted">{t("myDamage", { damage: state.mine.damage })}</p>
             </div>
           ) : null}
         </CardContent>
@@ -119,14 +167,18 @@ export default async function BossFightPage(
 
       <Card>
         <CardContent>
-          <h2 className="mb-2 text-base font-bold">{t("feedTitle")}</h2>
+          <h2 className="mb-3 flex items-center gap-2 text-base font-bold">
+            <Swords className="h-4 w-4 text-primary-500" aria-hidden="true" />
+            {t("feedTitle")}
+          </h2>
           {state.feed.length === 0 ? (
             <p className="text-sm text-ink-muted">{t("emptySection")}</p>
           ) : (
-            <ul className="flex flex-col gap-1 text-sm">
+            <ul className="flex flex-col gap-2 text-sm">
               {state.feed.map((f, i) => (
-                <li key={`${f.createdAt}-${String(i)}`}>
-                  {f.kind} · {f.createdAt}
+                <li key={`${f.createdAt}-${String(i)}`} className="flex items-center gap-2">
+                  <Badge tone="neutral">{f.kind}</Badge>
+                  <span className="text-ink-muted">{f.createdAt}</span>
                 </li>
               ))}
             </ul>
@@ -135,9 +187,12 @@ export default async function BossFightPage(
       </Card>
 
       {finished ? (
-        <p className="text-sm text-ink-muted">
-          {state.instance.status === "finalized" ? t("defeatedBody") : t("expiredBody")}
-        </p>
+        <Alert tone={defeated ? "success" : "warning"} title={defeated ? t("defeatedTitle") : t("expiredTitle")}>
+          <span className="inline-flex items-center gap-1.5">
+            <ScrollText className="h-3.5 w-3.5" aria-hidden="true" />
+            {defeated ? t("defeatedBody") : t("expiredBody")}
+          </span>
+        </Alert>
       ) : null}
     </div>
   );
