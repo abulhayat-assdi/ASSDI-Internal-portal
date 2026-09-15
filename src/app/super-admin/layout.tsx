@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { Shield, LayoutGrid, LogOut } from "lucide-react";
+import { Shield, LayoutGrid, LogOut, BarChart3, Users, ScrollText, Megaphone, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 
 export default function SuperAdminLayout({ children }: { children: React.ReactNode }) {
@@ -30,6 +30,26 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
                         <Link href="/super-admin" className="flex items-center gap-1.5 text-slate-300 hover:text-white transition-colors">
                             <LayoutGrid className="w-4 h-4" />
                             Courses
+                        </Link>
+                        <Link href="/super-admin/analytics" className="hidden sm:flex items-center gap-1.5 text-slate-300 hover:text-white transition-colors">
+                            <BarChart3 className="w-4 h-4" />
+                            Analytics
+                        </Link>
+                        <Link href="/super-admin/users" className="hidden sm:flex items-center gap-1.5 text-slate-300 hover:text-white transition-colors">
+                            <Users className="w-4 h-4" />
+                            Users
+                        </Link>
+                        <Link href="/super-admin/audit" className="hidden sm:flex items-center gap-1.5 text-slate-300 hover:text-white transition-colors">
+                            <ScrollText className="w-4 h-4" />
+                            Audit
+                        </Link>
+                        <Link href="/super-admin/announcements" className="hidden md:flex items-center gap-1.5 text-slate-300 hover:text-white transition-colors">
+                            <Megaphone className="w-4 h-4" />
+                            Notices
+                        </Link>
+                        <Link href="/super-admin/security" className="hidden md:flex items-center gap-1.5 text-slate-300 hover:text-white transition-colors">
+                            <ShieldCheck className="w-4 h-4" />
+                            Security
                         </Link>
                         <button
                             onClick={handleLogout}
