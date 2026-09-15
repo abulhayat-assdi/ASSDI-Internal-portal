@@ -16,6 +16,7 @@ export default function EditTypingExamPage() {
 
   const [initialValues, setInitialValues] = useState<ExamFormValues | null>(null);
   const [batches, setBatches] = useState<Batch[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -40,6 +41,7 @@ export default function EditTypingExamPage() {
     if (listRes.ok) {
       const listData = await listRes.json();
       setBatches(listData.batches ?? []);
+      setCategories(listData.categories ?? []);
     }
 
     setInitialValues({
@@ -54,6 +56,7 @@ export default function EditTypingExamPage() {
       failAccuracy: exam.failAccuracy ?? 75,
       textSource: exam.textSource === "CUSTOM" ? "CUSTOM" : "BANK",
       textLanguage: exam.textLanguage ?? "en",
+      textCategory: exam.textCategory ?? "",
       // CUSTOM exams keep their text in examText; leave blank for BANK exams
       // since re-saving without a change should not force a re-pick.
       customText: exam.textSource === "CUSTOM" ? exam.examText ?? "" : "",
@@ -85,6 +88,7 @@ export default function EditTypingExamPage() {
       failAccuracy: values.failAccuracy,
       textSource: values.textSource,
       textLanguage: values.textLanguage,
+      textCategory: values.textSource === "BANK" ? values.textCategory || null : null,
       customText: values.customText,
       scheduleStart: values.scheduleStart || null,
       scheduleEnd: values.scheduleEnd || null,
@@ -165,6 +169,7 @@ export default function EditTypingExamPage() {
           mode="edit"
           initialValues={initialValues}
           batches={batches}
+          categories={categories}
           onSubmit={handleSubmit}
           saving={saving}
           error={formError}

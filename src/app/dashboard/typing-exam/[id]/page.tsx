@@ -22,6 +22,7 @@ type Exam = {
   failAccuracy: number;
   textSource: "CUSTOM" | "BANK";
   textLanguage: string;
+  textCategory: string | null;
   publicSlug: string | null;
   createdByName: string;
   createdAt: string;
@@ -259,7 +260,7 @@ export default function TypingExamResultsPage() {
           </motion.button>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 text-sm">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mt-4 text-sm">
           <div className="rounded-xl bg-white/60 p-3">
             <p className="text-xs text-slate-400">Pass বার</p>
             <p className="text-slate-700 font-medium">{exam.passWpm} WPM / {exam.passAccuracy}%</p>
@@ -271,6 +272,14 @@ export default function TypingExamResultsPage() {
           <div className="rounded-xl bg-white/60 p-3">
             <p className="text-xs text-slate-400">সময়সীমা</p>
             <p className="text-slate-700 font-medium">{exam.durationSeconds} সেকেন্ড</p>
+          </div>
+          <div className="rounded-xl bg-white/60 p-3">
+            <p className="text-xs text-slate-400">Text</p>
+            <p className="text-slate-700 font-medium">
+              {exam.textSource === "BANK"
+                ? `Bank (${exam.textLanguage === "bn" ? "বাংলা" : "English"} · ${exam.textCategory || "Random"})`
+                : "Custom"}
+            </p>
           </div>
           <div className="rounded-xl bg-white/60 p-3">
             <p className="text-xs text-slate-400">{exam.accessType === "INTERNAL" ? "ব্যাচ" : "মোট Attempt"}</p>

@@ -6,7 +6,7 @@ import bcrypt from "bcryptjs";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser, hasRequiredPermission } from "@/lib/auth";
 import { validateThresholds } from "@/lib/typing-exam/scoring";
-import { pickBankPassage, type ExamTextLanguage } from "@/lib/typing-exam/content";
+import { pickBankPassage, EXAM_TEXT_CATEGORIES, type ExamTextLanguage } from "@/lib/typing-exam/content";
 import type { Prisma } from "@prisma/client";
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -91,9 +91,12 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     data.failAccuracy = merged.failAccuracy;
   }
 
-  // Text source / language / custom text — recompute examText if any of these change
+  // Text source / language / category / custom text — recompute examText if any of these change
   const touchesText =
-    body.textSource !== undefined || body.customText !== undefined || body.textLanguage !== undefined;
+    body.textSource !== undefined ||
+    body.customText !== undefined ||
+    body.textLanguage !== undefined ||
+    body.textCategory !== undefined;
   if (touchesText) {
     const resolvedTextSource = (body.textSource ?? existing.textSource) === "BANK" ? "BANK" : "CUSTOM";
     const resolvedLanguage: ExamTextLanguage =
@@ -106,8 +109,15 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
         return NextResponse.json({ error: "Custom টেক্সট আবশ্যক" }, { status: 400 });
       }
       data.examText = customText;
+      data.textCategory = null;
     } else {
-      data.examText = pickBankPassage(resolvedLanguage);
+      const rawCategory = body.textCategory !== undefined ? body.textCategory : existing.textCategory;
+      const resolvedCategory =
+        typeof rawCategory === "string" && EXAM_TEXT_CATEGORIES.includes(rawCategory)
+          ? rawCategory
+          : null;
+      data.textCategory = resolvedCategory;
+      data.examText = pickBankPassage(resolvedLanguage, resolvedCategory ?? undefined);
     }
   }
 

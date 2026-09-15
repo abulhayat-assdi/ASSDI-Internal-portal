@@ -1,7 +1,7 @@
 import { PageHeader } from "@/components/typing-game/ui";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { studentContext } from "@/lib/typing-game/server/student-pages";
-import { recommendGame } from "@/lib/typing-game/server/student";
+import { recommendFromEnriched } from "@/lib/typing-game/server/student";
 import { enrichGames } from "@/lib/typing-game/server/games";
 import { GamesExplorer } from "@/components/typing-game/games-explorer";
 
@@ -10,17 +10,13 @@ export default async function GamesPage({}: {}) {
   const t = getTranslator(locale, "games");
   const { session, store } = await studentContext(locale);
 
-  const [games, worlds, unlocks, completed] = await Promise.all([
+  const [games, worlds] = await Promise.all([
     enrichGames(session.userId, store),
     store.listWorlds(),
-    store.listUnlocks(session.userId),
-    store.listCompletedGames(session.userId),
   ]);
-  const recommended = recommendGame(
-    games,
-    unlocks,
-    completed,
-  );
+  // Recommendation is derived from the ENRICHED rows (effective unlocks),
+  // never from the raw game_unlocks cache which only holds manual unlocks.
+  const recommended = recommendFromEnriched(games);
 
   return (
     <div className="flex flex-col gap-6">
@@ -61,6 +57,13 @@ export default async function GamesPage({}: {}) {
           adUnlockHint: t("adUnlockHint"),
           adUnlocking: t("adUnlocking"),
           adUnlockFailed: t("adUnlockFailed"),
+          adModalTitle: t("adModalTitle"),
+          adModalBody: t("adModalBody"),
+          adWatching: t("adWatching"),
+          adClaim: t("adClaim"),
+          adCancel: t("adCancel"),
+          adSponsored: t("adSponsored"),
+          adReady: t("adReady"),
         }}
       />
     </div>

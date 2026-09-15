@@ -30,5 +30,12 @@
   "adUnlock": "Watch an ad to unlock",
   "adUnlockHint": "Skip ahead and unlock this game right away by watching a short ad.",
   "adUnlocking": "Unlocking…",
-  "adUnlockFailed": "Could not unlock. Please retry."
+  "adUnlockFailed": "Could not unlock. Please retry.",
+  "adModalTitle": "Sponsored unlock",
+  "adModalBody": "Thanks for supporting free practice games. Watch to the end, then claim your unlock.",
+  "adWatching": "Watching… {seconds}s left",
+  "adClaim": "Claim unlock",
+  "adCancel": "Close",
+  "adSponsored": "Sponsored message (demo)",
+  "adReady": "Done — claim your unlock."
 }

@@ -1,14 +1,12 @@
 import { Keyboard } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/typing-game/ui";
 import { getTranslator, type Locale } from "@/lib/typing-game/i18n";
+import { KeyboardQuiz } from "@/components/typing-game/keyboard-quiz";
 
 /**
  * Static "how to hold the keyboard" lesson shown above the Beginner tier's
- * Keyboard Village world. Purely informational for v1 — it does not gate
- * anything (World 1 has no predecessor world to gate on; sequential
- * unlocking of every world after it happens in server/games.ts once this
- * tier's games are actually completed). A quiz-gated version is a natural
- * follow-up if stricter enforcement is wanted later.
+ * Keyboard Village world. The quiz below it is informational practice only —
+ * it shows a score, never blocks anything, and persists nothing.
  */
 export function KeyboardLesson({ locale }: { locale: Locale }) {
   const t = getTranslator(locale, "lesson");
@@ -35,6 +33,7 @@ export function KeyboardLesson({ locale }: { locale: Locale }) {
           ))}
         </ol>
         <p className="mt-3 text-sm opacity-80">{t("closing")}</p>
+        <KeyboardQuiz locale={locale} />
       </CardContent>
     </Card>
   );

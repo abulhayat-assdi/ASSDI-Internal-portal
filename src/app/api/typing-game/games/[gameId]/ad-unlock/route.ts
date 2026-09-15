@@ -1,12 +1,13 @@
 /**
  * POST /api/typing-game/games/[gameId]/ad-unlock
  *
- * Mock "watch an ad to unlock" action — unlocks immediately on call, no real
- * ad network wired up yet (see content/access-overrides.ts). Re-validates
- * the slug is actually eligible server-side (never trust the client to only
- * call this for a legitimate game); the actual write goes through
- * fn_ad_unlock_game, a SECURITY DEFINER function, since game_unlocks has no
- * direct write policy for any API role.
+ * "Watch an ad to unlock" action. The client shows a timed sponsor modal
+ * (see components/typing-game/ad-unlock-button.tsx) and POSTs a watch-proof
+ * `{ proof: { provider, watchMs, completedAt } }`; the server re-validates
+ * it with validateWatchProof() (never trusts the client to only call this
+ * for a legitimate game OR to actually have watched). A body-less POST is
+ * still accepted as the legacy instant-mock path so older clients/tests
+ * keep working.
  *
  * Segment is named `gameId` (not `slug`) to match the sibling routes under
  * games/[gameId]/... — Next.js requires one dynamic-segment name per
@@ -16,10 +17,11 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { AD_UNLOCKABLE_GAME_SLUGS } from "@/lib/typing-game/content";
+import { validateWatchProof } from "@/lib/typing-game/ads";
 import { getSession, unauthorized, userDbClient } from "@/lib/typing-game/server/auth";
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   ctx: { params: Promise<{ gameId: string }> },
 ): Promise<Response> {
   const session = await getSession();
@@ -28,6 +30,15 @@ export async function POST(
   const { gameId: slug } = await ctx.params;
   if (!AD_UNLOCKABLE_GAME_SLUGS.includes(slug)) {
     return NextResponse.json({ error: "NOT_AD_UNLOCKABLE" }, { status: 400 });
+  }
+
+  const body = await req.json().catch(() => null);
+  const proof = body && typeof body === "object" ? (body as { proof?: unknown }).proof : undefined;
+  if (proof !== undefined) {
+    const reason = validateWatchProof(proof);
+    if (reason) {
+      return NextResponse.json({ error: reason }, { status: 400 });
+    }
   }
 
   const client = await userDbClient();

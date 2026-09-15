@@ -34,6 +34,7 @@ type ExamEntry = {
   failAccuracy: number;
   textSource: "CUSTOM" | "BANK";
   textLanguage: string;
+  textCategory: string | null;
   publicSlug: string | null;
   createdByName: string;
   createdByRole: string;
@@ -44,6 +45,7 @@ type ExamEntry = {
 export default function TypingExamAdminPage() {
   const [exams, setExams] = useState<ExamEntry[]>([]);
   const [batches, setBatches] = useState<Batch[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState("");
   const reduceMotion = useReducedMotion();
@@ -63,6 +65,7 @@ export default function TypingExamAdminPage() {
       const data = await res.json();
       setExams(data.exams);
       setBatches(data.batches);
+      setCategories(data.categories ?? []);
     } else {
       const data = await res.json().catch(() => ({}));
       setFetchError(data.error || `Error ${res.status}`);
@@ -210,6 +213,11 @@ export default function TypingExamAdminPage() {
                   <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">
                     {exam.attemptCount} টি Attempt
                   </span>
+                  {exam.textSource === "BANK" && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">
+                      Category: {exam.textCategory || "Random"}
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-slate-400 mt-0.5 truncate">
                   {exam.accessType === "INTERNAL"
@@ -338,6 +346,7 @@ export default function TypingExamAdminPage() {
                   mode="create"
                   initialValues={emptyExamFormValues}
                   batches={batches}
+                  categories={categories}
                   onSubmit={handleCreateSubmit}
                   saving={saving}
                   error={formError}

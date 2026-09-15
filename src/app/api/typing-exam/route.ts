@@ -6,7 +6,7 @@ import bcrypt from "bcryptjs";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser, hasRequiredPermission } from "@/lib/auth";
 import { validateThresholds } from "@/lib/typing-exam/scoring";
-import { pickBankPassage, type ExamTextLanguage } from "@/lib/typing-exam/content";
+import { pickBankPassage, EXAM_TEXT_CATEGORIES, type ExamTextLanguage } from "@/lib/typing-exam/content";
 import { makePublicExamSlug } from "@/lib/typing-exam/slug";
 
 // GET /api/typing-exam — list exams for the course + active batches for the create-form dropdown
@@ -42,6 +42,7 @@ export async function GET(req: NextRequest) {
         attemptCount: countMap.get(e.id) ?? 0,
       })),
       batches,
+      categories: EXAM_TEXT_CATEGORIES,
     };
   });
 
@@ -69,6 +70,7 @@ export async function POST(req: NextRequest) {
     failAccuracy,
     textSource,
     textLanguage,
+    textCategory,
     customText,
     retryPassword,
     scheduleStart,
@@ -112,13 +114,19 @@ export async function POST(req: NextRequest) {
   const resolvedLanguage: ExamTextLanguage = textLanguage === "bn" ? "bn" : "en";
 
   let examText = "";
+  // BANK category filter — must be a known category, otherwise fall back to
+  // random-across-all (stored as null so list/detail pages can show "Random").
+  const resolvedCategory =
+    typeof textCategory === "string" && EXAM_TEXT_CATEGORIES.includes(textCategory)
+      ? textCategory
+      : null;
   if (resolvedTextSource === "CUSTOM") {
     if (!customText || typeof customText !== "string" || !customText.trim()) {
       return NextResponse.json({ error: "Custom টেক্সট আবশ্যক" }, { status: 400 });
     }
     examText = customText;
   } else {
-    examText = pickBankPassage(resolvedLanguage);
+    examText = pickBankPassage(resolvedLanguage, resolvedCategory ?? undefined);
   }
 
   if (!retryPassword || typeof retryPassword !== "string" || !retryPassword.trim()) {
@@ -143,6 +151,7 @@ export async function POST(req: NextRequest) {
         failAccuracy: thresholds.failAccuracy,
         textSource: resolvedTextSource,
         textLanguage: resolvedLanguage,
+        textCategory: resolvedTextSource === "BANK" ? resolvedCategory : null,
         examText,
         scheduleStart: scheduleStart ? new Date(scheduleStart) : null,
         scheduleEnd: scheduleEnd ? new Date(scheduleEnd) : null,

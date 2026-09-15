@@ -19,6 +19,8 @@ export type ExamFormValues = {
   failAccuracy: number;
   textSource: "CUSTOM" | "BANK";
   textLanguage: string;
+  /** BANK category filter — "" means random across all categories. */
+  textCategory: string;
   customText: string;
   retryPassword: string;
   scheduleStart: string;
@@ -37,6 +39,7 @@ export const emptyExamFormValues: ExamFormValues = {
   failAccuracy: 75,
   textSource: "BANK",
   textLanguage: "en",
+  textCategory: "",
   customText: "",
   retryPassword: "",
   scheduleStart: "",
@@ -51,12 +54,14 @@ type ExamFormProps = {
   mode: "create" | "edit";
   initialValues: ExamFormValues;
   batches: Batch[];
+  /** BANK passage categories from GET /api/typing-exam (avoids bundling all passage text client-side). */
+  categories: string[];
   onSubmit: (values: ExamFormValues) => Promise<void>;
   saving: boolean;
   error: string;
 };
 
-export default function ExamForm({ mode, initialValues, batches, onSubmit, saving, error }: ExamFormProps) {
+export default function ExamForm({ mode, initialValues, batches, categories, onSubmit, saving, error }: ExamFormProps) {
   const reduceMotion = useReducedMotion();
   const [values, setValues] = useState<ExamFormValues>(initialValues);
 
@@ -78,6 +83,7 @@ export default function ExamForm({ mode, initialValues, batches, onSubmit, savin
     mode === "edit" &&
     (values.textSource !== initialValues.textSource ||
       values.textLanguage !== initialValues.textLanguage ||
+      values.textCategory !== initialValues.textCategory ||
       values.customText !== initialValues.customText);
 
   return (
@@ -209,14 +215,31 @@ export default function ExamForm({ mode, initialValues, batches, onSubmit, savin
           />
         </div>
         {values.textSource === "BANK" ? (
-          <select
-            value={values.textLanguage}
-            onChange={(e) => setValues((f) => ({ ...f, textLanguage: e.target.value }))}
-            className={fieldClass}
-          >
-            <option value="en">English</option>
-            <option value="bn">বাংলা</option>
-          </select>
+          <div className="space-y-2">
+            <select
+              value={values.textLanguage}
+              onChange={(e) => setValues((f) => ({ ...f, textLanguage: e.target.value }))}
+              className={fieldClass}
+            >
+              <option value="en">English</option>
+              <option value="bn">বাংলা</option>
+            </select>
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">Category (ঐচ্ছিক — খালি রাখলে সব category থেকে random)</label>
+              <select
+                value={values.textCategory}
+                onChange={(e) => setValues((f) => ({ ...f, textCategory: e.target.value }))}
+                className={fieldClass}
+              >
+                <option value="">Random (সব category)</option>
+                {categories.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
         ) : (
           <textarea
             required

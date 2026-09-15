@@ -1465,6 +1465,8 @@ model TypingExam {
 
   textSource   TypingExamTextSource @default(CUSTOM) @map("text_source")
   textLanguage String               @default("en")   @map("text_language")
+  // BANK category the passage was picked from (null = random across all / CUSTOM text).
+  textCategory String?              @map("text_category")
   examText     String               @default("")     @map("exam_text") // resolved passage, fixed at creation for fair comparison
 
   isActive      Boolean   @default(true) @map("is_active")
