@@ -94,7 +94,7 @@ export async function handleSubmitAttempt(
     elapsedMs,
     expectedLength: expectedChars.length,
   });
-  const verdict = validateSubmission(
+  let verdict = validateSubmission(
     {
       expectedLength: expectedChars.length,
       typedLength: typedChars.length,
@@ -106,6 +106,33 @@ export async function handleSubmitAttempt(
     },
     {},
   );
+
+  // Countdown enforcement (server-side): the client countdown is display
+  // only, so a scripted client could otherwise take unlimited time on a
+  // timed game and still validate. Fail open when the catalog read itself
+  // fails — a store outage must not turn valid runs into rejections.
+  // 5s grace covers submit latency after the client auto-submits at 0:00.
+  if (verdict.ok && Number.isFinite(elapsedMs)) {
+    try {
+      const game = await deps.store.getActiveGame(gameSlug);
+      const limit = game?.timingLimitSeconds;
+      if (
+        game?.timingKind === "countdown" &&
+        typeof limit === "number" &&
+        limit > 0 &&
+        elapsedMs > limit * 1000 + 5000
+      ) {
+        verdict = {
+          ok: false,
+          rejectReason: "TIME_EXCEEDED",
+          flags: verdict.flags,
+          recomputed: verdict.recomputed,
+        };
+      }
+    } catch {
+      // Catalog read failed — skip the timing gate, keep the verdict.
+    }
+  }
 
   if (
     !verdict.ok &&

@@ -269,8 +269,7 @@ export function GamePlayer({
   const sessionRef = useRef<TypingSession | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const submittedRef = useRef(false);
-  const endAtRef = useRef(0);
-  const [phase, setPhase] = useState<Phase>("ready");
+  const endAtRef = useRef(0);  const [phase, setPhase] = useState<Phase>("ready");
   const [tick, setTick] = useState(0);
   const [focused, setFocused] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(timingLimit ?? 0);
@@ -285,6 +284,26 @@ export function GamePlayer({
       caseSensitive: true,
     });
   }
+
+  // Reset the session when the prompt changes (e.g. client-side navigation
+  // reuses this component for a different attempt without remounting).
+  // Without this, keystrokes would be scored against the previous prompt.
+  const lastExpectedRef = useRef(expectedText);
+  useEffect(() => {
+    if (lastExpectedRef.current !== expectedText) {
+      lastExpectedRef.current = expectedText;
+      sessionRef.current = createTypingSession(expectedText, {
+        allowBackspace: true,
+        caseSensitive: true,
+      });
+      endAtRef.current = 0;
+      submittedRef.current = false;
+      setSecondsLeft(timingLimit ?? 0);
+      setSubmitError(null);
+      setPhase("ready");
+      setTick((t) => t + 1);
+    }
+  }, [expectedText, timingLimit]);
 
   const snap = sessionRef.current.snapshot();
   const typedChars = useMemo(
@@ -410,7 +429,9 @@ export function GamePlayer({
 
   function feedKey(key: string): void {
     const session = sessionRef.current;
-    if (!session || phase === "submitting" || phase === "done") return;
+    // Terminal phases (submitting/done/rejected/expired/error) never accept
+    // input — the run is already finalized or being finalized server-side.
+    if (!session || (phase !== "ready" && phase !== "playing" && phase !== "paused")) return;
     if (phase === "ready" || phase === "paused") setPhase("playing");
     const outcome = session.input(key, Date.now());
     setTick((t) => t + 1);
@@ -422,7 +443,7 @@ export function GamePlayer({
 
   function feedBackspace(): void {
     const session = sessionRef.current;
-    if (!session || phase === "submitting" || phase === "done") return;
+    if (!session || (phase !== "ready" && phase !== "playing" && phase !== "paused")) return;
     if (phase === "ready" || phase === "paused") setPhase("playing");
     session.backspace(Date.now());
     setTick((t) => t + 1);

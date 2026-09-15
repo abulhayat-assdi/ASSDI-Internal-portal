@@ -9,6 +9,7 @@ import type {
   ProfileState,
   StudentStore,
 } from "./student-store";
+import { enrichGames } from "./games";
 
 export interface DashboardData {
   profile: ProfileState;
@@ -65,7 +66,15 @@ export async function getStudentDashboard(
   const completed = await store.listCompletedGames(userId);
   const unlocks = await store.listUnlocks(userId);
   const games = await store.listGames();
-  const recommended = recommendGame(games, unlocks, completed);
+  // Effective unlocks come from enrichGames (rule verdict + sequential gate
+  // + free/ad-unlock exceptions). The raw game_unlocks cache alone would
+  // recommend locked games, so only use it as a fallback if enrichment fails.
+  let recommended: DashboardData["recommended"];
+  try {
+    recommended = recommendFromEnriched(await enrichGames(userId, store));
+  } catch {
+    recommended = recommendGame(games, unlocks, completed);
+  }
 
   return {
     profile,
@@ -100,6 +109,14 @@ export async function getStudentDashboard(
  * Recommendation heuristic (display order only — unlock truth stays in
  * game_unlocks, written by the progression function): earliest catalog game
  * that is unlocked but not yet completed; else earliest incomplete; else null.
+ *
+ * IMPORTANT: `unlocked` must be the EFFECTIVE unlock set (rule verdict +
+ * sequential world gate + curated free/ad-unlock exceptions), i.e. slugs
+ * where EnrichedGame.unlocked is true — NOT the raw game_unlocks manual
+ * cache from store.listUnlocks(). Passing the raw cache recommends locked
+ * games (the cache only holds manual ad-unlocks; rule-based verdicts are
+ * computed fresh in enrichGames). Callers that already have enriched games
+ * should prefer recommendFromEnriched() below.
  */
 export function recommendGame(
   games: Array<{ slug: string; worldSlug: string }>,
@@ -115,6 +132,26 @@ export function recommendGame(
   }
   for (const g of games) {
     if (!done.has(g.slug)) return { slug: g.slug, worldSlug: g.worldSlug };
+  }
+  return null;
+}
+
+/**
+ * Enriched variant: derives the effective unlock set from EnrichedGame rows
+ * (rule verdict + sequential gate + free/ad-unlock exceptions) so the
+ * recommendation can never point at a locked game. Prefer this whenever the
+ * caller already has enrichGames() output (map + library pages).
+ */
+export function recommendFromEnriched(
+  games: Array<{ slug: string; worldSlug: string; unlocked: boolean; completed: boolean }>,
+): { slug: string; worldSlug: string } | null {
+  for (const g of games) {
+    if (g.unlocked && !g.completed) {
+      return { slug: g.slug, worldSlug: g.worldSlug };
+    }
+  }
+  for (const g of games) {
+    if (!g.completed) return { slug: g.slug, worldSlug: g.worldSlug };
   }
   return null;
 }

@@ -32,6 +32,14 @@ export interface StartDeps {
   session: Session | null;
   store: AttemptStore | null;
   prompt?: (game: StoreGame, seed: string) => BuiltPrompt;
+  /**
+   * Effective-unlock gate (rule verdict + sequential world gate + curated
+   * free/ad-unlock exceptions, as computed by enrichGames). When provided
+   * and resolving false, the start is rejected with 403 GAME_LOCKED so a
+   * locked game can never be played via a direct API call that bypasses the
+   * library/map UI. Omitted only in offline tests that seed no catalog.
+   */
+  isUnlocked?: (slug: string) => Promise<boolean>;
 }
 
 function fail(code: string, message: string, status: number): NextResponse {
@@ -68,6 +76,17 @@ export async function handleStartAttempt(
   const game = await deps.store.getActiveGame(gameSlug);
   if (!game) {
     return fail("GAME_NOT_FOUND", enErrors.fileNotAvailable, 404);
+  }
+  if (deps.isUnlocked) {
+    let unlocked = false;
+    try {
+      unlocked = await deps.isUnlocked(game.slug);
+    } catch {
+      return fail("SERVICE_UNAVAILABLE", enErrors.storageUnavailable, 503);
+    }
+    if (!unlocked) {
+      return fail("GAME_LOCKED", enErrors.fileNotAvailable, 403);
+    }
   }
   let prompt: BuiltPrompt;
   try {
@@ -121,8 +140,24 @@ export async function POST(
 ): Promise<Response> {
   const session = await getSession();
   const client = await userDbClient();
+  if (!session || !client) {
+    return handleStartAttempt((await ctx.params).gameId, await readBody(req), {
+      session,
+      store: client ? createSupabaseAttemptStore(client) : null,
+    });
+  }
+  const { createSupabaseStudentStore } = await import(
+    "@/lib/typing-game/server/student-store"
+  );
+  const { enrichGames } = await import("@/lib/typing-game/server/games");
+  const studentStore = createSupabaseStudentStore(client);
+  const userId = session.userId;
   return handleStartAttempt((await ctx.params).gameId, await readBody(req), {
     session,
-    store: client ? createSupabaseAttemptStore(client) : null,
+    store: createSupabaseAttemptStore(client),
+    isUnlocked: async (slug: string) => {
+      const games = await enrichGames(userId, studentStore);
+      return games.some((g) => g.slug === slug && g.unlocked);
+    },
   });
 }

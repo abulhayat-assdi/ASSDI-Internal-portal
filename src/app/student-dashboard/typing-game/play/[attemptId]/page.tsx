@@ -31,6 +31,14 @@ export default async function PlayPage(
   const def = GAMES.find((g) => g.slug === attempt.gameSlug);
   if (!def) notFound();
 
+  // Timing comes from the LIVE catalog row (the same source the submit route
+  // enforces), with the static content definition as fallback. Using the
+  // static def alone would let a DB timing change desync the countdown the
+  // student sees from the limit the server actually enforces.
+  const liveGame = await store.getActiveGame(attempt.gameSlug).catch(() => null);
+  const timingKind = liveGame?.timingKind ?? def.timingRules.kind;
+  const timingLimit = liveGame?.timingLimitSeconds ?? def.timingRules.limitSeconds ?? null;
+
   const gameTitle = locale === "bn" && def.title.bn ? def.title.bn : def.title.en;
   const links = {
     gameHref: `/student-dashboard/typing-game/games/${def.slug}`,
@@ -71,8 +79,8 @@ export default async function PlayPage(
       gameSlug={def.slug}
       gameTitle={gameTitle}
       expectedText={attempt.expectedText}
-      timingKind={def.timingRules.kind}
-      timingLimit={def.timingRules.limitSeconds ?? null}
+      timingKind={timingKind}
+      timingLimit={timingLimit}
       visual={def.theme.visual}
       mechanic={def.mechanic}
       strings={{

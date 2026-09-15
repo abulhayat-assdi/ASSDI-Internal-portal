@@ -10,6 +10,10 @@
  * early via the mock "watch an ad" action (POST /api/typing-game/games/
  * [slug]/ad-unlock) instead of waiting to meet the normal requirement.
  * Kept intentionally small and easy to retune — just edit these arrays.
+ *
+ * MIRROR WARNING: the same list is enforced inside the
+ * typing_game.fn_ad_unlock_game SQL function (0044_ad_unlock_allowlist.sql)
+ * so a direct RPC call cannot unlock other games. Update BOTH files together.
  */
 export const ALWAYS_FREE_GAME_SLUGS: string[] = ["letter-rain"];
 

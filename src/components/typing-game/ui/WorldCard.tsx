@@ -7,7 +7,7 @@ export interface WorldCardProps {
   title: ReactNode;
   description?: ReactNode;
   art?: ReactNode;
-  status?: "locked" | "current" | "complete";
+  status?: "locked" | "current" | "open" | "complete";
   statusLabel?: ReactNode;
   progress?: number;
   action?: ReactNode;
@@ -17,6 +17,7 @@ export interface WorldCardProps {
 const STATUS_TONE: Record<NonNullable<WorldCardProps["status"]>, BadgeTone> = {
   locked: "neutral",
   current: "primary",
+  open: "warning",
   complete: "success",
 };
 

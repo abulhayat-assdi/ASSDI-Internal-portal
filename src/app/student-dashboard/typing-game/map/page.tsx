@@ -22,8 +22,8 @@ import {
 import { AdventureMapContainer, Badge, PageHeader, SectionHeader, WorldCard } from "@/components/typing-game/ui";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { studentContext } from "@/lib/typing-game/server/student-pages";
-import { recommendGame } from "@/lib/typing-game/server/student";
-import { getWorldMapData } from "@/lib/typing-game/server/games";
+import { recommendFromEnriched } from "@/lib/typing-game/server/student";
+import { enrichGames, getWorldMapData } from "@/lib/typing-game/server/games";
 import { worldVisual } from "@/lib/typing-game/world-visuals";
 import { WORLDS, type WorldTier } from "@/lib/typing-game/content";
 import { KeyboardLesson } from "@/components/typing-game/keyboard-lesson";
@@ -53,12 +53,12 @@ export default async function MapPage({}: {}) {
   const t = getTranslator(locale, "map");
   const { session, store } = await studentContext(locale);
 
-  const [games, unlocks, completed] = await Promise.all([
-    store.listGames(),
-    store.listUnlocks(session.userId),
-    store.listCompletedGames(session.userId),
-  ]);
-  const recommended = recommendGame(games, unlocks, completed);
+  // Recommendation comes from the ENRICHED rows (effective unlocks: rule
+  // verdict + sequential gate + free/ad-unlock exceptions) — never from the
+  // raw game_unlocks cache, which only holds manual ad-unlocks and would let
+  // a locked world be recommended as "Current".
+  const enriched = await enrichGames(session.userId, store);
+  const recommended = recommendFromEnriched(enriched);
   const worlds = await getWorldMapData(
     session.userId,
     store,
@@ -115,7 +115,7 @@ export default async function MapPage({}: {}) {
                         title={`${String(w.order)}. ${locale === "bn" ? w.nameBn : w.nameEn}`}
                         description={locale === "bn" && w.descriptionBn ? w.descriptionBn : w.descriptionEn}
                         art={<Icon className="tap-world-icon h-9 w-9" strokeWidth={2} />}
-                        status={w.status === "open" ? "current" : w.status}
+                        status={w.status}
                         statusLabel={statusLabel(w.status)}
                         progress={
                           w.total === 0 ? 0 : Math.round((w.completed / w.total) * 100)
