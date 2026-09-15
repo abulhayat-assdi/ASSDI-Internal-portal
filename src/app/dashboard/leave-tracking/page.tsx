@@ -32,6 +32,7 @@ function formatShortDate(dateStr: string) {
 // ---------- Component ----------
 export default function LeaveTrackingPage() {
     const { userProfile } = useAuth();
+    const isAdmin = userProfile?.role === "admin" || userProfile?.role === "super_admin";
     const [teachers, setTeachers] = useState<Teacher[]>([]);
     const [selectedTeacherId, setSelectedTeacherId] = useState<string>("");
     const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
@@ -43,13 +44,22 @@ export default function LeaveTrackingPage() {
         getAllTeachers().then(all => {
             // Only show teachers with leaveTrackingEnabled === true
             const enabled = all.filter(t => t.leaveTrackingEnabled === true);
-            setTeachers(enabled);
-            // Auto-select first teacher if available
-            if (enabled.length > 0) {
-                setSelectedTeacherId(enabled[0].id);
+            if (isAdmin) {
+                setTeachers(enabled);
+                // Auto-select first teacher if available
+                if (enabled.length > 0) {
+                    setSelectedTeacherId(enabled[0].id);
+                }
+            } else {
+                // Non-admins may only ever view their own leave record.
+                const own = enabled.filter(t => t.teacherId === userProfile?.teacherId);
+                setTeachers(own);
+                if (own.length > 0) {
+                    setSelectedTeacherId(own[0].id);
+                }
             }
         });
-    }, []);
+    }, [isAdmin, userProfile?.teacherId]);
 
     useEffect(() => {
         if (!selectedTeacherId || teachers.length === 0) {
@@ -102,7 +112,11 @@ export default function LeaveTrackingPage() {
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800">🌴 Leave Tracking</h1>
-                    <p className="text-sm text-slate-500 mt-1">View and track leave records for all teachers. All teachers can view this page.</p>
+                    <p className="text-sm text-slate-500 mt-1">
+                        {isAdmin
+                            ? "View leave records for all teachers. Manage leaves from Admin Panel → Leave Management."
+                            : "View your own leave records."}
+                    </p>
                 </div>
                 {syncing && (
                     <div className="flex items-center gap-2 text-sm text-emerald-600 bg-emerald-50 px-4 py-2 rounded-full border border-emerald-200">
@@ -112,23 +126,33 @@ export default function LeaveTrackingPage() {
                 )}
             </div>
 
-            {/* Teacher Filter */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                <label className="block text-sm font-semibold text-slate-700 mb-3">Select a Teacher</label>
-                <div className="relative w-full md:w-[420px]">
-                    <select
-                        value={selectedTeacherId}
-                        onChange={e => setSelectedTeacherId(e.target.value)}
-                        className="w-full appearance-none bg-slate-50 border border-slate-200 text-slate-800 px-4 py-3 pr-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm font-medium cursor-pointer hover:bg-white transition-colors"
-                    >
-                        <option value="">— Choose a Teacher —</option>
-                        {teachers.map(t => (
-                            <option key={t.id} value={t.id}>{t.name}  ·  {t.designation}</option>
-                        ))}
-                    </select>
-                    <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">▼</div>
+            {/* Teacher Filter — admins can browse any teacher; everyone else only sees their own record */}
+            {isAdmin && (
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                    <label className="block text-sm font-semibold text-slate-700 mb-3">Select a Teacher</label>
+                    <div className="relative w-full md:w-[420px]">
+                        <select
+                            value={selectedTeacherId}
+                            onChange={e => setSelectedTeacherId(e.target.value)}
+                            className="w-full appearance-none bg-slate-50 border border-slate-200 text-slate-800 px-4 py-3 pr-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm font-medium cursor-pointer hover:bg-white transition-colors"
+                        >
+                            <option value="">— Choose a Teacher —</option>
+                            {teachers.map(t => (
+                                <option key={t.id} value={t.id}>{t.name}  ·  {t.designation}</option>
+                            ))}
+                        </select>
+                        <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">▼</div>
+                    </div>
                 </div>
-            </div>
+            )}
+
+            {!isAdmin && teachers.length === 0 && (
+                <div className="text-center py-16 bg-white rounded-2xl border border-slate-100">
+                    <p className="text-5xl mb-4">🌴</p>
+                    <p className="text-slate-500 font-medium">Leave tracking isn&apos;t enabled for your account yet.</p>
+                    <p className="text-slate-400 text-sm mt-1">Contact an admin if you think this is a mistake.</p>
+                </div>
+            )}
 
             {/* Loading spinner */}
             {loading && !syncing && (

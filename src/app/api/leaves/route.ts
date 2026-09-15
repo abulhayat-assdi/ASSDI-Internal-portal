@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
-import { getSessionUser, isTeacherOrAdmin } from "@/lib/auth";
+import { getSessionUser, isAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -10,10 +10,15 @@ export async function GET(req: NextRequest) {
     const user = await getSessionUser(req);
     if (!user || !user.courseId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const courseId = user.courseId;
+    const admin = isAdmin(user);
 
     const { searchParams } = new URL(req.url);
-    const teacherId = searchParams.get("teacherId");
     const monthYear = searchParams.get("monthYear");
+
+    // Non-admins can only ever see their own leave records — the requested
+    // teacherId is ignored for them so they can't view/enumerate others' leaves.
+    const teacherId = admin ? searchParams.get("teacherId") : user.teacherId;
+    if (!admin && !teacherId) return NextResponse.json([]);
 
     const where: any = { courseId };
     if (teacherId) where.teacherId = teacherId;
@@ -29,10 +34,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(leaves);
 }
 
-/** POST /api/leaves */
+/** POST /api/leaves — admin-only; leave records are managed from the admin panel */
 export async function POST(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user || !isTeacherOrAdmin(user) || !user.courseId) {
+    if (!user || !isAdmin(user) || !user.courseId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     const courseId = user.courseId;
@@ -64,10 +69,10 @@ export async function POST(req: NextRequest) {
     }
 }
 
-/** PATCH /api/leaves — update a leave record */
+/** PATCH /api/leaves — update a leave record (admin-only) */
 export async function PATCH(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user || !isTeacherOrAdmin(user) || !user.courseId) {
+    if (!user || !isAdmin(user) || !user.courseId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     const courseId = user.courseId;
@@ -85,10 +90,10 @@ export async function PATCH(req: NextRequest) {
     }
 }
 
-/** DELETE /api/leaves?id=... */
+/** DELETE /api/leaves?id=... (admin-only) */
 export async function DELETE(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user || !isTeacherOrAdmin(user) || !user.courseId) {
+    if (!user || !isAdmin(user) || !user.courseId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     const courseId = user.courseId;
