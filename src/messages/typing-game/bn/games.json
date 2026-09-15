@@ -26,5 +26,9 @@
   "bestScore": "সেরা",
   "difficultyBeginner": "বিগিনার",
   "difficultyIntermediate": "ইন্টারমিডিয়েট",
-  "difficultyExpert": "এক্সপার্ট"
+  "difficultyExpert": "অ্যাডভান্সড",
+  "adUnlock": "অ্যাড দেখে আনলক করুন",
+  "adUnlockHint": "একটা ছোট অ্যাড দেখে এখনই এই গেমটা আনলক করে ফেলুন।",
+  "adUnlocking": "আনলক হচ্ছে…",
+  "adUnlockFailed": "আনলক করা যায়নি। আবার চেষ্টা করুন।"
 }

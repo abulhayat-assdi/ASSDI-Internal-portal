@@ -7,5 +7,12 @@
   "locked": "লকড",
   "gamesCompleted": "{total}টির মধ্যে {done}টি গেম",
   "nextGame": "পরের",
-  "startHere": "এখান থেকে শুরু"
+  "startHere": "এখান থেকে শুরু",
+  "tierBeginner": "শিক্ষানবিস",
+  "tierIntermediate": "মধ্যবর্তী",
+  "tierAdvanced": "উন্নত",
+  "tierBeginnerBlurb": "কিবোর্ড চিনুন, অক্ষর খুঁজুন এবং প্রথম শব্দগুলো তৈরি করুন।",
+  "tierIntermediateBlurb": "সময় বেঁধে অনুশীলন আর লম্বা বাক্যের মাধ্যমে গতি বাড়ান।",
+  "tierAdvancedBlurb": "চাপের মধ্যে নির্ভুলতা ও গতি আয়ত্ত করুন।",
+  "worldLockedReason": "আগে {world} সম্পূর্ণ করুন"
 }

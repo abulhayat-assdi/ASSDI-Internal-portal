@@ -19,6 +19,7 @@ import enErrors from "@/messages/typing-game/en/errors.json";
 import enGames from "@/messages/typing-game/en/games.json";
 import enHome from "@/messages/typing-game/en/home.json";
 import enLeaderboard from "@/messages/typing-game/en/leaderboard.json";
+import enLesson from "@/messages/typing-game/en/lesson.json";
 import enMap from "@/messages/typing-game/en/map.json";
 import enMissions from "@/messages/typing-game/en/missions.json";
 import enWars from "@/messages/typing-game/en/wars.json";
@@ -45,6 +46,7 @@ import bnErrors from "@/messages/typing-game/bn/errors.json";
 import bnGames from "@/messages/typing-game/bn/games.json";
 import bnHome from "@/messages/typing-game/bn/home.json";
 import bnLeaderboard from "@/messages/typing-game/bn/leaderboard.json";
+import bnLesson from "@/messages/typing-game/bn/lesson.json";
 import bnMap from "@/messages/typing-game/bn/map.json";
 import bnMissions from "@/messages/typing-game/bn/missions.json";
 import bnWars from "@/messages/typing-game/bn/wars.json";
@@ -77,6 +79,7 @@ export interface Messages {
   games: typeof enGames;
   home: typeof enHome;
   leaderboard: typeof enLeaderboard;
+  lesson: typeof enLesson;
   map: typeof enMap;
   missions: typeof enMissions;
   wars: typeof enWars;
@@ -109,6 +112,7 @@ const en: Messages = {
   games: enGames,
   home: enHome,
   leaderboard: enLeaderboard,
+  lesson: enLesson,
   map: enMap,
   missions: enMissions,
   wars: enWars,
@@ -140,6 +144,7 @@ const bnRaw: PartialMessages = {
   games: bnGames,
   home: bnHome,
   leaderboard: bnLeaderboard,
+  lesson: bnLesson,
   map: bnMap,
   missions: bnMissions,
   wars: bnWars,
@@ -211,6 +216,7 @@ export function getMessages(locale: Locale): Messages {
     games: mergeNamespace<"games">(en.games, bnRaw.games),
     home: mergeNamespace<"home">(en.home, bnRaw.home),
     leaderboard: mergeNamespace<"leaderboard">(en.leaderboard, bnRaw.leaderboard),
+    lesson: mergeNamespace<"lesson">(en.lesson, bnRaw.lesson),
     map: mergeNamespace<"map">(en.map, bnRaw.map),
     missions: mergeNamespace<"missions">(en.missions, bnRaw.missions),
     wars: mergeNamespace<"wars">(en.wars, bnRaw.wars),

@@ -26,5 +26,9 @@
   "bestScore": "Best",
   "difficultyBeginner": "Beginner",
   "difficultyIntermediate": "Intermediate",
-  "difficultyExpert": "Expert"
+  "difficultyExpert": "Advanced",
+  "adUnlock": "Watch an ad to unlock",
+  "adUnlockHint": "Skip ahead and unlock this game right away by watching a short ad.",
+  "adUnlocking": "Unlocking…",
+  "adUnlockFailed": "Could not unlock. Please retry."
 }

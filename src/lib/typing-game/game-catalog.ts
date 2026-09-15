@@ -19,6 +19,16 @@ export interface EnrichedGame {
   lockedReasons: string[];
   completed: boolean;
   bestScore: number | null;
+  /** True when still locked but eligible for the mock "watch an ad" unlock (see access-overrides.ts). */
+  adUnlockAvailable: boolean;
+  /**
+   * `unlocked` before the curated free/ad-unlock exceptions are applied —
+   * i.e. purely the rule verdict + sequential world gate. Used by
+   * getWorldMapData to decide a world's own status, so a single always-free
+   * bonus game can't make its whole world look reachable ahead of the
+   * sequence. Everything else should keep using `unlocked`.
+   */
+  sequenceUnlocked: boolean;
 }
 
 export type GameFilter = {

@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { motion, type Variants } from "framer-motion";
-import { Gamepad2, Lock, Search, Sparkles, Trophy } from "lucide-react";
+import { Clapperboard, Gamepad2, Lock, Search, Sparkles, Trophy } from "lucide-react";
 import { Badge, Card, CardContent, EmptyState, LockedGameCard, cx } from "@/components/typing-game/ui";
 import { type Locale } from "@/lib/typing-game/i18n";
 import { GAMES } from "@/lib/typing-game/content";
@@ -38,6 +39,10 @@ export interface ExplorerStrings {
   intermediate: string;
   expert: string;
   viewDetails: string;
+  adUnlock: string;
+  adUnlockHint: string;
+  adUnlocking: string;
+  adUnlockFailed: string;
 }
 
 /** Per-game accent (falls back to the parent world's accent when unset). */
@@ -71,12 +76,29 @@ export function GamesExplorer({
   recommendedSlug: string | null;
   strings: ExplorerStrings;
 }) {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [world, setWorld] = useState("");
   const [difficulty, setDifficulty] = useState("");
   const [mode, setMode] = useState("");
   const [status, setStatus] = useState<"all" | "unlocked" | "locked" | "completed">("all");
   const [sort, setSort] = useState<GameSort>("recommended");
+  const [unlockingSlug, setUnlockingSlug] = useState<string | null>(null);
+  const [unlockFailedSlug, setUnlockFailedSlug] = useState<string | null>(null);
+
+  const handleAdUnlock = async (slug: string) => {
+    setUnlockingSlug(slug);
+    setUnlockFailedSlug(null);
+    try {
+      const res = await fetch(`/api/typing-game/games/${slug}/ad-unlock`, { method: "POST" });
+      if (!res.ok) throw new Error("unlock failed");
+      router.refresh();
+    } catch {
+      setUnlockFailedSlug(slug);
+    } finally {
+      setUnlockingSlug(null);
+    }
+  };
 
   const visible = useMemo(
     () =>
@@ -221,6 +243,21 @@ export function GamesExplorer({
                           >
                             <Lock className="h-3.5 w-3.5" /> {s.viewDetails}
                           </Link>
+                          {g.adUnlockAvailable ? (
+                            <button
+                              type="button"
+                              title={s.adUnlockHint}
+                              disabled={unlockingSlug === g.slug}
+                              onClick={() => { void handleAdUnlock(g.slug); }}
+                              className="tap-btn tap-btn-primary tap-btn-sm w-full"
+                            >
+                              <Clapperboard className="h-3.5 w-3.5" />
+                              {unlockingSlug === g.slug ? s.adUnlocking : s.adUnlock}
+                            </button>
+                          ) : null}
+                          {unlockFailedSlug === g.slug ? (
+                            <p className="w-full text-xs text-red-600">{s.adUnlockFailed}</p>
+                          ) : null}
                         </div>
                       }
                     />

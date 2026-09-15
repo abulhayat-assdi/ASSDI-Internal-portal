@@ -22,7 +22,8 @@ export {
   type PromptKind,
   type PromptSet,
 } from "./prompts";
-export { WORLDS, type World } from "./worlds";
+export { WORLDS, type World, type WorldTier } from "./worlds";
+export { ALWAYS_FREE_GAME_SLUGS, AD_UNLOCKABLE_GAME_SLUGS } from "./access-overrides";
 export {
   SKILL_FOCUSES,
   requiredAssetsFor,

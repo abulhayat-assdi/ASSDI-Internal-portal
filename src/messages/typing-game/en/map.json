@@ -7,5 +7,12 @@
   "locked": "Locked",
   "gamesCompleted": "{done} of {total} games",
   "nextGame": "Next",
-  "startHere": "Start here"
+  "startHere": "Start here",
+  "tierBeginner": "Beginner",
+  "tierIntermediate": "Intermediate",
+  "tierAdvanced": "Advanced",
+  "tierBeginnerBlurb": "Learn the keyboard, find your letters, and build your first words.",
+  "tierIntermediateBlurb": "Pick up speed with timed drills and longer sentences.",
+  "tierAdvancedBlurb": "Master precision and pace under real pressure.",
+  "worldLockedReason": "Complete {world} first"
 }

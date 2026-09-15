@@ -4,7 +4,7 @@
  * server-assembled stats (same function family the SQL cache mirrors —
  * verdicts here explain, the game_unlocks rows authorize).
  */
-import { GAMES, WORLDS } from "@/lib/typing-game/content";
+import { GAMES, WORLDS, ALWAYS_FREE_GAME_SLUGS, AD_UNLOCKABLE_GAME_SLUGS } from "@/lib/typing-game/content";
 import { evaluateUnlock, type UnlockStats } from "@/lib/typing-game/progression";
 import type { StudentStore } from "./student-store";
 import {
@@ -60,20 +60,25 @@ export async function enrichGames(
   store: StudentStore,
 ): Promise<EnrichedGame[]> {
   // Unlock verdicts are computed fresh via evaluateUnlock (same rule family
-  // the SQL cache mirrors); the game_unlocks cache itself is only a shortcut.
-  const [rows, completed, records] = await Promise.all([
+  // the SQL cache mirrors); the game_unlocks cache itself is only a shortcut
+  // for the two overrides below (manual ad-unlocks) — it does not drive the
+  // normal rule-based verdict.
+  const [rows, completed, records, manualUnlocks] = await Promise.all([
     store.listGames(),
     store.listCompletedGames(userId),
     store.listRecords(userId),
+    store.listUnlocks(userId),
   ]);
   const done = new Set(completed);
+  const manual = new Set(manualUnlocks);
   const best = new Map<string, number>();
   for (const r of records) {
     if (r.metric === "best_score") best.set(r.gameSlug, r.value);
   }
   const stats = await playerStats(userId, store);
   const defs = new Map(GAMES.map((g) => [g.slug, g]));
-  return rows.flatMap((row) => {
+
+  const raw: EnrichedGame[] = rows.flatMap((row) => {
     const def = defs.get(row.slug);
     if (!def) return [];
     const verdict = evaluateUnlock(stats, def.unlockRule);
@@ -87,9 +92,70 @@ export async function enrichGames(
         lockedReasons: verdict.missing,
         completed: done.has(row.slug),
         bestScore: best.get(row.slug) ?? null,
+        adUnlockAvailable: false,
+        sequenceUnlocked: verdict.unlocked,
       },
     ];
   });
+
+  // Sequential world gate: a world only opens once the PREVIOUS world (by
+  // `order`) is fully complete, layered on top of each game's own rule
+  // verdict above rather than editing the 38 games' stored unlockRule.
+  // World completeness is computed from the raw (pre-override) list so a
+  // world already finished before this gate existed doesn't get penalized.
+  const totalsByWorld = new Map<string, { total: number; completed: number }>();
+  for (const g of raw) {
+    const e = totalsByWorld.get(g.worldSlug) ?? { total: 0, completed: 0 };
+    e.total += 1;
+    if (g.completed) e.completed += 1;
+    totalsByWorld.set(g.worldSlug, e);
+  }
+  const orderedWorlds = [...WORLDS].sort((a, b) => a.order - b.order);
+  const worldOpenForSequence = new Map<string, boolean>();
+  let previousComplete = true;
+  for (const w of orderedWorlds) {
+    worldOpenForSequence.set(w.slug, previousComplete);
+    const totals = totalsByWorld.get(w.slug);
+    previousComplete = !!totals && totals.total > 0 && totals.completed === totals.total;
+  }
+
+  for (const g of raw) {
+    if (worldOpenForSequence.get(g.worldSlug) === false) {
+      const prev = orderedWorlds[orderedWorlds.findIndex((w) => w.slug === g.worldSlug) - 1];
+      g.unlocked = false;
+      g.lockedReasons = prev
+        ? [`Complete ${prev.name.en} first`, ...g.lockedReasons]
+        : g.lockedReasons;
+    }
+    // Snapshot BEFORE the curated free/ad-unlock exceptions below — this is
+    // what getWorldMapData uses to decide a world's own status, so one
+    // always-free bonus game deep in a later world can't make that whole
+    // world (and its "Next" CTA) appear reachable ahead of the sequence.
+    // The final `unlocked` (after the exceptions) stays the one flag every
+    // other consumer (Game Library, attempt start) uses to gate actually
+    // playing a game.
+    g.sequenceUnlocked = g.unlocked;
+  }
+
+  // Curated exceptions, applied last so they can override either the
+  // original rule or the sequential gate above.
+  for (const g of raw) {
+    if (ALWAYS_FREE_GAME_SLUGS.includes(g.slug)) {
+      g.unlocked = true;
+      g.lockedReasons = [];
+      continue;
+    }
+    if (!g.unlocked && AD_UNLOCKABLE_GAME_SLUGS.includes(g.slug)) {
+      if (manual.has(g.slug)) {
+        g.unlocked = true;
+        g.lockedReasons = [];
+      } else {
+        g.adUnlockAvailable = true;
+      }
+    }
+  }
+
+  return raw;
 }
 
 export async function getWorldMapData(
@@ -107,10 +173,13 @@ export async function getWorldMapData(
   return WORLDS.map((w) => {
     const list = byWorld.get(w.slug) ?? [];
     const completed = list.filter((g) => g.completed).length;
-    const unlocked = list.filter((g) => g.unlocked).length;
+    // World status is driven by sequenceUnlocked, not the final `unlocked`
+    // — a curated always-free game elsewhere shouldn't make an entire later
+    // world look reachable before the student has actually gotten there.
+    const unlocked = list.filter((g) => g.sequenceUnlocked).length;
     const next =
-      list.find((g) => g.slug === recommendedSlug) ??
-      list.find((g) => g.unlocked && !g.completed) ??
+      list.find((g) => g.slug === recommendedSlug && g.sequenceUnlocked) ??
+      list.find((g) => g.sequenceUnlocked && !g.completed) ??
       null;
     const status: WorldMapEntry["status"] =
       list.length > 0 && completed === list.length

@@ -57,6 +57,10 @@ export default async function GamesPage({}: {}) {
           beginner: t("difficultyBeginner"),
           intermediate: t("difficultyIntermediate"),
           expert: t("difficultyExpert"),
+          adUnlock: t("adUnlock"),
+          adUnlockHint: t("adUnlockHint"),
+          adUnlocking: t("adUnlocking"),
+          adUnlockFailed: t("adUnlockFailed"),
         }}
       />
     </div>
