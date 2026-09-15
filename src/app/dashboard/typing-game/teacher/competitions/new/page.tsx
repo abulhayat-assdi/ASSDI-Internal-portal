@@ -1,4 +1,4 @@
-import { PageHeader } from "@/components/typing-game/ui";
+import { Card, CardContent, PageHeader } from "@/components/typing-game/ui";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { getSession, userDbClient } from "@/lib/typing-game/server/auth";
 import { createSupabaseStaffStore } from "@/lib/typing-game/server/staff-store";
@@ -23,7 +23,9 @@ export default async function TeacherCompetitionNewPage({}: {}) {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={t("createTitle")} />
-      <CompetitionForm
+      <Card>
+        <CardContent>
+          <CompetitionForm
         locale={locale}
         games={games.map((g) => ({
           slug: g.slug,
@@ -46,6 +48,8 @@ export default async function TeacherCompetitionNewPage({}: {}) {
           participationXp: 10,
         }}
       />
+        </CardContent>
+      </Card>
     </div>
   );
 }

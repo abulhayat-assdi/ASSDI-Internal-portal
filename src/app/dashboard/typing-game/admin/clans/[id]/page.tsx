@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { Card, CardContent } from "@/components/typing-game/ui";
+import { Badge, Card, CardContent, EmptyState, SectionHeader } from "@/components/typing-game/ui";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { clanPageContext } from "@/lib/typing-game/server/clan-pages";
 import { ClanBanner } from "@/components/typing-game/clan-banner";
@@ -15,6 +15,7 @@ export default async function AdminClanManagePage(
   const params = await props.params;
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "clans");
+  const ts = getTranslator(locale, "staff");
   const { store } = await clanPageContext(locale);
   const clan = await store.getClan(params.id);
   if (!clan) notFound();
@@ -33,24 +34,38 @@ export default async function AdminClanManagePage(
       </Card>
       <Card>
         <CardContent>
-          <h2 className="mb-2 text-base font-bold">{t("sectionMembers")}</h2>
+          <SectionHeader title={t("sectionMembers")} />
           <ClanMembersTable locale={locale} rows={roster} />
         </CardContent>
       </Card>
       <Card>
         <CardContent>
-          <h2 className="mb-2 text-base font-bold">{t("sectionMissions")}</h2>
+          <SectionHeader title={t("sectionMissions")} />
           {missions.length === 0 ? (
-            <p className="text-sm text-ink-muted">{t("emptySection")}</p>
+            <EmptyState title={t("sectionMissions")} description={t("emptySection")} />
           ) : (
-            <ul className="flex flex-col gap-1 text-sm">
-              {missions.map((m) => (
-                <li key={m.id} className="flex justify-between gap-2">
-                  <span>{m.title}</span>
-                  <span className="tap-badge">{m.status}</span>
-                </li>
-              ))}
-            </ul>
+            <div className="overflow-x-auto">
+              <table className="tap-table">
+                <thead>
+                  <tr>
+                    <th scope="col">{t("sectionMissions")}</th>
+                    <th scope="col">{ts("colStatus")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {missions.map((m) => (
+                    <tr key={m.id}>
+                      <th scope="row">{m.title}</th>
+                      <td>
+                        <Badge tone={m.status === "active" ? "success" : "neutral"}>
+                          {m.status}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </CardContent>
       </Card>

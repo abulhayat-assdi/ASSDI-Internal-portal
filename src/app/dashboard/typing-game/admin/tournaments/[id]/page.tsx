@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { Card, CardContent, PageHeader } from "@/components/typing-game/ui";
+import { Badge, Card, CardContent, PageHeader, SectionHeader, StatCard } from "@/components/typing-game/ui";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { tournamentPageContext } from "@/lib/typing-game/server/tournament-pages";
 import { TournamentAdminActions } from "@/components/typing-game/tournament-admin-actions";
@@ -22,7 +22,14 @@ export default async function AdminTournamentManagePage(
     <div className="flex flex-col gap-6">
       <PageHeader
         title={detail.name}
-        description={`${detail.slug} · ${detail.status}`}
+        description={
+          <>
+            {detail.slug}{" "}
+            <Badge tone={detail.status === "active" ? "success" : "neutral"}>
+              {detail.status}
+            </Badge>
+          </>
+        }
       />
       <Card>
         <CardContent>
@@ -35,13 +42,15 @@ export default async function AdminTournamentManagePage(
       </Card>
       <Card>
         <CardContent>
-          <h2 className="mb-2 text-base font-bold">
-            {t("participants")}: {detail.participantCount}
-          </h2>
-          <p className="text-sm text-ink-muted">
-            {detail.participantType === "clan" ? t("typeClan") : t("typeStudent")} ·{" "}
-            {detail.format}
-          </p>
+          <SectionHeader title={t("sectionDetails")} />
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+            <StatCard label={t("participants")} value={detail.participantCount} />
+            <StatCard
+              label={t("fieldParticipantType")}
+              value={detail.participantType === "clan" ? t("typeClan") : t("typeStudent")}
+            />
+            <StatCard label={t("status")} value={detail.format} />
+          </div>
         </CardContent>
       </Card>
       <TournamentBracket

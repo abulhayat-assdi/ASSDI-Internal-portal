@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { Card, CardContent, PageHeader } from "@/components/typing-game/ui";
+import { Badge, Card, CardContent, PageHeader, SectionHeader, StatCard } from "@/components/typing-game/ui";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { getSession } from "@/lib/typing-game/server/auth";
 import { userDbClient } from "@/lib/typing-game/server/auth";
@@ -60,11 +60,30 @@ export default async function AdminStudentPage(
     <div className="flex flex-col gap-6">
       <PageHeader
         title={detail.fullName}
-        description={`${detail.email} · ${t("level")} ${String(detail.level)} · XP ${String(detail.xpTotal)}`}
+        description={
+          <>
+            {detail.email}{" "}
+            <Badge tone={detail.status === "active" ? "success" : "neutral"}>
+              {detail.status}
+            </Badge>
+          </>
+        }
       />
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <StatCard label={t("level")} value={detail.level} />
+        <StatCard label={t("xp")} value={detail.xpTotal} />
+        <StatCard
+          label={t("colBatch")}
+          value={active ? active.batchName : "—"}
+        />
+        <StatCard
+          label={t("colRoll")}
+          value={active ? active.rollNumber : "—"}
+        />
+      </div>
       <Card>
         <CardContent>
-          <h2 className="mb-2 text-base font-bold">{t("colStatus")}</h2>
+          <SectionHeader title={t("colStatus")} />
           <AccountStatusSelect
             locale={locale}
             userId={detail.userId}
@@ -75,9 +94,9 @@ export default async function AdminStudentPage(
       {active ? (
         <Card>
           <CardContent>
-            <h2 className="mb-2 text-base font-bold">
-              {active.batchName} · {active.rollNumber}
-            </h2>
+            <SectionHeader
+              title={`${active.batchName} · ${active.rollNumber}`}
+            />
             <MembershipEditor
               locale={locale}
               userId={detail.userId}
@@ -91,7 +110,7 @@ export default async function AdminStudentPage(
       ) : (
         <Card>
           <CardContent>
-            <p className="text-sm text-ink-muted">{t("statusInactive")}</p>
+            <Badge tone="warning">{t("statusInactive")}</Badge>
           </CardContent>
         </Card>
       )}

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Card, CardContent, PageHeader } from "@/components/typing-game/ui";
+import { Badge, Card, CardContent, EmptyState, PageHeader, SectionHeader } from "@/components/typing-game/ui";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { bossPageContext } from "@/lib/typing-game/server/boss-pages";
 import { BossAdminActions } from "@/components/typing-game/boss-admin-actions";
@@ -14,6 +14,7 @@ export default async function AdminBossManagePage(
   const params = await props.params;
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "bosses");
+  const ts = getTranslator(locale, "staff");
   const { store } = await bossPageContext(locale);
   const bosses = await store.listBosses();
   const def = bosses.find((b) => b.id === params.id);
@@ -32,23 +33,36 @@ export default async function AdminBossManagePage(
       </Card>
       <Card>
         <CardContent>
-          <h2 className="mb-2 text-base font-bold">{t("sectionActive")}</h2>
+          <SectionHeader title={t("sectionActive")} />
           {instances.length === 0 ? (
-            <p className="text-sm text-ink-muted">{t("emptySection")}</p>
+            <EmptyState title={t("sectionActive")} description={t("emptySection")} />
           ) : (
-            <ul className="flex flex-col gap-2">
-              {instances.map((i) => (
-                <li
-                  key={i.id}
-                  className="flex items-center justify-between gap-3 text-sm"
-                >
-                  <Link href={`/student-dashboard/typing-game/clan/bosses/${i.id}`}>
-                    {i.currentHp}/{String(i.initialHp)} HP
-                  </Link>
-                  <span className="tap-badge">{i.status}</span>
-                </li>
-              ))}
-            </ul>
+            <div className="overflow-x-auto">
+              <table className="tap-table">
+                <thead>
+                  <tr>
+                    <th scope="col">{t("fieldMaxHp")}</th>
+                    <th scope="col">{ts("colStatus")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {instances.map((i) => (
+                    <tr key={i.id}>
+                      <th scope="row">
+                        <Link href={`/student-dashboard/typing-game/clan/bosses/${i.id}`}>
+                          {i.currentHp}/{String(i.initialHp)} HP
+                        </Link>
+                      </th>
+                      <td>
+                        <Badge tone={i.status === "active" ? "success" : "neutral"}>
+                          {i.status}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </CardContent>
       </Card>

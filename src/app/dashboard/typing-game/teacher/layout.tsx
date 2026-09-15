@@ -1,5 +1,6 @@
 import { ForbiddenBlock } from "@/components/typing-game/forbidden-block";
 import { StaffNav } from "@/components/typing-game/staff-nav";
+import "@/styles/typing-game-theme.css";
 import { getSession } from "@/lib/typing-game/server/auth";
 import { userDbClient } from "@/lib/typing-game/server/auth";
 import { requireTeacher } from "@/lib/typing-game/server/staff";
@@ -43,7 +44,7 @@ export default async function TeacherLayout({
   const t = getTranslator(locale, "staff");
   const tn = getTranslator(locale, "nav");
   return (
-    <div className="min-h-screen bg-canvas">
+    <div className="tap-scope min-h-screen bg-canvas">
       <StaffNav
         locale={locale}
         homeHref={`/dashboard/typing-game/teacher`}

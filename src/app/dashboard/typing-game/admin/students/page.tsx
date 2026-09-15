@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Card, CardContent, PageHeader } from "@/components/typing-game/ui";
+import { Badge, Card, CardContent, EmptyState, PageHeader } from "@/components/typing-game/ui";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { getSession } from "@/lib/typing-game/server/auth";
 import { userDbClient } from "@/lib/typing-game/server/auth";
@@ -56,7 +56,7 @@ export default async function StudentsPage(
             </button>
           </form>
           {students.length === 0 ? (
-            <p className="text-sm text-ink-muted">{t("noResults")}</p>
+            <EmptyState title={t("students")} description={t("noResults")} />
           ) : (
             <div className="overflow-x-auto">
               <table className="tap-table">
@@ -80,7 +80,11 @@ export default async function StudentsPage(
                       </th>
                       <td>{s.rollNumber}</td>
                       <td>{s.batchName}</td>
-                      <td>{s.status}</td>
+                      <td>
+                        <Badge tone={s.status === "active" ? "success" : "neutral"}>
+                          {s.status}
+                        </Badge>
+                      </td>
                       <td>
                         <Link
                           href={`/dashboard/typing-game/admin/students/${s.userId}`}

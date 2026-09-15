@@ -1,4 +1,4 @@
-import { Card, CardContent, PageHeader } from "@/components/typing-game/ui";
+import { Badge, Card, CardContent, EmptyState, PageHeader } from "@/components/typing-game/ui";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { getSession } from "@/lib/typing-game/server/auth";
 import { userDbClient } from "@/lib/typing-game/server/auth";
@@ -43,6 +43,9 @@ export default async function BatchesPage({}: {}) {
       </Card>
       <Card>
         <CardContent>
+          {batches.length === 0 ? (
+            <EmptyState title={t("batches")} description={t("noResults")} />
+          ) : (
           <div className="overflow-x-auto">
             <table className="tap-table">
               <thead>
@@ -62,7 +65,11 @@ export default async function BatchesPage({}: {}) {
                     <td>
                       <code>{b.joinCode}</code>
                     </td>
-                    <td>{b.isActive ? t("statusActive") : t("statusInactive")}</td>
+                    <td>
+                      <Badge tone={b.isActive ? "success" : "neutral"}>
+                        {b.isActive ? t("statusActive") : t("statusInactive")}
+                      </Badge>
+                    </td>
                     <td>
                       <PatchToggle
                         locale={locale}
@@ -77,6 +84,7 @@ export default async function BatchesPage({}: {}) {
               </tbody>
             </table>
           </div>
+          )}
         </CardContent>
       </Card>
     </div>

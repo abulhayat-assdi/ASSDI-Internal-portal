@@ -1,4 +1,4 @@
-import { Card, CardContent, PageHeader } from "@/components/typing-game/ui";
+import { Badge, Card, CardContent, EmptyState, PageHeader, SectionHeader, StatCard } from "@/components/typing-game/ui";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { rewardedPageContext } from "@/lib/typing-game/server/rewarded-pages";
 import { RewardAdminControls } from "@/components/typing-game/reward-admin-controls";
@@ -40,21 +40,23 @@ export default async function AdminRewardsPage({}: {}) {
       </Card>
       <Card>
         <CardContent>
-          <h2 className="mb-2 text-base font-bold">{t("funnelTitle")}</h2>
-            <ul className="flex flex-col gap-1 text-sm">
-              {events.length === 0 ? (
-                <li className="text-ink-muted">—</li>
-              ) : (
-                events.map(([k, v]) => (
-                  <li key={k}>
-                    {k}: {typeof v === "number" ? v : "—"}
-                  </li>
-                ))
-              )}
-            </ul>
-          <p className="mt-2 text-xs text-ink-muted">
-            {rewards.map((r) => `${r.slug}:${r.enabled ? "on" : "off"}`).join(" · ")}
-          </p>
+          <SectionHeader title={t("funnelTitle")} />
+          {events.length === 0 ? (
+            <EmptyState title={t("funnelTitle")} description={t("noFill")} />
+          ) : (
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              {events.map(([k, v]) => (
+                <StatCard key={k} label={k} value={typeof v === "number" ? v : "—"} />
+              ))}
+            </div>
+          )}
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {rewards.map((r) => (
+              <Badge key={r.slug} tone={r.enabled ? "success" : "neutral"}>
+                {r.slug}:{r.enabled ? "on" : "off"}
+              </Badge>
+            ))}
+          </div>
         </CardContent>
       </Card>
     </div>

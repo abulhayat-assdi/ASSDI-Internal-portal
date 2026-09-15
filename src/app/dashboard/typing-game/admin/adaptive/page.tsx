@@ -1,4 +1,4 @@
-import { Card, CardContent, PageHeader } from "@/components/typing-game/ui";
+import { Card, CardContent, EmptyState, PageHeader, SectionHeader, StatCard } from "@/components/typing-game/ui";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { adaptivePageContext } from "@/lib/typing-game/server/adaptive-pages";
 
@@ -28,41 +28,53 @@ export default async function AdminAdaptivePage({}: {}) {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={t("manageTitle")} description={t("globalTitle")} />
+      <div className="grid grid-cols-3 gap-3">
+        <StatCard
+          label={t("funnelShown")}
+          value={typeof funnel?.shown === "number" ? funnel.shown : "—"}
+        />
+        <StatCard
+          label={t("funnelStarted")}
+          value={typeof funnel?.started === "number" ? funnel.started : "—"}
+        />
+        <StatCard
+          label={t("funnelCompleted")}
+          value={typeof funnel?.completed === "number" ? funnel.completed : "—"}
+        />
+      </div>
       <Card>
         <CardContent>
-          <div className="flex gap-6 text-sm">
-            <span>
-              {t("funnelShown")}:{" "}
-              {typeof funnel?.shown === "number" ? funnel.shown : "—"}
-            </span>
-            <span>
-              {t("funnelStarted")}:{" "}
-              {typeof funnel?.started === "number" ? funnel.started : "—"}
-            </span>
-            <span>
-              {t("funnelCompleted")}:{" "}
-              {typeof funnel?.completed === "number" ? funnel.completed : "—"}
-            </span>
-          </div>
+          <SectionHeader title={t("gameCompletion")} />
+          {games.length === 0 ? (
+            <EmptyState title={t("gameCompletion")} />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="tap-table">
+                <thead>
+                  <tr>
+                    <th scope="col">{t("gameCompletion")}</th>
+                    <th scope="col">{t("funnelCompleted")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {games.slice(0, 10).map((g, i) => (
+                    <tr key={typeof g.game_slug === "string" ? g.game_slug : i}>
+                      <th scope="row" className="font-mono text-xs">
+                        {typeof g.game_slug === "string" ? g.game_slug : "game"}
+                      </th>
+                      <td>
+                        {typeof g.completion === "number"
+                          ? Math.round(g.completion * 10) / 10
+                          : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardContent>
       </Card>
-      {games.length > 0 ? (
-        <Card>
-          <CardContent>
-            <h2 className="mb-2 text-base font-bold">{t("gameCompletion")}</h2>
-            <ul className="flex flex-col gap-1 text-sm">
-              {games.slice(0, 10).map((g, i) => (
-                <li key={typeof g.game_slug === "string" ? g.game_slug : i}>
-                  {typeof g.game_slug === "string" ? g.game_slug : "game"} ·{" "}
-                  {typeof g.completion === "number"
-                    ? Math.round(g.completion * 10) / 10
-                    : "—"}
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      ) : null}
     </div>
   );
 }

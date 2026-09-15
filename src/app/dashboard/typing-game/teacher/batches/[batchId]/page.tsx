@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Card, CardContent, PageHeader, StatCard } from "@/components/typing-game/ui";
+import { Badge, Card, CardContent, PageHeader, SectionHeader, StatCard } from "@/components/typing-game/ui";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { getSession } from "@/lib/typing-game/server/auth";
 import { userDbClient } from "@/lib/typing-game/server/auth";
@@ -69,9 +69,9 @@ export default async function TeacherBatchPage(
       />
       <Card>
         <CardContent>
-          <h2 className="mb-2 text-base font-bold">
-            {t("members")} ({data.members.length})
-          </h2>
+          <SectionHeader
+            title={`${t("members")} (${data.members.length})`}
+          />
           <div className="overflow-x-auto">
             <table className="tap-table">
               <thead>
@@ -89,7 +89,9 @@ export default async function TeacherBatchPage(
                   <tr key={m.memberId}>
                     <td>{m.rollNumber}</td>
                     <th scope="row">{m.fullName}</th>
-                    <td>{m.level}</td>
+                    <td>
+                      <Badge tone="primary">{m.level}</Badge>
+                    </td>
                     <td>{m.xpTotal}</td>
                     <td>{m.streak}</td>
                     <td>
@@ -109,7 +111,16 @@ export default async function TeacherBatchPage(
       </Card>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+        <StatCard label={t("members")} value={data.members.length} />
         <StatCard label={t("recentActivity")} value={data.recent.length} />
+        <StatCard
+          label={t("averageWpm")}
+          value={
+            averages && typeof averages.wpm === "number"
+              ? Math.round(averages.wpm)
+              : "—"
+          }
+        />
       </div>
 
       <AdaptiveBatchBoard

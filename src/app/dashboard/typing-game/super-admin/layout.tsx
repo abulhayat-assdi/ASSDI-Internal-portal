@@ -1,5 +1,6 @@
 import { ForbiddenBlock } from "@/components/typing-game/forbidden-block";
 import { StaffNav } from "@/components/typing-game/staff-nav";
+import "@/styles/typing-game-theme.css";
 import { getSession } from "@/lib/typing-game/server/auth";
 import { userDbClient } from "@/lib/typing-game/server/auth";
 import { requireSuperAdmin } from "@/lib/typing-game/server/staff";
@@ -34,7 +35,7 @@ export default async function SuperAdminLayout({
   const t = getTranslator(locale, "staff");
   const base = `/dashboard/typing-game/super-admin`;
   return (
-    <div className="min-h-screen bg-canvas">
+    <div className="tap-scope min-h-screen bg-canvas">
       <StaffNav
         locale={locale}
         homeHref={base}

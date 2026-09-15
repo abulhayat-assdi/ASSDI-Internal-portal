@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Card, CardContent } from "@/components/typing-game/ui";
+import { Badge, Card, CardContent, EmptyState, SectionHeader } from "@/components/typing-game/ui";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { clanPageContext } from "@/lib/typing-game/server/clan-pages";
 import { warPageContext } from "@/lib/typing-game/server/war-pages";
@@ -17,6 +17,7 @@ export default async function TeacherClanDetailPage(
   const params = await props.params;
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "clans");
+  const ts = getTranslator(locale, "staff");
   const { store } = await clanPageContext(locale);
   const clan = await store.getClan(params.id);
   if (!clan) notFound();
@@ -39,34 +40,48 @@ export default async function TeacherClanDetailPage(
       <ClanBanner locale={locale} clan={clan} />
       <Card>
         <CardContent>
-          <h2 className="mb-2 text-base font-bold">{t("sectionMembers")}</h2>
+          <SectionHeader title={t("sectionMembers")} />
           <ClanMembersTable locale={locale} rows={roster} />
         </CardContent>
       </Card>
       <Card>
         <CardContent>
-          <h2 className="mb-2 text-base font-bold">{t("sectionMissions")}</h2>
+          <SectionHeader title={t("sectionMissions")} />
           {missions.length === 0 ? (
-            <p className="text-sm text-ink-muted">{t("emptySection")}</p>
+            <EmptyState title={t("sectionMissions")} description={t("emptySection")} />
           ) : (
-            <ul className="flex flex-col gap-1 text-sm">
-              {missions.map((m) => (
-                <li key={m.id} className="flex justify-between gap-2">
-                  <span>{m.title}</span>
-                  <span className="tap-badge">{m.status}</span>
-                </li>
-              ))}
-            </ul>
+            <div className="overflow-x-auto">
+              <table className="tap-table">
+                <thead>
+                  <tr>
+                    <th scope="col">{t("sectionMissions")}</th>
+                    <th scope="col">{ts("colStatus")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {missions.map((m) => (
+                    <tr key={m.id}>
+                      <th scope="row">{m.title}</th>
+                      <td>
+                        <Badge tone={m.status === "active" ? "success" : "neutral"}>
+                          {m.status}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </CardContent>
       </Card>
       <Card>
         <CardContent>
-          <h2 className="mb-2 text-base font-bold">{t("sectionActivity")}</h2>
+          <SectionHeader title={t("sectionActivity")} />
           {activity.length === 0 ? (
-            <p className="text-sm text-ink-muted">{t("emptySection")}</p>
+            <EmptyState title={t("sectionActivity")} description={t("emptySection")} />
           ) : (
-            <ul className="flex flex-col gap-1 text-sm">
+            <ul className="flex flex-col gap-1 text-sm text-ink-muted">
               {activity.slice(0, 10).map((a, i) => (
                 <li key={`${a.createdAt}-${String(i)}`}>
                   {a.kind} · {a.createdAt}
@@ -78,39 +93,71 @@ export default async function TeacherClanDetailPage(
       </Card>
       <Card>
         <CardContent>
-          <h2 className="mb-2 text-base font-bold">Wars</h2>
+          <SectionHeader title={t("warPreview")} />
           {wars.length === 0 ? (
-            <p className="text-sm text-ink-muted">{t("emptySection")}</p>
+            <EmptyState title={t("warPreview")} description={t("emptySection")} />
           ) : (
-            <ul className="flex flex-col gap-1 text-sm">
-              {wars.map((w) => (
-                <li key={w.id} className="flex justify-between gap-2">
-                  <Link href={`/student-dashboard/typing-game/clan/wars/${w.id}`}>
-                    {w.challengerName} vs {w.defenderName}
-                  </Link>
-                  <span className="tap-badge">{w.status}</span>
-                </li>
-              ))}
-            </ul>
+            <div className="overflow-x-auto">
+              <table className="tap-table">
+                <thead>
+                  <tr>
+                    <th scope="col">{t("warPreview")}</th>
+                    <th scope="col">{ts("colStatus")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {wars.map((w) => (
+                    <tr key={w.id}>
+                      <th scope="row">
+                        <Link href={`/student-dashboard/typing-game/clan/wars/${w.id}`}>
+                          {w.challengerName} vs {w.defenderName}
+                        </Link>
+                      </th>
+                      <td>
+                        <Badge tone={w.status === "live" ? "success" : "neutral"}>
+                          {w.status}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </CardContent>
       </Card>
       <Card>
         <CardContent>
-          <h2 className="mb-2 text-base font-bold">Boss battles</h2>
+          <SectionHeader title={t("bossPreview")} />
           {battles.length === 0 ? (
-            <p className="text-sm text-ink-muted">{t("emptySection")}</p>
+            <EmptyState title={t("bossPreview")} description={t("emptySection")} />
           ) : (
-            <ul className="flex flex-col gap-1 text-sm">
-              {battles.map((b) => (
-                <li key={b.id} className="flex justify-between gap-2">
-                  <Link href={`/student-dashboard/typing-game/clan/bosses/${b.id}`}>
-                    {b.bossName} ({b.currentHp}/{String(b.initialHp)} HP)
-                  </Link>
-                  <span className="tap-badge">{b.status}</span>
-                </li>
-              ))}
-            </ul>
+            <div className="overflow-x-auto">
+              <table className="tap-table">
+                <thead>
+                  <tr>
+                    <th scope="col">{t("bossPreview")}</th>
+                    <th scope="col">{ts("colStatus")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {battles.map((b) => (
+                    <tr key={b.id}>
+                      <th scope="row">
+                        <Link href={`/student-dashboard/typing-game/clan/bosses/${b.id}`}>
+                          {b.bossName} ({b.currentHp}/{String(b.initialHp)} HP)
+                        </Link>
+                      </th>
+                      <td>
+                        <Badge tone={b.status === "active" ? "success" : "neutral"}>
+                          {b.status}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </CardContent>
       </Card>

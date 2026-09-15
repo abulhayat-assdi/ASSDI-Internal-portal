@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { Card, CardContent, PageHeader, StatCard } from "@/components/typing-game/ui";
+import { Badge, Card, CardContent, EmptyState, PageHeader, SectionHeader, StatCard } from "@/components/typing-game/ui";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { getSession } from "@/lib/typing-game/server/auth";
 import { userDbClient } from "@/lib/typing-game/server/auth";
@@ -52,20 +52,31 @@ export default async function TeacherStudentPage(
       </div>
       <Card>
         <CardContent>
-          <h2 className="mb-2 text-base font-bold">{t("records")}</h2>
+          <SectionHeader title={t("records")} />
           {data.records.length === 0 ? (
-            <p className="text-sm text-ink-muted">{t("noResults")}</p>
+            <EmptyState title={t("records")} description={t("noResults")} />
           ) : (
-            <ul className="flex flex-col gap-1 text-sm">
-              {data.records.slice(0, 12).map((r) => (
-                <li key={`${r.gameSlug}-${r.metric}`} className="flex justify-between gap-3">
-                  <span>
-                    {r.gameSlug} · {r.metric}
-                  </span>
-                  <span className="font-semibold">{Math.round(r.value)}</span>
-                </li>
-              ))}
-            </ul>
+            <div className="overflow-x-auto">
+              <table className="tap-table">
+                <thead>
+                  <tr>
+                    <th scope="col">{t("records")}</th>
+                    <th scope="col">{t("xp")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.records.slice(0, 12).map((r) => (
+                    <tr key={`${r.gameSlug}-${r.metric}`}>
+                      <th scope="row">
+                        <span className="font-mono text-xs">{r.gameSlug}</span>{" "}
+                        <Badge tone="neutral">{r.metric}</Badge>
+                      </th>
+                      <td className="font-semibold">{Math.round(r.value)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </CardContent>
       </Card>

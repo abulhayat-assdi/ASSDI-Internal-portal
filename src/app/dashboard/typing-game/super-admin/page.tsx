@@ -1,4 +1,4 @@
-import { Card, CardContent, PageHeader, StatCard } from "@/components/typing-game/ui";
+import { Badge, Card, CardContent, EmptyState, PageHeader, SectionHeader, StatCard } from "@/components/typing-game/ui";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { getSession } from "@/lib/typing-game/server/auth";
 import { userDbClient } from "@/lib/typing-game/server/auth";
@@ -32,15 +32,33 @@ export default async function SuperAdminPage({}: {}) {
       </div>
       <Card>
         <CardContent>
-          <h2 className="mb-2 text-base font-bold">{t("organizations")}</h2>
-          <ul className="flex flex-col gap-1 text-sm">
-            {overview.orgs.map((o) => (
-              <li key={o.id} className="flex justify-between gap-3">
-                <span>{o.name}</span>
-                <span className="font-mono text-xs text-ink-faint">{o.slug}</span>
-              </li>
-            ))}
-          </ul>
+          <SectionHeader title={t("organizations")} />
+          {overview.orgs.length === 0 ? (
+            <EmptyState title={t("organizations")} description={t("noResults")} />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="tap-table">
+                <thead>
+                  <tr>
+                    <th scope="col">{t("organizations")}</th>
+                    <th scope="col">{t("courseSlug")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {overview.orgs.map((o) => (
+                    <tr key={o.id}>
+                      <th scope="row">{o.name}</th>
+                      <td>
+                        <Badge tone="neutral">
+                          <span className="font-mono text-xs">{o.slug}</span>
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

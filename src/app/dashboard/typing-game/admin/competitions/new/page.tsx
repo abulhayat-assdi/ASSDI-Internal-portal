@@ -1,4 +1,4 @@
-import { PageHeader } from "@/components/typing-game/ui";
+import { Card, CardContent, PageHeader } from "@/components/typing-game/ui";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { userDbClient } from "@/lib/typing-game/server/auth";
 import { requireAdmin } from "@/lib/typing-game/server/staff";
@@ -23,7 +23,9 @@ export default async function AdminCompetitionNewPage({}: {}) {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={t("createTitle")} />
-      <CompetitionForm        locale={locale}
+      <Card>
+        <CardContent>
+          <CompetitionForm        locale={locale}
         games={games.map((g) => ({
           slug: g.slug,
           title: g.slug,
@@ -42,6 +44,8 @@ export default async function AdminCompetitionNewPage({}: {}) {
           participationXp: 10,
         }}
       />
+        </CardContent>
+      </Card>
     </div>
   );
 }

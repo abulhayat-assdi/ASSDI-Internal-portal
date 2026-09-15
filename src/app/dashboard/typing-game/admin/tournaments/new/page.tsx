@@ -1,4 +1,4 @@
-import { PageHeader } from "@/components/typing-game/ui";
+import { Card, CardContent, PageHeader } from "@/components/typing-game/ui";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { TournamentForm } from "@/components/typing-game/tournament-form";
 
@@ -9,7 +9,11 @@ export default function AdminTournamentNewPage({}: {}) {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={t("createTitle")} />
-      <TournamentForm locale={locale} />
+      <Card>
+        <CardContent>
+          <TournamentForm locale={locale} />
+        </CardContent>
+      </Card>
     </div>
   );
 }

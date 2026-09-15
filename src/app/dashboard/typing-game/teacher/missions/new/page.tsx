@@ -1,4 +1,4 @@
-import { PageHeader } from "@/components/typing-game/ui";
+import { Card, CardContent, PageHeader } from "@/components/typing-game/ui";
 import { getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { getSession, userDbClient } from "@/lib/typing-game/server/auth";
 import { createSupabaseStaffStore } from "@/lib/typing-game/server/staff-store";
@@ -18,7 +18,9 @@ export default async function TeacherMissionNewPage({}: {}) {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={t("createTitle")} description={t("teacherHubSubtitle")} />
-      <CustomMissionForm
+      <Card>
+        <CardContent>
+          <CustomMissionForm
         locale={locale}
         batches={dashboard.batches.map((b) => ({ id: b.batchId, name: b.batchName }))}
         initial={{
@@ -36,6 +38,8 @@ export default async function TeacherMissionNewPage({}: {}) {
           batchIds: [],
         }}
       />
+        </CardContent>
+      </Card>
     </div>
   );
 }

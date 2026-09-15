@@ -1,4 +1,4 @@
-import { Card, CardContent, PageHeader } from "@/components/typing-game/ui";
+import { Badge, Card, CardContent, EmptyState, PageHeader } from "@/components/typing-game/ui";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { getSession } from "@/lib/typing-game/server/auth";
 import { userDbClient } from "@/lib/typing-game/server/auth";
@@ -35,7 +35,7 @@ export default async function SuperAuditPage({}: {}) {
       <Card>
         <CardContent>
           {rows.length === 0 ? (
-            <p className="text-sm text-ink-muted">{t("noResults")}</p>
+            <EmptyState title={t("auditLog")} description={t("noResults")} />
           ) : (
             <div className="overflow-x-auto">
               <table className="tap-table">
@@ -54,9 +54,13 @@ export default async function SuperAuditPage({}: {}) {
                       <td className="font-mono text-xs">
                         {a.actor ? `${a.actor.slice(0, 8)}…` : "—"}
                       </td>
-                      <td>{a.action}</td>
                       <td>
-                        {a.entity} · {a.entityId.slice(0, 8)}
+                        <Badge tone="primary">{a.action}</Badge>
+                      </td>
+                      <td>
+                        <Badge tone="neutral">
+                          {a.entity} · {a.entityId.slice(0, 8)}
+                        </Badge>
                       </td>
                     </tr>
                   ))}

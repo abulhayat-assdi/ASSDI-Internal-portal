@@ -1,4 +1,4 @@
-import { Card, CardContent, PageHeader } from "@/components/typing-game/ui";
+import { Badge, Card, CardContent, EmptyState, PageHeader } from "@/components/typing-game/ui";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { getSession } from "@/lib/typing-game/server/auth";
 import { userDbClient } from "@/lib/typing-game/server/auth";
@@ -44,6 +44,9 @@ export default async function CoursesPage({}: {}) {
       </Card>
       <Card>
         <CardContent>
+          {courses.length === 0 ? (
+            <EmptyState title={t("courses")} description={t("noResults")} />
+          ) : (
           <div className="overflow-x-auto">
             <table className="tap-table">
               <thead>
@@ -59,7 +62,11 @@ export default async function CoursesPage({}: {}) {
                   <tr key={c.id}>
                     <th scope="row">{c.title}</th>
                     <td>{c.slug}</td>
-                    <td>{c.isActive ? t("statusActive") : t("statusInactive")}</td>
+                    <td>
+                      <Badge tone={c.isActive ? "success" : "neutral"}>
+                        {c.isActive ? t("statusActive") : t("statusInactive")}
+                      </Badge>
+                    </td>
                     <td>
                       <PatchToggle
                         locale={locale}
@@ -74,6 +81,7 @@ export default async function CoursesPage({}: {}) {
               </tbody>
             </table>
           </div>
+          )}
         </CardContent>
       </Card>
     </div>

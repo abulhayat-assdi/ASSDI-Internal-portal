@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { Card, CardContent, PageHeader } from "@/components/typing-game/ui";
+import { Badge, Card, CardContent, PageHeader } from "@/components/typing-game/ui";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { warPageContext } from "@/lib/typing-game/server/war-pages";
 import { WarBoard } from "@/components/typing-game/war-board";
@@ -44,7 +44,11 @@ export default async function AdminWarDetailPage(
           a: war.challengerName || "—",
           b: war.defenderName || "—",
         })}
-        description={war.status}
+        description={
+          <Badge tone={war.status === "live" ? "success" : "neutral"}>
+            {war.status}
+          </Badge>
+        }
       />
       {actions.length > 0 ? (
         <Card>

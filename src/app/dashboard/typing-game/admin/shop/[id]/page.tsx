@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { Card, CardContent, PageHeader } from "@/components/typing-game/ui";
+import { Badge, Card, CardContent, PageHeader, RewardCard } from "@/components/typing-game/ui";
 import { isLocale, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { shopPageContext } from "@/lib/typing-game/server/shop-pages";
 import { ShopAdminActions } from "@/components/typing-game/shop-admin-actions";
@@ -22,16 +22,29 @@ export default async function AdminShopManagePage(
     <div className="flex flex-col gap-6">
       <PageHeader
         title={item.name}
-        description={`${item.slug} · ${String(item.priceCoins)} coins`}
+        description={
+          <>
+            {item.slug}{" "}
+            <Badge tone={item.isActive ? "success" : "neutral"}>
+              {item.isActive ? "active" : "draft"}
+            </Badge>
+          </>
+        }
       />
       <Card>
         <CardContent>
           <div className="flex flex-col gap-3">
             {preview ? (
-              <img
-                src={preview}
-                alt={item.name}
-                className="max-h-48 rounded object-contain"
+              <RewardCard
+                title={item.name}
+                art={
+                  <img
+                    src={preview}
+                    alt={item.name}
+                    className="h-full w-full object-contain"
+                  />
+                }
+                amount={`${String(item.priceCoins)} coins`}
               />
             ) : null}
             <ShopAdminActions

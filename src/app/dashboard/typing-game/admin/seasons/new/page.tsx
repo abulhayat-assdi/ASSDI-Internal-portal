@@ -1,4 +1,4 @@
-import { PageHeader } from "@/components/typing-game/ui";
+import { Card, CardContent, PageHeader } from "@/components/typing-game/ui";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { SeasonForm } from "@/components/typing-game/season-form";
 
@@ -9,7 +9,11 @@ export default function AdminSeasonNewPage({}: {}) {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={t("createTitle")} />
-      <SeasonForm locale={locale} />
+      <Card>
+        <CardContent>
+          <SeasonForm locale={locale} />
+        </CardContent>
+      </Card>
     </div>
   );
 }

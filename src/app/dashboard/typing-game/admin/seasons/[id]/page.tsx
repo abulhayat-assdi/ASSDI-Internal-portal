@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { Card, CardContent, PageHeader } from "@/components/typing-game/ui";
+import { Badge, Card, CardContent, PageHeader, SectionHeader } from "@/components/typing-game/ui";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { seasonPageContext } from "@/lib/typing-game/server/season-pages";
 import { SeasonAdminActions } from "@/components/typing-game/season-admin-actions";
@@ -25,7 +25,17 @@ export default async function AdminSeasonManagePage(
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title={row.name} description={`${row.slug} · ${row.status}`} />
+      <PageHeader
+        title={row.name}
+        description={
+          <>
+            {row.slug}{" "}
+            <Badge tone={row.status === "active" ? "success" : "neutral"}>
+              {row.status}
+            </Badge>
+          </>
+        }
+      />
       <Card>
         <CardContent>
           <SeasonAdminActions
@@ -37,13 +47,13 @@ export default async function AdminSeasonManagePage(
       </Card>
       <Card>
         <CardContent>
-          <h2 className="mb-2 text-base font-bold">{t("sectionStudentBoard")}</h2>
+          <SectionHeader title={t("sectionStudentBoard")} />
           <SeasonBoard locale={locale} rows={student} clan={false} />
         </CardContent>
       </Card>
       <Card>
         <CardContent>
-          <h2 className="mb-2 text-base font-bold">{t("sectionClanBoard")}</h2>
+          <SectionHeader title={t("sectionClanBoard")} />
           <SeasonBoard locale={locale} rows={clan} clan={true} />
         </CardContent>
       </Card>

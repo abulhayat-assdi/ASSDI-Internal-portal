@@ -1,4 +1,4 @@
-import { Card, CardContent, PageHeader } from "@/components/typing-game/ui";
+import { Badge, Card, CardContent, EmptyState, PageHeader } from "@/components/typing-game/ui";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { getSession } from "@/lib/typing-game/server/auth";
 import { userDbClient } from "@/lib/typing-game/server/auth";
@@ -50,7 +50,7 @@ export default async function TeachersPage({}: {}) {
       <Card>
         <CardContent>
           {assignments.length === 0 ? (
-            <p className="text-sm text-ink-muted">{t("noResults")}</p>
+            <EmptyState title={t("teachers")} description={t("noResults")} />
           ) : (
             <div className="overflow-x-auto">
               <table className="tap-table">
@@ -65,8 +65,10 @@ export default async function TeachersPage({}: {}) {
                 <tbody>
                   {assignments.map((a) => (
                     <tr key={a.id}>
-                      <th scope="row" className="font-mono text-xs">
-                        {a.userId.slice(0, 8)}…
+                      <th scope="row">
+                        <Badge tone="neutral">
+                          <span className="font-mono text-xs">{a.userId.slice(0, 8)}…</span>
+                        </Badge>
                       </th>
                       <td>{a.courseName || "—"}</td>
                       <td>{a.batchName || "—"}</td>
