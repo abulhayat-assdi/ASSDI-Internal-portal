@@ -88,9 +88,14 @@ export default function TypingField({ examText, typedText, onChange, disabled }:
   const lines = useMemo(() => wrapIntoLines(examText, charsPerLine), [examText, charsPerLine]);
   const curIndex = useMemo(() => currentLineIndex(lines, typedText.length), [lines, typedText.length]);
 
+  // 4-line window, current line pinned at the 3rd visible slot (2 lines of
+  // completed context above, 1 line of upcoming text below) once there's
+  // enough typed history to fill it — matches a fixed reading position
+  // instead of continuously re-centering, so the window only shifts (by
+  // exactly one line) each time the line in that 3rd slot is finished.
   const visibleLines = useMemo(() => {
-    const start = Math.max(0, curIndex - 1);
-    const end = Math.min(lines.length, curIndex + 3); // 1 prev + current + up to 2 next
+    const start = Math.max(0, curIndex - 2);
+    const end = Math.min(lines.length, start + 4);
     return lines.slice(start, end).map((line, i) => ({ line, position: start + i }));
   }, [lines, curIndex]);
 
@@ -134,7 +139,7 @@ export default function TypingField({ examText, typedText, onChange, disabled }:
         className="absolute h-0 w-0 overflow-hidden opacity-0"
       />
 
-      <div ref={innerRef} className="relative mx-auto flex min-h-[13rem] max-w-4xl flex-col items-center justify-center gap-4 py-2">
+      <div ref={innerRef} className="relative flex min-h-[16rem] w-full flex-col items-center justify-center gap-4 py-2">
         <AnimatePresence mode="popLayout" initial={false}>
           {visibleLines.map(({ line, position }) => {
             const isCurrent = position === curIndex;
@@ -196,7 +201,7 @@ function LineChars({
           state === "correct"
             ? "text-emerald-600"
             : state === "incorrect"
-              ? "rounded-[2px] bg-red-50 text-red-600"
+              ? "rounded-[3px] bg-yellow-300 text-slate-900"
               : "text-slate-300";
         return (
           <span key={j} className={cls}>

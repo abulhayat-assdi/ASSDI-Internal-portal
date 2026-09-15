@@ -166,7 +166,7 @@ export default function ExamRunner({
   const rootClass = isFullscreen
     ? "fixed inset-0 z-40 flex items-center justify-center overflow-y-auto bg-gradient-to-b from-white via-slate-50 to-white px-4 py-10 sm:px-8"
     : "relative";
-  const phaseWrapClass = isFullscreen ? "w-full max-w-4xl" : "";
+  const phaseWrapClass = isFullscreen ? "w-full" : "";
 
   return (
     <div ref={containerRef} className={rootClass}>
