@@ -15,7 +15,13 @@ function courseInitial(name: string): string {
 
 /** Bare root domain (no course context) — the institute's internal course portal. */
 async function CourseDirectoryPage() {
-    const [courses, hdrs] = await Promise.all([listPublicCourses(), await headers()]);
+    let courses: Awaited<ReturnType<typeof listPublicCourses>> = [];
+    try {
+        courses = await listPublicCourses();
+    } catch (e) {
+        console.error('[CourseDirectoryPage] listPublicCourses failed:', e);
+    }
+    const hdrs = await headers();
     const host = hdrs.get("x-forwarded-host") || hdrs.get("host") || "localhost:3000";
     const adminUrl = buildSuperAdminUrl(host);
 
