@@ -19,6 +19,7 @@ export default function ContactManagementPage() {
     const [threads, setThreads] = useState<AdminChatThread[]>([]);
     const [selectedThread, setSelectedThread] = useState<AdminChatThread | null>(null);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [filter, setFilter] = useState<"all" | "unread" | "read" | "replied">("all");
 
     // isMobile: true = phone, false = desktop/tablet
     const [isMobile, setIsMobile] = useState(false);
@@ -51,6 +52,7 @@ export default function ContactManagementPage() {
     useEffect(() => {
         const unsub = subscribeToAllChatThreads((data) => {
             setThreads(data);
+            // Auto-mark selected thread as read when new data arrives and still unread
             if (selectedThread) {
                 const updated = data.find(t => t.studentUid === selectedThread.studentUid);
                 if (updated && updated.unreadCountAdmin > 0) {
@@ -59,7 +61,8 @@ export default function ContactManagementPage() {
             }
         });
         return unsub;
-    }, [selectedThread]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedThread?.studentUid]);
 
     // Subscribe to messages for selected thread
     useEffect(() => {
@@ -77,9 +80,14 @@ export default function ContactManagementPage() {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
 
-    // Select thread → on mobile, switch to chat panel
+    // Select thread → on mobile, switch to chat panel + mark as read immediately
     const handleSelectThread = useCallback((thread: AdminChatThread) => {
         setSelectedThread(thread);
+        if (thread.unreadCountAdmin > 0) {
+            markChatAsRead(thread.studentUid, "admin");
+            // Optimistic local update so badge clears instantly without waiting for SSE poll
+            setThreads(prev => prev.map(t => t.studentUid === thread.studentUid ? { ...t, unreadCountAdmin: 0 } : t));
+        }
         if (isMobile) setShowChat(true);
     }, [isMobile]);
 
@@ -162,34 +170,72 @@ export default function ContactManagementPage() {
         }
     };
 
+    // Filtered threads: unread = unreadCountAdmin>0, read = seen (unread==0), replied = lastSender admin
+    const unreadCount = threads.filter(t => t.unreadCountAdmin > 0).length;
+    const repliedCount = threads.filter(t => t.lastSender === "admin").length;
+    const readCount = threads.filter(t => t.unreadCountAdmin === 0).length;
+
+    const filteredThreads = threads.filter(t => {
+        if (filter === "unread") return t.unreadCountAdmin > 0;
+        if (filter === "read") return t.unreadCountAdmin === 0;
+        if (filter === "replied") return t.lastSender === "admin";
+        return true;
+    });
+
     // ─────────────────────────────────────────────────────────────
     // Thread List Panel
     // ─────────────────────────────────────────────────────────────
     const renderListPanel = () => (
         <div className="flex flex-col h-full bg-white overflow-hidden">
             {/* Header */}
-            <div className="px-4 py-4 border-b border-gray-200 bg-white flex items-center justify-between shrink-0">
-                <div>
-                    <h1 className="font-bold text-gray-900 text-xl">Live Support</h1>
-                    <p className="text-xs text-gray-500 mt-0.5">Real-time messaging with students</p>
+            <div className="px-4 py-4 border-b border-gray-200 bg-white shrink-0">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h1 className="font-bold text-gray-900 text-xl">Live Support</h1>
+                        <p className="text-xs text-gray-500 mt-0.5">Real-time messaging with students</p>
+                    </div>
+                    {threads.length > 0 && (
+                        <span className="text-xs bg-emerald-100 text-emerald-700 font-bold px-2.5 py-1 rounded-full">
+                            {threads.length}
+                        </span>
+                    )}
                 </div>
-                {threads.length > 0 && (
-                    <span className="text-xs bg-emerald-100 text-emerald-700 font-bold px-2.5 py-1 rounded-full">
-                        {threads.length}
-                    </span>
-                )}
+                {/* Filters: unread / read / replied */}
+                <div className="flex gap-1.5 mt-3">
+                    {(["all", "unread", "read", "replied"] as const).map(f => {
+                        const label = f === "all" ? "All" : f === "unread" ? "Unread" : f === "read" ? "Read" : "Replied";
+                        const count = f === "all" ? threads.length : f === "unread" ? unreadCount : f === "read" ? readCount : repliedCount;
+                        const active = filter === f;
+                        return (
+                            <button
+                                key={f}
+                                onClick={() => setFilter(f)}
+                                className={`flex-1 py-1.5 px-2 rounded-full text-xs font-bold border transition-colors ${
+                                    active
+                                        ? f === "unread" ? "bg-red-500 text-white border-red-500"
+                                        : f === "replied" ? "bg-blue-600 text-white border-blue-600"
+                                        : f === "read" ? "bg-gray-800 text-white border-gray-800"
+                                        : "bg-emerald-600 text-white border-emerald-600"
+                                        : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                                }`}
+                            >
+                                {label} <span className="opacity-70">({count})</span>
+                            </button>
+                        );
+                    })}
+                </div>
             </div>
 
             {/* Thread items */}
             <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
-                {threads.length === 0 ? (
+                {filteredThreads.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-center p-8 opacity-50">
                         <div className="text-5xl mb-3">💬</div>
-                        <p className="font-semibold text-gray-600">No active chats yet</p>
-                        <p className="text-sm text-gray-400 mt-1">Students&apos; messages will appear here</p>
+                        <p className="font-semibold text-gray-600">{threads.length === 0 ? "No active chats yet" : `No ${filter} messages`}</p>
+                        <p className="text-sm text-gray-400 mt-1">{threads.length === 0 ? "Students&apos; messages will appear here" : "Try another filter"}</p>
                     </div>
                 ) : (
-                    threads.map(thread => {
+                    filteredThreads.map(thread => {
                         const isActive = selectedThread?.studentUid === thread.studentUid;
                         return (
                             <button

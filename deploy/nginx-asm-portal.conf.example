@@ -1,0 +1,42 @@
+# ASM Portal V2 — Nginx reverse proxy (alternative to Caddy)
+# Upstream: compose app on 127.0.0.1:3000. Get certs via certbot:
+#   certbot --nginx -d tasm-skill.asf.bd -d admin.tasm-skill.asf.bd
+# Wildcard (*.tasm-skill.asf.bd) needs DNS-01: `certbot -a dns-cloudflare ...`
+# NOTE: course subdomains are dynamic — wildcard cert + this server_name is
+# required for full SaaS; listing subdomains one-by-one does NOT scale.
+
+upstream asm_portal {
+    server 127.0.0.1:3000 max_fails=3 fail_timeout=30s;
+    keepalive 32;
+}
+
+server {
+    listen 80;
+    server_name tasm-skill.asf.bd admin.tasm-skill.asf.bd;
+    # Add more course subdomains here only if NOT using wildcard cert.
+    location / { return 301 https://$host$request_uri; }
+}
+
+server {
+    listen 443 ssl http2;
+    server_name tasm-skill.asf.bd admin.tasm-skill.asf.bd;
+    # For SaaS: server_name tasm-skill.asf.bd *.tasm-skill.asf.bd; + wildcard cert
+
+    # ssl_certificate     /etc/letsencrypt/live/tasm-skill.asf.bd/fullchain.pem;
+    # ssl_certificate_key /etc/letsencrypt/live/tasm-skill.asf.bd/privkey.pem;
+
+    client_max_body_size 100m; # must match next.config serverActions.bodySizeLimit
+    proxy_read_timeout 120s;
+
+    location / {
+        proxy_pass http://asm_portal;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}

@@ -63,5 +63,8 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
 # Entrypoint runs as root → fixes volume permissions → drops to nextjs
+# NOTE: /app/server.js here IS .next/standalone/server.js (copied above),
+# NOT the repo-root server.js (cPanel legacy — not copied into runner).
+# migrate deploy runs on every boot so VPS reboots/redeploys never skip schema.
 ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["sh", "-c", "node scripts/startup.js && node scripts/typing-game-migrate.js && node prisma/seed.js && node server.js"]
+CMD ["sh", "-c", "prisma migrate deploy || true; node scripts/startup.js || true; node scripts/typing-game-migrate.js || true; node prisma/seed.js || true; node server.js"]

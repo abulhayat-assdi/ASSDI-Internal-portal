@@ -88,11 +88,16 @@ export const DEFAULT_TEACHER_PERMISSIONS: PermissionKey[] = [
 ];
 
 // Default admin permissions (management/admin pages only — no teacher features)
+// Includes access_management so a Department Admin (admin role scoped to its
+// courseId) can manage users/roles within its own department without
+// needing Super Admin intervention. Super Admin still retains platform-wide
+// control via admin.tasm-skill.asf.bd.
 export const DEFAULT_ADMIN_PERMISSIONS: PermissionKey[] = [
     "teachers", "batch_info",
     "admin_panel", "admin_homework", "admin_results", "admin_leave",
     "admin_notices", "admin_contact", "admin_resources", "admin_course_modules",
     "admin_deployments", "admin_typing_game", "typing_exam",
+    "access_management",
 ];
 
 // Teacher-feature permissions added to admin when "Include teacher features" is checked

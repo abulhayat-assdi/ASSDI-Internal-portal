@@ -1,18 +1,13 @@
 "use client";
 
-import Card, { CardBody } from "@/components/ui/Card";
+import { CardBody } from "@/components/ui/Card";
 import NoticeCard from "@/components/ui/NoticeCard";
 import Badge from "@/components/ui/Badge";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import Clock from "@/components/ui/Clock";
 import {
-    getAllClasses,
     getAllNotices,
-    getTodayClassesCount,
-    getCompletedClassesThisMonth,
-    getPendingClassesThisMonth,
-    getMonthlyClassStats,
     addNotice,
     updateNotice,
     deleteNotice,
@@ -20,7 +15,6 @@ import {
     getAllStudentNotices,
     updateStudentNotice,
     deleteStudentNotice,
-    Class,
     Notice,
     StudentNotice
 } from "@/services/dashboardService";
@@ -29,13 +23,9 @@ import Button from "@/components/ui/Button";
 
 export default function DashboardPage() {
     const { userProfile } = useAuth();
-    const [classes, setClasses] = useState<Class[]>([]);
     const [notices, setNotices] = useState<Notice[]>([]);
     const [studentNotices, setStudentNotices] = useState<StudentNotice[]>([]);
     const [loading, setLoading] = useState(true);
-    const [monthlyStats, setMonthlyStats] = useState<{ total: number; completed: number; pending: number }>({
-        total: 0, completed: 0, pending: 0
-    });
 
     // Add/Edit Notice State
     const [isNoticeModalOpen, setIsNoticeModalOpen] = useState(false);
@@ -70,16 +60,12 @@ export default function DashboardPage() {
         const fetchData = async () => {
             setLoading(true);
             try {
-                const [classesData, noticesData, studentNoticesData, stats] = await Promise.all([
-                    getAllClasses(),
+                const [noticesData, studentNoticesData] = await Promise.all([
                     getAllNotices(),
                     getAllStudentNotices(),
-                    getMonthlyClassStats()
                 ]);
-                setClasses(classesData);
                 setNotices(noticesData);
                 setStudentNotices(studentNoticesData);
-                setMonthlyStats(stats);
             } catch (error) {
                 console.error("Error fetching dashboard data:", error);
             } finally {
@@ -89,11 +75,6 @@ export default function DashboardPage() {
 
         fetchData();
     }, []);
-
-    // Calculate statistics from real data
-    const todayClasses = getTodayClassesCount(classes);
-    const completedThisMonth = getCompletedClassesThisMonth(classes);
-    const pendingThisMonth = getPendingClassesThisMonth(classes);
 
     const handleAddNotice = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -309,57 +290,6 @@ export default function DashboardPage() {
                         />
                     </svg>
                 </div>
-            </div>
-
-            {/* Quick Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card hover className="shadow-soft">
-                    <CardBody>
-                        <div className="flex items-center gap-4">
-                            <div className="w-14 h-14 rounded-full bg-[#d1fae5] flex items-center justify-center text-2xl">
-                                📅
-                            </div>
-                            <div>
-                                <p className="text-sm text-[#6b7280]">Total Classes (This Month)</p>
-                                <p className="text-2xl font-bold text-[#1f2937]">
-                                    {loading ? "..." : monthlyStats.total}
-                                </p>
-                            </div>
-                        </div>
-                    </CardBody>
-                </Card>
-
-                <Card hover className="shadow-soft">
-                    <CardBody>
-                        <div className="flex items-center gap-4">
-                            <div className="w-14 h-14 rounded-full bg-[#d1fae5] flex items-center justify-center text-2xl">
-                                ✅
-                            </div>
-                            <div>
-                                <p className="text-sm text-[#6b7280]">Completed Classes (This Month)</p>
-                                <p className="text-2xl font-bold text-[#1f2937]">
-                                    {loading ? "..." : monthlyStats.completed}
-                                </p>
-                            </div>
-                        </div>
-                    </CardBody>
-                </Card>
-
-                <Card hover className="shadow-soft">
-                    <CardBody>
-                        <div className="flex items-center gap-4">
-                            <div className="w-14 h-14 rounded-full bg-[#d1fae5] flex items-center justify-center text-2xl">
-                                📚
-                            </div>
-                            <div>
-                                <p className="text-sm text-[#6b7280]">Pending Classes (This Month)</p>
-                                <p className="text-2xl font-bold text-[#1f2937]">
-                                    {loading ? "..." : monthlyStats.pending}
-                                </p>
-                            </div>
-                        </div>
-                    </CardBody>
-                </Card>
             </div>
 
             {/* Notice Board */}

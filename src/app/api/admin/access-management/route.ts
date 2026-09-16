@@ -14,7 +14,8 @@ import {
 /**
  * GET /api/admin/access-management
  * Returns all non-student users with their permissions.
- * Only super_admin can access.
+ * Department-scoped: any admin/super_admin within its own course can view.
+ * Strictly isolated by courseId — no cross-department access.
  */
 export async function GET(req: NextRequest) {
     const caller = await getSessionUser(req);
@@ -62,15 +63,19 @@ export async function GET(req: NextRequest) {
  * PUT /api/admin/access-management
  * Body: { userId, permissions?, role? }
  * - permissions: update page access
- * - role: 'teacher' | 'admin' — promote/demote (super_admin only)
- * Both can be sent together or separately.
+ * - roleLabel: 'teacher' | 'admin' | 'admin_teacher' — promote/demote
+ * Scoping: Department Admin (admin role) can manage ONLY users within
+ * its own courseId. Super Admin can manage any course (via impersonation).
+ * Cross-department operations are blocked by courseId isolation.
  */
 export async function PUT(req: NextRequest) {
     const caller = await getSessionUser(req);
-    if (!caller || !isSuperAdmin(caller) || !caller.courseId) {
-        return NextResponse.json({ error: "Forbidden: Only super_admin can manage access." }, { status: 403 });
+    // Department Admin = any admin scoped to its own courseId. Super Admin also allowed (via impersonation).
+    if (!caller || !isAdmin(caller) || !caller.courseId) {
+        return NextResponse.json({ error: "Forbidden: Admin access required." }, { status: 403 });
     }
     const courseId = caller.courseId;
+    const isDepartmentAdmin = caller.role === "admin";
 
     const body = await req.json();
     const { userId, permissions, roleLabel } = body as {
@@ -98,6 +103,20 @@ export async function PUT(req: NextRequest) {
 
         if (target.role === "student") {
             return NextResponse.json({ error: "Student accounts cannot be managed here." }, { status: 400 });
+        }
+
+        // Super_admin accounts are never managed via department-scoped access management
+        if (target.role === "super_admin") {
+            return NextResponse.json({ error: "Super admin accounts cannot be managed here." }, { status: 403 });
+        }
+
+        // Department Admin guard: prevent self-lockout of the only admin via accidental demotion
+        // Super Admin is exempt (platform-wide)
+        if (isDepartmentAdmin && roleLabel === "teacher" && target.id === caller.id) {
+            const adminCount = await tx.user.count({ where: { courseId, role: "admin", deletedAt: null } });
+            if (adminCount <= 1) {
+                return NextResponse.json({ error: "You are the only Department Admin. Promote another teacher to admin before demoting yourself." }, { status: 403 });
+            }
         }
 
         // ── Derive DB role from roleLabel ────────────────────────

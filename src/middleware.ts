@@ -9,6 +9,7 @@ import { extractCourseSlug, isSuperAdminHost, getCourseBySlug, isCourseUsable } 
 export const runtime = 'nodejs';
 
 const PUBLIC_API_ROUTES = [
+    '/api/health',
     '/api/chat',
     '/api/auth/register',
     '/api/auth/session',

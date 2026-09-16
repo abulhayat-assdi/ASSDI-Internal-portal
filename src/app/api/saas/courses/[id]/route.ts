@@ -18,6 +18,7 @@ const updateCourseSchema = z.object({
     slug: z.string().regex(SLUG_REGEX).optional(),
     tagline: z.string().nullable().optional(),
     logoUrl: z.string().nullable().optional(),
+    faviconUrl: z.string().nullable().optional(),
     primaryColor: z.string().optional(),
     accentColor: z.string().optional(),
     status: z.enum(["ACTIVE", "SUSPENDED", "TRIAL", "ARCHIVED"]).optional(),

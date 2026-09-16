@@ -15,6 +15,7 @@ interface Course {
     slug: string;
     tagline: string | null;
     logoUrl: string | null;
+    faviconUrl: string | null;
     status: string;
     primaryColor: string;
     accentColor: string;
@@ -58,7 +59,9 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
     const [maxTeachers, setMaxTeachers] = useState("");
     const [billingNotes, setBillingNotes] = useState("");
     const [uploadingLogo, setUploadingLogo] = useState(false);
+    const [uploadingFavicon, setUploadingFavicon] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const faviconInputRef = useRef<HTMLInputElement>(null);
 
     const [newAdminName, setNewAdminName] = useState("");
     const [newAdminEmail, setNewAdminEmail] = useState("");
@@ -176,6 +179,60 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
             setError(err instanceof Error ? err.message : "লোগো সরানো যায়নি।");
         } finally {
             setUploadingLogo(false);
+        }
+    };
+
+    const handleFaviconSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        e.target.value = "";
+        if (!file) return;
+
+        setError("");
+        setMessage("");
+        setUploadingFavicon(true);
+        try {
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("folder", `images/courses/${id}`);
+            const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+            const uploadData = await uploadRes.json();
+            if (!uploadRes.ok) throw new Error(uploadData.error || "ফ্যাভিকন আপলোড করা যায়নি।");
+
+            const patchRes = await fetch(`/api/saas/courses/${id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ faviconUrl: uploadData.url }),
+            });
+            const patchData = await patchRes.json();
+            if (!patchRes.ok) throw new Error(patchData.error || "ফ্যাভিকন সংরক্ষণ করা যায়নি।");
+
+            setCourse(patchData.course);
+            setMessage("ব্রাউজার আইকন আপলোড হয়েছে। ট্যাব রিফ্রেশ করলে নতুন আইকন দেখা যাবে।");
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "ফ্যাভিকন আপলোড করা যায়নি।");
+        } finally {
+            setUploadingFavicon(false);
+        }
+    };
+
+    const handleRemoveFavicon = async () => {
+        setError("");
+        setMessage("");
+        setUploadingFavicon(true);
+        try {
+            const res = await fetch(`/api/saas/courses/${id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ faviconUrl: null }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "ব্রাউজার আইকন সরানো যায়নি।");
+            setCourse(data.course);
+            setMessage("ব্রাউজার আইকন সরানো হয়েছে।");
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "ব্রাউজার আইকন সরানো যায়নি।");
+        } finally {
+            setUploadingFavicon(false);
         }
     };
 
@@ -344,6 +401,50 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
                                 )}
                             </div>
                         </div>
+                        <p className="text-xs text-slate-400 mt-1">পোর্টাল হেডার, লগইন পেজ ও সাইডবারে দেখাবে। 512×512 PNG/WebP সুপারিশকৃত।</p>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1.5">ব্রাউজার আইকন (Favicon)</label>
+                        <div className="flex items-center gap-3">
+                            <div className="w-16 h-16 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden shrink-0">
+                                {course.faviconUrl ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={course.faviconUrl} alt={`${course.name} favicon`} className="w-full h-full object-contain p-2" />
+                                ) : (
+                                    <span className="text-xl">🌐</span>
+                                )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    ref={faviconInputRef}
+                                    type="file"
+                                    accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif,image/x-icon,image/vnd.microsoft.icon,.ico"
+                                    onChange={handleFaviconSelect}
+                                    className="hidden"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => faviconInputRef.current?.click()}
+                                    disabled={uploadingFavicon}
+                                    className="flex items-center gap-1.5 text-sm font-medium text-slate-700 border border-slate-300 px-3.5 py-2 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
+                                >
+                                    {uploadingFavicon ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                                    {course.faviconUrl ? "আইকন পরিবর্তন করুন" : "আইকন আপলোড করুন"}
+                                </button>
+                                {course.faviconUrl && (
+                                    <button
+                                        type="button"
+                                        onClick={handleRemoveFavicon}
+                                        disabled={uploadingFavicon}
+                                        className="text-slate-400 hover:text-red-500 p-2 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
+                                        title="ব্রাউজার আইকন সরিয়ে ফেলুন"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                        <p className="text-xs text-slate-400 mt-1">ব্রাউজার ট্যাবে দেখাবে। ICO বা 32×32 / 64×64 PNG ভালো কাজ করে। ফাঁকা থাকলে লোগো ব্যবহার হবে।</p>
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1.5">কোর্সের নাম</label>

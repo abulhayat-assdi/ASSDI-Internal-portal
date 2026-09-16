@@ -4,9 +4,8 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isSuperAdmin } from "@/lib/auth";
+import { ANNOUNCEMENT_KEY } from "@/lib/announcement";
 import { z } from "zod";
-
-export const ANNOUNCEMENT_KEY = "platform_announcement";
 
 const upsertSchema = z.object({
     title: z.string().min(1).max(200),
@@ -21,7 +20,7 @@ const deleteSchema = z.object({
     targets: z.union([z.literal("all"), z.array(z.string().min(1)).min(1)]),
 });
 
-async function targetIds(targets: "all" | string[], tx: { course: { findMany: (a: unknown) => Promise<{ id: string }[]> } }): Promise<string[]> {
+async function targetIds(targets: "all" | string[], tx: { course: { findMany: (a: { select: { id: boolean } }) => Promise<{ id: string }[]> } }): Promise<string[]> {
     if (targets === "all") {
         const rows = await tx.course.findMany({ select: { id: true } });
         return rows.map((r) => r.id);

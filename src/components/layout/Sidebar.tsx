@@ -27,6 +27,7 @@ interface NavSection {
 const teacherAdminTopNavItems: NavItem[] = [
     { href: "/dashboard", label: "Dashboard", icon: "🏠", permission: null },
     { href: "/dashboard/all-batch-info", label: "All Batch Info", icon: "📊", permission: "batch_info", feature: "batch_info" },
+    { href: "/dashboard/admin/contact-messages", label: "Messages", icon: "💬", permission: null },
     { href: "/dashboard/course-modules", label: "Course Modules", icon: "📚", permission: "course_modules", feature: "course_modules" },
     { href: "/dashboard/homework", label: "Homework", icon: "📝", permission: "homework", feature: "homework" },
     { href: "/dashboard/leave-tracking", label: "Leave Tracking", icon: "🌴", permission: "leave_tracking", feature: "leave_tracking" },
@@ -94,7 +95,6 @@ const teacherAdminNavSections: NavSection[] = [
         items: [
             { href: "/dashboard/admin", label: "Admin Panel", icon: "⚙️", permission: "admin_panel" },
             { href: "/dashboard/admin/access-management", label: "Access Management", icon: "🔑", permission: "access_management" },
-            { href: "/dashboard/admin/contact-messages", label: "Contact Messages", icon: "📩", permission: "admin_contact", feature: "contact_messages" },
             { href: "/dashboard/admin/batch-forms", label: "Batch Forms", icon: "📝", permission: "admin_panel", feature: "batch_forms" },
             { href: "/dashboard/admin/leave-management", label: "Manage Leaves", icon: "🌴", permission: "admin_leave", feature: "leave_tracking" },
         ]

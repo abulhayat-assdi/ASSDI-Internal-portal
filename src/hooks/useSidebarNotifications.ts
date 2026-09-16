@@ -34,7 +34,9 @@ export function useSidebarNotifications() {
                 const paths = [
                     "/dashboard/homework",
                     "/dashboard/admin/manage-homework",
-                    "/dashboard/feedback"
+                    "/dashboard/feedback",
+                    "/dashboard/admin/contact-messages",
+                    "/dashboard/messages"
                 ];
                 
                 const queryParams = new URLSearchParams();
@@ -60,8 +62,8 @@ export function useSidebarNotifications() {
 
         fetchCounts();
 
-        // Re-fetch periodically every 5 minutes
-        const interval = setInterval(fetchCounts, 5 * 60 * 1000);
+        // Re-fetch periodically every 30 seconds (chat needs fresher badges; other pages use 5min window)
+        const interval = setInterval(fetchCounts, 30 * 1000);
         return () => {
             isMounted = false;
             clearInterval(interval);

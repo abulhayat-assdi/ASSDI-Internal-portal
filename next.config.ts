@@ -33,6 +33,21 @@ const nextConfig: NextConfig = {
             { protocol: 'http', hostname: 'localhost', pathname: '/**' },
         ],
     },
+    async headers() {
+        return [
+            {
+                source: '/:path*',
+                headers: [
+                    { key: 'X-Frame-Options', value: 'DENY' },
+                    { key: 'X-Content-Type-Options', value: 'nosniff' },
+                    { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+                    { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+                    // HSTS only takes effect behind HTTPS (Nginx/Caddy). Safe to send always.
+                    { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
+                ],
+            },
+        ];
+    },
     async rewrites() {
         return [
             // Serve uploaded files through API route (standalone mode doesn't serve

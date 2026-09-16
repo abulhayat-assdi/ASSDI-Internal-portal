@@ -1,15 +1,23 @@
 services:
   db:
     image: postgres:15-alpine
-    restart: always
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-mypassword}
       POSTGRES_DB: ${DB_NAME:-asm_portal}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+    # MVP: DB NOT exposed to host/internet — only compose network.
+    # For emergency psql: docker compose exec db psql -U $DB_USER $DB_NAME
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-asm_portal}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   # Runs once at startup to ensure the storage volume is owned by UID 1001 (nextjs).
   # Needed because Docker named volumes are root-owned on first creation.
@@ -27,7 +35,7 @@ services:
   # ASM's existing auth is the only identity provider.
   postgrest:
     image: postgrest/postgrest:v12.2.0
-    restart: always
+    restart: unless-stopped
     environment:
       PGRST_DB_URI: postgresql://authenticator:${PGRST_AUTHENTICATOR_PASSWORD}@db:5432/${DB_NAME:-asm_portal}
       PGRST_DB_SCHEMAS: typing_game
@@ -38,16 +46,19 @@ services:
       PGRST_DB_POOL: "10"
     depends_on:
       db:
-        condition: service_started
+        condition: service_healthy
 
   app:
     build:
       context: .
       dockerfile: Dockerfile
-    restart: always
+    restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-mypassword}@db:5432/${DB_NAME:-asm_portal}?schema=public
       JWT_SECRET: ${JWT_SECRET}
+      SETUP_SECRET: ${SETUP_SECRET:-}
+      SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL:-}
+      SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD:-}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
       SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT}
@@ -64,15 +75,21 @@ services:
       POSTGREST_URL: http://postgrest:3000
     depends_on:
       db:
-        condition: service_started
+        condition: service_healthy
       init-storage:
         condition: service_completed_successfully
       postgrest:
         condition: service_started
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     volumes:
       - storage_data:/app/storage
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
 volumes:
   postgres_data:

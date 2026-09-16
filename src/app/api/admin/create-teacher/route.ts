@@ -46,10 +46,12 @@ export async function POST(req: NextRequest) {
 
         const { teacherId, loginEmail, displayEmail, password, name, phone, designation, about, isAdmin: grantAdmin, includeTeacherFeatures, order, leaveTrackingEnabled, profileImageUrl } = parsed.data;
 
-        // 2. Only super_admin can grant admin role
-        if (grantAdmin && caller.role !== "super_admin") {
+        // 2. Admin grant: Super Admin can grant anywhere; Department Admin (admin role)
+        // can grant ONLY within its own courseId (department). Cross-department already
+        // blocked by courseId scoping. This enables "Full User Management" for department admins.
+        if (grantAdmin && !isAdmin(caller)) {
             return NextResponse.json(
-                { error: "Forbidden: Only the portal owner (super_admin) can grant admin access." },
+                { error: "Forbidden: Only admins can grant admin access." },
                 { status: 403 }
             );
         }

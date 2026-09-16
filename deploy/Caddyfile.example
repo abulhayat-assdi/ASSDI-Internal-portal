@@ -1,0 +1,29 @@
+# ASM Portal V2 — Caddy reverse proxy (RECOMMENDED for MVP)
+# Hosts: tasm-skill.asf.bd + *.tasm-skill.asf.bd (course subdomains + admin host)
+# App listens on 127.0.0.1:3000 (see docker-compose.yml) — Caddy is the only
+# public entrypoint and terminates TLS.
+#
+# Wildcard cert needs DNS-01 challenge. Example with Cloudflare:
+#   1. `caddy add-package github.com/caddy-dns/cloudflare`
+#   2. Set CF_API_TOKEN env, uncomment tls blocks below.
+# If DNS provider has no plugin, use per-subdomain certs (no wildcard) or Nginx+certbot.
+
+{
+    email admin@tasm-skill.asf.bd
+}
+
+tasm-skill.asf.bd, *.tasm-skill.asf.bd {
+    # tls {
+    #     dns cloudflare {env.CF_API_TOKEN}
+    # }
+    encode gzip
+    reverse_proxy 127.0.0.1:3000 {
+        header_up Host {host}
+        header_up X-Forwarded-Host {host}
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Real-IP {remote}
+    }
+    log {
+        output file /var/log/caddy/asm-portal.log
+    }
+}

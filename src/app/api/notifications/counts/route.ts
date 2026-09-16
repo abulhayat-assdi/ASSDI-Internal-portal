@@ -54,11 +54,14 @@ export async function GET(req: NextRequest) {
                 });
             }
 
-            // 3. Contact Messages (Admin only)
-            if (isAdmin(user)) {
-                counts["/dashboard/admin/contact-messages"] = await tx.contactMessage.count({
-                    where: { courseId, status: "unread" }
+            // 3. Contact Messages / Live Support (Admin & Teachers with access)
+            // Uses ChatThread unreadCountAdmin — not legacy ContactMessage table
+            if (isAdmin(user) || role === "teacher") {
+                const chatUnread = await tx.chatThread.count({
+                    where: { courseId, unreadCountAdmin: { gt: 0 } }
                 });
+                counts["/dashboard/admin/contact-messages"] = chatUnread;
+                counts["/dashboard/messages"] = chatUnread;
             }
 
             // 4. Feedback (Admin only)

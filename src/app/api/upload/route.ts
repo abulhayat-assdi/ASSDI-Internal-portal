@@ -4,7 +4,7 @@ import path from "path";
 import { getSessionUser, isAdmin } from "@/lib/auth";
 
 const ALLOWED_MIME_TYPES = new Set([
-  "image/jpeg", "image/png", "image/webp", "image/gif", "image/svg+xml",
+  "image/jpeg", "image/png", "image/webp", "image/gif", "image/svg+xml", "image/x-icon", "image/vnd.microsoft.icon", "image/ico", "image/icon",
   "application/pdf",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",

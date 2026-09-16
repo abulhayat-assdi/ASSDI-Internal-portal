@@ -4,7 +4,7 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
-import { ANNOUNCEMENT_KEY } from "@/app/api/saas/announcements/route";
+import { ANNOUNCEMENT_KEY } from "@/lib/announcement";
 
 /** GET /api/announcement — this course's active platform announcement (any logged-in user) */
 export async function GET(req: NextRequest) {

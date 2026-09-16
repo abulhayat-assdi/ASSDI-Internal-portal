@@ -43,12 +43,16 @@ export async function GET(req: NextRequest) {
                 return NextResponse.json({ success: true, message: 'Role updated to super_admin', user });
             }
 
-            // default — create/reset admin account
-            const password = 'Password@123';
+            // default — create/reset super_admin account
+            // MVP: overridable via env; falls back to legacy hardcoded values.
+            // MUST rotate password immediately after bootstrap, then unset SETUP_SECRET.
+            const email2 = process.env.SUPER_ADMIN_EMAIL || email;
+            const password = process.env.SUPER_ADMIN_PASSWORD || 'Password@123';
+            const usingDefaults = !process.env.SUPER_ADMIN_PASSWORD;
             const hashedPassword = await bcrypt.hash(password, 10);
 
             const user = await tx.user.upsert({
-                where: { email },
+                where: { email: email2 },
                 update: {
                     passwordHash: hashedPassword,
                     role: 'super_admin',
@@ -57,7 +61,7 @@ export async function GET(req: NextRequest) {
                     permissions: [],
                 },
                 create: {
-                    email,
+                    email: email2,
                     passwordHash: hashedPassword,
                     role: 'super_admin',
                     displayName: 'Abul Hayat',
@@ -69,6 +73,7 @@ export async function GET(req: NextRequest) {
                 success: true,
                 message: 'Admin account created/reset with role: super_admin',
                 user: { email: user.email, role: user.role },
+                ...(usingDefaults ? { warning: 'DEFAULT_PASSWORD_IN_USE — rotate immediately and unset SETUP_SECRET' } : {}),
             });
         });
     } catch (error: unknown) {

@@ -28,6 +28,7 @@ export interface AdminChatThread {
     lastMessageTime: string;
     unreadCountAdmin: number;
     unreadCountStudent: number;
+    lastSender?: "student" | "admin" | null;
 }
 
 export const sendChatMessage = async (

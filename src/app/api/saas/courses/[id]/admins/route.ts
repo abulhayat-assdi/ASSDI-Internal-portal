@@ -66,6 +66,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                     passwordHash,
                     displayName: name,
                     role: "admin",
+                    // Grant department-scoped access management so this admin can manage its own department's users
+                    permissions: ["teachers","batch_info","admin_panel","admin_homework","admin_results","admin_leave","admin_notices","admin_contact","admin_resources","admin_course_modules","admin_deployments","admin_typing_game","typing_exam","access_management"],
                 },
             });
 

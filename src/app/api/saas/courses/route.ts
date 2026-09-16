@@ -14,6 +14,7 @@ const createCourseSchema = z.object({
     slug: z.string().regex(SLUG_REGEX, "Slug must be lowercase letters, numbers, hyphens (3+ chars)"),
     tagline: z.string().optional(),
     logoUrl: z.string().optional(),
+    faviconUrl: z.string().optional(),
     primaryColor: z.string().optional(),
     accentColor: z.string().optional(),
     adminName: z.string().min(1).optional(),
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest) {
     if (!parsed.success) {
         return NextResponse.json({ error: parsed.error.issues.map((e) => e.message).join(", ") }, { status: 400 });
     }
-    const { name, slug, tagline, logoUrl, primaryColor, accentColor, adminName, adminEmail, adminPassword } = parsed.data;
+    const { name, slug, tagline, logoUrl, faviconUrl, primaryColor, accentColor, adminName, adminEmail, adminPassword } = parsed.data;
 
     if (RESERVED_SLUGS.has(slug)) {
         return NextResponse.json({ error: `"${slug}" is a reserved subdomain.` }, { status: 400 });
@@ -86,6 +87,7 @@ export async function POST(req: NextRequest) {
                     slug,
                     tagline: tagline || null,
                     logoUrl: logoUrl || null,
+                    faviconUrl: faviconUrl || null,
                     primaryColor: primaryColor || undefined,
                     accentColor: accentColor || undefined,
                 },

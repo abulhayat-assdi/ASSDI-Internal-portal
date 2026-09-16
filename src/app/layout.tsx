@@ -46,12 +46,12 @@ export async function generateMetadata(): Promise<Metadata> {
             tx.cmsContent.findUnique({ where: { courseId_key: { courseId, key: "site_settings" } } })
         );
         const cms = cmsRecord?.value as Record<string, unknown> | null;
-        const logoUrl = (cms?.logoUrl as string | undefined) ?? course?.logoUrl ?? undefined;
-        // Convert /api/file?path=uploads/... → /uploads/... (static public path, no auth needed)
-        if (logoUrl?.startsWith("/api/file?path=")) {
-            faviconUrl = "/" + logoUrl.replace("/api/file?path=", "");
-        } else if (logoUrl) {
-            faviconUrl = logoUrl;
+        // Priority: course.faviconUrl (set by Super Admin) > cms.logoUrl > course.logoUrl > default
+        const rawUrl = course?.faviconUrl ?? (cms?.logoUrl as string | undefined) ?? course?.logoUrl ?? undefined;
+        if (rawUrl?.startsWith("/api/file?path=")) {
+            faviconUrl = "/" + rawUrl.replace("/api/file?path=", "");
+        } else if (rawUrl) {
+            faviconUrl = rawUrl;
         }
     } catch {
         // use default icon

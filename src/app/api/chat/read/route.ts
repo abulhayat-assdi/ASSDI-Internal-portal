@@ -17,20 +17,25 @@ export async function PATCH(req: NextRequest) {
 
     try {
         const body = await req.json();
-        const { threadId } = body;
+        const { threadId, studentUid, role: bodyRole } = body as { threadId?: string; studentUid?: string; role?: string };
 
-        if (!threadId) return NextResponse.json({ error: "threadId required" }, { status: 400 });
+        // Frontend (contactService.markChatAsRead) sends { studentUid, role }, legacy may send threadId
+        const identifier = threadId || studentUid;
+        if (!identifier) return NextResponse.json({ error: "threadId or studentUid required" }, { status: 400 });
 
-        const isStudentRole = user.role === "student";
+        const isStudentRole = bodyRole ? bodyRole === "student" : user.role === "student";
 
-        await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
-            tx.chatThread.update({
-                where: { id: threadId, courseId },
+        await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+            const where: any = threadId ? { id: identifier, courseId } : { studentUid: identifier, courseId };
+            const existing = await tx.chatThread.findFirst({ where });
+            if (!existing) return;
+            await tx.chatThread.update({
+                where: { id: existing.id },
                 data: isStudentRole
                     ? { unreadCountStudent: 0 }
                     : { unreadCountAdmin: 0 },
-            })
-        );
+            });
+        });
 
         return NextResponse.json({ success: true });
     } catch (error) {

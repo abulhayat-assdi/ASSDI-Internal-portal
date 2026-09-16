@@ -242,43 +242,10 @@ async function applySchemaPatches() {
         console.error("[startup] Schema patch error (update live_url):", err.message);
     }
 
-    // ── Remove tenant system (idempotent cleanup) ───────────────
-
-    const tablesWithTenantId = [
-        "users", "teachers", "classes", "class_schedules", "batches",
-        "batch_students", "notices", "student_notices", "homework_submissions",
-        "homework_assignments", "feedback", "contact_messages", "chat_threads",
-        "activity_logs", "resources", "module_folders", "module_resources",
-        "posts", "exam_results", "routines", "policies", "cms_content",
-        "success_stories", "video_testimonials", "daily_tracker_reports",
-        "student_update_requests", "batch_routine_entries", "routine_configs",
-        "student_exam_batch_records", "course_modules", "video_stories",
-    ];
-
-    for (const table of tablesWithTenantId) {
-        try {
-            await prisma.$executeRawUnsafe(
-                `ALTER TABLE ${table} DROP COLUMN IF EXISTS tenant_id;`
-            );
-        } catch (err) {
-            console.error(`[startup] Cleanup error (drop tenant_id on ${table}):`, err.message);
-        }
-    }
-    console.log("[startup] ✓ tenant_id columns removed from all tables OK");
-
-    try {
-        await prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS tenants CASCADE;`);
-        console.log("[startup] ✓ tenants table dropped OK");
-    } catch (err) {
-        console.error("[startup] Cleanup error (drop tenants):", err.message);
-    }
-
-    try {
-        await prisma.$executeRawUnsafe(`DROP TYPE IF EXISTS "TenantStatus";`);
-        console.log("[startup] ✓ TenantStatus enum dropped OK");
-    } catch (err) {
-        console.error("[startup] Cleanup error (drop TenantStatus):", err.message);
-    }
+    // NOTE (MVP 2026-09-16): legacy tenant-cleanup block REMOVED.
+    // schema.prisma still uses TenantStatus enum for Course.status — dropping
+    // it on boot breaks Prisma. Schema changes now flow via
+    // `prisma migrate deploy` (Dockerfile CMD) only.
 
     await prisma.$disconnect();
 }

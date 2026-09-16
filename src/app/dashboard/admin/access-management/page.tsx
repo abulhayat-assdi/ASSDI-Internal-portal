@@ -48,7 +48,7 @@ export default function AccessManagementPage() {
     const [searchQuery, setSearchQuery] = useState("");
     const [filterRole, setFilterRole]   = useState<"all" | "teacher" | "admin" | "admin_teacher">("all");
 
-    const isSuperAdmin = userProfile?.role === "super_admin";
+    const isAuthorized = userProfile?.role === "super_admin" || userProfile?.role === "admin";
 
     useEffect(() => { fetchUsers(); }, []);
 
@@ -148,13 +148,14 @@ export default function AccessManagementPage() {
         return matchSearch && matchRole;
     });
 
-    if (!isSuperAdmin) {
+    if (!isAuthorized) {
         return (
             <div className="flex items-center justify-center min-h-[60vh]">
                 <div className="text-center">
                     <div className="text-6xl mb-4">🔒</div>
                     <h2 className="text-2xl font-bold text-gray-800 mb-2">Access Restricted</h2>
-                    <p className="text-gray-500">Only the portal owner (Super Admin) can manage access.</p>
+                    <p className="text-gray-500">Only Department Admins and Super Admins can manage access.</p>
+                    <p className="text-sm text-gray-400 mt-1">এই পেজটি শুধুমাত্র আপনার নিজের Department-এর জন্য — অন্য Department-এর ইউজার দেখা বা পরিবর্তন করা যাবে না।</p>
                 </div>
             </div>
         );
@@ -167,7 +168,7 @@ export default function AccessManagementPage() {
                 <div className="w-1 h-10 bg-purple-600 rounded-full" />
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900">Access Management</h1>
-                    <p className="text-gray-500 mt-1">Role ও পেইজ-এক্সেস নিয়ন্ত্রণ করুন</p>
+                    <p className="text-gray-500 mt-1">Role ও পেইজ-এক্সেস নিয়ন্ত্রণ করুন — শুধু আপনার নিজের Department/Course-এর ইউজাররা এখানে দেখাবে</p>
                 </div>
             </div>
 
