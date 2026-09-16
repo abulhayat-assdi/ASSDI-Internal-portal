@@ -3,9 +3,9 @@ FROM node:20-alpine AS deps
 RUN apk add --no-cache libc6-compat openssl
 WORKDIR /app
 
-COPY package.json package-lock.json* ./
+COPY package.json package-lock.json* .npmrc* ./
 COPY prisma ./prisma/
-RUN NODE_ENV=development npm ci
+RUN NODE_ENV=development npm ci --no-audit --no-fund
 
 # Stage 2: Build the application
 FROM node:20-alpine AS builder
