@@ -1,5 +1,12 @@
 import type { NextConfig } from "next";
 
+// The deployed domain, read at build time from the environment (the Dockerfile
+// takes it as a build ARG). Hardcoding it here previously meant that moving to
+// a new domain broke Server Actions — Next rejects an action whose Origin is
+// not in allowedOrigins — and stopped next/image from optimising anything
+// served off the new host.
+const BASE_DOMAIN = process.env.NEXT_PUBLIC_BASE_DOMAIN || 'tasm-skill.asf.bd';
+
 const nextConfig: NextConfig = {
     output: 'standalone',
     eslint: {
@@ -18,7 +25,13 @@ const nextConfig: NextConfig = {
     serverExternalPackages: ['@prisma/client', '@react-pdf/renderer', 'sharp', 'unzipper', 'cheerio'],
     experimental: {
         serverActions: {
-            allowedOrigins: ['tasm-skill.asf.bd', 'www.tasm-skill.asf.bd', '*.tasm-skill.asf.bd', 'localhost:3000'],
+            allowedOrigins: [
+                BASE_DOMAIN,
+                `www.${BASE_DOMAIN}`,
+                // Every course lives on its own subdomain.
+                `*.${BASE_DOMAIN}`,
+                'localhost:3000',
+            ],
             bodySizeLimit: '100mb',
         },
     },
@@ -35,7 +48,8 @@ const nextConfig: NextConfig = {
             { protocol: 'https', hostname: 'img.youtube.com', pathname: '/**' },
             { protocol: 'https', hostname: 'drive.google.com', pathname: '/**' },
             { protocol: 'https', hostname: 'lh3.googleusercontent.com', pathname: '/**' },
-            { protocol: 'https', hostname: 'tasm-skill.asf.bd', pathname: '/**' },
+            { protocol: 'https', hostname: BASE_DOMAIN, pathname: '/**' },
+            { protocol: 'https', hostname: `*.${BASE_DOMAIN}`, pathname: '/**' },
             { protocol: 'http', hostname: 'localhost', pathname: '/**' },
         ],
     },

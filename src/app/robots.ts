@@ -1,5 +1,11 @@
 import { MetadataRoute } from "next";
 
+// Same source as sitemap.ts — never hardcode the deployed domain.
+const BASE_URL =
+    process.env.APP_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    `https://${process.env.BASE_DOMAIN || process.env.NEXT_PUBLIC_BASE_DOMAIN || "localhost:3000"}`;
+
 export default function robots(): MetadataRoute.Robots {
     return {
         rules: [
@@ -17,6 +23,6 @@ export default function robots(): MetadataRoute.Robots {
                 ],
             },
         ],
-        sitemap: "https://tasm-skill.asf.bd/sitemap.xml",
+        sitemap: `${BASE_URL}/sitemap.xml`,
     };
 }

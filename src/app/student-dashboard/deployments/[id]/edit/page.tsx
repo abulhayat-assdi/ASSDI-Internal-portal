@@ -41,7 +41,7 @@ export default function EditDeploymentPage() {
     const [subdomainStatus, setSubdomainStatus] = useState<SubdomainStatus>("same");
     const [subdomainError, setSubdomainError] = useState("");
     const [saving, setSaving] = useState(false);
-    const [baseDomain] = useState(process.env.NEXT_PUBLIC_BASE_DOMAIN || "tasm-skill.asf.bd");
+    const [baseDomain] = useState(process.env.NEXT_PUBLIC_BASE_DOMAIN || "");
 
     useEffect(() => {
         (async () => {

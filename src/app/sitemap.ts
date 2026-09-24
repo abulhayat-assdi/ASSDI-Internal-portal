@@ -1,6 +1,11 @@
 import { MetadataRoute } from "next";
 
-const BASE_URL = "https://tasm-skill.asf.bd";
+// Read at request time from the deployed environment. It used to be a
+// literal, which silently kept pointing at the old domain after a move.
+const BASE_URL =
+    process.env.APP_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    `https://${process.env.BASE_DOMAIN || process.env.NEXT_PUBLIC_BASE_DOMAIN || "localhost:3000"}`;
 
 // Course subdomains are login-only (noindex) and course sites don't have
 // public marketing pages anymore — the only public page left is the

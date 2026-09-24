@@ -53,8 +53,12 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        # Baked into the client bundles; must match NEXT_PUBLIC_BASE_DOMAIN below.
-        NEXT_PUBLIC_BASE_DOMAIN: ${NEXT_PUBLIC_BASE_DOMAIN}
+        # Baked into the client bundles and into next.config's
+        # allowedOrigins/remotePatterns, so it must be right at BUILD time —
+        # setting it only at runtime silently leaves the previous domain
+        # compiled in. Required, so a missing value fails the build loudly
+        # instead of shipping a wrong one.
+        NEXT_PUBLIC_BASE_DOMAIN: ${NEXT_PUBLIC_BASE_DOMAIN:?NEXT_PUBLIC_BASE_DOMAIN must be set}
     restart: unless-stopped
     environment:
       # The entrypoint rebuilds both connection URLs from these, percent-encoding

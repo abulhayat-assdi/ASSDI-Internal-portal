@@ -42,7 +42,7 @@ export default function NewDeploymentPage() {
     const [subdomainStatus, setSubdomainStatus] = useState<SubdomainStatus>("idle");
     const [subdomainError, setSubdomainError] = useState("");
     const [deploying, setDeploying] = useState(false);
-    const [baseDomain, setBaseDomain] = useState("tasm-skill.asf.bd");
+    const [baseDomain, setBaseDomain] = useState("");
 
     useEffect(() => {
         const d = process.env.NEXT_PUBLIC_BASE_DOMAIN;
