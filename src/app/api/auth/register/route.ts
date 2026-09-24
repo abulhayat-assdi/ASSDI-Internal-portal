@@ -6,7 +6,7 @@ import { signJWT } from '@/lib/auth';
 import { AUTH_ROLES, COOKIES } from '@/lib/constants';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
-import { HOUR, rateLimitByIp } from '@/lib/rateLimit';
+import { HOUR, limitFromEnv, rateLimitByIp } from '@/lib/rateLimit';
 
 const SESSION_MAX_AGE = 60 * 60 * 24 * 30; // 30 days — matches the JWT + ActiveSession expiry
 
@@ -25,7 +25,8 @@ const registerSchema = z.object({
 export async function POST(req: NextRequest) {
     // Self-registration is open to the internet; without a cap one script can
     // fill a course's seats and the users table.
-    const limited = rateLimitByIp(req, 'register', 5, HOUR,
+    // A whole batch often self-registers from one campus connection.
+    const limited = rateLimitByIp(req, 'register', limitFromEnv('REGISTER', 50), HOUR,
         'অনেক বেশি অ্যাকাউন্ট তৈরির চেষ্টা হয়েছে। এক ঘণ্টা পর আবার চেষ্টা করুন।');
     if (limited) return limited;
 

@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { normalizePhone } from "@/lib/typing-exam/identity";
 import { checkRetryPassword } from "@/lib/typing-exam/retryGate";
-import { HOUR, rateLimitByIp } from "@/lib/rateLimit";
+import { HOUR, limitFromEnv, rateLimitByIp } from "@/lib/rateLimit";
 
 type RouteParams = { params: Promise<{ slug: string }> };
 
@@ -57,7 +57,8 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
 export async function POST(req: NextRequest, { params }: RouteParams) {
   // This endpoint checks the exam's retry password, so it is a credential
   // oracle — without a cap the password is trivially brute-forceable.
-  const limited = rateLimitByIp(req, "typing-exam-check", 30, HOUR);
+  // An exam is taken by a full class at once, all behind one address.
+  const limited = rateLimitByIp(req, "typing-exam-check", limitFromEnv("EXAM_CHECK", 300), HOUR);
   if (limited) return limited;
 
   const { slug } = await params;

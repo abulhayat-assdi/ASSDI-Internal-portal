@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin } from "@/lib/auth";
-import { getClientIp } from "@/lib/rateLimit";
+import { getClientIp, limitFromEnv } from "@/lib/rateLimit";
 
 // ============================================================
 // 🛡️ In-memory IP-based Rate Limiter
@@ -10,7 +10,9 @@ import { getClientIp } from "@/lib/rateLimit";
 // For production at scale, use Redis or a distributed store.
 // ============================================================
 const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
-const MAX_REQUESTS_PER_WINDOW = 10;
+// Shared campus connections: this is per IP, so it has to accommodate a
+// room full of people, not one person.
+const MAX_REQUESTS_PER_WINDOW = limitFromEnv("CHAT", 30);
 
 interface RateLimitEntry {
     count: number;

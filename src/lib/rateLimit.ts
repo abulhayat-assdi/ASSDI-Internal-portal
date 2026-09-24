@@ -49,6 +49,45 @@ export function getClientIp(req: NextRequest): string {
     return req.headers.get("x-real-ip")?.trim() || "unknown";
 }
 
+/**
+ * Reads an operator override for a limit, e.g. RATE_LIMIT_LOGIN_IP=500.
+ *
+ * These are deliberately tunable without a code change: this portal runs
+ * behind school and office NATs where hundreds of legitimate users share one
+ * address, and the right ceiling is something the operator discovers in
+ * production, not something we can guess here. A rebuild to change a number
+ * is too expensive on a small shared host.
+ */
+export function limitFromEnv(name: string, fallback: number): number {
+    const raw = Number(process.env[`RATE_LIMIT_${name}`]);
+    return Number.isFinite(raw) && raw > 0 ? raw : fallback;
+}
+
+/**
+ * True when `key` is already over `limit`, WITHOUT counting this call.
+ *
+ * Pair with recordAttempt() to count only the attempts that deserve it —
+ * failed logins, say, rather than every login. Counting successes is what
+ * makes a shared-IP limit lock out a whole classroom.
+ */
+export function isOverLimit(key: string, limit: number): boolean {
+    const bucket = buckets.get(key);
+    if (!bucket || bucket.resetAt <= Date.now()) return false;
+    return bucket.count >= limit;
+}
+
+/** Counts one attempt against `key` without judging it. */
+export function recordAttempt(key: string, windowMs: number): void {
+    const now = Date.now();
+    if (buckets.size > MAX_KEYS) sweep(now);
+    const bucket = buckets.get(key);
+    if (!bucket || bucket.resetAt <= now) {
+        buckets.set(key, { count: 1, resetAt: now + windowMs });
+    } else {
+        bucket.count++;
+    }
+}
+
 export interface RateLimitResult {
     ok: boolean;
     /** Seconds until the window resets; only meaningful when ok is false. */

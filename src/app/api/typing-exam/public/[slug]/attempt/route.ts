@@ -6,7 +6,7 @@ import { withCourseContext } from "@/lib/db";
 import { normalizePhone } from "@/lib/typing-exam/identity";
 import { scoreAttempt, gradeAttempt } from "@/lib/typing-exam/scoring";
 import { checkRetryPassword } from "@/lib/typing-exam/retryGate";
-import { HOUR, rateLimitByIp } from "@/lib/rateLimit";
+import { HOUR, limitFromEnv, rateLimitByIp } from "@/lib/rateLimit";
 
 type RouteParams = { params: Promise<{ slug: string }> };
 
@@ -15,7 +15,7 @@ type RouteParams = { params: Promise<{ slug: string }> };
 // duplicate-attempt/password gate itself (never trusts that /check ran
 // first), then scores the submission server-side and persists it.
 export async function POST(req: NextRequest, { params }: RouteParams) {
-  const limited = rateLimitByIp(req, "typing-exam-attempt", 30, HOUR);
+  const limited = rateLimitByIp(req, "typing-exam-attempt", limitFromEnv("EXAM_ATTEMPT", 300), HOUR);
   if (limited) return limited;
 
   const { slug } = await params;

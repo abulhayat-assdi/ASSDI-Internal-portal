@@ -7,7 +7,7 @@ import { COOKIES } from '@/lib/constants';
 import { PORTAL_OWNER_EMAIL } from '@/lib/permissions';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
-import { MINUTE, rateLimitByIp } from '@/lib/rateLimit';
+import { MINUTE, getClientIp, isOverLimit, limitFromEnv, recordAttempt, clearRateLimit } from '@/lib/rateLimit';
 
 const loginSchema = z.object({
     email: z.string().email(),
@@ -16,8 +16,13 @@ const loginSchema = z.object({
 
 // Rate limiter per email address (not IP) — safe for shared-network school environments
 const failedAttempts = new Map<string, { count: number; resetAt: number }>();
-const MAX_ATTEMPTS = 5;
+const MAX_ATTEMPTS = limitFromEnv('LOGIN_EMAIL', 20);
 const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+
+// Per-IP ceiling, counted over FAILED attempts only. Whole classes share one
+// NAT address here, so counting successful logins too would lock out everyone
+// behind a busy connection. Only a client that keeps guessing wrong burns it.
+const MAX_IP_FAILURES = limitFromEnv('LOGIN_IP', 200);
 const SESSION_MAX_AGE = 60 * 60 * 24 * 30; // 30 days in seconds
 
 function isRateLimited(email: string): boolean {
@@ -64,12 +69,16 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // ...and per source IP as well. The per-email counter alone does
-        // nothing against password spraying, where one attacker tries a single
-        // common password against hundreds of different accounts.
-        const ipLimited = rateLimitByIp(req, 'login', 30, 15 * MINUTE,
-            'অনেক বেশি লগইন চেষ্টা হয়েছে। ১৫ মিনিট পর আবার চেষ্টা করুন।');
-        if (ipLimited) return ipLimited;
+        // ...and a much looser per-IP ceiling on failures, which is what
+        // catches password spraying (one attacker, one common password, many
+        // accounts) without penalising a shared connection.
+        const ipKey = `login:ip:${getClientIp(req)}`;
+        if (isOverLimit(ipKey, MAX_IP_FAILURES)) {
+            return NextResponse.json(
+                { error: 'অনেক বেশি ব্যর্থ লগইন চেষ্টা হয়েছে। ১৫ মিনিট পর আবার চেষ্টা করুন।' },
+                { status: 429 }
+            );
+        }
 
         // Middleware resolves the host to a course (or the reserved admin host)
         // and attaches these headers before the request reaches this route.
@@ -94,17 +103,21 @@ export async function POST(req: NextRequest) {
 
         if (!user) {
             recordFailedAttempt(normalizedEmail);
+            recordAttempt(ipKey, WINDOW_MS);
             return NextResponse.json({ error: 'Invalid email or password.' }, { status: 401 });
         }
 
         const isValid = await bcrypt.compare(password, user.passwordHash);
         if (!isValid) {
             recordFailedAttempt(normalizedEmail);
+            recordAttempt(ipKey, WINDOW_MS);
             return NextResponse.json({ error: 'Invalid email or password.' }, { status: 401 });
         }
 
-        // Successful login — clear failed attempt counter
+        // Successful login — clear both counters, so one person fumbling their
+        // password does not leave the rest of their network closer to the cap.
         clearFailedAttempts(normalizedEmail);
+        clearRateLimit(ipKey);
 
         // ActiveSession has no course_id / RLS policy (pure auth housekeeping,
         // always looked up by userId) — the plain prisma client is fine here.

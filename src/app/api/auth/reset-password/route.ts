@@ -6,7 +6,7 @@ import crypto from 'crypto';
 import nodemailer from 'nodemailer';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
-import { HOUR, MINUTE, rateLimit, rateLimitByIp } from '@/lib/rateLimit';
+import { HOUR, MINUTE, limitFromEnv, rateLimit, rateLimitByIp } from '@/lib/rateLimit';
 
 const requestSchema = z.object({
     email: z.string().email(),
@@ -48,7 +48,7 @@ function getTransporter() {
 export async function POST(req: NextRequest) {
     // Each accepted request sends mail, so this is an email-bomb vector as
     // much as an enumeration one: cap the sender and the target separately.
-    const limited = rateLimitByIp(req, 'reset-password', 5, HOUR,
+    const limited = rateLimitByIp(req, 'reset-password', limitFromEnv('RESET_IP', 30), HOUR,
         'অনেক বেশি রিসেট অনুরোধ। এক ঘণ্টা পর আবার চেষ্টা করুন।');
     if (limited) return limited;
 
@@ -65,7 +65,9 @@ export async function POST(req: NextRequest) {
 
         // Per-address cap, so one inbox can't be flooded from many IPs.
         // Answers success either way — never reveal whether the account exists.
-        if (!rateLimit(`reset-password:addr:${normalizedEmail}`, 3, HOUR).ok) {
+        // Kept tight: this one is per mailbox, not per network, so it cannot
+        // lock out a shared connection — and it is the actual email-bomb guard.
+        if (!rateLimit(`reset-password:addr:${normalizedEmail}`, limitFromEnv('RESET_EMAIL', 5), HOUR).ok) {
             return NextResponse.json({ success: true });
         }
 
@@ -165,7 +167,7 @@ export async function POST(req: NextRequest) {
  */
 export async function PATCH(req: NextRequest) {
     // The token is 256 bits of randomness, but cap guessing anyway.
-    const limited = rateLimitByIp(req, 'reset-password-confirm', 10, 15 * MINUTE);
+    const limited = rateLimitByIp(req, 'reset-password-confirm', limitFromEnv('RESET_CONFIRM', 60), 15 * MINUTE);
     if (limited) return limited;
 
     try {
