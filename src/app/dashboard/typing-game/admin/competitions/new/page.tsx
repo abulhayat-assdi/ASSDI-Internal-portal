@@ -26,6 +26,7 @@ export default async function AdminCompetitionNewPage({}: {}) {
       <Card>
         <CardContent>
           <CompetitionForm        locale={locale}
+        baseHref="/dashboard/typing-game/admin/competitions"
         games={games.map((g) => ({
           slug: g.slug,
           title: g.slug,

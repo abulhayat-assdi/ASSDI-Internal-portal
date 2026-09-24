@@ -39,6 +39,11 @@ export default async function AdminDashboardPage({
     { href: `${base}/wars`, label: tn("adminWars") },
     { href: `${base}/bosses`, label: tn("adminBosses") },
     { href: `${base}/seasons`, label: tn("adminSeasons") },
+    { href: `${base}/missions`, label: tn("adminMissions") },
+    { href: `${base}/tournaments`, label: tn("adminTournaments") },
+    { href: `${base}/shop`, label: tn("adminShop") },
+    { href: `${base}/rewards`, label: tn("adminRewards") },
+    { href: `${base}/adaptive`, label: tn("adminAdaptive") },
     { href: `${base}/flags`, label: t("featureFlags") },
   ];
 

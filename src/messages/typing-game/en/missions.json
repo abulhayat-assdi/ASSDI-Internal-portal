@@ -59,6 +59,11 @@
   "missionStatusDraft": "Draft",
   "missionStatusActive": "Active",
   "missionStatusArchived": "Archived",
+  "missionStatusInactive": "Inactive",
+  "globalHubTitle": "Global Missions",
+  "globalHubSubtitle": "Daily, weekly and event missions offered to every student.",
+  "colCategory": "Category",
+  "colVersion": "Version",
 
   "stepPassage": "Passage",
   "stepRule": "Completion rule",

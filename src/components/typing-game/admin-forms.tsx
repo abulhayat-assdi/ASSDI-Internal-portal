@@ -505,3 +505,70 @@ export function FlagToggle({
     </div>
   );
 }
+
+/**
+ * Role granting for one user (POST/DELETE /api/typing-game/admin/roles).
+ * Org admins may only move a user between teacher and student; the route and
+ * fn_grant_role re-check scope, so this is a convenience, not the gate.
+ */
+export function RoleEditor({
+  locale,
+  userId,
+}: {
+  locale: Locale;
+  userId: string;
+}) {
+  const t = getTranslator(locale, "staff");
+  const [role, setRole] = useState("teacher");
+  const s = useSubmit();
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <select
+          aria-label={t("grantRole")}
+          className="tap-input-wrap tap-input"
+          value={role}
+          onChange={(e) => { setRole(e.target.value); }}
+        >
+          <option value="teacher">{t("roleTeacher")}</option>
+          <option value="student">{t("roleStudent")}</option>
+        </select>
+        <button
+          type="button"
+          className="tap-btn tap-btn-primary tap-btn-md"
+          disabled={s.busy}
+          onClick={() =>
+            void s.run(
+              async () =>
+                api("/api/typing-game/admin/roles", {
+                  method: "POST",
+                  body: JSON.stringify({ userId, role }),
+                }),
+              t("failed"),
+            )
+          }
+        >
+          {t("grantRole")}
+        </button>
+        <button
+          type="button"
+          className="tap-btn tap-btn-secondary tap-btn-md"
+          disabled={s.busy}
+          onClick={() =>
+            void s.run(
+              async () =>
+                api("/api/typing-game/admin/roles", {
+                  method: "DELETE",
+                  body: JSON.stringify({ userId, role }),
+                }),
+              t("failed"),
+            )
+          }
+        >
+          {t("revokeRole")}
+        </button>
+      </div>
+      <StatusLine error={s.error} saved={s.saved} locale={locale} />
+    </div>
+  );
+}

@@ -10,6 +10,7 @@ import { ForbiddenBlock } from "@/components/typing-game/forbidden-block";
 import {
   AccountStatusSelect,
   MembershipEditor,
+  RoleEditor,
 } from "@/components/typing-game/admin-forms";
 
 export default async function AdminStudentPage(
@@ -89,6 +90,12 @@ export default async function AdminStudentPage(
             userId={detail.userId}
             status={detail.status}
           />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent>
+          <SectionHeader title={t("roles")} />
+          <RoleEditor locale={locale} userId={detail.userId} />
         </CardContent>
       </Card>
       {active ? (

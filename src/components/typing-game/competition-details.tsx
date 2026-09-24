@@ -191,10 +191,24 @@ export function CompetitionManage({
   baseHref: string;
 }) {
   const t = getTranslator(locale, "competitions");
-  const actions: ("publish" | "open" | "close" | "finalize")[] = [];
+  // Mirrors fn_transition_competition (0014_competition_ops.sql): every hop
+  // the DB allows from the current status gets a button, so the lifecycle is
+  // walkable end-to-end (draft → … → live → ended → processing → finalized).
+  const actions: (
+    | "publish"
+    | "open"
+    | "close"
+    | "start"
+    | "end"
+    | "process"
+    | "finalize"
+  )[] = [];
   if (detail.status === "draft") actions.push("publish");
   if (detail.status === "scheduled") actions.push("open");
-  if (detail.status === "registration_open") actions.push("close");
+  if (detail.status === "registration_open") actions.push("close", "start");
+  if (detail.status === "registration_closed") actions.push("open", "start");
+  if (detail.status === "live") actions.push("end");
+  if (detail.status === "ended") actions.push("process");
   if (detail.status === "processing") actions.push("finalize");
 
   return (

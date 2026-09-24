@@ -153,6 +153,9 @@ const TRANSITION_TARGETS: Record<string, string> = {
   publish: "scheduled",
   open: "registration_open",
   close: "registration_closed",
+  start: "live",
+  end: "ended",
+  process: "processing",
 };
 
 /**

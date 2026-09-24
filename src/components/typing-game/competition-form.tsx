@@ -48,11 +48,14 @@ export function CompetitionForm({
   initial,
   games,
   batches,
+  baseHref = "/dashboard/typing-game/teacher/competitions",
 }: {
   locale: Locale;
   initial: CompetitionFormInitial;
   games: { slug: string; title: string }[];
   batches: { id: string; name: string }[];
+  /** Console the form belongs to; admins must not land in the teacher tree. */
+  baseHref?: string;
 }) {
   const t = getTranslator(locale, "competitions");
   const router = useRouter();
@@ -123,7 +126,7 @@ export function CompetitionForm({
           return;
         }
       }
-      router.push(`/dashboard/typing-game/teacher/competitions/${id ?? ""}`);
+      router.push(`${baseHref}/${id ?? ""}`);
       router.refresh();
     } catch {
       setError(t("actionFailed"));

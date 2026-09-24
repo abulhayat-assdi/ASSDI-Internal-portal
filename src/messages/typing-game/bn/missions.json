@@ -30,6 +30,11 @@
   "missionStatusDraft": "খসড়া",
   "missionStatusActive": "সক্রিয়",
   "missionStatusArchived": "সংরক্ষণাগারভুক্ত",
+  "missionStatusInactive": "নিষ্ক্রিয়",
+  "globalHubTitle": "গ্লোবাল মিশন",
+  "globalHubSubtitle": "সব শিক্ষার্থীর জন্য দৈনিক, সাপ্তাহিক ও ইভেন্ট মিশন।",
+  "colCategory": "ক্যাটাগরি",
+  "colVersion": "সংস্করণ",
 
   "stepPassage": "প্যাসেজ",
   "stepRule": "সমাপ্তির নিয়ম",

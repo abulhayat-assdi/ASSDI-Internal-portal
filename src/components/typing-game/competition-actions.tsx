@@ -2,7 +2,17 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Flag, Lock, Send, Trophy, Unlock, Upload } from "lucide-react";
+import {
+  CheckCircle,
+  Flag,
+  Lock,
+  Play,
+  Send,
+  Square,
+  Trophy,
+  Unlock,
+  Upload,
+} from "lucide-react";
 import { getTranslator, type Locale } from "@/lib/typing-game/i18n";
 
 async function post(url: string, body?: unknown): Promise<boolean> {
@@ -36,6 +46,9 @@ export function CompetitionActions({
     | "publish"
     | "open"
     | "close"
+    | "start"
+    | "end"
+    | "process"
     | "finalize"
   )[];
 }) {
@@ -62,6 +75,9 @@ export function CompetitionActions({
     publish: t("publish"),
     open: t("openRegistration"),
     close: t("closeRegistration"),
+    start: t("startLive"),
+    end: t("endCompetition"),
+    process: t("processResults"),
     finalize: t("finalize"),
   };
 
@@ -71,6 +87,9 @@ export function CompetitionActions({
     publish: Send,
     open: Unlock,
     close: Lock,
+    start: Play,
+    end: Square,
+    process: CheckCircle,
     finalize: Flag,
   };
 
