@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCourseName } from "@/contexts/BrandingContext";
 import { getAllStudentNotices, StudentNotice } from "@/services/dashboardService";
 import Link from "next/link";
 import { getStudentProfile, BatchStudent } from "@/services/studentService";
@@ -30,6 +31,7 @@ const MapPinIcon = ({ className }: { className: string }) => (
 
 export default function StudentDashboardOverview() {
     const { userProfile, loading } = useAuth();
+    const courseName = useCourseName();
     const [studentData, setStudentData] = useState<BatchStudent | null>(null);
     const [fetching, setFetching] = useState(true);
     const [studentNotices, setStudentNotices] = useState<StudentNotice[]>([]);
@@ -76,7 +78,7 @@ export default function StudentDashboardOverview() {
                     <div>
                         <h1 className="no-gradient text-white text-3xl font-bold mb-2">Welcome back, {displayName}!</h1>
                         <p className="no-gradient text-emerald-50 text-lg opacity-90">
-                            Your dedicated student portal for the Art of Sales & Marketing Course
+                            {`Your dedicated student portal for ${courseName}`}
                         </p>
                         <p className="no-gradient text-emerald-100 text-sm mt-1.5 opacity-80">📌 আপনার প্রোফাইল সবসময় আপডেট রাখুন।</p>
                     </div>

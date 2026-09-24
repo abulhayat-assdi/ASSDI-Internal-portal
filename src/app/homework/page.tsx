@@ -1,10 +1,14 @@
 import HomeworkUpload from "@/components/students/HomeworkUpload";
 import { Metadata } from "next";
+import { getRequestBranding } from "@/lib/branding";
 
-export const metadata: Metadata = {
-  title: "Submit Homework | TASM Skill",
-  description: "Upload and submit your homework assignments easily.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const brand = await getRequestBranding();
+  return {
+    title: `Submit Homework | ${brand.name}`,
+    description: "Upload and submit your homework assignments easily.",
+  };
+}
 
 export default function HomeworkPage() {
   return (

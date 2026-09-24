@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { CvPreview, A4ScaledPreview } from "@/components/cv/CvPreview";
 import type { CvFormData } from "@/lib/cv/schemas";
 import type { TemplateConfig } from "@/lib/cv/constants";
+import { useCourseName } from "@/contexts/BrandingContext";
+import { PLATFORM_NAME } from "@/types/branding";
 
 interface CvTemplate {
     id: string;
@@ -26,12 +28,14 @@ interface CvTemplate {
 const PREVIEW_WIDTH  = 794;
 const PREVIEW_HEIGHT = 1123; // A4 at 96 dpi: 794 × (297/210)
 
-// Dense dummy data — fills a full A4 page like a real CV
-const DUMMY_DATA: CvFormData = {
+// Dense dummy data — fills a full A4 page like a real CV.
+// Built per course so a telesales student's template preview doesn't advertise
+// a sales & marketing course.
+const buildSampleCv = (courseName: string): CvFormData => ({
     title: "My CV",
     fullName: "Your Name",
     profilePhoto: "",
-    careerObjective: "I am a motivated and hardworking sales professional with real experience in selling different products like dates, T-shirts, popcorn, peanut butter and bread crumbs. I have completed a three-month Sales and Marketing course. Now I am looking for a job in a growing company where I can apply my skills in sales, marketing and customer service to help the company grow and keep customers happy.",
+    careerObjective: `I am a motivated and hardworking professional with real, hands-on experience from the ${courseName} programme. Now I am looking for a job in a growing company where I can apply my skills in communication, customer service and teamwork to help the company grow and keep customers happy.`,
     phone: "01568-274516",
     email: "yourname@gmail.com",
     address: "3642 Matlab Uttar, Chandpur",
@@ -79,8 +83,8 @@ const DUMMY_DATA: CvFormData = {
     ],
     training: [
         {
-            trainingName: "The Art of Sales and Marketing",
-            institute: "As-Sunnah Skill Development Institute",
+            trainingName: courseName,
+            institute: PLATFORM_NAME,
             year: "2024",
             bullets: [
                 "Customers Service, Objection handling, Branding, USP, KPI",
@@ -134,7 +138,7 @@ const DUMMY_DATA: CvFormData = {
     sectionOrder: ["careerObjective", "workExperience", "training", "education", "references", "declaration", "skills", "languages", "hobbies"],
     linkedin: "",
     visibleSections: ["careerObjective", "workExperience", "training", "education", "references", "skills", "languages", "hobbies", "personalInfo", "declaration"],
-};
+});
 
 // Scales CvPreview to fit container width, height follows content naturally
 function ScaledCvPreview({ data, config }: { data: CvFormData; config: TemplateConfig }) {
@@ -218,6 +222,8 @@ function TemplateViewModal({
 }
 
 export default function NewCvPage() {
+    const courseName = useCourseName();
+    const sampleCv = useMemo(() => buildSampleCv(courseName), [courseName]);
     const router = useRouter();
     const [templates, setTemplates] = useState<CvTemplate[]>([]);
     const [loading, setLoading] = useState(true);
@@ -319,7 +325,7 @@ export default function NewCvPage() {
                                 photoShape: (tmpl.config.photoShape as "circle" | "square") ?? "circle",
                                 showPhoto: tmpl.config.showPhoto ?? true,
                             };
-                            const previewData: CvFormData = { ...DUMMY_DATA };
+                            const previewData: CvFormData = { ...sampleCv };
 
                             return (
                                 <button
@@ -394,7 +400,7 @@ export default function NewCvPage() {
                 return (
                     <TemplateViewModal
                         tmpl={viewingTemplate}
-                        data={{ ...DUMMY_DATA }}
+                        data={{ ...sampleCv }}
                         config={vc}
                         onClose={() => setViewingTemplate(null)}
                     />

@@ -5,6 +5,7 @@ import NoticeCard from "@/components/ui/NoticeCard";
 import Badge from "@/components/ui/Badge";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCourseName } from "@/contexts/BrandingContext";
 import Clock from "@/components/ui/Clock";
 import {
     getAllNotices,
@@ -23,6 +24,7 @@ import Button from "@/components/ui/Button";
 
 export default function DashboardPage() {
     const { userProfile } = useAuth();
+    const courseName = useCourseName();
     const [notices, setNotices] = useState<Notice[]>([]);
     const [studentNotices, setStudentNotices] = useState<StudentNotice[]>([]);
     const [loading, setLoading] = useState(true);
@@ -259,7 +261,7 @@ export default function DashboardPage() {
                             {userProfile?.displayName || "User"}
                         </h1>
                         <p className="no-gradient text-white/90 mb-8 text-lg font-normal max-w-2xl mx-auto">
-                            Comprehensive Portal for the Art of Sales & Marketing Course
+                            {`Comprehensive Portal for ${courseName}`}
                         </p>
                         <Clock />
                     </div>

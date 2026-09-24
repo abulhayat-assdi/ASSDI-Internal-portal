@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin } from "@/lib/auth";
 import { getClientIp, limitFromEnv } from "@/lib/rateLimit";
+import { getCourseById } from "@/lib/course";
+import { buildAssistantPrompt, getAiKnowledge } from "@/lib/aiAssistant";
+import { PLATFORM_NAME } from "@/types/branding";
 
 // ============================================================
 // 🛡️ In-memory IP-based Rate Limiter
@@ -49,47 +52,18 @@ function isRateLimited(ip: string): boolean {
     return false;
 }
 
-// কোর্স সম্পর্কিত সব তথ্য — Gemini শুধু এই বিষয়ে উত্তর দেবে
-const SYSTEM_PROMPT = `You are a helpful and professional AI assistant for "The Art of Sales & Marketing" course offered by As-Sunnah Skill Development Institute (আস-সুন্নাহ স্কিল ডেভেলপমেন্ট ইনস্টিটিউট).
-
-Your role is to answer questions about this course only. Here is everything you know:
-
-COURSE DETAILS:
-- Course Name: The Art of Sales & Marketing (সেলস ও মার্কেটিং কোর্স)
-- Institute: As-Sunnah Skill Development Institute (আস-সুন্নাহ স্কিল ডেভেলপমেন্ট ইনস্টিটিউট)
-- Location: আলি নগর গেটের বিপরীত পাশের বিল্ডিং, সাতারকুল রোড, উত্তর বাড্ডা, ঢাকা
-- Duration: 90 Days (পুরুষদের জন্য ৯০ দিনের আবাসিক কোর্স)
-- Price: 70,000 BDT (কোর্সের মোট ফি ৭০,০০০ টাকা। এর মধ্যে ভর্তি ফি ১০,০০০ টাকা দেওয়া বাধ্যতামূলক এবং বাকি কোর্স ফি ও আবাসন ফি ৬০,০০০ টাকা। আর্থিক অস্বচ্ছলতার প্রমাণ সাপেক্ষে ১০০% পর্যন্ত স্কলারশিপ দেওয়া হয়)
-- Contact Email: abul.hayat@skill.assunnahfoundation.org
-- Phone: 01862534626 (Available 9am–5pm)
-- Certificate: Yes, official certification upon completion
-- Audience: Students, Job Seekers, Entrepreneurs, Ethical Learners 
-
-COURSE HIGHLIGHTS:
-- Suitable for absolute beginners — no prior experience required
-- Based on pure ethics and 100% practical knowledge
-- Focuses on Halal income, Dawah, and ethical growth in the corporate world.
-- Lifetime access to course networking and support
-
-TOPICS COVERED (9 Modules):
-1. Sales Mastery
-2. Career Planning & Branding
-3. Customer Service Excellence
-4. AI for Digital Marketers
-5. Digital Marketing
-6. Business Management Tools (MS Office)
-7. Landing Page & Content Marketing
-8. Business English
-9. Dawah & Business Ethics
-
-GUIDELINES:
-- No matter what language the user types in (Bengali, English, or Banglish), you MUST reply in Modern, Professional Bengali mixed with English corporate terms (e.g., "কোর্স আউটলাইন", "স্কিলস", "অ্যাডমিশন", "ইন্টারভিউ", "ক্যারিয়ার", "অ্যাসাইনমেন্ট").
-- Always address the user politely using "আপনি" (Aapni / You). Never use informal words like "ব্রায়", "চিল", "প্যারা", "ব্রো". 
-- Maintain a highly professional, respectful, and corporate tone.
-- Write the Bengali text using Bengali script (বাংলা অক্ষর).
-- Keep answers concise, informative, and to the point (2-4 sentences unless more detail is requested).
-- If someone asks something outside this course, politely say you can only help about this course.
-- Never make up information not listed above.`;
+// কোর্স সম্পর্কিত তথ্য কোর্স রেকর্ড থেকেই আসে — এখানে হার্ডকোড করা নেই।
+// প্রতিটি কোর্স তার নিজের নাম/ট্যাগলাইন ও Dashboard → Branding-এ লেখা
+// knowledge টেক্সট দিয়ে নিজস্ব প্রম্পট পায় (@/lib/aiAssistant দেখুন)।
+async function resolveSystemPrompt(request: NextRequest): Promise<string> {
+    const courseId = request.headers.get("x-course-id");
+    const course = courseId ? await getCourseById(courseId).catch(() => null) : null;
+    return buildAssistantPrompt(
+        course?.name ?? PLATFORM_NAME,
+        course?.tagline ?? null,
+        getAiKnowledge(course?.settings ?? null)
+    );
+}
 
 // ============================================================
 // Model fallback chain — tried in order until one succeeds.
@@ -293,7 +267,7 @@ export async function POST(request: NextRequest) {
 
         const requestBody = JSON.stringify({
             system_instruction: {
-                parts: [{ text: SYSTEM_PROMPT }],
+                parts: [{ text: await resolveSystemPrompt(request) }],
             },
             contents,
             generationConfig: {

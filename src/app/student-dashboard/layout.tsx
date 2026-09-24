@@ -2,13 +2,18 @@ import Sidebar from "@/components/layout/Sidebar";
 import Navbar from "@/components/layout/Navbar";
 import AnnouncementBanner from "@/components/layout/AnnouncementBanner";
 import StudentProtectedRoute from "@/components/auth/StudentProtectedRoute";
+import { BrandingProvider } from "@/contexts/BrandingContext";
+import { getRequestBranding } from "@/lib/branding";
 
-export default function StudentDashboardLayout({
+export default async function StudentDashboardLayout({
     children,
 }: {
     children: React.ReactNode;
 }) {
+    const branding = await getRequestBranding();
+
     return (
+        <BrandingProvider value={branding}>
         <div className="min-h-screen bg-slate-50">
             {/* Sidebar */}
             <Sidebar />
@@ -31,5 +36,6 @@ export default function StudentDashboardLayout({
                 </main>
             </div>
         </div>
+        </BrandingProvider>
     );
 }

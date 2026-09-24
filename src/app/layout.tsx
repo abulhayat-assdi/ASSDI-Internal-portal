@@ -46,8 +46,8 @@ export async function generateMetadata(): Promise<Metadata> {
             tx.cmsContent.findUnique({ where: { courseId_key: { courseId, key: "site_settings" } } })
         );
         const cms = cmsRecord?.value as Record<string, unknown> | null;
-        // Priority: course.faviconUrl (set by Super Admin) > cms.logoUrl > course.logoUrl > default
-        const rawUrl = course?.faviconUrl ?? (cms?.logoUrl as string | undefined) ?? course?.logoUrl ?? undefined;
+        // Priority: course.faviconUrl > course.logoUrl > legacy cms.logoUrl > default
+        const rawUrl = course?.faviconUrl ?? course?.logoUrl ?? (cms?.logoUrl as string | undefined) ?? undefined;
         if (rawUrl?.startsWith("/api/file?path=")) {
             faviconUrl = "/" + rawUrl.replace("/api/file?path=", "");
         } else if (rawUrl) {

@@ -22,8 +22,11 @@ export async function GET() {
             ]);
             const cms = cmsRecord?.value as Record<string, unknown> | null;
 
-            const logoUrl = (cms?.logoUrl as string) || course?.logoUrl || null;
-            const siteName = (cms?.siteName as string) || course?.name || null;
+            // Course row first: it is the editable source of truth (Super Admin →
+            // Courses, and Dashboard → Branding). The cms `site_settings` record is
+            // legacy single-tenant data kept only as a fallback.
+            const logoUrl = course?.logoUrl || (cms?.logoUrl as string) || null;
+            const siteName = course?.name || (cms?.siteName as string) || null;
             const features = getTenantFeatures(course?.settings);
 
             return NextResponse.json({ logoUrl, siteName, features });

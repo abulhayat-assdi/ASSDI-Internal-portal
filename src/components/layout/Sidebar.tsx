@@ -97,6 +97,7 @@ const teacherAdminNavSections: NavSection[] = [
             { href: "/dashboard/admin/access-management", label: "Access Management", icon: "🔑", permission: "access_management" },
             { href: "/dashboard/admin/batch-forms", label: "Batch Forms", icon: "📝", permission: "admin_panel", feature: "batch_forms" },
             { href: "/dashboard/admin/leave-management", label: "Manage Leaves", icon: "🌴", permission: "admin_leave", feature: "leave_tracking" },
+            { href: "/dashboard/settings/branding", label: "Branding & Settings", icon: "🎨", permission: "admin_panel" },
         ]
     }
 ];

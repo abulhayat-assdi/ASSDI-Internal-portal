@@ -4,13 +4,18 @@ import ImpersonationBanner from "@/components/layout/ImpersonationBanner";
 import AnnouncementBanner from "@/components/layout/AnnouncementBanner";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import { ToastProvider } from "@/components/ui/Toast";
+import { BrandingProvider } from "@/contexts/BrandingContext";
+import { getRequestBranding } from "@/lib/branding";
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
     children,
 }: {
     children: React.ReactNode;
 }) {
+    const branding = await getRequestBranding();
+
     return (
+        <BrandingProvider value={branding}>
         <ToastProvider>
             <div suppressHydrationWarning className="min-h-screen bg-slate-50">
                 {/* Sidebar */}
@@ -37,5 +42,6 @@ export default function DashboardLayout({
                 </div>
             </div>
         </ToastProvider>
+        </BrandingProvider>
     );
 }
