@@ -5,12 +5,14 @@ import { getSession } from "@/lib/typing-game/server/auth";
 import { userDbClient } from "@/lib/typing-game/server/auth";
 import { getCurrentActor } from "@/lib/typing-game/server/staff";
 import { isLocale, type Locale, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
-import { loginUrl } from "@/lib/typing-game/routes";
+import { SuspendedNotice } from "@/components/typing-game/suspended-notice";
 
 /**
  * Student area gate (backstop — middleware normally redirects first, with
  * the destination preserved). Requires an ACTIVE account: suspended or
- * inactive users land on /suspended with zero private data rendered.
+ * inactive users get the suspended notice rendered INLINE (never a redirect:
+ * /suspended lives under this same layout, so redirecting there would re-run
+ * this gate forever) with zero private data rendered.
  * No admin functionality lives under here.
  *
  * force-dynamic is load-bearing: getSession() reads cookies() inside a
@@ -25,7 +27,7 @@ export default async function StudentLayout({
 }) {
   const locale: Locale = DEFAULT_LOCALE;
   const session = await getSession();
-  if (!session) redirect(loginUrl(locale));
+  if (!session) redirect("/student-login");
   const client = await userDbClient();
   // First-time visit: no typing_game.profiles/user_roles/batch_members row
   // exists for this ASM student yet. Provisioning is idempotent (ON CONFLICT
@@ -41,7 +43,14 @@ export default async function StudentLayout({
   }
   const actor = client ? await getCurrentActor(client) : null;
   if (!actor || actor.status !== "active") {
-    redirect(`/student-dashboard/typing-game/suspended`);
+    return (
+      <div className="tap-scope min-h-screen bg-canvas">
+        <SuspendedNotice
+          locale={locale}
+          reason={actor ? "suspended" : "provisioning"}
+        />
+      </div>
+    );
   }
   return (
     <div className="tap-scope min-h-screen bg-canvas">

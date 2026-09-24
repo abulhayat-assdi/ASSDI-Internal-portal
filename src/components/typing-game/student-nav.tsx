@@ -14,6 +14,9 @@ import {
   Swords,
   LineChart,
   UserCircle,
+  ShoppingBag,
+  Medal,
+  Dumbbell,
 } from "lucide-react";
 import { getTranslator, type Locale } from "@/lib/typing-game/i18n";
 
@@ -30,6 +33,9 @@ export function StudentNav({ locale }: { locale: Locale }) {
     { href: `/student-dashboard/typing-game/clan`, label: t("clan"), icon: Users },
     { href: `/student-dashboard/typing-game/leaderboard`, label: t("leaderboard"), icon: BarChart3 },
     { href: `/student-dashboard/typing-game/competitions`, label: t("competitions"), icon: Swords },
+    { href: `/student-dashboard/typing-game/tournaments`, label: t("tournaments"), icon: Medal },
+    { href: `/student-dashboard/typing-game/shop`, label: t("shop"), icon: ShoppingBag },
+    { href: `/student-dashboard/typing-game/practice`, label: t("practice"), icon: Dumbbell },
     { href: `/student-dashboard/typing-game/progress`, label: t("progress"), icon: LineChart },
     { href: `/student-dashboard/typing-game/profile`, label: t("profile"), icon: UserCircle },
   ];

@@ -16,7 +16,6 @@ import { getTranslator } from "@/lib/typing-game/i18n";
 import { studentContext } from "@/lib/typing-game/server/student-pages";
 import { getStudentDashboard } from "@/lib/typing-game/server/student";
 import { userDbClient } from "@/lib/typing-game/server/auth";
-import { createSupabaseMissionStore } from "@/lib/typing-game/server/mission-store";
 import { createSupabaseCustomMissionStore } from "@/lib/typing-game/server/custom-mission-store";
 import { listActiveIncompleteMissions } from "@/lib/typing-game/server/custom-mission-pages";
 import { WelcomeBanner } from "@/components/typing-game/welcome-banner";
@@ -36,9 +35,6 @@ export default async function DashboardPage({
   const { session, store } = await studentContext(locale);
   const data = await getStudentDashboard(session.userId, store);
   const missionClient = await userDbClient();
-  const missions = missionClient
-    ? await createSupabaseMissionStore(missionClient).getToday(session.userId)
-    : [];
   const activeCustomMissions = missionClient
     ? await listActiveIncompleteMissions(
         createSupabaseCustomMissionStore(missionClient),

@@ -7,6 +7,8 @@ import { WarBoard } from "@/components/typing-game/war-board";
 import { WarActions } from "@/components/typing-game/war-actions";
 import { CompetitionCountdown } from "@/components/typing-game/competition-countdown";
 import { PlayButton } from "@/components/typing-game/play-button";
+import { userDbClient } from "@/lib/typing-game/server/auth";
+import { createSupabaseClanStore } from "@/lib/typing-game/server/clan-store";
 
 const STATUS_TONE: Record<string, BadgeTone> = {
   draft: "neutral",
@@ -46,6 +48,16 @@ export default async function WarDetailPage(
   const latest = gameSlug
     ? await store.getLatestValidAttempt(gameSlug, session.userId)
     : null;
+
+  // Lifecycle controls are leader-only (same gate the war hub uses for the
+  // challenge form) — a regular member's calls would just be rejected.
+  const client = await userDbClient();
+  const myClan = client
+    ? await createSupabaseClanStore(client).getMyClan(session.userId)
+    : null;
+  const canManage =
+    myClan !== null &&
+    (myClan.myRole === "leader" || myClan.myRole === "co_leader");
 
   const staffActions: ("dispatch" | "cancel" | "advance" | "sync" | "finalize")[] = [];
   if (war.status === "challenge_sent") staffActions.push("dispatch");
@@ -124,7 +136,7 @@ export default async function WarDetailPage(
       {war.status === "pending_response" ? (
         <WarActions locale={locale} warId={war.id} actions={["accept", "decline"]} />
       ) : null}
-      {staffActions.length > 0 ? (
+      {canManage && staffActions.length > 0 ? (
         <WarActions locale={locale} warId={war.id} actions={staffActions} />
       ) : null}
 

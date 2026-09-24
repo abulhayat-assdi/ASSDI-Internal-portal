@@ -26,6 +26,7 @@ export default async function ClanPage({}: {}) {
   const tw = getTranslator(locale, "wars");
   const tb = getTranslator(locale, "bosses");
   const ts = getTranslator(locale, "seasons");
+  const tsh = getTranslator(locale, "shop");
   const { session, store } = await clanPageContext(locale);
   const clan = await store.getMyClan(session.userId);
   if (!clan) {
@@ -67,6 +68,12 @@ export default async function ClanPage({}: {}) {
           className="tap-btn tap-btn-primary"
         >
           {tb("hubTitle")}
+        </Link>
+        <Link
+          href={`/student-dashboard/typing-game/clan/shop`}
+          className="tap-btn tap-btn-primary"
+        >
+          {tsh("clanShopTitle")}
         </Link>
         <Link href={`/student-dashboard/typing-game/season`} className="tap-btn tap-btn-primary">
           {ts("hubTitle")}

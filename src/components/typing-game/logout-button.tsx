@@ -4,8 +4,19 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { getTranslator, type Locale } from "@/lib/typing-game/i18n";
 
-/** Idempotent logout button (server clears httpOnly cookies). */
-export function LogoutButton({ locale }: { locale: Locale }) {
+/**
+ * Idempotent logout button (server clears httpOnly cookies).
+ *
+ * `redirectTo` defaults to the staff login; student surfaces pass
+ * "/student-login", which is where students actually sign in.
+ */
+export function LogoutButton({
+  locale,
+  redirectTo = "/login",
+}: {
+  locale: Locale;
+  redirectTo?: string;
+}) {
   const router = useRouter();
   const t = getTranslator(locale, "auth");
   const [busy, setBusy] = useState(false);
@@ -17,7 +28,7 @@ export function LogoutButton({ locale }: { locale: Locale }) {
     } catch {
       /* logout never strands the UI */
     }
-    router.push(`/login`);
+    router.push(redirectTo);
     router.refresh();
   }
 

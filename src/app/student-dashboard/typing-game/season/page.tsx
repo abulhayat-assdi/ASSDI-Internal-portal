@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Gift, Trophy, Users } from "lucide-react";
+import { Gift, History, Trophy, Users } from "lucide-react";
 import {
   Badge,
   Card,
@@ -28,7 +28,19 @@ export default async function SeasonHubPage({}: {}) {
   if (!active) {
     return (
       <div className="flex flex-col gap-6">
-        <PageHeader title={t("hubTitle")} description={t("hubSubtitle")} />
+        <PageHeader
+          title={t("hubTitle")}
+          description={t("hubSubtitle")}
+          actions={
+            <Link
+              href={`/student-dashboard/typing-game/season/history`}
+              className="tap-btn tap-btn-secondary tap-btn-sm"
+            >
+              <History className="h-4 w-4" aria-hidden="true" />
+              {t("sectionHistory")}
+            </Link>
+          }
+        />
         <EmptyState title={t("hubTitle")} description={t("noActiveSeason")} />
         {seasons.length > 0 ? (
           <Card>
@@ -131,6 +143,13 @@ export default async function SeasonHubPage({}: {}) {
             >
               <Gift className="h-4 w-4" aria-hidden="true" />
               {t("sectionRewards")}
+            </Link>
+            <Link
+              href={`/student-dashboard/typing-game/season/history`}
+              className="tap-btn tap-btn-secondary tap-btn-sm"
+            >
+              <History className="h-4 w-4" aria-hidden="true" />
+              {t("sectionHistory")}
             </Link>
           </div>
         </CardContent>

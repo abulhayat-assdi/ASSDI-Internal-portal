@@ -7,6 +7,7 @@ import { getGameDetails } from "@/lib/typing-game/server/games";
 import { GAMES } from "@/lib/typing-game/content";
 import { worldVisual } from "@/lib/typing-game/world-visuals";
 import { PlayButton } from "@/components/typing-game/play-button";
+import { AdUnlockButton } from "@/components/typing-game/ad-unlock-button";
 
 const GAME_VISUAL = new Map(GAMES.map((g) => [g.slug, g.theme.visual]));
 
@@ -71,6 +72,24 @@ export default async function GameDetailPage(
               <Badge tone="warning">{t("lockedReason")}</Badge>
               <Badge tone="neutral">{diffLabel(game.difficulty)}</Badge>
               <Badge tone="neutral">{game.mode}</Badge>
+              {game.adUnlockAvailable ? (
+                <AdUnlockButton
+                  slug={game.slug}
+                  strings={{
+                    adUnlock: t("adUnlock"),
+                    adUnlockHint: t("adUnlockHint"),
+                    adUnlocking: t("adUnlocking"),
+                    adUnlockFailed: t("adUnlockFailed"),
+                    adModalTitle: t("adModalTitle"),
+                    adModalBody: t("adModalBody"),
+                    adWatching: t("adWatching"),
+                    adClaim: t("adClaim"),
+                    adCancel: t("adCancel"),
+                    adSponsored: t("adSponsored"),
+                    adReady: t("adReady"),
+                  }}
+                />
+              ) : null}
             </div>
           }
         />
