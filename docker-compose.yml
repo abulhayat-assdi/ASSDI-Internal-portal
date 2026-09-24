@@ -100,13 +100,13 @@ services:
         condition: service_completed_successfully
       postgrest:
         condition: service_started
-    # WARNING: this publishes the app on every host interface, so :3000 is
-    # reachable from the internet and bypasses the reverse proxy's TLS.
-    # On a plain VPS change this to "127.0.0.1:3000:3000". Under Coolify,
-    # Traefik reaches the container over the Docker network instead, so the
-    # whole `ports:` block can be dropped in favour of `expose: ["3000"]`.
-    ports:
-      - "3000:3000"
+    # Not published to the host. The reverse proxy (Traefik under Coolify,
+    # Nginx/Caddy on a plain VPS) reaches this over the Docker network, so
+    # binding 0.0.0.0:3000 would only serve to expose the app to the internet
+    # without TLS — and it collides with any co-tenant app that wants the same
+    # port, which is exactly what broke this deployment.
+    expose:
+      - "3000"
     volumes:
       - storage_data:/app/storage
     healthcheck:
