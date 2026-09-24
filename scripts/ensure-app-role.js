@@ -44,6 +44,22 @@ async function run() {
 
     try {
         const dbName = (await client.query("SELECT current_database() AS db")).rows[0].db;
+        const currentUser = (await client.query("SELECT current_user AS u")).rows[0].u;
+
+        // Hard stop: if the app role and the bootstrap role are the same name,
+        // the ALTER ROLE below would strip SUPERUSER from the very role this
+        // connection is using. Postgres allows that, and if it was the only
+        // superuser in the cluster the result is unrecoverable without
+        // single-user mode. Seen for real: a deployment where DB_USER and
+        // APP_DB_USER were both "asm_app" demoted the cluster's only
+        // superuser and every subsequent migration failed.
+        if (APP_ROLE === currentUser) {
+            throw new Error(
+                `APP_DB_USER ("${APP_ROLE}") is the same role this script connects as. ` +
+                `It must be a separate, unprivileged role — set APP_DB_USER to something ` +
+                `other than DB_USER (e.g. "${currentUser}_rls").`
+            );
+        }
 
         // CREATE ROLE has no IF NOT EXISTS; catching duplicate_object is the
         // documented idiom. The password is re-applied every boot so rotating
