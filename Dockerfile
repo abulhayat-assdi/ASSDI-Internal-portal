@@ -33,6 +33,11 @@ ENV NEXT_PUBLIC_BASE_DOMAIN=$NEXT_PUBLIC_BASE_DOMAIN
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 
 RUN npx prisma generate
+# Emit the game catalog as JSON while tsx and src/ are still available. The
+# runtime image has neither, and the schema migration creates EMPTY content
+# tables — without this artifact a fresh deploy has no worlds and no games,
+# so nothing is playable.
+RUN npm run export:typing-game-catalog
 RUN npm run build
 
 # Stage 3: Production image
@@ -59,6 +64,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
 COPY --from=builder --chown=nextjs:nodejs /app/supabase-migrations ./supabase-migrations
+COPY --from=builder --chown=nextjs:nodejs /app/generated ./generated
 
 RUN npm install -g prisma@6
 
@@ -88,4 +94,4 @@ ENTRYPOINT ["docker-entrypoint.sh"]
 # docker-entrypoint.sh and scripts/ensure-app-role.js). ensure-app-role and
 # migrate are fatal on failure — booting without either means running with no
 # tenant isolation, or against a half-migrated schema.
-CMD ["sh", "-c", "set -e; DATABASE_URL=\"${BOOTSTRAP_DATABASE_URL:-$DATABASE_URL}\" node scripts/ensure-app-role.js; DATABASE_URL=\"${BOOTSTRAP_DATABASE_URL:-$DATABASE_URL}\" prisma migrate deploy; set +e; DATABASE_URL=\"${BOOTSTRAP_DATABASE_URL:-$DATABASE_URL}\" node scripts/startup.js; DATABASE_URL=\"${BOOTSTRAP_DATABASE_URL:-$DATABASE_URL}\" node scripts/typing-game-migrate.js; DATABASE_URL=\"${BOOTSTRAP_DATABASE_URL:-$DATABASE_URL}\" node prisma/seed.js; set -e; exec node server.js"]
+CMD ["sh", "-c", "set -e; DATABASE_URL=\"${BOOTSTRAP_DATABASE_URL:-$DATABASE_URL}\" node scripts/ensure-app-role.js; DATABASE_URL=\"${BOOTSTRAP_DATABASE_URL:-$DATABASE_URL}\" prisma migrate deploy; set +e; DATABASE_URL=\"${BOOTSTRAP_DATABASE_URL:-$DATABASE_URL}\" node scripts/startup.js; DATABASE_URL=\"${BOOTSTRAP_DATABASE_URL:-$DATABASE_URL}\" node scripts/typing-game-migrate.js; DATABASE_URL=\"${BOOTSTRAP_DATABASE_URL:-$DATABASE_URL}\" node scripts/typing-game-seed-catalog.js; DATABASE_URL=\"${BOOTSTRAP_DATABASE_URL:-$DATABASE_URL}\" node prisma/seed.js; set -e; exec node server.js"]

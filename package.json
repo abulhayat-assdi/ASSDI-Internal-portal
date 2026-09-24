@@ -13,7 +13,8 @@
     "lint": "next lint",
     "test": "vitest run",
     "deploy": "firebase deploy --only hosting",
-    "seed:typing-game-catalog": "tsx scripts/typing-game-seed-catalog.ts"
+    "seed:typing-game-catalog": "tsx scripts/typing-game-seed-catalog.ts",
+    "export:typing-game-catalog": "tsx scripts/typing-game-export-catalog.ts"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",
