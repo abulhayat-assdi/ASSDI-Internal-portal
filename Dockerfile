@@ -17,7 +17,12 @@ COPY . .
 # Set necessary env vars for build time
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PRISMA_CLIENT_ENGINE_TYPE=library
-ENV NODE_OPTIONS="--max-old-space-size=4096"
+# 2GB, not 4GB. This image is built on a shared VPS whose free memory sits
+# well under 4GB, and a heap ceiling above what is actually available doesn't
+# prevent OOM — it just lets V8 grow into swap first. A build that thrashes
+# swap takes the whole box down with it, co-tenant sites included. Raise this
+# only on a builder with the RAM to back it.
+ENV NODE_OPTIONS="--max-old-space-size=2048"
 
 # NEXT_PUBLIC_* is compiled into the client bundles, so it has to be present
 # at BUILD time — setting it only at runtime has no effect on them. Server
