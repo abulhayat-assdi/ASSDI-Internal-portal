@@ -61,17 +61,26 @@ function wordsOf(text: string): string[] {
  * the server-known prompt and submitted text. Extra submitted characters
  * beyond the prompt count as incorrect. The server never trusts
  * client-claimed correct/incorrect counts.
+ *
+ * `caseSensitive` must match the game's own inputRules. It defaults to true
+ * (the historical behaviour), but passing the game's real setting matters:
+ * a game declaring caseSensitive:false accepts "A" for "a" in the browser,
+ * and scoring it case-sensitively here would mark a correct run wrong.
  */
 export function diffExpected(
   expected: string,
   typed: string,
+  caseSensitive = true,
 ): { correctChars: number; incorrectChars: number } {
   const exp = Array.from(expected);
   const got = Array.from(typed);
   const n = Math.max(exp.length, got.length);
   let correct = 0;
   for (let i = 0; i < n; i++) {
-    if (i < exp.length && i < got.length && got[i] === exp[i]) correct++;
+    if (i >= exp.length || i >= got.length) continue;
+    const a = got[i] as string;
+    const b = exp[i] as string;
+    if (caseSensitive ? a === b : a.toLowerCase() === b.toLowerCase()) correct++;
   }
   return { correctChars: correct, incorrectChars: got.length - correct };
 }

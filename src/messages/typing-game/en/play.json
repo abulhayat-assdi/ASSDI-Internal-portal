@@ -21,5 +21,19 @@
   "mechanicChain": "Chain",
   "mechanicWaves": "Waves",
   "mechanicShield": "Shield",
-  "mechanicTargets": "Targets"
+  "mechanicTargets": "Targets",
+  "stageLives": "Lives",
+  "stageShield": "Shield",
+  "stageWaves": "Waves",
+  "stageCheckpoints": "Checkpoints",
+  "stageTargets": "Targets",
+  "stageChain": "Chain",
+  "stageBossHp": "Boss HP",
+  "stageDistance": "Lead",
+  "stagePursuer": "Pursuer",
+  "endCaught": "Caught! The pursuer reached you.",
+  "endOutOfLives": "Out of lives — run over.",
+  "endShieldBroken": "Shield broken!",
+  "endCheckpointMissed": "Missed a checkpoint — too slow.",
+  "endBossSurvived": "The boss survived. Try again!"
 }

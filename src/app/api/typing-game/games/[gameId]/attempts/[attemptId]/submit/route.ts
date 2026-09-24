@@ -19,6 +19,20 @@ import {
 } from "@/lib/typing-game/scoring";
 import { alignKeys } from "@/lib/typing-game/adaptive";
 import { diffExpected, isTerminal, validateSubmission } from "@/lib/typing-game/game-engine";
+import {
+  asDifficulty,
+  decodeTimeline,
+  digestOf,
+  digestsMatch,
+  isRealMechanic,
+  parseTimelineDeltas,
+  resolveParams,
+  runMechanic,
+  segmentUnits,
+  validateTimeline,
+  type MechanicDigest,
+  type MechanicOutcome,
+} from "@/lib/typing-game/mechanics";
 import { getSession, unauthorized, type Session } from "@/lib/typing-game/server/auth";
 import { userDbClient } from "@/lib/typing-game/server/auth";
 import {
@@ -49,6 +63,44 @@ function fail(code: string, message: string, status: number): NextResponse {
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+/**
+ * Read the client's claimed mechanic digest. Advisory only: it is compared
+ * against the server's replay to flag disagreement, and is never stored or
+ * scored, so a malformed value simply means "nothing to compare against".
+ */
+function parseClaimedDigest(value: unknown): MechanicDigest | null {
+  if (!isRecord(value)) return null;
+  const {
+    mechanic,
+    cleared,
+    endReason,
+    livesLost,
+    unitsCleared,
+    unitsMissed,
+    endedAtChar,
+  } = value;
+  if (
+    typeof mechanic !== "string" ||
+    typeof cleared !== "boolean" ||
+    typeof endReason !== "string" ||
+    typeof livesLost !== "number" ||
+    typeof unitsCleared !== "number" ||
+    typeof unitsMissed !== "number" ||
+    typeof endedAtChar !== "number"
+  ) {
+    return null;
+  }
+  return {
+    mechanic,
+    cleared,
+    endReason,
+    livesLost,
+    unitsCleared,
+    unitsMissed,
+    endedAtChar,
+  } as MechanicDigest;
 }
 
 async function handleSubmitAttempt(
@@ -84,8 +136,19 @@ async function handleSubmitAttempt(
     return fail("ALREADY_FINALIZED", enErrors.storageUnavailable, 409);
   }
 
+  // One catalog read serves the mechanic replay, the case-sensitivity rule
+  // and the countdown gate below. A failure here must not turn valid runs
+  // into rejections, so every consumer degrades rather than throwing.
+  let game: Awaited<ReturnType<AttemptStore["getActiveGame"]>> = null;
+  try {
+    game = await deps.store.getActiveGame(gameSlug);
+  } catch {
+    game = null;
+  }
+
   const expectedChars = Array.from(attempt.expectedText);
-  const diff = diffExpected(attempt.expectedText, body.typedText);
+  const caseSensitive = game?.caseSensitive ?? true;
+  const diff = diffExpected(attempt.expectedText, body.typedText, caseSensitive);
   const metrics = computeRawMetrics({
     correctChars: diff.correctChars,
     typedLength: typedChars.length,
@@ -109,30 +172,69 @@ async function handleSubmitAttempt(
 
   // Countdown enforcement (server-side): the client countdown is display
   // only, so a scripted client could otherwise take unlimited time on a
-  // timed game and still validate. Fail open when the catalog read itself
-  // fails — a store outage must not turn valid runs into rejections.
+  // timed game and still validate. Fails open when the catalog read failed —
+  // a store outage must not turn valid runs into rejections.
   // 5s grace covers submit latency after the client auto-submits at 0:00.
   if (verdict.ok && Number.isFinite(elapsedMs)) {
-    try {
-      const game = await deps.store.getActiveGame(gameSlug);
-      const limit = game?.timingLimitSeconds;
-      if (
-        game?.timingKind === "countdown" &&
-        typeof limit === "number" &&
-        limit > 0 &&
-        elapsedMs > limit * 1000 + 5000
-      ) {
-        verdict = {
-          ok: false,
-          rejectReason: "TIME_EXCEEDED",
-          flags: verdict.flags,
-          recomputed: verdict.recomputed,
-        };
-      }
-    } catch {
-      // Catalog read failed — skip the timing gate, keep the verdict.
+    const limit = game?.timingLimitSeconds;
+    if (
+      game?.timingKind === "countdown" &&
+      typeof limit === "number" &&
+      limit > 0 &&
+      elapsedMs > limit * 1000 + 5000
+    ) {
+      verdict = {
+        ok: false,
+        rejectReason: "TIME_EXCEEDED",
+        flags: verdict.flags,
+        recomputed: verdict.recomputed,
+      };
     }
   }
+
+  // ---------------------------------------------------------------------
+  // Mechanic replay. For the ten mechanics with real rules, the server
+  // re-runs the mechanic over its OWN prompt plus the submitted keystroke
+  // timeline and keeps its own verdict. The client sends its outcome digest
+  // purely so a disagreement can be flagged — the stored result is always
+  // the server's. A missing or malformed timeline degrades to "no mechanic
+  // outcome" rather than rejecting: the typing result stands on its own.
+  // ---------------------------------------------------------------------
+  let mechanicOutcome: MechanicOutcome | null = null;
+  let mechanicFlag: string | null = null;
+  if (verdict.ok && game && isRealMechanic(game.mechanic)) {
+    const deltas = parseTimelineDeltas(body.timeline, expectedChars.length * 2 + 100);
+    if (deltas === null) {
+      mechanicFlag = "MECHANIC_NO_TIMELINE";
+    } else {
+      const timeline = decodeTimeline(deltas);
+      const check = validateTimeline(timeline, typedChars.length, elapsedMs);
+      if (!check.ok) {
+        mechanicFlag = check.reason ?? "MECHANIC_BAD_TIMELINE";
+      } else {
+        const units = segmentUnits(attempt.expectedText);
+        mechanicOutcome = runMechanic({
+          mechanic: game.mechanic,
+          expected: expectedChars,
+          typed: typedChars,
+          timeline,
+          units,
+          params: resolveParams(
+            game.mechanic,
+            game.config,
+            asDifficulty(attempt.difficulty),
+            units.length,
+          ),
+          caseSensitive,
+        });
+        const claimed = parseClaimedDigest(body.mechanicDigest);
+        if (claimed && !digestsMatch(claimed, digestOf(mechanicOutcome))) {
+          mechanicFlag = "MECHANIC_DIGEST_MISMATCH";
+        }
+      }
+    }
+  }
+  if (mechanicFlag) verdict.flags.push(mechanicFlag);
 
   if (
     !verdict.ok &&
@@ -161,6 +263,9 @@ async function handleSubmitAttempt(
         effectiveWpm: metrics.effectiveWpm,
         completion: metrics.completion,
         flags: verdict.flags,
+        // Display-only mechanic record. Never an input to score/accuracy/WPM,
+        // so adding a field here can never change what an attempt is worth.
+        ...(mechanicOutcome ? { mechanic: mechanicOutcome } : {}),
       },
       score: score.score,
       accuracy: metrics.accuracy,
@@ -176,6 +281,7 @@ async function handleSubmitAttempt(
         effectiveWpm: metrics.effectiveWpm,
         reason: verdict.rejectReason,
         progression: null,
+        mechanic: mechanicOutcome,
       });
     }
     // Validated: feed the adaptive loop (best-effort; never fails submit).
@@ -203,6 +309,7 @@ async function handleSubmitAttempt(
         effectiveWpm: metrics.effectiveWpm,
         reason: null,
         progression,
+        mechanic: mechanicOutcome,
       });
     } catch {
       return fail("PROGRESSION_FAILED", enErrors.storageUnavailable, 500);

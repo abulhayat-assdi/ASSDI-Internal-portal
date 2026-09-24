@@ -6,6 +6,13 @@ import { studentContext } from "@/lib/typing-game/server/student-pages";
 import { createSupabaseAttemptStore } from "@/lib/typing-game/server/attempt-store";
 import { userDbClient } from "@/lib/typing-game/server/auth";
 import { PlayExperience } from "@/components/typing-game/play-experience";
+import { buildPlayStrings } from "@/components/typing-game/play-strings";
+import {
+  asDifficulty,
+  isRealMechanic,
+  resolveParams,
+  segmentUnits,
+} from "@/lib/typing-game/mechanics";
 import { ResultScreen, type ResultStrings } from "@/components/typing-game/result-screen";
 
 /**
@@ -38,6 +45,26 @@ export default async function PlayPage(
   const liveGame = await store.getActiveGame(attempt.gameSlug).catch(() => null);
   const timingKind = liveGame?.timingKind ?? def.timingRules.kind;
   const timingLimit = liveGame?.timingLimitSeconds ?? def.timingRules.limitSeconds ?? null;
+
+  // Mechanic runtime: units come from the stored prompt and params from the
+  // live catalog row, matching what the submit handler re-derives. Built here
+  // rather than carried over from the start response so a page refresh
+  // mid-attempt resumes the identical run.
+  const mechanic = liveGame?.mechanic ?? def.mechanic;
+  const mechanicRuntime = isRealMechanic(mechanic)
+    ? (() => {
+        const units = segmentUnits(attempt.expectedText);
+        return {
+          units,
+          params: resolveParams(
+            mechanic,
+            liveGame?.config ?? def.config,
+            asDifficulty(attempt.difficulty),
+            units.length,
+          ),
+        };
+      })()
+    : null;
 
   const gameTitle = locale === "bn" && def.title.bn ? def.title.bn : def.title.en;
   const links = {
@@ -83,30 +110,13 @@ export default async function PlayPage(
       timingLimit={timingLimit}
       visual={def.theme.visual}
       mechanic={def.mechanic}
+      inputRules={{
+        allowBackspace: liveGame?.allowBackspace ?? def.inputRules.allowBackspace,
+        caseSensitive: liveGame?.caseSensitive ?? def.inputRules.caseSensitive,
+      }}
+      mechanicRuntime={mechanicRuntime}
       strings={{
-        play: {
-          tapToFocus: play("tapToFocus"),
-          timeLeft: play("timeLeft"),
-          wpm: play("wpm"),
-          accuracy: play("accuracy"),
-          combo: play("combo"),
-          progress: play("progress"),
-          pause: play("pause"),
-          resume: play("resume"),
-          restart: play("restart"),
-          quit: play("quit"),
-          submitting: play("submitting"),
-          expired: play("expired"),
-          failedToSubmit: play("failedToSubmit"),
-          focusLost: play("focusLost"),
-          screenReaderProgress: play("screenReaderProgress"),
-          mechanicCheckpoints: play("mechanicCheckpoints"),
-          mechanicRelay: play("mechanicRelay"),
-          mechanicChain: play("mechanicChain"),
-          mechanicWaves: play("mechanicWaves"),
-          mechanicShield: play("mechanicShield"),
-          mechanicTargets: play("mechanicTargets"),
-        },
+        play: buildPlayStrings(play),
         result: resultStrings(result),
       }}
       gameHref={links.gameHref}

@@ -21,5 +21,19 @@
   "mechanicChain": "শেকল",
   "mechanicWaves": "ঢেউ",
   "mechanicShield": "ঢাল",
-  "mechanicTargets": "লক্ষ্য"
+  "mechanicTargets": "লক্ষ্য",
+  "stageLives": "লাইফ",
+  "stageShield": "ঢাল",
+  "stageWaves": "ঢেউ",
+  "stageCheckpoints": "চেকপয়েন্ট",
+  "stageTargets": "টার্গেট",
+  "stageChain": "চেইন",
+  "stageBossHp": "বসের এইচপি",
+  "stageDistance": "ব্যবধান",
+  "stagePursuer": "পেছনে ধাওয়া",
+  "endCaught": "ধরা পড়েছেন! ধাওয়াকারী পৌঁছে গেছে।",
+  "endOutOfLives": "লাইফ শেষ — খেলা শেষ।",
+  "endShieldBroken": "ঢাল ভেঙে গেছে!",
+  "endCheckpointMissed": "চেকপয়েন্ট মিস — খুব ধীর হয়ে গেছে।",
+  "endBossSurvived": "বস টিকে গেছে। আবার চেষ্টা করুন!"
 }

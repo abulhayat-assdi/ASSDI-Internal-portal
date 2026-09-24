@@ -24,6 +24,13 @@ export interface StoreGame {
   expiresAfterSeconds: number;
   timingKind: string;
   timingLimitSeconds: number | null;
+  /** Mechanic id — selects the gameplay rules (see @tap/mechanics). */
+  mechanic: string;
+  /** Authored mechanic parameters (phases, shieldHits, …). */
+  config: Record<string, unknown>;
+  /** Per-game typing rules; the shell must honour these, not its own guesses. */
+  allowBackspace: boolean;
+  caseSensitive: boolean;
 }
 
 export interface StoreAttempt {
@@ -114,7 +121,7 @@ export function createSupabaseAttemptStore(
       const res = await client
         .from("games")
         .select(
-          "id, slug, scoring_profile_id, prompt_set_ref, prompt_units, current_version, timing, attempt_rules, game_versions!inner(id, version)",
+          "id, slug, scoring_profile_id, prompt_set_ref, prompt_units, current_version, timing, attempt_rules, mechanic, config, input, game_versions!inner(id, version)",
         )
         .eq("slug", slug)
         .eq("is_active", true)
@@ -139,6 +146,7 @@ export function createSupabaseAttemptStore(
       }
       const timing = isRecord(d.timing) ? d.timing : {};
       const rules = isRecord(d.attempt_rules) ? d.attempt_rules : {};
+      const inputRules = isRecord(d.input) ? d.input : {};
       return {
         id: d.id,
         slug: d.slug,
@@ -154,6 +162,18 @@ export function createSupabaseAttemptStore(
         timingKind: typeof timing.kind === "string" ? timing.kind : "untimed",
         timingLimitSeconds:
           typeof timing.limitSeconds === "number" ? timing.limitSeconds : null,
+        mechanic: typeof d.mechanic === "string" ? d.mechanic : "time-trial",
+        config: isRecord(d.config) ? d.config : {},
+        // Defaults mirror createTypingSession's own: permissive input unless
+        // the catalog says otherwise.
+        allowBackspace:
+          typeof inputRules.allowBackspace === "boolean"
+            ? inputRules.allowBackspace
+            : true,
+        caseSensitive:
+          typeof inputRules.caseSensitive === "boolean"
+            ? inputRules.caseSensitive
+            : true,
       };
     },
 
@@ -309,6 +329,10 @@ export interface MemoryGameSeed {
   promptSetRef?: string;
   promptUnits?: number;
   expiresAfterSeconds?: number;
+  mechanic?: string;
+  config?: Record<string, unknown>;
+  allowBackspace?: boolean;
+  caseSensitive?: boolean;
 }
 
 /**
@@ -365,6 +389,10 @@ export function createMemoryAttemptStore(
       expiresAfterSeconds: g.expiresAfterSeconds ?? 900,
       timingKind: "untimed",
       timingLimitSeconds: null,
+      mechanic: g.mechanic ?? "time-trial",
+      config: g.config ?? {},
+      allowBackspace: g.allowBackspace ?? true,
+      caseSensitive: g.caseSensitive ?? true,
     };
   };
 

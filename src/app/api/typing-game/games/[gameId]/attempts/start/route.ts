@@ -8,6 +8,12 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { buildPrompt, type BuiltPrompt } from "@/lib/typing-game/content";
+import {
+  asDifficulty,
+  isRealMechanic,
+  resolveParams,
+  segmentUnits,
+} from "@/lib/typing-game/mechanics";
 import { getSession, unauthorized, type Session } from "@/lib/typing-game/server/auth";
 import { userDbClient } from "@/lib/typing-game/server/auth";
 import {
@@ -48,6 +54,30 @@ function fail(code: string, message: string, status: number): NextResponse {
 
 function defaultPrompt(game: StoreGame, seed: string): BuiltPrompt {
   return buildPrompt(game.promptSetRef, game.promptUnits, seed);
+}
+
+/**
+ * Units + resolved params for a mechanic game, or null for the four shell
+ * mechanics (which need no runtime at all). Units are derived from the
+ * prompt TEXT, exactly as the submit handler re-derives them from the stored
+ * expected_text — no seed, no catalog lookup, nothing extra to persist.
+ */
+function mechanicRuntimeFor(
+  game: StoreGame,
+  expectedText: string,
+  difficulty: string,
+): { units: ReturnType<typeof segmentUnits>; params: ReturnType<typeof resolveParams> } | null {
+  if (!isRealMechanic(game.mechanic)) return null;
+  const units = segmentUnits(expectedText);
+  return {
+    units,
+    params: resolveParams(
+      game.mechanic,
+      game.config,
+      asDifficulty(difficulty),
+      units.length,
+    ),
+  };
 }
 
 async function handleStartAttempt(
@@ -114,6 +144,15 @@ async function handleStartAttempt(
           kind: game.timingKind,
           limitSeconds: game.timingLimitSeconds,
         },
+        input: {
+          allowBackspace: game.allowBackspace,
+          caseSensitive: game.caseSensitive,
+        },
+        // Mechanic runtime. Sent so the browser plays the same rules the
+        // server will replay on submit; both sides resolve params from the
+        // same (config, difficulty, unitCount), so neither can drift.
+        mechanic: game.mechanic,
+        mechanicRuntime: mechanicRuntimeFor(game, prompt.text, attempt.difficulty),
       },
       { status: 201 },
     );

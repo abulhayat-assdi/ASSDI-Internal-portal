@@ -7,7 +7,7 @@ import {
   type CustomMissionStrings,
 } from "@/components/typing-game/custom-mission-play";
 import type { ResultStrings } from "@/components/typing-game/result-screen";
-import type { PlayStrings } from "@/components/typing-game/game-player";
+import { buildPlayStrings } from "@/components/typing-game/play-strings";
 import type { MissionsTranslator } from "@/lib/typing-game/custom-mission-ui";
 
 /**
@@ -51,7 +51,7 @@ export default async function CustomMissionPlayPage(props: {
       completionMode={mission.completionMode}
       repetitionsTarget={mission.repetitionsTarget}
       strings={{
-        play: playStrings(play),
+        play: buildPlayStrings(play),
         result: { ...resultStrings(result), playAgain: missions("retryMission") },
         mission: missionStrings(missions),
       }}
@@ -63,31 +63,6 @@ export default async function CustomMissionPlayPage(props: {
   );
 }
 
-function playStrings(t: (key: keyof PlayStrings, vars?: Vars) => string): PlayStrings {
-  return {
-    tapToFocus: t("tapToFocus"),
-    timeLeft: t("timeLeft"),
-    wpm: t("wpm"),
-    accuracy: t("accuracy"),
-    combo: t("combo"),
-    progress: t("progress"),
-    pause: t("pause"),
-    resume: t("resume"),
-    restart: t("restart"),
-    quit: t("quit"),
-    submitting: t("submitting"),
-    expired: t("expired"),
-    failedToSubmit: t("failedToSubmit"),
-    focusLost: t("focusLost"),
-    screenReaderProgress: t("screenReaderProgress"),
-    mechanicCheckpoints: t("mechanicCheckpoints"),
-    mechanicRelay: t("mechanicRelay"),
-    mechanicChain: t("mechanicChain"),
-    mechanicWaves: t("mechanicWaves"),
-    mechanicShield: t("mechanicShield"),
-    mechanicTargets: t("mechanicTargets"),
-  };
-}
 
 function resultStrings(t: (key: keyof ResultStrings, vars?: Vars) => string): ResultStrings {
   return {

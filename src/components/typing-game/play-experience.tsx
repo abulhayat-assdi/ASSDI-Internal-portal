@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Alert } from "@/components/typing-game/ui";
 import type { GameMechanic } from "@/lib/typing-game/game-engine";
+import type { MechanicParams, MechanicUnit } from "@/lib/typing-game/mechanics";
 import {
   GamePlayer,
   type PlayStrings,
@@ -30,6 +31,8 @@ export function PlayExperience({
   timingLimit,
   visual,
   mechanic,
+  inputRules,
+  mechanicRuntime,
   strings,
   gameHref,
   mapHref,
@@ -43,6 +46,8 @@ export function PlayExperience({
   timingLimit: number | null;
   visual: string;
   mechanic: GameMechanic;
+  inputRules?: { allowBackspace: boolean; caseSensitive: boolean };
+  mechanicRuntime?: { units: MechanicUnit[]; params: MechanicParams } | null;
   strings: PlayExperienceStrings;
   gameHref: string;
   mapHref: string;
@@ -117,6 +122,8 @@ export function PlayExperience({
       timingLimit={timingLimit}
       visual={visual}
       mechanic={mechanic}
+      inputRules={inputRules}
+      mechanicRuntime={mechanicRuntime}
       strings={strings.play}
       backHref={gameHref}
       onDone={(result, snap, extra) => {

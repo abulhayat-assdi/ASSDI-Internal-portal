@@ -10,6 +10,20 @@ import {
   type TypingSession,
   type TypingSnapshot,
 } from "@/lib/typing-game/game-engine";
+import {
+  digestOf,
+  encodeTimeline,
+  isRealMechanic,
+  runMechanic,
+  type MechanicOutcome,
+  type MechanicParams,
+  type MechanicUnit,
+} from "@/lib/typing-game/mechanics";
+import {
+  MechanicStage,
+  mechanicEndMessage,
+  type MechanicStageStrings,
+} from "./mechanics/mechanic-stage";
 import type { ProgressionSummary } from "@/lib/typing-game/server/attempt-store";
 
 export interface PlayStrings {
@@ -34,6 +48,8 @@ export interface PlayStrings {
   mechanicWaves: string;
   mechanicShield: string;
   mechanicTargets: string;
+  /** Mechanic HUD labels (real mechanics only). */
+  stage: MechanicStageStrings;
 }
 
 export interface SubmitSnapshot {
@@ -242,6 +258,8 @@ export function GamePlayer({
   timingLimit,
   visual,
   mechanic,
+  inputRules,
+  mechanicRuntime,
   strings: s,
   backHref,
   onDone,
@@ -255,6 +273,17 @@ export function GamePlayer({
   timingLimit: number | null;
   visual: string;
   mechanic: GameMechanic;
+  /**
+   * Per-game typing rules from the catalog. Previously hard-coded to
+   * permissive defaults here, which silently contradicted every game
+   * declaring allowBackspace:false or caseSensitive:false.
+   */
+  inputRules?: { allowBackspace: boolean; caseSensitive: boolean };
+  /**
+   * Units + params for a real mechanic, or null for the shell mechanics.
+   * Computed server-side so a mid-attempt refresh rebuilds the same run.
+   */
+  mechanicRuntime?: { units: MechanicUnit[]; params: MechanicParams } | null;
   strings: PlayStrings;
   backHref: string;
   onDone: (result: ValidatedResult | null, snap: SubmitSnapshot, extra: { rejectedReason: string | null; expired: boolean }) => void;
@@ -267,6 +296,21 @@ export function GamePlayer({
   submitUrl?: string;
 }) {
   const sessionRef = useRef<TypingSession | null>(null);
+  /**
+   * ms offset of every committed character, parallel to the typed buffer.
+   * This is the evidence that makes timing-based mechanics verifiable: the
+   * server replays the mechanic over it rather than believing an outcome the
+   * browser reports. Backspace pops it in lockstep with the session buffer.
+   */
+  const timelineRef = useRef<number[]>([]);
+  const startedAtRef = useRef<number | null>(null);
+  const sessionOpts = useMemo(
+    () => ({
+      allowBackspace: inputRules?.allowBackspace ?? true,
+      caseSensitive: inputRules?.caseSensitive ?? true,
+    }),
+    [inputRules?.allowBackspace, inputRules?.caseSensitive],
+  );
   const inputRef = useRef<HTMLInputElement>(null);
   const submittedRef = useRef(false);
   const endAtRef = useRef(0);  const [phase, setPhase] = useState<Phase>("ready");
@@ -279,10 +323,7 @@ export function GamePlayer({
   const expected = useMemo(() => Array.from(expectedText), [expectedText]);
 
   if (!sessionRef.current) {
-    sessionRef.current = createTypingSession(expectedText, {
-      allowBackspace: true,
-      caseSensitive: true,
-    });
+    sessionRef.current = createTypingSession(expectedText, sessionOpts);
   }
 
   // Reset the session when the prompt changes (e.g. client-side navigation
@@ -292,10 +333,9 @@ export function GamePlayer({
   useEffect(() => {
     if (lastExpectedRef.current !== expectedText) {
       lastExpectedRef.current = expectedText;
-      sessionRef.current = createTypingSession(expectedText, {
-        allowBackspace: true,
-        caseSensitive: true,
-      });
+      sessionRef.current = createTypingSession(expectedText, sessionOpts);
+      timelineRef.current = [];
+      startedAtRef.current = null;
       endAtRef.current = 0;
       submittedRef.current = false;
       setSecondsLeft(timingLimit ?? 0);
@@ -303,13 +343,39 @@ export function GamePlayer({
       setPhase("ready");
       setTick((t) => t + 1);
     }
-  }, [expectedText, timingLimit]);
+  }, [expectedText, timingLimit, sessionOpts]);
 
   const snap = sessionRef.current.snapshot();
   const typedChars = useMemo(
     () => Array.from(sessionRef.current?.getTypedText() ?? ""),
     [tick],
   );
+  /**
+   * The live mechanic state. Same pure function the route handler runs on
+   * submit, fed the buffer so far — so what the player sees during the run
+   * and what the server decides afterwards can never disagree.
+   */
+  const mechanicOutcome: MechanicOutcome | null = useMemo(() => {
+    if (!mechanicRuntime || !isRealMechanic(mechanic)) return null;
+    return runMechanic({
+      mechanic,
+      expected,
+      typed: typedChars,
+      timeline: timelineRef.current.slice(0, typedChars.length),
+      units: mechanicRuntime.units,
+      params: mechanicRuntime.params,
+      caseSensitive: sessionOpts.caseSensitive,
+    });
+    // typedChars is rebuilt per keystroke (keyed on tick), which is what
+    // drives this recompute.
+  }, [mechanic, mechanicRuntime, expected, typedChars, sessionOpts.caseSensitive]);
+
+  /** A mechanic rule ended the run (not merely "not finished yet"). */
+  const mechanicFailed =
+    mechanicOutcome !== null &&
+    mechanicOutcome.endReason !== "completed" &&
+    mechanicOutcome.endReason !== "incomplete";
+
   const minutes = snap.elapsedMs > 0 ? snap.elapsedMs / 60000 : 0;
   const liveWpm = minutes > 0 ? snap.correctChars / 5 / minutes : 0;
   const liveAcc =
@@ -330,6 +396,18 @@ export function GamePlayer({
       elapsedMs: final.elapsedMs,
       corrections: final.corrections,
       errorStrokes: final.errorStrokes,
+      // Deltas keep this small; the server decodes, sanity-checks and
+      // replays it. Omitted entirely for the shell mechanics.
+      ...(mechanicRuntime
+        ? {
+            timeline: encodeTimeline(
+              timelineRef.current.slice(0, final.typedLength),
+            ),
+            // Advisory only: the server compares it against its own replay
+            // to flag a disagreement, and always stores its own verdict.
+            ...(mechanicOutcome ? { mechanicDigest: digestOf(mechanicOutcome) } : {}),
+          }
+        : {}),
     };
     setPhase("submitting");
     setAnnouncement(s.submitting);
@@ -404,6 +482,18 @@ export function GamePlayer({
   const submitRef = useRef(submit);
   submitRef.current = submit;
 
+  // A broken mechanic rule ends the run immediately — the player is out of
+  // lives, caught, or their shield is down. Submitting here (rather than
+  // letting them type on) is also what keeps the client's replay aligned
+  // with the server's: both stop at the same character.
+  useEffect(() => {
+    if (phase !== "playing" || !mechanicFailed || !mechanicOutcome) return;
+    setAnnouncement(
+      mechanicEndMessage(mechanicOutcome, s.stage) ?? s.screenReaderProgress,
+    );
+    void submitRef.current();
+  }, [phase, mechanicFailed, mechanicOutcome, s.stage, s.screenReaderProgress]);
+
   // Countdown clock (display only — server expiry is authoritative).
   useEffect(() => {
     if (timingKind !== "countdown" || !timingLimit || phase !== "playing") {
@@ -433,7 +523,12 @@ export function GamePlayer({
     // input — the run is already finalized or being finalized server-side.
     if (!session || (phase !== "ready" && phase !== "playing" && phase !== "paused")) return;
     if (phase === "ready" || phase === "paused") setPhase("playing");
-    const outcome = session.input(key, Date.now());
+    const now = Date.now();
+    if (startedAtRef.current === null) startedAtRef.current = now;
+    const outcome = session.input(key, now);
+    if (outcome.accepted) {
+      timelineRef.current.push(now - startedAtRef.current);
+    }
     setTick((t) => t + 1);
     if (outcome.accepted && outcome.done) {
       setAnnouncement(s.screenReaderProgress);
@@ -445,15 +540,15 @@ export function GamePlayer({
     const session = sessionRef.current;
     if (!session || (phase !== "ready" && phase !== "playing" && phase !== "paused")) return;
     if (phase === "ready" || phase === "paused") setPhase("playing");
-    session.backspace(Date.now());
+    const removed = session.backspace(Date.now());
+    if (removed.accepted) timelineRef.current.pop();
     setTick((t) => t + 1);
   }
 
   function restart(): void {
-    sessionRef.current = createTypingSession(expectedText, {
-      allowBackspace: true,
-      caseSensitive: true,
-    });
+    sessionRef.current = createTypingSession(expectedText, sessionOpts);
+    timelineRef.current = [];
+    startedAtRef.current = null;
     endAtRef.current = 0;
     submittedRef.current = false;
     setSecondsLeft(timingLimit ?? 0);
@@ -595,7 +690,16 @@ export function GamePlayer({
             aria-label={s.tapToFocus}
           />
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-            <MechanicMeta mechanic={mechanic} snap={snap} liveAcc={liveAcc} s={s} />
+            {mechanicOutcome && mechanicRuntime ? (
+              <MechanicStage
+                outcome={mechanicOutcome}
+                params={mechanicRuntime.params}
+                units={mechanicRuntime.units}
+                strings={s.stage}
+              />
+            ) : (
+              <MechanicMeta mechanic={mechanic} snap={snap} liveAcc={liveAcc} s={s} />
+            )}
             <div className="flex items-center gap-3">
               <p className="text-sm text-ink-muted">
                 {s.progress}: {Math.round(snap.completionPct)}%
