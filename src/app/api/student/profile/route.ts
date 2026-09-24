@@ -2,19 +2,13 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
-import { cookies } from "next/headers";
-import { COOKIES } from "@/lib/constants";
-import { verifyJWT } from "@/lib/auth";
+import { getServerSessionUser } from "@/lib/auth";
 
 export async function GET() {
     try {
-        const cookieStore = await cookies();
-        const token = cookieStore.get(COOKIES.SESSION)?.value;
-        if (!token) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-
-        const session = await verifyJWT(token);
+        // getServerSessionUser, not a bare verifyJWT: it also honours account
+        // disabling and session revocation, and re-reads role from the DB.
+        const session = await getServerSessionUser();
         if (!session || session.role !== "student" || !session.courseId) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }

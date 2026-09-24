@@ -20,7 +20,7 @@ export interface GetAttemptDeps {
   store: AttemptStore | null;
 }
 
-export async function handleGetAttempt(
+async function handleGetAttempt(
   gameSlug: string,
   attemptId: string,
   deps: GetAttemptDeps,

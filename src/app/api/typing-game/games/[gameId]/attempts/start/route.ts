@@ -50,7 +50,7 @@ function defaultPrompt(game: StoreGame, seed: string): BuiltPrompt {
   return buildPrompt(game.promptSetRef, game.promptUnits, seed);
 }
 
-export async function handleStartAttempt(
+async function handleStartAttempt(
   gameSlug: string,
   body: unknown,
   deps: StartDeps,

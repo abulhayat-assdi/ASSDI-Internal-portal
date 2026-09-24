@@ -2,7 +2,13 @@
 // As-Sunnah Skill Development Institute — Permission System
 // ============================================================
 
-export const PORTAL_OWNER_EMAIL = "mohammadabulhayatt@gmail.com";
+// The permanent platform owner: this account can't be stripped of admin from
+// inside the app, and is re-promoted to super_admin on login from the admin
+// host. Overridable per deployment; the literal is the existing production
+// value, kept as the fallback so behaviour doesn't change on upgrade.
+// NEXT_PUBLIC_ because the access-management screen renders it client-side.
+export const PORTAL_OWNER_EMAIL =
+    process.env.NEXT_PUBLIC_PORTAL_OWNER_EMAIL?.toLowerCase().trim() || "mohammadabulhayatt@gmail.com";
 
 export type PermissionKey =
     | "schedule"

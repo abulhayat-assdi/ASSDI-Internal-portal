@@ -20,7 +20,7 @@ import {
 import type { CompetitionDraftInput } from "@/lib/typing-game/server/competition-store";
 import enErrors from "@/messages/typing-game/en/errors.json";
 
-export const TYPES = new Set([
+const TYPES = new Set([
   "SOLO",
   "BATCH",
   "TIMED",
@@ -49,7 +49,7 @@ function badRequest(message: string): NextResponse {
   return NextResponse.json({ error: "MALFORMED", message }, { status: 400 });
 }
 
-export async function handleListCompetitions(
+async function handleListCompetitions(
   deps: CompetitionContext,
 ): Promise<Response> {
   const competitions = await deps.store.listCompetitions(
@@ -58,7 +58,7 @@ export async function handleListCompetitions(
   return NextResponse.json({ competitions });
 }
 
-export async function handleCreateCompetition(
+async function handleCreateCompetition(
   body: unknown,
   deps: StaffCompetitionContext,
 ): Promise<Response> {

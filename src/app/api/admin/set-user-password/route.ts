@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
-import { withCourseContext } from "@/lib/db";
+import { prisma, withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin } from "@/lib/auth";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
@@ -47,6 +47,9 @@ export async function POST(req: NextRequest) {
                 where: { id: userId, courseId },
                 data: { passwordHash },
             });
+
+            // Kick the target out of any session running on the old password.
+            await prisma.activeSession.deleteMany({ where: { userId } });
 
             console.log(`[Admin] Password reset for user ${user.email} by admin ${caller.email}`);
 

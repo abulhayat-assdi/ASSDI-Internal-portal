@@ -3,6 +3,7 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
+import { HOUR, rateLimitByIp } from "@/lib/rateLimit";
 
 // GET /api/student-form/[slug]
 // Public, unauthenticated — a student opens this via a shared link before
@@ -10,9 +11,14 @@ import { withCourseContext } from "@/lib/db";
 // course requires the super-admin RLS bypass; everything else is then scoped
 // to that course.
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
+  // This returns the batch roster (names + roll numbers) to anyone holding
+  // the link, so cap how fast it can be harvested.
+  const limited = rateLimitByIp(req, "student-form-read", 60, HOUR);
+  if (limited) return limited;
+
   const { slug } = await params;
 
   const form = await withCourseContext({ courseId: null, isSuperAdmin: true }, (tx) =>
@@ -49,6 +55,9 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
+  const limited = rateLimitByIp(req, "student-form-submit", 20, HOUR);
+  if (limited) return limited;
+
   const { slug } = await params;
 
   const form = await withCourseContext({ courseId: null, isSuperAdmin: true }, (tx) =>

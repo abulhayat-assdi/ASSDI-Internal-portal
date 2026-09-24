@@ -6,6 +6,7 @@ import crypto from 'crypto';
 import nodemailer from 'nodemailer';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
+import { HOUR, MINUTE, rateLimit, rateLimitByIp } from '@/lib/rateLimit';
 
 const requestSchema = z.object({
     email: z.string().email(),
@@ -45,6 +46,12 @@ function getTransporter() {
  * Sends a password reset email with a time-limited token.
  */
 export async function POST(req: NextRequest) {
+    // Each accepted request sends mail, so this is an email-bomb vector as
+    // much as an enumeration one: cap the sender and the target separately.
+    const limited = rateLimitByIp(req, 'reset-password', 5, HOUR,
+        'অনেক বেশি রিসেট অনুরোধ। এক ঘণ্টা পর আবার চেষ্টা করুন।');
+    if (limited) return limited;
+
     try {
         const body = await req.json();
         const parsed = requestSchema.safeParse(body);
@@ -55,6 +62,12 @@ export async function POST(req: NextRequest) {
 
         const { email } = parsed.data;
         const normalizedEmail = email.toLowerCase().trim();
+
+        // Per-address cap, so one inbox can't be flooded from many IPs.
+        // Answers success either way — never reveal whether the account exists.
+        if (!rateLimit(`reset-password:addr:${normalizedEmail}`, 3, HOUR).ok) {
+            return NextResponse.json({ success: true });
+        }
 
         // Email is globally unique across the platform — this lookup bypasses
         // course-scoped RLS since the requester isn't necessarily on that
@@ -151,6 +164,10 @@ export async function POST(req: NextRequest) {
  * Validates the token and updates the password.
  */
 export async function PATCH(req: NextRequest) {
+    // The token is 256 bits of randomness, but cap guessing anyway.
+    const limited = rateLimitByIp(req, 'reset-password-confirm', 10, 15 * MINUTE);
+    if (limited) return limited;
+
     try {
         const body = await req.json();
         const parsed = resetSchema.safeParse(body);
@@ -185,6 +202,11 @@ export async function PATCH(req: NextRequest) {
                 data: { usedAt: new Date() },
             });
         });
+
+        // A password change must invalidate any session still running on the
+        // old password — otherwise an attacker who is already logged in keeps
+        // their access for the rest of the 30-day JWT window.
+        await prisma.activeSession.deleteMany({ where: { userId: resetToken.userId } });
 
         return NextResponse.json({ success: true });
     } catch (error) {

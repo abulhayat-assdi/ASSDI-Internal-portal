@@ -48,3 +48,16 @@ next-env.d.ts
 # Firebase credentials (NEVER commit this!)
 serviceAccountKey.json
 /generated/prisma
+
+# Runtime-written uploads and logs — never commit user data
+/public/homework/
+/public/documents/
+/public/uploads/
+/storage/
+*.log
+build-log.txt
+lint_output.txt
+tsconfig.tsbuildinfo
+
+# Local backup artifacts
+/backups/

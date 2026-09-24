@@ -1,11 +1,14 @@
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 import { NextRequest, NextResponse } from 'next/server';
-import { withCourseContext } from '@/lib/db';
+import { prisma, withCourseContext } from '@/lib/db';
 import { signJWT } from '@/lib/auth';
 import { AUTH_ROLES, COOKIES } from '@/lib/constants';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
+import { HOUR, rateLimitByIp } from '@/lib/rateLimit';
+
+const SESSION_MAX_AGE = 60 * 60 * 24 * 30; // 30 days — matches the JWT + ActiveSession expiry
 
 const registerSchema = z.object({
     email: z.string().email(),
@@ -20,6 +23,12 @@ const registerSchema = z.object({
  * Public endpoint — registers a new student account.
  */
 export async function POST(req: NextRequest) {
+    // Self-registration is open to the internet; without a cap one script can
+    // fill a course's seats and the users table.
+    const limited = rateLimitByIp(req, 'register', 5, HOUR,
+        'অনেক বেশি অ্যাকাউন্ট তৈরির চেষ্টা হয়েছে। এক ঘণ্টা পর আবার চেষ্টা করুন।');
+    if (limited) return limited;
+
     try {
         const courseId = req.headers.get('x-course-id');
         if (!courseId) {
@@ -80,6 +89,16 @@ export async function POST(req: NextRequest) {
             });
         });
 
+        // Every honoured session needs a live ActiveSession row — that row is
+        // what logout / "disable user" / password change delete to revoke a
+        // token early (see applyDbUserOverrides). Without it the cookie set
+        // below would be rejected on the very next request.
+        await prisma.activeSession.upsert({
+            where: { userId: user.id },
+            update: { expiresAt: new Date(Date.now() + SESSION_MAX_AGE * 1000) },
+            create: { userId: user.id, expiresAt: new Date(Date.now() + SESSION_MAX_AGE * 1000) },
+        });
+
         // Sign JWT and set cookie (auto-login after registration)
         const token = await signJWT({
             id: user.id,
@@ -112,7 +131,7 @@ export async function POST(req: NextRequest) {
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'lax',
             path: '/',
-            maxAge: 60 * 60 * 24,
+            maxAge: SESSION_MAX_AGE,
         });
 
         return response;
@@ -122,6 +141,7 @@ export async function POST(req: NextRequest) {
         if (message.startsWith("SEAT_LIMIT:")) {
             return NextResponse.json({ error: message.replace("SEAT_LIMIT:", "").trim() }, { status: 403 });
         }
-        return NextResponse.json({ error: message }, { status: 500 });
+        // Never surface the raw error — it can carry DB/schema details.
+        return NextResponse.json({ error: 'Failed to register account' }, { status: 500 });
     }
 }

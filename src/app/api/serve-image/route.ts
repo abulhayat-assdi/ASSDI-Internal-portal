@@ -1,56 +1,58 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { readFile } from "fs/promises";
 import path from "path";
-import fs from "fs";
+import { isPublicStoredPath, normalizeStoredPath, resolveStoredFile } from "@/lib/fileAccess";
+import type { NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const MIME: Record<string, string> = {
-  ".jpg":  "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".png":  "image/png",
-  ".webp": "image/webp",
-  ".gif":  "image/gif",
-  ".svg":  "image/svg+xml",
-  ".avif": "image/avif",
+const IMAGE_MIME: Record<string, string> = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
+    ".avif": "image/avif",
 };
 
-// GET /api/serve-image?p=images/instructors/filename.jpg
+/**
+ * GET /api/serve-image?p=images/instructors/filename.jpg
+ *
+ * Deliberately unauthenticated — it backs public branding and instructor
+ * photos — so it is restricted to the public prefixes only. It used to serve
+ * anything image-shaped under public/, which included students' uploaded
+ * homework images (public/homework/<uid>/*.webp).
+ *
+ * .svg is not in the MIME table on purpose: an SVG runs script in the
+ * browser, and these files are user-uploaded.
+ */
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const p = searchParams.get("p");
+    const relPath = normalizeStoredPath(req.nextUrl.searchParams.get("p") ?? "");
+    if (!relPath || !isPublicStoredPath(relPath)) {
+        return new NextResponse("Not found", { status: 404 });
+    }
 
-  if (!p) return new NextResponse("Not found", { status: 404 });
+    const contentType = IMAGE_MIME[path.extname(relPath).toLowerCase()];
+    if (!contentType) {
+        return new NextResponse("Not found", { status: 404 });
+    }
 
-  // Resolve from the same process.cwd()/public as the upload API
-  const publicDir = path.join(process.cwd(), "public");
+    const file = resolveStoredFile(relPath);
+    if (!file) {
+        return new NextResponse("Not found", { status: 404 });
+    }
 
-  // Clean prefix if p has leading / or api/uploads/ or uploads/
-  const cleanP = p.replace(/^\/?(api\/uploads\/|uploads\/)/, "");
-  let filePath = path.resolve(publicDir, cleanP);
-
-  if (!fs.existsSync(filePath)) {
-    filePath = path.resolve(publicDir, p.startsWith("/") ? p.slice(1) : p);
-  }
-
-  // Security: prevent directory traversal
-  if (!filePath.startsWith(publicDir + path.sep) && filePath !== publicDir) {
-    return new NextResponse("Forbidden", { status: 403 });
-  }
-
-  try {
-    const buffer = await readFile(filePath);
-    const ext = path.extname(filePath).toLowerCase();
-    const contentType = MIME[ext] || "application/octet-stream";
-
-    return new NextResponse(buffer, {
-      headers: {
-        "Content-Type": contentType,
-        "Cache-Control": "public, max-age=31536000, immutable",
-      },
-    });
-  } catch {
-    return new NextResponse("Not found", { status: 404 });
-  }
+    try {
+        const buffer = await readFile(file.absolutePath);
+        return new NextResponse(buffer, {
+            headers: {
+                "Content-Type": contentType,
+                "Cache-Control": "public, max-age=31536000, immutable",
+                "X-Content-Type-Options": "nosniff",
+            },
+        });
+    } catch {
+        return new NextResponse("Not found", { status: 404 });
+    }
 }

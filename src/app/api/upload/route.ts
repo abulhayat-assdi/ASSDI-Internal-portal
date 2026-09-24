@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { writeFile, mkdir, unlink } from "fs/promises";
 import path from "path";
 import { getSessionUser, isAdmin } from "@/lib/auth";
+import { checkUserQuota, verifyFileSignature } from "@/lib/uploadGuard";
 
+// image/svg+xml is deliberately absent: an SVG is a script-bearing document,
+// and these files are served from the portal's own origin.
 const ALLOWED_MIME_TYPES = new Set([
-  "image/jpeg", "image/png", "image/webp", "image/gif", "image/svg+xml", "image/x-icon", "image/vnd.microsoft.icon", "image/ico", "image/icon",
+  "image/jpeg", "image/png", "image/webp", "image/gif", "image/x-icon", "image/vnd.microsoft.icon",
   "application/pdf",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -17,6 +20,24 @@ const ALLOWED_MIME_TYPES = new Set([
 ]);
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+
+/** Maps the client's `folder` onto a fixed set of destinations. */
+function resolveUploadSubDir(folder: string): string | null {
+    if (folder === "routines") return "documents/routines";
+    const ALLOWED_FOLDERS = new Set([
+        "images/instructors",
+        "images/courses",
+        "images/home",
+        "images/logo",
+        "student-leaves",
+        "policies",
+        "cv-templates",
+    ]);
+    if (ALLOWED_FOLDERS.has(folder)) return folder;
+    // Per-course branding: images/courses/<courseId>
+    if (/^images\/courses\/[A-Za-z0-9_-]+$/.test(folder)) return folder;
+    return null;
+}
 
 function getStorageBase(): string {
     const configured = process.env.LOCAL_STORAGE_PATH || process.env.UPLOAD_DIR;
@@ -51,8 +72,13 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: `File too large. Max 100MB allowed.` }, { status: 400 });
         }
 
-        // Determine the upload directory
-        const uploadSubDir = folder === "routines" ? "documents/routines" : folder;
+        // `folder` comes from the client, and some prefixes (images/*) are
+        // served publicly with no session. Pin it to the set the app actually
+        // uses so an uploader can't choose where their file lands.
+        const uploadSubDir = resolveUploadSubDir(folder);
+        if (!uploadSubDir) {
+            return NextResponse.json({ error: "Invalid upload folder" }, { status: 400 });
+        }
 
         const storageBase = getStorageBase();
         const uploadDir = path.resolve(storageBase, uploadSubDir);
@@ -66,8 +92,19 @@ export async function POST(req: NextRequest) {
         const uniqueFilename = `${Date.now()}-${cleanFileName}`;
         const filePath = path.join(uploadDir, uniqueFilename);
 
-        const bytes = await file.arrayBuffer();
-        await writeFile(filePath, Buffer.from(bytes));
+        const buffer = Buffer.from(await file.arrayBuffer());
+
+        const signatureError = verifyFileSignature(buffer, file.name);
+        if (signatureError) {
+            return NextResponse.json({ error: signatureError }, { status: 400 });
+        }
+
+        const quotaError = checkUserQuota(user.id, buffer.length);
+        if (quotaError) {
+            return NextResponse.json({ error: quotaError }, { status: 413 });
+        }
+
+        await writeFile(filePath, buffer);
 
         const url = `/api/uploads/${uploadSubDir}/${uniqueFilename}`;
         return NextResponse.json({ url, path: url });

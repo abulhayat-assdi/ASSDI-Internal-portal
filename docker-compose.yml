@@ -3,9 +3,9 @@ services:
     image: postgres:15-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-mypassword}
-      POSTGRES_DB: ${DB_NAME:-asm_portal}
+      POSTGRES_USER: ${DB_USER:?DB_USER must be set}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
+      POSTGRES_DB: ${DB_NAME:?DB_NAME must be set}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     # MVP: DB NOT exposed to host/internet — only compose network.
@@ -13,7 +13,7 @@ services:
     expose:
       - "5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-asm_portal}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -37,10 +37,10 @@ services:
     image: postgrest/postgrest:v12.2.0
     restart: unless-stopped
     environment:
-      PGRST_DB_URI: postgresql://authenticator:${PGRST_AUTHENTICATOR_PASSWORD}@db:5432/${DB_NAME:-asm_portal}
+      PGRST_DB_URI: postgresql://authenticator:${PGRST_AUTHENTICATOR_PASSWORD:?PGRST_AUTHENTICATOR_PASSWORD must be set}@db:5432/${DB_NAME}
       PGRST_DB_SCHEMAS: typing_game
       PGRST_DB_ANON_ROLE: anon
-      PGRST_JWT_SECRET: ${JWT_SECRET}
+      PGRST_JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
       PGRST_JWT_SECRET_IS_BASE64: "false"
       PGRST_JWT_ROLE_CLAIM_KEY: ".pg_role"
       PGRST_DB_POOL: "10"
@@ -52,10 +52,24 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # Baked into the client bundles; must match NEXT_PUBLIC_BASE_DOMAIN below.
+        NEXT_PUBLIC_BASE_DOMAIN: ${NEXT_PUBLIC_BASE_DOMAIN}
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-mypassword}@db:5432/${DB_NAME:-asm_portal}?schema=public
-      JWT_SECRET: ${JWT_SECRET}
+      # The entrypoint rebuilds both connection URLs from these, percent-encoding
+      # the passwords. They have to be real env vars inside the container, not
+      # just compose-time substitutions, or that rebuild silently never runs.
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}?schema=public
+      # The unprivileged role the server queries as, so RLS is enforced.
+      # docker-entrypoint.sh rebuilds DATABASE_URL from these; the value above
+      # survives only as BOOTSTRAP_DATABASE_URL for migrations.
+      APP_DB_USER: ${APP_DB_USER:-asm_app}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?APP_DB_PASSWORD must be set}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
       SETUP_SECRET: ${SETUP_SECRET:-}
       SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL:-}
       SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD:-}
@@ -66,7 +80,9 @@ services:
       SMTP_PASS: ${SMTP_PASS}
       SMTP_FROM: ${SMTP_FROM}
       LOCAL_STORAGE_PATH: /app/storage
-      NEXT_PUBLIC_BASE_DOMAIN: ${NEXT_PUBLIC_BASE_DOMAIN:-tasm-skill.asf.bd}
+      NEXT_PUBLIC_BASE_DOMAIN: ${NEXT_PUBLIC_BASE_DOMAIN:?NEXT_PUBLIC_BASE_DOMAIN must be set}
+      # Server-side tenant routing reads this one at runtime.
+      BASE_DOMAIN: ${NEXT_PUBLIC_BASE_DOMAIN}
       SAAS_OWNER_EMAIL: ${SAAS_OWNER_EMAIL}
       # Authenticator role password for the typing-game Postgres bootstrap
       # (0039_auth_shim.sql creates the role); also consumed by the postgrest
@@ -80,6 +96,11 @@ services:
         condition: service_completed_successfully
       postgrest:
         condition: service_started
+    # WARNING: this publishes the app on every host interface, so :3000 is
+    # reachable from the internet and bypasses the reverse proxy's TLS.
+    # On a plain VPS change this to "127.0.0.1:3000:3000". Under Coolify,
+    # Traefik reaches the container over the Docker network instead, so the
+    # whole `ports:` block can be dropped in favour of `expose: ["3000"]`.
     ports:
       - "3000:3000"
     volumes:

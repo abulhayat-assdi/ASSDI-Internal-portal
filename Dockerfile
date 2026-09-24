@@ -18,6 +18,12 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PRISMA_CLIENT_ENGINE_TYPE=library
 ENV NODE_OPTIONS="--max-old-space-size=4096"
+
+# NEXT_PUBLIC_* is compiled into the client bundles, so it has to be present
+# at BUILD time — setting it only at runtime has no effect on them. Server
+# code reads the runtime BASE_DOMAIN instead (see src/lib/course.ts).
+ARG NEXT_PUBLIC_BASE_DOMAIN=tasm-skill.asf.bd
+ENV NEXT_PUBLIC_BASE_DOMAIN=$NEXT_PUBLIC_BASE_DOMAIN
 # Use a dummy DB URL during build to satisfy Prisma validation
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 
@@ -67,4 +73,14 @@ ENV HOSTNAME="0.0.0.0"
 # NOT the repo-root server.js (cPanel legacy — not copied into runner).
 # migrate deploy runs on every boot so VPS reboots/redeploys never skip schema.
 ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["sh", "-c", "prisma migrate deploy || true; node scripts/startup.js || true; node scripts/typing-game-migrate.js || true; node prisma/seed.js || true; node server.js"]
+# `prisma migrate deploy` is fatal on failure (set -e): booting the app against
+# a schema that didn't fully migrate corrupts data and produces 500s that look
+# like application bugs. The three steps after it are idempotent best-effort
+# patchers that are allowed to fail, so -e is lifted around them. `exec` on the
+# server hands it PID 1's signals for a clean shutdown.
+# DDL steps run as the superuser via BOOTSTRAP_DATABASE_URL; the server then
+# starts with DATABASE_URL pointing at the unprivileged app role (see
+# docker-entrypoint.sh and scripts/ensure-app-role.js). ensure-app-role and
+# migrate are fatal on failure — booting without either means running with no
+# tenant isolation, or against a half-migrated schema.
+CMD ["sh", "-c", "set -e; DATABASE_URL=\"${BOOTSTRAP_DATABASE_URL:-$DATABASE_URL}\" node scripts/ensure-app-role.js; DATABASE_URL=\"${BOOTSTRAP_DATABASE_URL:-$DATABASE_URL}\" prisma migrate deploy; set +e; DATABASE_URL=\"${BOOTSTRAP_DATABASE_URL:-$DATABASE_URL}\" node scripts/startup.js; DATABASE_URL=\"${BOOTSTRAP_DATABASE_URL:-$DATABASE_URL}\" node scripts/typing-game-migrate.js; DATABASE_URL=\"${BOOTSTRAP_DATABASE_URL:-$DATABASE_URL}\" node prisma/seed.js; set -e; exec node server.js"]

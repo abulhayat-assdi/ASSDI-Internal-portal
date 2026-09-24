@@ -27,7 +27,7 @@ const ATTEMPT_POLICIES = new Set([
   "AVERAGE_TOP_3",
 ]);
 
-export async function handleGetCompetition(
+async function handleGetCompetition(
   id: string,
   deps: CompetitionContext,
 ): Promise<Response> {
@@ -47,7 +47,7 @@ export async function handleGetCompetition(
   return NextResponse.json({ competition });
 }
 
-export async function handleUpdateDraft(
+async function handleUpdateDraft(
   id: string,
   body: unknown,
   deps: StaffCompetitionContext,

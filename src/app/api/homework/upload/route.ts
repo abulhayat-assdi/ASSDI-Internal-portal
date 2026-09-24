@@ -3,6 +3,8 @@ import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { existsSync } from "fs";
 import { getSessionUser } from "@/lib/auth";
+import { getStorageBase } from "@/lib/fileAccess";
+import { checkUserQuota, verifyFileSignature } from "@/lib/uploadGuard";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -35,8 +37,6 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get("file") as File;
-    const studentName = (formData.get("studentName") as string) || "unknown";
-    const studentId = (formData.get("studentId") as string) || "unknown";
 
     if (!file) {
       return NextResponse.json({ error: "No file received." }, { status: 400 });
@@ -62,26 +62,39 @@ export async function POST(request: NextRequest) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Sanitize extension
-    const originalExt = file.name.split(".").pop()?.toLowerCase() || "bin";
-    
-    // Create unique filename with student context to avoid conflicts
-    const timestamp = Date.now();
-    const safeStudentId = studentId.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-    const filename = `${safeStudentId}-${timestamp}.${originalExt}`;
+    const signatureError = verifyFileSignature(buffer, file.name);
+    if (signatureError) {
+      return NextResponse.json({ error: signatureError }, { status: 400 });
+    }
 
-    // Define upload directory for homework in the public folder
-    const uploadDir = join(process.cwd(), "public", "homework");
+    const quotaError = checkUserQuota(user.id, buffer.length);
+    if (quotaError) {
+      return NextResponse.json({ error: quotaError }, { status: 413 });
+    }
+
+    // Sanitize extension
+    const originalExt = (file.name.split(".").pop() || "bin").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const timestamp = Date.now();
+    const filename = `${timestamp}.${originalExt || "bin"}`;
+
+    // The owner is the session user, never a client-supplied studentId — the
+    // form used to send that field, so anyone could file their upload under
+    // another student's folder (and /api/file keys homework access off exactly
+    // that folder name).
+    const relPath = `uploads/homework/${user.id}/${filename}`;
+
+    // Written to the storage volume, not public/: a standalone build's public/
+    // is baked into the image, so anything written there is lost on redeploy.
+    const uploadDir = join(getStorageBase(), "uploads", "homework", user.id);
 
     if (!existsSync(uploadDir)) {
       await mkdir(uploadDir, { recursive: true });
     }
 
-    const filepath = join(uploadDir, filename);
-    await writeFile(filepath, buffer);
+    await writeFile(join(uploadDir, filename), buffer);
 
-    // Public URL for the file
-    const publicUrl = `/homework/${filename}`;
+    // Served back through the authorizing route, not as a static asset.
+    const publicUrl = `/api/file?path=${encodeURIComponent(relPath)}`;
 
     return NextResponse.json({ 
       success: true, 

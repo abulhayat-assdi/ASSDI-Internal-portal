@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import path from "path";
 import fs from "fs";
 import { getSessionUserFromRequestOrBearer } from "@/lib/auth";
+import { checkUserQuota, verifyFileSignature } from "@/lib/uploadGuard";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -41,7 +42,9 @@ export async function POST(request: NextRequest) {
         const ALLOWED_EXTENSIONS = new Set([
             ".pdf", ".jpg", ".jpeg", ".png", ".gif", ".webp",
             ".doc", ".docx", ".ppt", ".pptx", ".xls", ".xlsx",
-            ".csv", ".txt", ".zip", ".mp4", ".mp3", ".html", ".htm",
+            ".csv", ".txt", ".zip", ".mp4", ".mp3",
+            // .html/.htm and .svg are excluded on purpose: both execute
+            // script, and these files are served from the portal's origin.
         ]);
 
         const ext = path.extname(file.name).toLowerCase();
@@ -75,6 +78,19 @@ export async function POST(request: NextRequest) {
         }
 
         const buffer = Buffer.from(await file.arrayBuffer());
+
+        // The extension and the browser-supplied MIME type are both caller
+        // input; the bytes are not. Reject a .png that is really a script.
+        const signatureError = verifyFileSignature(buffer, file.name);
+        if (signatureError) {
+            return NextResponse.json({ error: signatureError }, { status: 400 });
+        }
+
+        const quotaError = checkUserQuota(sessionUser.id, buffer.length);
+        if (quotaError) {
+            return NextResponse.json({ error: quotaError }, { status: 413 });
+        }
+
         fs.writeFileSync(absolutePath, buffer);
 
         console.log(`[Upload] ${category} saved → ${absolutePath}`);

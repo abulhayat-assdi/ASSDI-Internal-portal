@@ -17,6 +17,18 @@ if grep -q "dev-only-secret" .env; then
     exit 1
 fi
 
+# Guard: without APP_DB_PASSWORD the app connects as the Postgres superuser,
+# which bypasses row-level security and silently disables tenant isolation.
+if ! grep -qE '^APP_DB_PASSWORD=.+' .env; then
+    echo "❌ BLOCKED: APP_DB_PASSWORD is not set in .env."
+    echo "   Without it the app runs as the DB superuser and RLS is bypassed."
+    exit 1
+fi
+if grep -qE '^(DB_PASSWORD|APP_DB_PASSWORD|JWT_SECRET)=CHANGE_ME' .env; then
+    echo "❌ BLOCKED: .env still has CHANGE_ME placeholder secrets."
+    exit 1
+fi
+
 echo "🏗️ Building and starting containers..."
 docker compose up -d --build
 
@@ -39,5 +51,7 @@ docker compose exec -T app prisma migrate deploy || true
 echo ""
 echo "✅ Deployment completed."
 echo "🌐 Public traffic via reverse proxy → http://127.0.0.1:3000 (do NOT expose :3000 directly)"
-echo "💾 Backup reminder: docker compose exec db pg_dump -U \$DB_USER \$DB_NAME > backup-\$(date +%F).sql"
-echo "🔐 Post-deploy: bootstrap super-admin (/api/setup?secret=...), rotate password, then UNSET SETUP_SECRET and redeploy."
+echo "💾 Backups: ./scripts/backup.sh (DB + uploads). Schedule it nightly:"
+echo "   0 2 * * * cd \$(pwd) && ./scripts/backup.sh >> /var/log/asm-backup.log 2>&1"
+echo "🔐 Post-deploy: bootstrap the super-admin, then UNSET SETUP_SECRET and redeploy:"
+echo "   curl -X POST https://admin.\$NEXT_PUBLIC_BASE_DOMAIN/api/setup -H \"x-setup-secret: \$SETUP_SECRET\""

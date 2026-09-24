@@ -75,34 +75,71 @@ export async function verifyJWT(token: string): Promise<JWTPayload> {
 /**
  * Re-reads the user's current role/permissions/course from the DB and merges
  * them into the JWT payload. Runs inside the RLS course context the JWT
- * itself claims — if that claim is stale or forged, the lookup simply finds
- * no matching row (RLS + the courseId in the where-clause both gate it) and
- * the caller falls back to the JWT's own (unverified-fresh) values.
+ * itself claims.
+ *
+ * Returns null — i.e. the session is rejected — whenever the DB says the
+ * token should no longer be honoured:
+ *   - no matching row: the account was hard-deleted, or the token's courseId
+ *     claim is stale/forged (RLS + the id lookup both gate it),
+ *   - deletedAt set: the account was disabled from the super-admin panel,
+ *   - no live ActiveSession row: the session was revoked (logout, password
+ *     change, "kick out" from the admin console) or has simply aged out.
+ *
+ * Fail-closed is the point: a JWT is valid for 30 days, so without this a
+ * disabled or deleted user would keep full access for the rest of that month.
  *
  * NOTE: this trusts payload.courseId for scoping the lookup. It is the
  * middleware's job to reject a request whose payload.courseId doesn't match
  * the course of the subdomain being visited — by the time code reaches here,
  * that match is assumed to already hold.
  */
-async function applyDbUserOverrides(payload: JWTPayload): Promise<JWTPayload> {
+async function applyDbUserOverrides(payload: JWTPayload): Promise<JWTPayload | null> {
     const ctx = courseContextFor(payload);
     const dbUser = await withCourseContext(ctx, (tx) =>
         tx.user.findUnique({
             where: { id: payload.id },
-            select: { role: true, permissions: true, displayName: true, studentBatchName: true, studentRoll: true, courseId: true },
+            select: {
+                role: true,
+                permissions: true,
+                displayName: true,
+                studentBatchName: true,
+                studentRoll: true,
+                courseId: true,
+                deletedAt: true,
+                // active_sessions carries no course_id and no RLS policy
+                // (pure auth housekeeping), so it joins fine under any context.
+                activeSession: { select: { expiresAt: true } },
+            },
         })
     );
 
-    if (dbUser) {
-        payload.role = dbUser.role;
-        payload.courseId = dbUser.courseId;
-        payload.permissions = getEffectivePermissions(dbUser.role, dbUser.permissions as string[]);
-        if (dbUser.displayName) payload.displayName = dbUser.displayName;
-        if (dbUser.studentBatchName) payload.studentBatchName = dbUser.studentBatchName;
-        if (dbUser.studentRoll) payload.studentRoll = dbUser.studentRoll;
-    }
+    if (!dbUser || dbUser.deletedAt) return null;
+
+    const session = dbUser.activeSession;
+    if (!session || session.expiresAt.getTime() <= Date.now()) return null;
+
+    payload.role = dbUser.role;
+    payload.courseId = dbUser.courseId;
+    payload.permissions = getEffectivePermissions(dbUser.role, dbUser.permissions as string[]);
+    if (dbUser.displayName) payload.displayName = dbUser.displayName;
+    if (dbUser.studentBatchName) payload.studentBatchName = dbUser.studentBatchName;
+    if (dbUser.studentRoll) payload.studentRoll = dbUser.studentRoll;
 
     return payload;
+}
+
+/**
+ * Full session check for a raw token: signature, then the DB-backed
+ * revocation checks above. The middleware uses this so a disabled user is
+ * bounced to the login page instead of reaching a page whose server
+ * components would then find no session.
+ */
+export async function verifySessionToken(token: string): Promise<JWTPayload | null> {
+    try {
+        return await applyDbUserOverrides(await verifyJWT(token));
+    } catch {
+        return null;
+    }
 }
 
 export async function getSessionUser(request: NextRequest): Promise<JWTPayload | null> {

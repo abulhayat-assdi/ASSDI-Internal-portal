@@ -41,7 +41,15 @@ const RESERVED_SUBDOMAINS = new Set(['www', 'admin', 'api', 'mail', 'ftp', 'app'
 const SUPER_ADMIN_SUBDOMAIN = 'admin';
 
 function getBaseDomain(): string {
-  return (process.env.NEXT_PUBLIC_BASE_DOMAIN || 'tasm-skill.asf.bd').toLowerCase();
+  // BASE_DOMAIN first, and it is deliberately NOT a NEXT_PUBLIC_ name: Next
+  // inlines NEXT_PUBLIC_* at build time, including into the middleware bundle,
+  // so the runtime value of NEXT_PUBLIC_BASE_DOMAIN is ignored on the server.
+  // Tenant routing lives here, so it has to be settable without a rebuild.
+  return (
+    process.env.BASE_DOMAIN ||
+    process.env.NEXT_PUBLIC_BASE_DOMAIN ||
+    'tasm-skill.asf.bd'
+  ).toLowerCase();
 }
 
 /** Returns the subdomain label for any host, or null for the bare root domain. */
@@ -124,11 +132,17 @@ export interface PublicCourseSummary {
 /** Builds an absolute URL for a given subdomain of the current request's host. */
 function buildSubdomainUrl(currentHost: string, subdomain: string, path = ''): string {
   const [rawHostname, port] = currentHost.split(':');
-  const hostname = rawHostname.replace(/^www\./, '');
-  const isLocal = hostname === 'localhost' || hostname.endsWith('.localhost');
+  const rawLower = rawHostname.toLowerCase();
+  const isLocal = rawLower === 'localhost' || rawLower.endsWith('.localhost');
   const protocol = isLocal ? 'http' : 'https';
   const portSuffix = port ? `:${port}` : '';
-  return `${protocol}://${subdomain}.${hostname}${portSuffix}${path}`;
+  if (isLocal) {
+    return `${protocol}://${subdomain}.${rawLower}${portSuffix}${path}`;
+  }
+  // Always anchor on the BASE_DOMAIN so portal.tasm-skill.asf.bd → admin.tasm-skill.asf.bd
+  // (not admin.portal.tasm-skill.asf.bd which would have an invalid cert).
+  const base = getBaseDomain();
+  return `${protocol}://${subdomain}.${base}${portSuffix}${path}`;
 }
 
 /** Builds an absolute URL for a course's own subdomain from the current request's host. */

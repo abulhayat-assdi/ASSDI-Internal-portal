@@ -3,13 +3,19 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
     output: 'standalone',
     eslint: {
+        // Still on: the remaining failures are all @typescript-eslint
+        // no-empty-object-type in UI prop types, which are cosmetic. Type
+        // errors, the ones that actually break a deploy, are enforced below.
         ignoreDuringBuilds: true,
     },
     typescript: {
-        ignoreBuildErrors: true,
+        // A type error must fail the build. It was suppressed while the
+        // typing-game routes exported non-handler symbols; that's fixed, and
+        // `tsc --noEmit` is clean, so the guard is back on.
+        ignoreBuildErrors: false,
     },
     // Prevent these packages from being bundled for server-side rendering
-    serverExternalPackages: ['firebase-admin', '@prisma/client', '@react-pdf/renderer', 'sharp', 'unzipper', 'cheerio'],
+    serverExternalPackages: ['@prisma/client', '@react-pdf/renderer', 'sharp', 'unzipper', 'cheerio'],
     experimental: {
         serverActions: {
             allowedOrigins: ['tasm-skill.asf.bd', 'www.tasm-skill.asf.bd', '*.tasm-skill.asf.bd', 'localhost:3000'],

@@ -16,7 +16,10 @@ function getStorageBase(): string {
     return path.isAbsolute(configured) ? configured : path.resolve(process.cwd(), configured);
 }
 
-const BASE_DOMAIN = process.env.NEXT_PUBLIC_BASE_DOMAIN || "tasm-skill.asf.bd";
+// Server-side: prefer the runtime BASE_DOMAIN (NEXT_PUBLIC_* is baked in at
+// build time and would ignore the deployed environment). See lib/course.ts.
+const BASE_DOMAIN =
+    process.env.BASE_DOMAIN || process.env.NEXT_PUBLIC_BASE_DOMAIN || "tasm-skill.asf.bd";
 const MAX_FILE_SIZE_BYTES = parseInt(process.env.MAX_DEPLOY_SIZE_MB || "50") * 1024 * 1024;
 const MAX_ZIP_ENTRIES = 500;
 

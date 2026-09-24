@@ -7,6 +7,7 @@ import { COOKIES } from '@/lib/constants';
 import { PORTAL_OWNER_EMAIL } from '@/lib/permissions';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
+import { MINUTE, rateLimitByIp } from '@/lib/rateLimit';
 
 const loginSchema = z.object({
     email: z.string().email(),
@@ -62,6 +63,13 @@ export async function POST(req: NextRequest) {
                 { status: 429 }
             );
         }
+
+        // ...and per source IP as well. The per-email counter alone does
+        // nothing against password spraying, where one attacker tries a single
+        // common password against hundreds of different accounts.
+        const ipLimited = rateLimitByIp(req, 'login', 30, 15 * MINUTE,
+            'অনেক বেশি লগইন চেষ্টা হয়েছে। ১৫ মিনিট পর আবার চেষ্টা করুন।');
+        if (ipLimited) return ipLimited;
 
         // Middleware resolves the host to a course (or the reserved admin host)
         // and attaches these headers before the request reaches this route.

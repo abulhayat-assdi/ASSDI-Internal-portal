@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { COOKIES, APP_PATHS } from '@/lib/constants';
-import { verifyJWT, type JWTPayload } from '@/lib/auth';
+import { verifySessionToken, type JWTPayload } from '@/lib/auth';
 import { extractCourseSlug, isSuperAdminHost, getCourseBySlug, isCourseUsable } from '@/lib/course';
 
 // Node.js middleware (stable since Next 15.2) — required because course
@@ -25,7 +25,49 @@ const PUBLIC_API_ROUTES = [
     '/api/deployments/serve-site',
     '/api/student-form/',
     '/api/typing-exam/public/',
+    // File serving: these three authorize per-path themselves (see
+    // @/lib/fileAccess) because the `/uploads/:path*` rewrite in next.config
+    // reaches /api/uploads without an /api prefix on the incoming URL. Doing
+    // the check in one place keeps both entry points consistent; a blanket
+    // 401 here would instead break public branding and instructor photos.
+    '/api/uploads/',
+    '/api/file',
+    '/api/serve-image',
 ];
+
+/**
+ * Cross-origin write guard.
+ *
+ * Session cookies are SameSite=Lax, which stops other *sites* from posting
+ * with them — but every student's deployed mini-site lives on a subdomain of
+ * the same registrable domain, so it counts as same-site and its cookies do
+ * ride along. A student could therefore host a page that silently POSTs to
+ * /api/admin/... whenever a teacher visits it.
+ *
+ * So: for any state-changing API call, the Origin must be this exact host.
+ * Requests with no Origin at all are allowed through — non-browser clients
+ * (curl, the healthcheck) send none, and a browser always sends one on a
+ * cross-origin write.
+ */
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+function isCrossOriginWrite(request: NextRequest, host: string): boolean {
+    if (SAFE_METHODS.has(request.method)) return false;
+    if (!request.nextUrl.pathname.startsWith('/api')) return false;
+
+    // Sec-Fetch-Site is the precise signal where it exists (all current
+    // browsers); Origin is the fallback for the rest.
+    const site = request.headers.get('sec-fetch-site');
+    if (site) return site !== 'same-origin' && site !== 'none';
+
+    const origin = request.headers.get('origin');
+    if (!origin) return false;
+    try {
+        return new URL(origin).host !== host;
+    } catch {
+        return true;
+    }
+}
 
 const isPublicAssetPath = (pathname: string) =>
     pathname.startsWith('/_next') ||
@@ -50,11 +92,9 @@ function rewriteToDeploymentServe(request: NextRequest, subdomain: string, pathn
 }
 
 async function verifyAndGetPayload(token: string): Promise<JWTPayload | undefined> {
-    try {
-        return await verifyJWT(token);
-    } catch {
-        return undefined;
-    }
+    // Signature alone is not enough: verifySessionToken also rejects tokens
+    // belonging to deleted/disabled accounts and to revoked sessions.
+    return (await verifySessionToken(token)) ?? undefined;
 }
 
 function getSessionPayload(request: NextRequest): Promise<JWTPayload | undefined> | undefined {
@@ -212,6 +252,12 @@ async function courseGuard(request: NextRequest, course: { id: string; slug: str
 export async function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
     const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || '';
+
+    // 0. Reject cross-origin writes before any of the guards below run, so a
+    // sibling subdomain can't ride a teacher's cookie into a mutating route.
+    if (isCrossOriginWrite(request, host)) {
+        return NextResponse.json({ error: 'Cross-origin request blocked' }, { status: 403 });
+    }
 
     // 1. Reserved super-admin host (admin.<base domain>) — no course resolution.
     if (isSuperAdminHost(host)) {

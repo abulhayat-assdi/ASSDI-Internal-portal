@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin } from "@/lib/auth";
+import { HOUR, rateLimitByIp } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -43,6 +44,9 @@ export async function GET(req: NextRequest) {
 
 /** POST /api/feedback — public submission */
 export async function POST(req: NextRequest) {
+    const limited = rateLimitByIp(req, "feedback", 10, HOUR);
+    if (limited) return limited;
+
     try {
         const courseId = req.headers.get("x-course-id");
         if (!courseId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

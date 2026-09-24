@@ -8,6 +8,51 @@ import { getBatchClassCounts, getBatches, BatchItem } from "@/services/scheduleS
 import { getRoutineByBatch, BatchRoutine, uploadRoutineImage } from "@/services/routinesService";
 import ImageLightbox from "@/components/ui/ImageLightbox";
 import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
+
+/**
+ * Turns a worksheet into the row-objects shape XLSX.utils.sheet_to_json
+ * produced: the first non-empty row supplies the keys, later rows the values.
+ * Fully-empty rows are dropped, matching sheet_to_json's default.
+ */
+function worksheetToJson(worksheet: ExcelJS.Worksheet): Record<string, unknown>[] {
+    const cellText = (value: ExcelJS.CellValue): string => {
+        if (value === null || value === undefined) return "";
+        // Rich text and formula cells arrive as objects, not primitives.
+        if (typeof value === "object") {
+            if ("richText" in value) return value.richText.map((part) => part.text).join("");
+            if ("result" in value) return String(value.result ?? "");
+            if ("text" in value) return String(value.text ?? "");
+            if (value instanceof Date) return value.toISOString();
+        }
+        return String(value);
+    };
+
+    const rows: Record<string, unknown>[] = [];
+    let headers: string[] = [];
+
+    worksheet.eachRow({ includeEmpty: false }, (row) => {
+        // row.values is 1-indexed with a leading hole; drop it.
+        const values = (row.values as ExcelJS.CellValue[]).slice(1);
+
+        if (headers.length === 0) {
+            headers = values.map(cellText);
+            return;
+        }
+
+        const record: Record<string, unknown> = {};
+        let hasValue = false;
+        headers.forEach((header, i) => {
+            if (!header) return;
+            const text = cellText(values[i]);
+            if (text !== "") hasValue = true;
+            record[header] = text;
+        });
+        if (hasValue) rows.push(record);
+    });
+
+    return rows;
+}
 
 export default function SchedulePage() {
     const { loading: authLoading, hasPermission } = useAuth();
@@ -179,10 +224,14 @@ export default function SchedulePage() {
                     const data = evt.target?.result;
                     if (!data) throw new Error("Could not read file data");
 
-                    const workbook = XLSX.read(data, { type: "array" });
-                    const sheetName = workbook.SheetNames[0];
-                    const worksheet = workbook.Sheets[sheetName];
-                    const json = XLSX.utils.sheet_to_json<any>(worksheet);
+                    // exceljs, not XLSX.read: SheetJS's npm build is
+                    // abandoned at 0.18.5 with an unfixed prototype-pollution
+                    // advisory in exactly this parse path. Writing with it is
+                    // unaffected, so the export helpers below still use it.
+                    const workbook = new ExcelJS.Workbook();
+                    await workbook.xlsx.load(data as ArrayBuffer);
+                    const worksheet = workbook.worksheets[0];
+                    const json = worksheetToJson(worksheet);
 
                     if (json.length === 0) {
                         alert("Excel ফাইলটি খালি অথবা সঠিক ডাটা নেই।");

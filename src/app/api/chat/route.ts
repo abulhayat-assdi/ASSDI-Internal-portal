@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin } from "@/lib/auth";
+import { getClientIp } from "@/lib/rateLimit";
 
 // ============================================================
 // 🛡️ In-memory IP-based Rate Limiter
@@ -223,10 +224,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "AI Assistant is currently disabled." }, { status: 503 });
     }
     // ── Rate limiting ─────────────────────────────────────
-    const ip =
-        request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-        request.headers.get("x-real-ip") ||
-        "unknown";
+    // getClientIp reads the proxy chain from the right. The previous
+    // leftmost-of-x-forwarded-for read was attacker-controlled, so a single
+    // client could mint a fresh bucket per request and burn the Gemini quota.
+    const ip = getClientIp(request);
 
     if (isRateLimited(ip)) {
         return NextResponse.json(

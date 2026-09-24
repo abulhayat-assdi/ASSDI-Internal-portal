@@ -146,12 +146,23 @@ export async function GET(req: NextRequest) {
             }).catch((err) => console.error("[Serve-Site Analytics]", err));
         }
 
-        return new NextResponse(fileBuffer, {
-            headers: {
-                "Content-Type": contentType,
-                "Cache-Control": ext === ".html" ? "no-cache" : "public, max-age=86400",
-            },
-        });
+        // These files are student-authored and served from a subdomain of the
+        // portal's own registrable domain, so their script runs same-site
+        // relative to the session cookie. `sandbox allow-scripts` drops the
+        // page into an opaque origin: it can still run its own JS, but it can
+        // no longer read document.cookie, reach portal APIs with credentials,
+        // or submit forms at them.
+        const headers: Record<string, string> = {
+            "Content-Type": contentType,
+            "Cache-Control": ext === ".html" ? "no-cache" : "public, max-age=86400",
+            "X-Content-Type-Options": "nosniff",
+        };
+        if (ext === ".html" || ext === ".htm") {
+            headers["Content-Security-Policy"] =
+                "sandbox allow-scripts allow-forms allow-popups allow-modals allow-downloads";
+        }
+
+        return new NextResponse(fileBuffer, { headers });
     } catch (error) {
         console.error("[Serve-Site]", error);
         return new NextResponse("Internal Server Error", { status: 500 });

@@ -18,7 +18,7 @@ export interface RecordsDeps {
   store: StudentStore | null;
 }
 
-export async function handleGetRecords(
+async function handleGetRecords(
   gameSlug: string,
   deps: RecordsDeps,
 ): Promise<Response> {

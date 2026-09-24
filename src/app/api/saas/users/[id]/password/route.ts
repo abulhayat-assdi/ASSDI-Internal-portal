@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
-import { withCourseContext } from "@/lib/db";
+import { prisma, withCourseContext } from "@/lib/db";
 import { getSessionUser, isSuperAdmin } from "@/lib/auth";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
@@ -28,6 +28,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             return { error: "Cannot change another super-admin's password." as const, status: 403 };
         }
         await tx.user.update({ where: { id }, data: { passwordHash: await bcrypt.hash(parsed.data.newPassword, 12) } });
+        // Revoke any session still running on the old password.
+        await prisma.activeSession.deleteMany({ where: { userId: id } });
         if (target.courseId) {
             await tx.activityLog.create({
                 data: {

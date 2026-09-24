@@ -1,95 +1,69 @@
 import { NextRequest, NextResponse } from "next/server";
 import path from "path";
 import fs from "fs";
+import { getSessionUser } from "@/lib/auth";
+import {
+    authorizeFileRead,
+    contentTypeFor,
+    isPublicStoredPath,
+    normalizeStoredPath,
+    resolveStoredFile,
+} from "@/lib/fileAccess";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const MIME_TYPES: Record<string, string> = {
-    ".pdf":  "application/pdf",
-    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    ".doc":  "application/msword",
-    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    ".ppt":  "application/vnd.ms-powerpoint",
-    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    ".xls":  "application/vnd.ms-excel",
-    ".jpg":  "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".png":  "image/png",
-    ".gif":  "image/gif",
-    ".webp": "image/webp",
-    ".zip":  "application/zip",
-    ".mp4":  "video/mp4",
-    ".mp3":  "audio/mpeg",
-    ".txt":  "text/plain",
-    ".csv":  "text/csv",
-};
-
 /**
  * GET /api/uploads/[...path]
- * Serves uploaded files from public/uploads/ on the VPS filesystem.
- * This is needed because output:'standalone' doesn't reliably serve runtime-written files
- * from the public/ directory as static assets.
+ *
+ * Serves uploaded files from the storage volume (output:'standalone' doesn't
+ * reliably serve runtime-written public/ files as static assets).
+ *
+ * This route is reachable two ways — directly, and via the `/uploads/:path*`
+ * rewrite in next.config.ts — so it is listed as a public route in the
+ * middleware and does its own authorization here, once, for both entry
+ * points. Everything except the branding/CV-template prefixes needs a
+ * session; homework additionally needs to be the owner or their course staff.
  */
 export async function GET(
-    _req: NextRequest,
+    req: NextRequest,
     { params }: { params: Promise<{ path: string[] }> }
 ) {
     const { path: segments } = await params;
-    const relPath = segments.map(s => s.replace(/\.\./g, "")).join("/");
-
-    const configured = process.env.LOCAL_STORAGE_PATH || process.env.UPLOAD_DIR;
-    const storageBase = configured
-        ? (path.isAbsolute(configured) ? configured : path.resolve(process.cwd(), configured))
-        : path.resolve(process.cwd(), "public");
-
-    // Support serving files whether they were saved with or without the "uploads/" directory prefix on disk.
-    const relPathWithPrefix = `uploads/${relPath}`;
-    const baseDir = storageBase;
-    const fallbackBaseDir = path.resolve(process.cwd(), "public");
-
-    const candidates = [
-        { absolutePath: path.resolve(baseDir, relPathWithPrefix), allowedBase: baseDir },
-        { absolutePath: path.resolve(fallbackBaseDir, relPathWithPrefix), allowedBase: fallbackBaseDir },
-        { absolutePath: path.resolve(baseDir, relPath), allowedBase: baseDir },
-        { absolutePath: path.resolve(fallbackBaseDir, relPath), allowedBase: fallbackBaseDir },
-    ];
-
-    let matchedCandidate = null;
-    for (const c of candidates) {
-        if (fs.existsSync(c.absolutePath)) {
-            const stat = fs.statSync(c.absolutePath);
-            if (stat.isFile()) {
-                matchedCandidate = { ...c, stat };
-                break;
-            }
-        }
-    }
-
-    if (!matchedCandidate) {
+    const relPath = normalizeStoredPath(segments.join("/"));
+    if (!relPath) {
         return new NextResponse("Not Found", { status: 404 });
     }
 
-    const { absolutePath, allowedBase, stat } = matchedCandidate;
-
-    // Security: prevent path traversal
-    if (!absolutePath.startsWith(allowedBase + path.sep) && absolutePath !== allowedBase) {
-        return new NextResponse("Forbidden", { status: 403 });
+    // Only pay for the session lookup when the path actually needs one.
+    const user = isPublicStoredPath(relPath) ? null : await getSessionUser(req);
+    const decision = await authorizeFileRead(relPath, user);
+    if (!decision.allowed) {
+        return new NextResponse(decision.status === 401 ? "Unauthorized" : "Forbidden", {
+            status: decision.status,
+        });
     }
 
-    const ext = path.extname(absolutePath).toLowerCase();
-    const contentType = MIME_TYPES[ext] ?? "application/octet-stream";
-    const fileName = path.basename(absolutePath);
+    const file = resolveStoredFile(relPath);
+    if (!file) {
+        return new NextResponse("Not Found", { status: 404 });
+    }
 
-    const fileBuffer = fs.readFileSync(absolutePath);
+    const fileName = path.basename(file.absolutePath);
+    const fileBuffer = fs.readFileSync(file.absolutePath);
 
     return new NextResponse(fileBuffer, {
         status: 200,
         headers: {
-            "Content-Type":        contentType,
-            "Content-Length":      String(stat.size),
+            "Content-Type": contentTypeFor(file.absolutePath),
+            "Content-Length": String(file.size),
             "Content-Disposition": `inline; filename="${encodeURIComponent(fileName)}"`,
-            "Cache-Control":       "public, max-age=31536000, immutable",
+            // Private files must never be cached by a shared proxy — two
+            // students behind one school NAT would otherwise swap documents.
+            "Cache-Control": decision.isPublic
+                ? "public, max-age=31536000, immutable"
+                : "private, no-store",
+            "X-Content-Type-Options": "nosniff",
         },
     });
 }
