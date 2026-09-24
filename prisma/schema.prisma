@@ -162,6 +162,7 @@ model Course {
   studentNotices           StudentNotice[]
   homeworkSubmissions      HomeworkSubmission[]
   homeworkAssignments      HomeworkAssignment[]
+  homeworkAssignmentShares HomeworkAssignmentShare[]
   feedback                 Feedback[]
   contactMessages          ContactMessage[]
   chatThreads              ChatThread[]
@@ -517,13 +518,33 @@ model HomeworkAssignment {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course Course                   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  shares HomeworkAssignmentShare[]
 
   @@index([teacherUid])
   @@index([batchName])
   @@index([deadlineDate])
   @@index([courseId])
   @@map("homework_assignments")
+}
+
+model HomeworkAssignmentShare {
+  id                    String   @id @default(uuid())
+  courseId              String   @map("course_id")
+  assignmentId          String   @map("assignment_id")
+  sharedWithTeacherUid  String   @map("shared_with_teacher_uid")
+  sharedWithTeacherName String   @map("shared_with_teacher_name")
+  sharedByUid           String   @map("shared_by_uid")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  course     Course             @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  assignment HomeworkAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  @@unique([assignmentId, sharedWithTeacherUid])
+  @@index([assignmentId])
+  @@index([sharedWithTeacherUid])
+  @@index([courseId])
+  @@map("homework_assignment_shares")
 }
 
 // ============================================================

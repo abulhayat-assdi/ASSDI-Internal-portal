@@ -13,7 +13,13 @@ import {
     getHomeworkAssignmentsByTeacher,
     deleteHomeworkAssignment,
     updateHomeworkAssignment,
-    HomeworkAssignment
+    HomeworkAssignment,
+    getAssignmentShares,
+    shareAssignment,
+    unshareAssignment,
+    getShareableTeachers,
+    getSubmissionsByAssignment,
+    ShareableTeacher
 } from "@/services/homeworkService";
 import { getAllBatchInfo, getPublicUniqueBatches } from "@/services/batchInfoService";
 
@@ -52,6 +58,22 @@ export default function HomeworkViewPage() {
     // Search within folder
     const [searchQuery, setSearchQuery] = useState("");
 
+    // Folder list filters
+    const [folderTab, setFolderTab] = useState<"all" | "mine" | "sharedWithMe" | "sharedByMe">("all");
+    const [folderSearch, setFolderSearch] = useState("");
+    const [folderBatch, setFolderBatch] = useState("all");
+    const [folderSort, setFolderSort] = useState<"newest" | "deadline" | "submissions">("newest");
+
+    // Sharing states
+    const [shareTarget, setShareTarget] = useState<HomeworkAssignment | null>(null);
+    const [shareableTeachers, setShareableTeachers] = useState<ShareableTeacher[]>([]);
+    const [shareSearch, setShareSearch] = useState("");
+    const [shareSelected, setShareSelected] = useState<string[]>([]);
+    const [existingShares, setExistingShares] = useState<{ sharedWithTeacherUid: string; sharedWithTeacherName: string }[]>([]);
+    const [shareLoading, setShareLoading] = useState(false);
+    const [shareSaving, setShareSaving] = useState(false);
+    const [unsharingUid, setUnsharingUid] = useState<string | null>(null);
+
     const isAdmin = userProfile?.role === "admin" || userProfile?.role === "super_admin";
     const isTeacher = userProfile?.role === "teacher";
 
@@ -85,9 +107,10 @@ export default function HomeworkViewPage() {
                  }
             }
 
-            // Fetch assignments created by this teacher (Admin acts as a teacher here too)
+            // Fetch assignments created by this teacher + ones shared with them (Admin acts as a teacher here too)
+            let asgmts: HomeworkAssignment[] = [];
             if ((isTeacher || isAdmin) && userProfile.uid) {
-                const asgmts = await getHomeworkAssignmentsByTeacher(userProfile.uid);
+                asgmts = await getHomeworkAssignmentsByTeacher(userProfile.uid);
                 setAssignments(asgmts);
             }
 
@@ -95,6 +118,22 @@ export default function HomeworkViewPage() {
             let homeworkData: HomeworkSubmission[] = [];
             if ((isAdmin || isTeacher) && userProfile.displayName) {
                 homeworkData = await getHomeworkByTeacher(userProfile.displayName);
+            }
+            // Plus submissions inside folders shared with me (they carry the owner's teacherName)
+            if (userProfile.uid) {
+                const sharedAsgmts = asgmts.filter(a => a.isSharedWithMe);
+                if (sharedAsgmts.length > 0) {
+                    const results = await Promise.all(sharedAsgmts.map(a => getSubmissionsByAssignment(a.id)));
+                    const seen = new Set(homeworkData.map(h => h.id));
+                    for (const list of results) {
+                        for (const hw of list) {
+                            if (!seen.has(hw.id)) {
+                                seen.add(hw.id);
+                                homeworkData.push(hw);
+                            }
+                        }
+                    }
+                }
             }
             setHomework(homeworkData);
         } catch (err) {
@@ -216,6 +255,63 @@ export default function HomeworkViewPage() {
         }
     };
 
+    // ─── Sharing (owner only, view-only, no re-share) ───
+    const handleOpenShare = async (a: HomeworkAssignment) => {
+        setShareTarget(a);
+        setShareSearch("");
+        setShareSelected([]);
+        setShareLoading(true);
+        try {
+            const [shares, teachers] = await Promise.all([
+                getAssignmentShares(a.id),
+                getShareableTeachers(userProfile?.uid),
+            ]);
+            setExistingShares(shares);
+            setShareableTeachers(teachers);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setShareLoading(false);
+        }
+    };
+
+    const handleSaveShare = async () => {
+        if (!shareTarget || shareSelected.length === 0) return;
+        setShareSaving(true);
+        try {
+            const teachers = shareSelected
+                .map(uid => {
+                    const t = shareableTeachers.find(x => x.teacherUid === uid);
+                    return t ? { uid: t.teacherUid, name: t.teacherName } : null;
+                })
+                .filter((x): x is { uid: string; name: string } => x !== null);
+            const updated = await shareAssignment(shareTarget.id, teachers);
+            setExistingShares(updated);
+            setShareSelected([]);
+            fetchData(); // refresh sharedCount badges
+        } catch (err) {
+            console.error(err);
+            alert("Failed to share assignment.");
+        } finally {
+            setShareSaving(false);
+        }
+    };
+
+    const handleUnshare = async (teacherUid: string) => {
+        if (!shareTarget) return;
+        setUnsharingUid(teacherUid);
+        try {
+            await unshareAssignment(shareTarget.id, teacherUid);
+            setExistingShares(prev => prev.filter(s => s.sharedWithTeacherUid !== teacherUid));
+            fetchData();
+        } catch (err) {
+            console.error(err);
+            alert("Failed to remove share.");
+        } finally {
+            setUnsharingUid(null);
+        }
+    };
+
     // Derived states categorizations
     const getSubmissionsForAssignment = (assignment: HomeworkAssignment) => {
         return homework.filter(h => h.assignmentId === assignment.id || (!h.assignmentId && h.subject === assignment.title));
@@ -228,6 +324,29 @@ export default function HomeworkViewPage() {
              return !isMatched;
         });
     };
+
+    // Folder list: tab + search + batch + sort
+    const folderSearchTrimmed = folderSearch.trim().toLowerCase();
+    const visibleAssignments = assignments
+        .filter(a => {
+            if (folderTab === "mine") return !a.isSharedWithMe;
+            if (folderTab === "sharedWithMe") return !!a.isSharedWithMe;
+            if (folderTab === "sharedByMe") return !a.isSharedWithMe && (a.sharedCount ?? 0) > 0;
+            return true;
+        })
+        .filter(a => folderBatch === "all" || a.batchName === "all" || a.batchName === folderBatch)
+        .filter(a =>
+            !folderSearchTrimmed ||
+            a.title.toLowerCase().includes(folderSearchTrimmed) ||
+            a.teacherName.toLowerCase().includes(folderSearchTrimmed)
+        )
+        .sort((a, b) => {
+            if (folderSort === "deadline") return a.deadlineDate.localeCompare(b.deadlineDate);
+            if (folderSort === "submissions") return getSubmissionsForAssignment(b).length - getSubmissionsForAssignment(a).length;
+            return b.createdAt.localeCompare(a.createdAt);
+        });
+    const sharedWithMeCount = assignments.filter(a => a.isSharedWithMe).length;
+    const sharedByMeCount = assignments.filter(a => !a.isSharedWithMe && (a.sharedCount ?? 0) > 0).length;
 
     let folderSubmissionsList: HomeworkSubmission[] = [];
     if (selectedFolder === "other") {
@@ -295,9 +414,66 @@ export default function HomeworkViewPage() {
             {/* Folder Selection View */}
             {selectedFolder === null ? (
                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
-                    <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+                    <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
                         📁 Assignment Folders
                     </h2>
+
+                    {/* Filter tabs */}
+                    <div className="flex flex-wrap gap-2 mb-4">
+                        {([
+                            { key: "all", label: `All (${assignments.length})` },
+                            { key: "mine", label: `আমার ফোল্ডার (${assignments.length - sharedWithMeCount})` },
+                            { key: "sharedWithMe", label: `Shared With Me (${sharedWithMeCount})` },
+                            { key: "sharedByMe", label: `আমি শেয়ার করেছি (${sharedByMeCount})` },
+                        ] as const).map(t => (
+                            <button
+                                key={t.key}
+                                onClick={() => setFolderTab(t.key)}
+                                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all border ${folderTab === t.key
+                                    ? "bg-[#059669] text-white border-[#059669] shadow-sm"
+                                    : "bg-white text-gray-600 border-gray-200 hover:border-emerald-300"}`}
+                            >
+                                {t.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Search + batch + sort */}
+                    <div className="flex flex-col md:flex-row gap-3 mb-6">
+                        <div className="relative flex-1">
+                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                                </svg>
+                            </div>
+                            <input
+                                type="text"
+                                value={folderSearch}
+                                onChange={(e) => setFolderSearch(e.target.value)}
+                                placeholder="Search folders by title or owner..."
+                                className="w-full pl-11 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#059669] focus:border-[#059669] transition-colors"
+                            />
+                        </div>
+                        <select
+                            value={folderBatch}
+                            onChange={(e) => setFolderBatch(e.target.value)}
+                            className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#059669]"
+                        >
+                            <option value="all">All Batches</option>
+                            {allBatches.map(b => (
+                                <option key={b} value={b}>{b}</option>
+                            ))}
+                        </select>
+                        <select
+                            value={folderSort}
+                            onChange={(e) => setFolderSort(e.target.value as typeof folderSort)}
+                            className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#059669]"
+                        >
+                            <option value="newest">Newest first</option>
+                            <option value="deadline">Deadline closest</option>
+                            <option value="submissions">Most submissions</option>
+                        </select>
+                    </div>
                     
                     {assignments.length === 0 && getOtherSubmissions().length === 0 ? (
                         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">
@@ -305,11 +481,18 @@ export default function HomeworkViewPage() {
                             <h3 className="text-lg font-bold text-gray-900 mb-1">No Folders Found</h3>
                             <p className="text-gray-500 text-sm">Click "Create Assignment" to create a new folder.</p>
                         </div>
+                    ) : visibleAssignments.length === 0 && getOtherSubmissions().length === 0 ? (
+                        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">
+                            <div className="text-5xl mb-3">🔍</div>
+                            <h3 className="text-lg font-bold text-gray-900 mb-1">No Folders Match</h3>
+                            <p className="text-gray-500 text-sm">Try a different tab, search term or batch filter.</p>
+                        </div>
                     ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                             {/* Render Active Assignment Folders */}
-                            {assignments.map(a => {
+                            {visibleAssignments.map(a => {
                                 const subs = getSubmissionsForAssignment(a);
+                                const isShared = !!a.isSharedWithMe;
                                 return (
                                     <div 
                                         key={a.id}
@@ -326,6 +509,23 @@ export default function HomeworkViewPage() {
                                             </div>
                                             
                                             <h3 className="font-bold text-gray-900 line-clamp-2 leading-tight flex-1">{a.title}</h3>
+
+                                            {/* Ownership / sharing badge */}
+                                            <div className="mt-2 flex flex-wrap gap-1.5">
+                                                {isShared ? (
+                                                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                                                        🤝 Shared by {a.teacherName}
+                                                    </span>
+                                                ) : (a.sharedCount ?? 0) > 0 ? (
+                                                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700">
+                                                        📤 {a.sharedCount} teacher{(a.sharedCount ?? 0) > 1 ? "s" : ""} এর সাথে শেয়ারড
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+                                                        নিজের ফোল্ডার
+                                                    </span>
+                                                )}
+                                            </div>
                                             
                                             <div className="mt-4 pt-4 border-t border-gray-50 text-xs flex flex-col gap-1.5">
                                                 <div className="flex justify-between w-full">
@@ -345,20 +545,35 @@ export default function HomeworkViewPage() {
 
                                         {/* Action bar — NOT inside the clickable area */}
                                         <div className="flex border-t border-gray-100 bg-gray-50/80 divide-x divide-gray-100">
-                                            <button
-                                                onClick={() => handleOpenEdit(a)}
-                                                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-bold text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
-                                            >
-                                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                                                Edit
-                                            </button>
-                                            <button
-                                                onClick={() => setAssignmentToDelete(a)}
-                                                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-bold text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors"
-                                            >
-                                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                                Delete
-                                            </button>
+                                            {isShared ? (
+                                                <div className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-bold text-blue-500">
+                                                    👁️ View only
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <button
+                                                        onClick={() => handleOpenEdit(a)}
+                                                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-bold text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                                                    >
+                                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                                        Edit
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleOpenShare(a)}
+                                                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-bold text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                                    >
+                                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+                                                        Share{(a.sharedCount ?? 0) > 0 ? ` (${a.sharedCount})` : ""}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setAssignmentToDelete(a)}
+                                                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-bold text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                                    >
+                                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                        Delete
+                                                    </button>
+                                                </>
+                                            )}
                                         </div>
                                     </div>
                                 );
@@ -421,6 +636,16 @@ export default function HomeworkViewPage() {
                             </div>
                         </div>
                     </div>
+
+                    {/* Shared folder notice — view only */}
+                    {selectedFolder !== "other" && (selectedFolder as HomeworkAssignment)?.isSharedWithMe && (
+                        <div className="mb-6 px-5 py-3.5 bg-blue-50 border border-blue-200 rounded-2xl flex items-center gap-3 text-sm">
+                            <span className="text-xl">🤝</span>
+                            <p className="text-blue-800">
+                                <strong>{(selectedFolder as HomeworkAssignment).teacherName}</strong>-এর শেয়ার করা ফোল্ডার — আপনি শুধু দেখতে পারবেন (View only)। Edit / Delete / Share শুধু owner করতে পারবেন।
+                            </p>
+                        </div>
+                    )}
 
                     {/* Search Bar */}
                     <div className="relative mb-6">
@@ -546,13 +771,15 @@ export default function HomeworkViewPage() {
                                         <div className="flex-1"></div>
 
                                         <div className="pt-3 border-t border-gray-100 flex items-center justify-end gap-4 mt-auto shrink-0">
-                                            <button
-                                                onClick={() => handleDelete(hw)}
-                                                disabled={deletingId === hw.id}
-                                                className="text-xs font-bold text-red-500 hover:text-red-700 hover:underline transition-colors disabled:opacity-50"
-                                            >
-                                                {deletingId === hw.id ? "Deleting..." : "Delete"}
-                                            </button>
+                                            {!(selectedFolder !== "other" && (selectedFolder as HomeworkAssignment)?.isSharedWithMe) && (
+                                                <button
+                                                    onClick={() => handleDelete(hw)}
+                                                    disabled={deletingId === hw.id}
+                                                    className="text-xs font-bold text-red-500 hover:text-red-700 hover:underline transition-colors disabled:opacity-50"
+                                                >
+                                                    {deletingId === hw.id ? "Deleting..." : "Delete"}
+                                                </button>
+                                            )}
                                             <button
                                                 onClick={() => setViewingSubmission(hw)}
                                                 className="text-sm font-bold text-white bg-[#059669] hover:bg-[#047857] px-4 py-1.5 rounded-lg transition-colors shadow-sm whitespace-nowrap"
@@ -805,6 +1032,132 @@ export default function HomeworkViewPage() {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Share Assignment Modal (owner only) */}
+            {shareTarget && (
+                <div
+                    className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+                    onClick={() => !shareSaving && setShareTarget(null)}
+                >
+                    <div
+                        className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="bg-gradient-to-r from-blue-600 to-indigo-500 p-5 text-white flex justify-between items-center">
+                            <div className="min-w-0">
+                                <h3 className="no-gradient text-lg font-bold text-white">Share Folder 🤝</h3>
+                                <p className="text-blue-100 text-xs mt-0.5 truncate">“{shareTarget.title}” — selected teachers can view only</p>
+                            </div>
+                            <button
+                                onClick={() => setShareTarget(null)}
+                                disabled={shareSaving}
+                                className="text-white/80 hover:text-white text-2xl leading-none ml-3 shrink-0"
+                            >✕</button>
+                        </div>
+                        <div className="p-6 space-y-4 max-h-[65vh] overflow-y-auto">
+                            {shareLoading ? (
+                                <div className="flex items-center justify-center py-8">
+                                    <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                                </div>
+                            ) : (
+                                <>
+                                    {/* Already shared with */}
+                                    <div>
+                                        <label className="block text-xs font-black text-gray-400 uppercase tracking-wider mb-2">
+                                            Shared with ({existingShares.length})
+                                        </label>
+                                        {existingShares.length === 0 ? (
+                                            <p className="text-sm text-gray-400 italic">এখনো কারো সাথে শেয়ার করা হয়নি।</p>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                {existingShares.map(s => (
+                                                    <div key={s.sharedWithTeacherUid} className="flex items-center gap-2 bg-blue-50/60 border border-blue-100 rounded-xl px-3 py-2">
+                                                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-black shrink-0">
+                                                            {s.sharedWithTeacherName.charAt(0).toUpperCase()}
+                                                        </div>
+                                                        <span className="text-sm font-semibold text-gray-800 flex-1 truncate">{s.sharedWithTeacherName}</span>
+                                                        <button
+                                                            onClick={() => handleUnshare(s.sharedWithTeacherUid)}
+                                                            disabled={unsharingUid === s.sharedWithTeacherUid}
+                                                            className="text-xs font-bold text-red-500 hover:text-red-700 disabled:opacity-50 shrink-0"
+                                                        >
+                                                            {unsharingUid === s.sharedWithTeacherUid ? "Removing..." : "Remove"}
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Add more teachers */}
+                                    <div>
+                                        <label className="block text-xs font-black text-gray-400 uppercase tracking-wider mb-2">
+                                            Share with more teachers
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={shareSearch}
+                                            onChange={(e) => setShareSearch(e.target.value)}
+                                            placeholder="Search teacher by name..."
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none mb-2"
+                                        />
+                                        <div className="space-y-1.5 max-h-48 overflow-y-auto border border-gray-100 rounded-xl p-2 bg-gray-50/50">
+                                            {shareableTeachers
+                                                .filter(t =>
+                                                    !existingShares.some(s => s.sharedWithTeacherUid === t.teacherUid) &&
+                                                    (!shareSearch.trim() || t.teacherName.toLowerCase().includes(shareSearch.trim().toLowerCase()))
+                                                )
+                                                .map(t => (
+                                                    <label key={t.teacherUid} className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-white cursor-pointer transition-colors">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={shareSelected.includes(t.teacherUid)}
+                                                            onChange={(e) => setShareSelected(prev =>
+                                                                e.target.checked
+                                                                    ? [...prev, t.teacherUid]
+                                                                    : prev.filter(uid => uid !== t.teacherUid)
+                                                            )}
+                                                            className="w-4 h-4 accent-blue-600"
+                                                        />
+                                                        <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-black text-sm shrink-0">
+                                                            {t.teacherName.charAt(0).toUpperCase()}
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <p className="text-sm font-semibold text-gray-800 truncate">{t.teacherName}</p>
+                                                            {t.designation && <p className="text-xs text-gray-400 truncate">{t.designation}</p>}
+                                                        </div>
+                                                    </label>
+                                                ))}
+                                            {shareableTeachers.filter(t =>
+                                                !existingShares.some(s => s.sharedWithTeacherUid === t.teacherUid) &&
+                                                (!shareSearch.trim() || t.teacherName.toLowerCase().includes(shareSearch.trim().toLowerCase()))
+                                            ).length === 0 && (
+                                                <p className="text-sm text-gray-400 italic text-center py-3">No more teachers found.</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                        <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-gray-50">
+                            <button
+                                onClick={() => setShareTarget(null)}
+                                disabled={shareSaving}
+                                className="px-4 py-2 border border-gray-300 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-100"
+                            >
+                                Close
+                            </button>
+                            <button
+                                onClick={handleSaveShare}
+                                disabled={shareSaving || shareLoading || shareSelected.length === 0}
+                                className="px-5 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold shadow-sm hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                            >
+                                {shareSaving ? "Sharing..." : `Share${shareSelected.length > 0 ? ` (${shareSelected.length})` : ""}`}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

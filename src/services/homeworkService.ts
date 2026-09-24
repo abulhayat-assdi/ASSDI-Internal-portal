@@ -38,6 +38,27 @@ export interface HomeworkAssignment {
     deadlineDate: string;
     batchName: string;
     createdAt: string;
+    /** true when this folder is shared with the viewer (not owned by them) */
+    isSharedWithMe?: boolean;
+    /** number of teachers this folder is shared with (owner view) */
+    sharedCount?: number;
+    sharedWith?: HomeworkAssignmentShare[];
+}
+
+export interface HomeworkAssignmentShare {
+    id: string;
+    assignmentId: string;
+    sharedWithTeacherUid: string;
+    sharedWithTeacherName: string;
+    sharedByUid: string;
+    createdAt: string;
+}
+
+export interface ShareableTeacher {
+    teacherUid: string;
+    teacherName: string;
+    designation?: string;
+    profileImageUrl?: string | null;
 }
 
 // ─── Assignments ───────────────────────────────────────────
@@ -68,6 +89,47 @@ export const addAssignment = async (assignment: Omit<HomeworkAssignment, "id" | 
 export const deleteAssignment = async (id: string): Promise<void> => {
     const res = await fetch(`/api/homework/assignments?id=${encodeURIComponent(id)}`, { method: "DELETE" });
     if (!res.ok) throw new Error("Failed to delete assignment.");
+};
+
+// ─── Sharing (view-only, owner-managed) ───────────────────────
+
+export const getAssignmentShares = async (assignmentId: string): Promise<HomeworkAssignmentShare[]> => {
+    const res = await fetch(`/api/homework/assignments/share?assignmentId=${encodeURIComponent(assignmentId)}`, { cache: "no-store" });
+    if (!res.ok) return [];
+    return res.json();
+};
+
+export const shareAssignment = async (assignmentId: string, teachers: { uid: string; name: string }[]): Promise<HomeworkAssignmentShare[]> => {
+    const res = await fetch("/api/homework/assignments/share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assignmentId, teachers }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to share assignment.");
+    return data;
+};
+
+export const unshareAssignment = async (assignmentId: string, teacherUid: string): Promise<void> => {
+    const res = await fetch(
+        `/api/homework/assignments/share?assignmentId=${encodeURIComponent(assignmentId)}&teacherUid=${encodeURIComponent(teacherUid)}`,
+        { method: "DELETE" }
+    );
+    if (!res.ok) throw new Error("Failed to remove share.");
+};
+
+/** Teachers in this course who can be shared with (excludesUid = the owner) */
+export const getShareableTeachers = async (excludeUid?: string): Promise<ShareableTeacher[]> => {
+    const res = await fetch("/api/resources/teachers", { cache: "no-store" });
+    if (!res.ok) return [];
+    const data: ShareableTeacher[] = await res.json();
+    return excludeUid ? data.filter((t) => t.teacherUid !== excludeUid) : data;
+};
+
+export const getSubmissionsByAssignment = async (assignmentId: string): Promise<HomeworkSubmission[]> => {
+    const res = await fetch(`/api/homework?assignmentId=${encodeURIComponent(assignmentId)}`, { cache: "no-store" });
+    if (!res.ok) return [];
+    return res.json();
 };
 
 // ─── Submissions ───────────────────────────────────────────

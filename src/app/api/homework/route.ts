@@ -5,7 +5,7 @@ import { getSessionUser, isTeacherOrAdmin } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-/** GET /api/homework?teacherName=...&studentUid=...&batchName=...&all=true */
+/** GET /api/homework?teacherName=...&studentUid=...&batchName=...&assignmentId=...&all=true */
 export async function GET(req: NextRequest) {
     const user = await getSessionUser(req);
     if (!user || !user.courseId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -15,6 +15,7 @@ export async function GET(req: NextRequest) {
     const teacherName = searchParams.get("teacherName");
     const studentUid  = searchParams.get("studentUid");
     const batchName   = searchParams.get("batchName");
+    const assignmentId = searchParams.get("assignmentId");
     const all         = searchParams.get("all") === "true";
 
     const where: Record<string, unknown> = { courseId, deletedAt: null };
@@ -27,6 +28,37 @@ export async function GET(req: NextRequest) {
     }
 
     try {
+        // Assignment-scoped view: allowed for the owner, a teacher the folder
+        // is shared with (view-only), or an admin. Used for shared folders,
+        // whose submissions carry the owner's teacherName.
+        if (assignmentId) {
+            if (!isTeacherOrAdmin(user)) {
+                return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+            }
+            return await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+                const assignment = await tx.homeworkAssignment.findUnique({
+                    where: { id: assignmentId, courseId },
+                    select: { id: true, teacherUid: true },
+                });
+                if (!assignment) return NextResponse.json({ error: "Not found" }, { status: 404 });
+                const isOwner = assignment.teacherUid === user.id;
+                const isAdminUser = user.role === "admin" || user.role === "super_admin";
+                const isShared = !isOwner && !isAdminUser
+                    ? (await tx.homeworkAssignmentShare.count({
+                        where: { assignmentId, courseId, sharedWithTeacherUid: user.id },
+                    })) > 0
+                    : true;
+                if (!isOwner && !isAdminUser && !isShared) {
+                    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+                }
+                const submissions = await tx.homeworkSubmission.findMany({
+                    where: { courseId, assignmentId, deletedAt: null },
+                    orderBy: { submittedAt: "desc" },
+                });
+                return NextResponse.json(submissions);
+            });
+        }
+
         const submissions = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
             tx.homeworkSubmission.findMany({
                 where,
