@@ -7,6 +7,7 @@ import { createSupabaseAttemptStore } from "@/lib/typing-game/server/attempt-sto
 import { userDbClient } from "@/lib/typing-game/server/auth";
 import { PlayExperience } from "@/components/typing-game/play-experience";
 import { buildPlayStrings } from "@/components/typing-game/play-strings";
+import { buildResultStrings } from "@/components/typing-game/result-strings";
 import {
   asDifficulty,
   isRealMechanic,
@@ -86,7 +87,7 @@ export default async function PlayPage(
           }}
           snap={null}
           isPB={false}
-          strings={resultStrings(result)}
+          strings={buildResultStrings(result)}
           gameHref={links.gameHref}
           mapHref={links.mapHref}
           dashboardHref={links.dashboardHref}
@@ -117,7 +118,7 @@ export default async function PlayPage(
       mechanicRuntime={mechanicRuntime}
       strings={{
         play: buildPlayStrings(play),
-        result: resultStrings(result),
+        result: buildResultStrings(result),
       }}
       gameHref={links.gameHref}
       mapHref={links.mapHref}
@@ -126,29 +127,3 @@ export default async function PlayPage(
   );
 }
 
-function resultStrings(t: (key: keyof ResultStrings, vars?: Vars) => string) {
-  return {
-    title: t("title"),
-    subtitle: t("subtitle"),
-    wpm: t("wpm"),
-    accuracy: t("accuracy"),
-    score: t("score"),
-    duration: t("duration"),
-    errors: t("errors"),
-    corrected: t("corrected"),
-    personalBest: t("personalBest"),
-    xpEarned: t("xpEarned"),
-    coinsEarned: t("coinsEarned"),
-    levelUp: t("levelUp"),
-    badgeEarned: t("badgeEarned"),
-    streakKept: t("streakKept"),
-    unlocked: t("unlocked"),
-    playAgain: t("playAgain"),
-    backToMap: t("backToMap"),
-    continueAdventure: t("continueAdventure"),
-    rejectedTitle: t("rejectedTitle"),
-    rejectedDescription: t("rejectedDescription"),
-    expiredTitle: t("expiredTitle"),
-    expiredDescription: t("expiredDescription"),
-  };
-}

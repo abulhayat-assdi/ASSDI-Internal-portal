@@ -11,6 +11,7 @@ import {
   type ValidatedResult,
 } from "./game-player";
 import { ResultScreen, type ResultStrings } from "./result-screen";
+import { mechanicEndMessage } from "./mechanics/mechanic-stage";
 
 export interface PlayExperienceStrings {
   play: PlayStrings;
@@ -72,6 +73,13 @@ export function PlayExperience({
         mapHref={mapHref}
         dashboardHref={dashboardHref}
         visual={visual}
+        mechanicNote={
+          // Localised here rather than in ResultScreen: the wording lives in
+          // the "play" namespace, which this component already holds.
+          done.result.mechanic
+            ? mechanicEndMessage(done.result.mechanic, strings.play.stage)
+            : null
+        }
       />
     );
   }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { animate, motion, useReducedMotion, type Variants } from "framer-motion";
-import { Award, Flame, Sparkles, Star, Trophy } from "lucide-react";
+import { Award, Flame, Sparkles, Star, Swords, Trophy } from "lucide-react";
 import {
   AchievementBadge,
   Badge,
@@ -37,6 +37,11 @@ export interface ResultStrings {
   rejectedDescription: string;
   expiredTitle: string;
   expiredDescription: string;
+  mechanicTitle: string;
+  mechanicCleared: string;
+  mechanicNotCleared: string;
+  mechanicUnits: string;
+  mechanicLivesLost: string;
 }
 
 const containerVariants: Variants = {
@@ -95,6 +100,7 @@ export function ResultScreen({
   recoveryHref,
   recoveryLabel,
   visual,
+  mechanicNote,
 }: {
   result: ValidatedResult;
   snap: SubmitSnapshot | null;
@@ -111,6 +117,12 @@ export function ResultScreen({
   recoveryLabel?: string | null;
   /** Game's theme.visual — reskins the hero accent via the shared CSS. */
   visual?: string;
+  /**
+   * Why the mechanic run ended, already localised by the caller (which
+   * holds the "play" namespace these strings live in). Null when the run
+   * simply finished, or for the shell mechanics.
+   */
+  mechanicNote?: string | null;
 }) {
   const p = result.progression;
   const seconds = snap ? Math.max(0, Math.round(snap.elapsedMs / 1000)) : null;
@@ -200,6 +212,37 @@ export function ResultScreen({
           <StatCard label={s.duration} value={`${String(seconds)}s`} />
           <StatCard label={s.errors} value={snap.incorrectChars} />
           <StatCard label={s.corrected} value={snap.corrections} />
+        </motion.div>
+      ) : null}
+
+      {result.mechanic ? (
+        <motion.div variants={reduceMotion ? undefined : itemVariants}>
+          <Card>
+            <CardContent>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Swords className="h-5 w-5" aria-hidden="true" style={{ color: "var(--tap-accent-from)" }} />
+                  <span className="font-semibold">{s.mechanicTitle}</span>
+                </div>
+                <Badge tone={result.mechanic.cleared ? "success" : "warning"}>
+                  {result.mechanic.cleared ? s.mechanicCleared : s.mechanicNotCleared}
+                </Badge>
+              </div>
+              {mechanicNote ? (
+                <p className="mt-2 text-sm text-ink-muted">{mechanicNote}</p>
+              ) : null}
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <StatCard
+                  label={s.mechanicUnits}
+                  value={`${String(result.mechanic.units.cleared)}/${String(result.mechanic.units.total)}`}
+                />
+                <StatCard
+                  label={s.mechanicLivesLost}
+                  value={`${String(result.mechanic.lives.lost)}/${String(result.mechanic.lives.max)}`}
+                />
+              </div>
+            </CardContent>
+          </Card>
         </motion.div>
       ) : null}
 

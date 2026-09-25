@@ -173,23 +173,17 @@ model Course {
   resources                Resource[]
   moduleFolders            ModuleFolder[]
   moduleResources          ModuleResource[]
-  posts                    Post[]
-  blogComments             BlogComment[]
   examResults              ExamResult[]
   routines                 Routine[]
   policies                 Policy[]
   cmsContent               CmsContent[]
-  successStories           SuccessStory[]
-  videoTestimonials        VideoTestimonial[]
   cvDrafts                 CvDraft[]
   cvVersions               CvVersion[]
   studentUpdateRequests    StudentUpdateRequest[]
   studentExamBatchRecords  StudentExamBatchRecord[]
   courseModules            CourseModule[]
-  heroImages               HeroImage[]
   batchForms               BatchForm[]
   studentFormSubmissions   StudentFormSubmission[]
-  videoStories             VideoStory[]
   batchClassCounts         BatchClassCount[]
   studentLeaveRequests     StudentLeaveRequest[]
   deployments              Deployment[]
@@ -800,50 +794,7 @@ model ModuleResource {
 // BLOG
 // ============================================================
 
-model Post {
-  id              String     @id @default(uuid())
-  courseId        String     @map("course_id")
-  title           String
-  slug            String
-  excerpt         String     @default("")
-  featuredImage   String?    @map("featured_image")
-  content         String
-  category        String?
-  metaTitle       String?    @map("meta_title")
-  metaDescription String?    @map("meta_description")
-  keywords        String?
-  status          PostStatus @default(draft)
-  publishedAt     DateTime?  @map("published_at")
-  createdAt       DateTime   @default(now()) @map("created_at")
-  updatedAt       DateTime   @updatedAt @map("updated_at")
 
-  course   Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  comments BlogComment[]
-
-  @@unique([courseId, slug])
-  @@index([status])
-  @@index([slug])
-  @@index([createdAt])
-  @@index([courseId])
-  @@map("posts")
-}
-
-model BlogComment {
-  id        String   @id @default(uuid())
-  courseId  String   @map("course_id")
-  postId    String   @map("post_id")
-  name      String
-  email     String?
-  content   String
-  createdAt DateTime @default(now()) @map("created_at")
-
-  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
-
-  @@index([postId])
-  @@index([courseId])
-  @@map("blog_comments")
-}
 
 // ============================================================
 // EXAM RESULTS
@@ -948,53 +899,11 @@ model CmsContent {
 // SUCCESS STORIES
 // ============================================================
 
-model SuccessStory {
-  id            String   @id @default(uuid())
-  courseId      String   @map("course_id")
-  name          String
-  batch         String
-  role          String   @default("")
-  company       String   @default("")
-  story         String
-  imageUrl      String?  @map("image_url")
-  isPublished   Boolean  @default(false) @map("is_published")
-  rating        Int      @default(5)
-  order         Int      @default(0)
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-
-  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
-
-  @@index([isPublished])
-  @@index([courseId])
-  @@map("success_stories")
-}
 
 // ============================================================
 // VIDEO TESTIMONIALS
 // ============================================================
 
-model VideoTestimonial {
-  id          String   @id @default(uuid())
-  courseId    String   @map("course_id")
-  title       String
-  videoUrl    String   @map("video_url")
-  videoId     String   @default("") @map("video_id")
-  studentName String   @default("") @map("student_name")
-  thumbnailUrl String? @map("thumbnail_url")
-  description String?
-  isPublished Boolean  @default(false) @map("is_published")
-  order       Int      @default(0)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
-
-  @@index([isPublished])
-  @@index([order])
-  @@index([courseId])
-  @@map("video_testimonials")
-}
 
 // ============================================================
 // CV BUILDER
@@ -1174,24 +1083,6 @@ model CourseModule {
 // HERO IMAGES (Homepage background slider)
 // ============================================================
 
-model HeroImage {
-  id          String   @id @default(uuid())
-  courseId    String   @map("course_id")
-  url         String
-  storagePath String   @map("storage_path")
-  label       String?
-  order       Int      @default(0)
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
-
-  @@index([order])
-  @@index([isActive])
-  @@index([courseId])
-  @@map("hero_images")
-}
 
 // ============================================================
 // BATCH FORMS (Student data collection forms)
@@ -1262,25 +1153,6 @@ model StudentFormSubmission {
 // VIDEO STORIES (Success Stories - YouTube links)
 // ============================================================
 
-model VideoStory {
-  id          String   @id @default(uuid())
-  courseId    String   @map("course_id")
-  youtubeUrl  String   @map("youtube_url")
-  videoId     String   @map("video_id")
-  title       String
-  label       String   @default("")
-  studentName String   @map("student_name")
-  batch       String   @default("")
-  order       Int      @default(0)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
-
-  @@index([order])
-  @@index([courseId])
-  @@map("video_stories")
-}
 
 // ============================================================
 // BATCH CLASS COUNTS

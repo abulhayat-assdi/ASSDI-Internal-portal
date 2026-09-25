@@ -20,5 +20,10 @@
   "rejectedTitle": "রান গণনা হয়নি",
   "rejectedDescription": "আমাদের যাচাইয়ে এই রানটি চিহ্নিত হয়েছে ({reason})। সবার জন্য স্কোর সৎ থাকে।",
   "expiredTitle": "সময় শেষ",
-  "expiredDescription": "জমা দেওয়ার আগেই প্রচেষ্টার সময় শেষ হয়ে গেছে।"
+  "expiredDescription": "জমা দেওয়ার আগেই প্রচেষ্টার সময় শেষ হয়ে গেছে।",
+  "mechanicTitle": "মেকানিক",
+  "mechanicCleared": "সফল",
+  "mechanicNotCleared": "সফল হয়নি",
+  "mechanicUnits": "সম্পন্ন ইউনিট",
+  "mechanicLivesLost": "হারানো লাইফ"
 }

@@ -20,5 +20,10 @@
   "rejectedTitle": "Run not counted",
   "rejectedDescription": "Our checks flagged this run ({reason}). Scores stay honest for everyone.",
   "expiredTitle": "Time expired",
-  "expiredDescription": "The attempt window closed before submission."
+  "expiredDescription": "The attempt window closed before submission.",
+  "mechanicTitle": "Mechanic",
+  "mechanicCleared": "Cleared",
+  "mechanicNotCleared": "Not cleared",
+  "mechanicUnits": "Units cleared",
+  "mechanicLivesLost": "Lives lost"
 }

@@ -58,6 +58,7 @@ serviceAccountKey.json
 build-log.txt
 lint_output.txt
 tsconfig.tsbuildinfo
+*.bak
 
 # Local backup artifacts
 /backups/

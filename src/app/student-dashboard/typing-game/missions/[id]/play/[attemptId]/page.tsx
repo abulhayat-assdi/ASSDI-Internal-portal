@@ -8,6 +8,7 @@ import {
 } from "@/components/typing-game/custom-mission-play";
 import type { ResultStrings } from "@/components/typing-game/result-screen";
 import { buildPlayStrings } from "@/components/typing-game/play-strings";
+import { buildResultStrings } from "@/components/typing-game/result-strings";
 import type { MissionsTranslator } from "@/lib/typing-game/custom-mission-ui";
 
 /**
@@ -52,7 +53,7 @@ export default async function CustomMissionPlayPage(props: {
       repetitionsTarget={mission.repetitionsTarget}
       strings={{
         play: buildPlayStrings(play),
-        result: { ...resultStrings(result), playAgain: missions("retryMission") },
+        result: { ...buildResultStrings(result), playAgain: missions("retryMission") },
         mission: missionStrings(missions),
       }}
       missionHref={missionHref}
@@ -64,32 +65,6 @@ export default async function CustomMissionPlayPage(props: {
 }
 
 
-function resultStrings(t: (key: keyof ResultStrings, vars?: Vars) => string): ResultStrings {
-  return {
-    title: t("title"),
-    subtitle: t("subtitle"),
-    wpm: t("wpm"),
-    accuracy: t("accuracy"),
-    score: t("score"),
-    duration: t("duration"),
-    errors: t("errors"),
-    corrected: t("corrected"),
-    personalBest: t("personalBest"),
-    xpEarned: t("xpEarned"),
-    coinsEarned: t("coinsEarned"),
-    levelUp: t("levelUp"),
-    badgeEarned: t("badgeEarned"),
-    streakKept: t("streakKept"),
-    unlocked: t("unlocked"),
-    playAgain: t("playAgain"),
-    backToMap: t("backToMap"),
-    continueAdventure: t("continueAdventure"),
-    rejectedTitle: t("rejectedTitle"),
-    rejectedDescription: t("rejectedDescription"),
-    expiredTitle: t("expiredTitle"),
-    expiredDescription: t("expiredDescription"),
-  };
-}
 
 function missionStrings(t: MissionsTranslator): CustomMissionStrings {
   return {

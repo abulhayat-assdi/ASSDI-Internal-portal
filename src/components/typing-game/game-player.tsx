@@ -66,6 +66,12 @@ export interface ValidatedResult {
   effectiveWpm: number;
   progression: ProgressionSummary | null;
   /**
+   * The SERVER's mechanic replay, not the browser's. Present only for the
+   * ten mechanics with real rules, and display-only — it never contributed
+   * to score, accuracy or WPM above.
+   */
+  mechanic?: MechanicOutcome | null;
+  /**
    * Custom-mission-only fields (undefined for catalog games): whether THIS
    * attempt met the mission's own accuracy/WPM/time gates, and whether the
    * mission's completion rule (once/timed/repetitions) is now satisfied.
@@ -442,6 +448,7 @@ export function GamePlayer({
         effectiveWpm?: number;
         reason?: string | null;
         progression?: ValidatedResult["progression"];
+        mechanic?: MechanicOutcome | null;
         qualifies?: boolean;
         completed?: boolean;
         newlyCompleted?: boolean;
@@ -455,6 +462,7 @@ export function GamePlayer({
             accuracy: body.accuracy ?? 0,
             effectiveWpm: body.effectiveWpm ?? 0,
             progression: body.progression ?? null,
+            mechanic: body.mechanic ?? null,
             qualifies: body.qualifies,
             completed: body.completed,
             newlyCompleted: body.newlyCompleted,
