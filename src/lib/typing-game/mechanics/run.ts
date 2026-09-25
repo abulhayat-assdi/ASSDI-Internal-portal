@@ -137,39 +137,53 @@ function runWithLives(
   return out;
 }
 
+/**
+ * ms by which a unit must be finished: a head start, plus the time the whole
+ * prompt up to and including that unit should take at the target pace. Keyed
+ * on characters, so a one-letter target is not handed a whole word's budget.
+ */
+function deadlineFor(input: MechanicRunInput, run: UnitRun): number {
+  const { graceMs, targetCharsPerSec } = input.params;
+  return graceMs + (run.unit.end / targetCharsPerSec) * 1000;
+}
+
 function runFallingCatch(input: MechanicRunInput, runs: UnitRun[]): MechanicOutcome {
-  const { spawnIntervalMs, fallMs } = input.params;
   const out = runWithLives(
     input,
     runs,
-    (run, i) => {
+    (run) => {
       if (!run.correct) return true;
-      const deadline = i * spawnIntervalMs + fallMs;
-      return (run.completedAt ?? Infinity) > deadline;
+      return (run.completedAt ?? Infinity) > deadlineFor(input, run);
     },
     { requireAllUnits: false },
   );
-  out.detail = { spawnIntervalMs, fallMs, caught: out.units.cleared };
+  out.detail = {
+    targetCharsPerSec: input.params.targetCharsPerSec,
+    caught: out.units.cleared,
+  };
   return out;
 }
 
 function runTargetPress(input: MechanicRunInput, runs: UnitRun[]): MechanicOutcome {
-  // Reaction window measured from the previous target being cleared, so a
-  // slow start never cascades into every later target being "late".
-  const window = input.params.fallMs;
+  // Reaction window is measured from the previous target being cleared, so a
+  // slow start never cascades into every later target counting as late. The
+  // window itself scales with how many characters the target actually is.
+  const { targetCharsPerSec, reactionGraceMs } = input.params;
   let previousAt = 0;
   const out = runWithLives(
     input,
     runs,
     (run) => {
       const at = run.completedAt ?? Infinity;
+      const chars = run.unit.end - run.unit.start;
+      const window = reactionGraceMs + (chars / targetCharsPerSec) * 1000;
       const late = at - previousAt > window;
       if (Number.isFinite(at)) previousAt = at;
       return !run.correct || late;
     },
     { requireAllUnits: false },
   );
-  out.detail = { reactionWindowMs: window, hits: out.units.cleared };
+  out.detail = { reactionGraceMs, hits: out.units.cleared };
   return out;
 }
 
@@ -288,7 +302,7 @@ function runDefenseShield(input: MechanicRunInput, runs: UnitRun[]): MechanicOut
 
 function runRaceCheckpoints(input: MechanicRunInput, runs: UnitRun[]): MechanicOutcome {
   const out = base(input);
-  const { unitsPerCheckpoint, checkpointMs } = input.params;
+  const { unitsPerCheckpoint } = input.params;
   const events: MechanicEvent[] = [];
   let passed = 0;
 
@@ -299,13 +313,13 @@ function runRaceCheckpoints(input: MechanicRunInput, runs: UnitRun[]): MechanicO
     const at = run.completedAt ?? Infinity;
     const segment = runs.slice((c - 1) * unitsPerCheckpoint, gateIdx + 1);
     const segmentClean = segment.every((r) => r.correct);
-    if (at > c * checkpointMs || !segmentClean) {
+    if (at > deadlineFor(input, run) || !segmentClean) {
       out.endReason = "checkpoint-missed";
       out.endedAtChar = run.unit.end;
       out.units.cleared = runs.slice(0, gateIdx + 1).filter((r) => r.correct).length;
       out.units.missed = segment.filter((r) => r.reached && !r.correct).length || 1;
       out.events = events;
-      out.detail = { checkpointsPassed: passed, checkpointMs, missedAt: c };
+      out.detail = { checkpointsPassed: passed, missedAt: c };
       return out;
     }
     passed += 1;
@@ -317,7 +331,6 @@ function runRaceCheckpoints(input: MechanicRunInput, runs: UnitRun[]): MechanicO
   out.events = events;
   out.detail = {
     checkpointsPassed: passed,
-    checkpointMs,
     checkpointsTotal: Math.floor(runs.length / unitsPerCheckpoint),
   };
   if (!finishedPrompt(input)) return out;

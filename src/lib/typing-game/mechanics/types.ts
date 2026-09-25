@@ -73,16 +73,24 @@ export interface MechanicUnit {
 export interface MechanicParams {
   /** Misses tolerated before the run ends. */
   lives: number;
-  /** ms between unit spawns (falling-catch, survival-waves, endless). */
-  spawnIntervalMs: number;
-  /** ms a spawned unit stays catchable (falling-catch). */
-  fallMs: number;
+  /**
+   * The pace a run is timed against, in expected characters per second.
+   *
+   * Timing budgets are per-CHARACTER, not per-unit: a one-character target
+   * must not get the same allowance as a five-character word. Budgeting per
+   * unit made every timing gate inert on the letter games — a live run
+   * measured that a player had to type slower than 2.5 seconds per character
+   * before falling-catch would register a single miss.
+   */
+  targetCharsPerSec: number;
+  /** Fixed head start before any timing gate starts to bite, ms. */
+  graceMs: number;
+  /** Extra allowance on one target's reaction window, ms. */
+  reactionGraceMs: number;
   /** Units per wave (survival-waves, endless). */
   waveSize: number;
   /** Units between checkpoints (race-checkpoints). */
   unitsPerCheckpoint: number;
-  /** ms allowed per checkpoint segment (race-checkpoints). */
-  checkpointMs: number;
   /** Pursuer speed in expected-chars per second (escape-run). */
   chaserCharsPerSec: number;
   /** Chars of head start before the pursuer moves (escape-run). */

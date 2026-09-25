@@ -95,6 +95,20 @@ describe("falling-catch", () => {
     expect(out.units.missed).toBeGreaterThan(0);
   });
 
+  it("times single-character units by character, not by unit index", () => {
+    // Regression: budgets used to be per-unit, so a 20-letter prompt gave the
+    // last letter ~52s. A live run at 900ms/char (13 WPM) cleared it with
+    // zero misses — the timing gate was inert on every letter game. A
+    // one-character unit must be held to a one-character budget.
+    const slow = runMechanic(input("falling-catch", "asdfjkl;asdfjkl;asdf", "asdfjkl;asdfjkl;asdf", 900));
+    expect(slow.units.missed).toBeGreaterThan(0);
+
+    // A learner at roughly the beginner target pace still clears it.
+    const steady = runMechanic(input("falling-catch", "asdfjkl;asdfjkl;asdf", "asdfjkl;asdfjkl;asdf", 300));
+    expect(steady.units.missed).toBe(0);
+    expect(steady.cleared).toBe(true);
+  });
+
   it("ends the run when lives run out", () => {
     const out = runMechanic(input("falling-catch", "aa bb cc dd ee", "xx yy zz ww vv", 50));
     expect(out.endReason).toBe("out-of-lives");
