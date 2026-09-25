@@ -1,6 +1,6 @@
 import { withCourseContext } from './db';
 import { isFeatureEnabled } from './features';
-import { isMailConfigured, paragraphs, renderEmail, sendBulkMail } from './mailer';
+import { isMailConfigured, paragraphs, renderEmail, sendBulkMail, sendMail } from './mailer';
 
 /**
  * Email notifications for things students would otherwise only discover by
@@ -184,6 +184,116 @@ export function notifyStudentsOfAssignment(assignment: {
                 ),
                 ctaLabel: 'হোমওয়ার্ক দেখুন',
                 ctaUrl: portalUrl(course.slug, '/student-dashboard/homework'),
+                footerNote: 'আপনি এই কোর্সের ছাত্র হিসেবে এই বার্তাটি পেয়েছেন।',
+            }),
+        }))
+    );
+}
+
+/** One student's address, from their login or the roster, whichever exists. */
+async function studentEmail(courseId: string, batchName: string, roll: string): Promise<string | null> {
+    return withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+        const [user, rosterRow] = await Promise.all([
+            tx.user.findFirst({
+                where: { courseId, role: 'student', deletedAt: null, studentBatchName: batchName, studentRoll: roll },
+                select: { email: true },
+            }),
+            tx.batchStudent.findUnique({
+                where: { courseId_batchName_roll: { courseId, batchName, roll } },
+                select: { email: true },
+            }),
+        ]);
+        const found = user?.email ?? rosterRow?.email ?? null;
+        return found && found.includes('@') ? found.trim().toLowerCase() : null;
+    });
+}
+
+export function notifyStudentOfLeaveDecision(decision: {
+    courseId: string;
+    batchName: string;
+    roll: string;
+    studentName: string;
+    status: 'APPROVED' | 'REJECTED' | 'PENDING';
+    startDate: string;
+    endDate: string;
+    reviewNote?: string | null;
+}): void {
+    // A leave still waiting on a decision is not news to the student.
+    if (decision.status === 'PENDING') return;
+
+    const approved = decision.status === 'APPROVED';
+
+    dispatchInBackground(`leave ${decision.status} for ${decision.batchName}/${decision.roll}`, async () => {
+        if (!isMailConfigured()) return { skipped: 'not-configured' as const };
+
+        const course = await loadCourse(decision.courseId);
+        if (!course) return { skipped: 'no-course' as const };
+        if (!isFeatureEnabled(course.settings, EMAIL_NOTIFICATIONS_FEATURE)) {
+            return { skipped: 'disabled' as const };
+        }
+
+        const to = await studentEmail(decision.courseId, decision.batchName, decision.roll);
+        if (!to) return { skipped: 'no-recipients' as const };
+
+        const heading = approved ? 'আপনার ছুটির আবেদন মঞ্জুর হয়েছে' : 'আপনার ছুটির আবেদন মঞ্জুর হয়নি';
+        const ok = await sendMail({
+            courseName: course.name,
+            to: [to],
+            subject: heading,
+            html: renderEmail({
+                courseName: course.name,
+                heading,
+                bodyHtml: paragraphs(
+                    [
+                        `${decision.studentName} (রোল ${decision.roll}),`,
+                        `ছুটির সময়: ${decision.startDate} — ${decision.endDate}`,
+                        decision.reviewNote ? `মন্তব্য: ${decision.reviewNote}` : null,
+                        approved
+                            ? 'এই দিনগুলোর অনুপস্থিতি আপনার উপস্থিতির হিসাবে ধরা হবে না।'
+                            : 'আবেদনটি মঞ্জুর হয়নি — ক্লাসে উপস্থিত থাকুন। প্রয়োজনে অ্যাডমিনের সাথে কথা বলুন।',
+                    ]
+                        .filter(Boolean)
+                        .join('\n')
+                ),
+                ctaLabel: 'পোর্টালে দেখুন',
+                ctaUrl: portalUrl(course.slug, '/student-dashboard/leave'),
+            }),
+        });
+        return ok ? { sent: 1, failed: 0 } : { sent: 0, failed: 1 };
+    });
+}
+
+/**
+ * Tells a batch their results are up.
+ *
+ * Deliberately a separate, explicit action rather than a side effect of
+ * saving the results grid — that grid is saved row by row while marks are
+ * still being typed, and every save would be another mail.
+ */
+export function notifyStudentsOfResults(published: {
+    courseId: string;
+    batchName: string;
+    examName?: string | null;
+}): void {
+    dispatchInBackground(`results for ${published.batchName}`, () =>
+        dispatch(published.courseId, published.batchName, (course) => ({
+            subject: published.examName
+                ? `ফলাফল প্রকাশিত: ${published.examName}`
+                : 'আপনার পরীক্ষার ফলাফল প্রকাশিত হয়েছে',
+            html: renderEmail({
+                courseName: course.name,
+                heading: 'পরীক্ষার ফলাফল প্রকাশিত হয়েছে',
+                bodyHtml: paragraphs(
+                    [
+                        published.examName ? `পরীক্ষা: ${published.examName}` : null,
+                        `ব্যাচ: ${published.batchName}`,
+                        'পোর্টালে লগইন করে আপনার ফলাফল দেখুন।',
+                    ]
+                        .filter(Boolean)
+                        .join('\n')
+                ),
+                ctaLabel: 'ফলাফল দেখুন',
+                ctaUrl: portalUrl(course.slug, '/student-dashboard/results'),
                 footerNote: 'আপনি এই কোর্সের ছাত্র হিসেবে এই বার্তাটি পেয়েছেন।',
             }),
         }))
