@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isTeacherOrAdmin } from "@/lib/auth";
+import { isBlockingStatus } from "@/lib/studentAccess";
 import { BatchType, CourseStatus, CurrentlyDoing, StudentCategory } from "@prisma/client";
 import { cleanupBatchLeaveAttachments } from "@/lib/leaveCleanup";
 
@@ -150,10 +151,24 @@ export async function POST(req: NextRequest) {
                         courseGoal: s.courseGoal ? String(s.courseGoal) : null,
                     };
 
+                    // Stamp the moment access closes (or reopens) so the
+                    // student and the admin both see when it happened. The
+                    // block itself is driven by courseStatus — see
+                    // @/lib/studentAccess.
+                    const existing = await tx.batchStudent.findUnique({
+                        where: { courseId_batchName_roll: { courseId, batchName, roll } },
+                        select: { courseStatus: true, accessBlockedAt: true },
+                    });
+                    const nowBlocked = isBlockingStatus(data.courseStatus);
+                    const wasBlocked = existing ? isBlockingStatus(existing.courseStatus) : false;
+                    const accessBlockedAt = nowBlocked
+                        ? (wasBlocked ? existing!.accessBlockedAt : new Date())
+                        : null;
+
                     await tx.batchStudent.upsert({
                         where: { courseId_batchName_roll: { courseId, batchName, roll } },
-                        create: { ...data, courseId, roll },
-                        update: data,
+                        create: { ...data, courseId, roll, accessBlockedAt },
+                        update: { ...data, accessBlockedAt },
                     });
                 })
             );

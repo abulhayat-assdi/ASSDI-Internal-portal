@@ -6,6 +6,7 @@ import { withCourseContext } from "@/lib/db";
 import { getSessionUser, hasRequiredPermission, isAdmin } from "@/lib/auth";
 import type { AttendanceStatus } from "@prisma/client";
 import { LOW_ATTENDANCE_THRESHOLD, isLowAttendance, tally, type AttendanceTally } from "@/lib/attendance";
+import { countStudentsWithoutLogin } from "@/lib/notifications";
 
 /** An exam average below this counts as a warning sign. */
 const FAILING_EXAM_PERCENTAGE = 40;
@@ -187,6 +188,10 @@ export async function GET(req: NextRequest) {
             };
         });
 
+        // Students with no login never receive an email notification and
+        // cannot see any of this themselves — worth showing next to the rest.
+        const withoutLogin = await countStudentsWithoutLogin(courseId);
+
         return NextResponse.json({
             range: { from: from ?? null, to: to ?? null },
             threshold,
@@ -202,6 +207,7 @@ export async function GET(req: NextRequest) {
                     rows.map((r) => r.examAverage).filter((p): p is number => p !== null)
                 ),
                 atRisk: rows.filter((r) => r.risks.length > 0).length,
+                withoutLogin,
             },
             batches,
             students: rows,

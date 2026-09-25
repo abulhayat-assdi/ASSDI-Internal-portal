@@ -7,6 +7,7 @@ import { useConfirm } from "@/contexts/ConfirmContext";
 import { StudentBatchInfo, saveBatchInfo, getAllBatchInfo, updateStudentPhoto, deleteBatch } from "@/services/batchInfoService";
 import Button from "@/components/ui/Button";
 import * as XLSX from "xlsx";
+import RegistrationLockPanel from "@/components/students/RegistrationLockPanel";
 
 function toDriveImg(url: string): string {
     if (url && url.includes("drive.google.com") && url.includes("/d/")) {
@@ -815,6 +816,8 @@ export default function AllBatchInfoPage() {
                     </button>
                 </div>
             </div>
+
+            {isAdmin && <RegistrationLockPanel batchName={selectedSearchBatch} />}
 
 
 

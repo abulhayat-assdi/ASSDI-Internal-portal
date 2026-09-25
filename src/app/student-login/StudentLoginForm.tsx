@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/contexts/AuthContext";
+import { AccessBlockedError, useAuth } from "@/contexts/AuthContext";
 import BrandLogo from "@/components/ui/BrandLogo";
 import type { CourseBranding } from "@/types/branding";
 import Link from "next/link";
@@ -36,6 +36,7 @@ export default function StudentLoginForm({ brand }: { brand: CourseBranding }) {
     const [isRegistering, setIsRegistering] = useState(false);
     const [showForgotPassword, setShowForgotPassword] = useState(false);
     const [authError, setAuthError] = useState("");
+    const [isBlocked, setIsBlocked] = useState(false);
     const [successMessage, setSuccessMessage] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
@@ -114,6 +115,7 @@ export default function StudentLoginForm({ brand }: { brand: CourseBranding }) {
     const handleAuthSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setAuthError("");
+        setIsBlocked(false);
         setSuccessMessage("");
         setIsSubmitting(true);
 
@@ -139,6 +141,7 @@ export default function StudentLoginForm({ brand }: { brand: CourseBranding }) {
             return;
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : "Authentication failed.";
+            setIsBlocked(err instanceof AccessBlockedError);
             setAuthError(errorMessage);
             setIsSubmitting(false); // Only reset on error
         }
@@ -207,12 +210,26 @@ export default function StudentLoginForm({ brand }: { brand: CourseBranding }) {
                 </div>
 
                 {authError && (
-                    <div className="mb-6 p-4 rounded-xl bg-red-50 text-red-700 text-sm border border-red-100 flex items-start gap-3">
-                        <svg className="w-5 h-5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <span className="font-medium leading-relaxed">{authError}</span>
-                    </div>
+                    isBlocked ? (
+                        /* Not something a retry fixes — say so plainly and point
+                           the student at the only thing that will help. */
+                        <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-3">
+                            <svg className="w-6 h-6 shrink-0 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                            </svg>
+                            <div>
+                                <p className="font-bold text-amber-900 text-sm mb-1">অ্যাক্সেস বন্ধ</p>
+                                <p className="text-amber-800 text-sm leading-relaxed">{authError}</p>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="mb-6 p-4 rounded-xl bg-red-50 text-red-700 text-sm border border-red-100 flex items-start gap-3">
+                            <svg className="w-5 h-5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span className="font-medium leading-relaxed">{authError}</span>
+                        </div>
+                    )
                 )}
 
                 {successMessage && (

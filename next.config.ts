@@ -22,7 +22,10 @@ const nextConfig: NextConfig = {
         ignoreBuildErrors: false,
     },
     // Prevent these packages from being bundled for server-side rendering
-    serverExternalPackages: ['@prisma/client', '@react-pdf/renderer', 'sharp', 'unzipper', 'cheerio'],
+    // nodemailer is reached from instrumentation.ts, which Next also compiles
+    // for the edge/client fallback — where its node:child_process import cannot
+    // be resolved. Keeping it external stops it being bundled there at all.
+    serverExternalPackages: ['@prisma/client', '@react-pdf/renderer', 'sharp', 'unzipper', 'cheerio', 'nodemailer'],
     experimental: {
         serverActions: {
             allowedOrigins: [

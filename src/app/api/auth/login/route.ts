@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma, withCourseContext, type CourseContext } from '@/lib/db';
+import { BLOCKED_MESSAGE, isPortalAccessBlocked, studentAccessSelect } from '@/lib/studentAccess';
 import { signJWT } from '@/lib/auth';
 import { COOKIES } from '@/lib/constants';
 import { PORTAL_OWNER_EMAIL } from '@/lib/permissions';
@@ -112,6 +113,29 @@ export async function POST(req: NextRequest) {
             recordFailedAttempt(normalizedEmail);
             recordAttempt(ipKey, WINDOW_MS);
             return NextResponse.json({ error: 'Invalid email or password.' }, { status: 401 });
+        }
+
+        // The password was right, but a student who has left the course does
+        // not get in — and is told why, rather than being bounced with
+        // "invalid password" they would keep retrying.
+        if (user.role === 'student' && user.courseId && user.studentBatchName && user.studentRoll) {
+            const student = await withCourseContext(
+                { courseId: user.courseId, isSuperAdmin: false },
+                (tx) =>
+                    tx.batchStudent.findUnique({
+                        where: {
+                            courseId_batchName_roll: {
+                                courseId: user.courseId!,
+                                batchName: user.studentBatchName!,
+                                roll: user.studentRoll!,
+                            },
+                        },
+                        select: studentAccessSelect,
+                    })
+            );
+            if (isPortalAccessBlocked(student)) {
+                return NextResponse.json({ error: BLOCKED_MESSAGE, blocked: true }, { status: 403 });
+            }
         }
 
         // Successful login — clear both counters, so one person fumbling their

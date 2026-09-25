@@ -23,6 +23,15 @@ interface SavedRecord {
     note: string;
 }
 
+interface ScheduledClass {
+    batchName: string;
+    subject: string;
+    teacherName: string;
+    time: string;
+    attendanceTaken: boolean;
+    takenByName: string | null;
+}
+
 interface SavedSession {
     id: string;
     subject: string;
@@ -52,6 +61,7 @@ export default function AttendancePage() {
     const [marks, setMarks] = useState<Record<string, AttendanceStatus>>({});
     const [savedAt, setSavedAt] = useState<SavedSession | null>(null);
 
+    const [scheduled, setScheduled] = useState<ScheduledClass[]>([]);
     const [loadingRoster, setLoadingRoster] = useState(false);
     const [saving, setSaving] = useState(false);
 
@@ -68,6 +78,21 @@ export default function AttendancePage() {
         // Runs once — the batch list doesn't change while the screen is open.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    /** The routine's classes for the chosen day, with roll-call status. */
+    const loadScheduled = useCallback(async () => {
+        try {
+            const res = await fetch(`/api/attendance/today?date=${date}`);
+            const data = await res.json();
+            setScheduled(Array.isArray(data.classes) ? data.classes : []);
+        } catch {
+            setScheduled([]);
+        }
+    }, [date]);
+
+    useEffect(() => {
+        loadScheduled();
+    }, [loadScheduled]);
 
     /** Loads the batch roster and, if this day was already taken, its saved marks. */
     const loadRoster = useCallback(async () => {
@@ -142,6 +167,7 @@ export default function AttendancePage() {
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "সেভ করা যায়নি।");
             setSavedAt(data.session);
+            loadScheduled();
             toast.success("অ্যাটেনডেন্স সেভ হয়েছে।");
         } catch (e) {
             toast.error(e instanceof Error ? e.message : "সেভ করা যায়নি।");
@@ -155,9 +181,62 @@ export default function AttendancePage() {
             <div>
                 <h1 className="text-2xl font-bold text-slate-800">অ্যাটেনডেন্স</h1>
                 <p className="text-slate-500 text-sm mt-1">
-                    ব্যাচ ও তারিখ বেছে রোল কল নিন। একই দিনে আবার সেভ করলে আগেরটাই আপডেট হবে।
+                    প্রতিদিন প্রতি ব্যাচে একবার রোল কল — যে কোনো শিক্ষক নিতে পারেন। একই দিনে আবার সেভ
+                    করলে আগেরটাই সংশোধন হবে, নতুন করে গোনা হবে না।
                 </p>
             </div>
+
+            {/* Today's classes, straight from the routine */}
+            {scheduled.length > 0 && (
+                <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-100">
+                    <h2 className="text-sm font-semibold text-slate-700 mb-3">
+                        {date === todayStr() ? "আজকের ক্লাস" : `${date} তারিখের ক্লাস`}
+                        <span className="ml-2 text-xs font-normal text-slate-400">
+                            (রুটিন থেকে — ট্যাপ করলে ব্যাচ ও বিষয় বসে যাবে)
+                        </span>
+                    </h2>
+                    <div className="flex flex-wrap gap-2">
+                        {scheduled.map((c) => {
+                            const active = c.batchName === batchName;
+                            return (
+                                <button
+                                    key={c.batchName}
+                                    onClick={() => {
+                                        setBatchName(c.batchName);
+                                        if (c.subject) setSubject(c.subject);
+                                    }}
+                                    className={`text-left rounded-lg border px-3 py-2 transition-colors ${
+                                        active
+                                            ? "border-emerald-500 bg-emerald-50"
+                                            : "border-slate-200 hover:border-emerald-300 hover:bg-slate-50"
+                                    }`}
+                                >
+                                    <span className="block text-sm font-medium text-slate-700">
+                                        {c.batchName}
+                                        {c.time ? (
+                                            <span className="ml-2 text-xs font-normal text-slate-400">{c.time}</span>
+                                        ) : null}
+                                    </span>
+                                    <span className="block text-xs text-slate-500 truncate max-w-[220px]">
+                                        {c.subject || "বিষয় লেখা নেই"}
+                                    </span>
+                                    <span
+                                        className={`inline-block mt-1 text-[11px] font-medium px-2 py-0.5 rounded-full ${
+                                            c.attendanceTaken
+                                                ? "bg-emerald-100 text-emerald-700"
+                                                : "bg-amber-100 text-amber-700"
+                                        }`}
+                                    >
+                                        {c.attendanceTaken
+                                            ? `নেওয়া হয়েছে${c.takenByName ? ` — ${c.takenByName}` : ""}`
+                                            : "এখনো নেওয়া হয়নি"}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
 
             {/* Selectors */}
             <div className="bg-white rounded-xl p-5 shadow-sm border border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -187,7 +266,7 @@ export default function AttendancePage() {
                     />
                 </div>
                 <div>
-                    <label className="block text-xs text-slate-500 mb-1">বিষয় / স্লট (ঐচ্ছিক)</label>
+                    <label className="block text-xs text-slate-500 mb-1">বিষয় (ঐচ্ছিক, শুধু রেকর্ডের জন্য)</label>
                     <input
                         type="text"
                         value={subject}
@@ -200,7 +279,8 @@ export default function AttendancePage() {
 
             {savedAt && (
                 <div className="bg-blue-50 border border-blue-100 text-blue-700 rounded-lg px-4 py-2 text-sm">
-                    এই দিনের রোল কল আগেই নেওয়া হয়েছে — {savedAt.takenByName || "অজানা"}। এখন সংশোধন করছেন।
+                    এই দিনের রোল কল আগেই নিয়েছেন {savedAt.takenByName || "অজানা"}। এখন সংশোধন করছেন —
+                    নতুন করে গোনা হবে না।
                 </div>
             )}
 

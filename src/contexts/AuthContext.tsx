@@ -4,6 +4,16 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import { AuthContextType, UserProfile } from "@/types/auth";
 import { getEffectivePermissions } from "@/lib/permissions";
 
+/**
+ * An auth failure the student cannot fix by retrying — their course status
+ * closed the portal, or their roll is already claimed. The login screen shows
+ * these differently from a wrong password.
+ */
+export class AccessBlockedError extends Error {
+    readonly blocked = true;
+}
+
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const useAuth = () => {
@@ -57,7 +67,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const data = await res.json();
 
             if (!res.ok) {
-                throw new Error(data.error || "Login failed.");
+                throw data.blocked
+                    ? new AccessBlockedError(data.error)
+                    : new Error(data.error || "Login failed.");
             }
 
             data.user.uid = data.user.id;
@@ -86,7 +98,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const data = await res.json();
 
             if (!res.ok) {
-                throw new Error(data.error || "Registration failed.");
+                throw data.blocked
+                    ? new AccessBlockedError(data.error)
+                    : new Error(data.error || "Registration failed.");
             }
 
             data.user.uid = data.user.id;

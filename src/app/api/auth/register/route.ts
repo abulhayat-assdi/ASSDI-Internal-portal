@@ -7,6 +7,7 @@ import { AUTH_ROLES, COOKIES } from '@/lib/constants';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { HOUR, limitFromEnv, rateLimitByIp } from '@/lib/rateLimit';
+import { checkRegistration, studentAccessSelect } from '@/lib/studentAccess';
 
 const SESSION_MAX_AGE = 60 * 60 * 24 * 30; // 30 days — matches the JWT + ActiveSession expiry
 
@@ -61,6 +62,41 @@ export async function POST(req: NextRequest) {
             );
         }
 
+        // The roll number is the real identity here, so it is checked before a
+        // seat is spent: it must exist on the roster, its owner must still be
+        // on the course, and it may only be claimed once unless an admin has
+        // reopened it (see @/lib/studentAccess).
+        if (!batchName || !roll) {
+            return NextResponse.json(
+                { error: 'ব্যাচ ও রোল নম্বর দুটোই দিতে হবে।' },
+                { status: 400 }
+            );
+        }
+
+        const rosterRow = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+            tx.batchStudent.findUnique({
+                where: { courseId_batchName_roll: { courseId, batchName, roll } },
+                select: studentAccessSelect,
+            })
+        );
+
+        // Email is unique platform-wide, and so is the check for an existing
+        // claim on this roll — both bypass course-scoped RLS deliberately.
+        const rollHolder = await withCourseContext({ courseId: null, isSuperAdmin: true }, (tx) =>
+            tx.user.findFirst({
+                where: { courseId, role: AUTH_ROLES.STUDENT, studentBatchName: batchName, studentRoll: roll, deletedAt: null },
+                select: { id: true },
+            })
+        );
+
+        const verdict = checkRegistration(rosterRow, Boolean(rollHolder));
+        if (!verdict.ok) {
+            return NextResponse.json(
+                { error: verdict.message, blocked: verdict.reason === 'blocked' },
+                { status: verdict.reason === 'unknown-roll' ? 404 : 403 }
+            );
+        }
+
         const user = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
             // Seat cap from super-admin billing settings (null = unlimited)
             const course = await tx.course.findUnique({ where: { id: courseId } });
@@ -76,18 +112,29 @@ export async function POST(req: NextRequest) {
             const passwordHash = await bcrypt.hash(password, 12);
 
             // Create user in DB
-            return tx.user.create({
+            const created = await tx.user.create({
                 data: {
                     courseId,
                     email: normalizedEmail,
                     passwordHash,
                     displayName: name,
                     role: AUTH_ROLES.STUDENT,
-                    studentBatchName: batchName || null,
-                    studentRoll: roll || null,
+                    studentBatchName: batchName,
+                    studentRoll: roll,
                     lastLoginAt: new Date(),
                 },
             });
+
+            // An admin's permission covers one re-registration, not a standing
+            // exemption, so spend it here in the same transaction.
+            if (verdict.consumesUnlock) {
+                await tx.batchStudent.update({
+                    where: { id: verdict.student.id },
+                    data: { registrationUnlocked: false },
+                });
+            }
+
+            return created;
         });
 
         // Every honoured session needs a live ActiveSession row — that row is

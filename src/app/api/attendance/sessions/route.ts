@@ -83,9 +83,9 @@ export async function GET(req: NextRequest) {
 /**
  * POST /api/attendance/sessions — save (or correct) one roll call.
  *
- * Idempotent per batch/date/subject: saving the same slot again replaces its
- * records instead of adding a second set, so a teacher can reopen a day and
- * fix a mistake without inflating the class count.
+ * One roll call per batch per day, taken by whichever teacher is free to do
+ * it. Saving the same day again replaces its records rather than adding a
+ * second set, so reopening a day to fix a mistake cannot inflate the count.
  */
 export async function POST(req: NextRequest) {
     const user = await getSessionUser(req);
@@ -116,15 +116,17 @@ export async function POST(req: NextRequest) {
             });
             const byId = new Map(students.map((s) => [s.id, s]));
 
+            // Keyed by the day alone: whoever takes the roll call second is
+            // correcting the first, not opening a parallel one.
             const existing = await tx.attendanceSession.findFirst({
-                where: { courseId, batchId: batch.id, date, subject },
+                where: { courseId, batchId: batch.id, date },
                 select: { id: true },
             });
 
             const saved = existing
                 ? await tx.attendanceSession.update({
                       where: { id: existing.id },
-                      data: { note, takenByUid: user.id, takenByName: user.displayName ?? "" },
+                      data: { subject, note, takenByUid: user.id, takenByName: user.displayName ?? "" },
                   })
                 : await tx.attendanceSession.create({
                       data: {

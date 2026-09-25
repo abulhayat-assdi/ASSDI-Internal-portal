@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getServerSessionUser, isTeacherOrAdmin } from "@/lib/auth";
+import { notifyStudentOfLeaveDecision } from "@/lib/notifications";
 import { createStudentLeaveRequest } from "@/lib/studentLeaveDb";
 import fs from "fs";
 import path from "path";
@@ -142,6 +143,19 @@ export async function PATCH(req: Request) {
                 },
             })
         );
+
+        // The student asked and is waiting on the answer — tell them, without
+        // making the reviewer wait on the mail server.
+        notifyStudentOfLeaveDecision({
+            courseId,
+            batchName: updatedLeaveRequest.studentBatchName,
+            roll: updatedLeaveRequest.studentRoll,
+            studentName: updatedLeaveRequest.studentName,
+            status: validStatus,
+            startDate: updatedLeaveRequest.startDate,
+            endDate: updatedLeaveRequest.endDate,
+            reviewNote: updatedLeaveRequest.reviewNote,
+        });
 
         return NextResponse.json(updatedLeaveRequest);
     } catch (error) {

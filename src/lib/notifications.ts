@@ -1,6 +1,6 @@
 import { withCourseContext } from './db';
 import { isFeatureEnabled } from './features';
-import { isMailConfigured, paragraphs, renderEmail, sendBulkMail } from './mailer';
+import { isMailConfigured, paragraphs, renderEmail, sendBulkMail, sendMail } from './mailer';
 
 /**
  * Email notifications for things students would otherwise only discover by
@@ -37,18 +37,62 @@ async function loadCourse(courseId: string): Promise<CourseMailContext | null> {
 /**
  * Student addresses for a course, optionally one batch.
  *
+ * Two sources on purpose. `users` only has students who created a login, but
+ * the roster (`batch_students`) holds everyone the admin enrolled, with the
+ * address collected on the student information form. Mailing only registered
+ * students would miss exactly the people a reminder is aimed at, so the two
+ * are merged and de-duplicated.
+ *
  * `batchName` of "all" (what the homework screens use for a course-wide
  * assignment) means everyone, same as leaving it out.
  */
 async function studentEmails(courseId: string, batchName?: string | null): Promise<string[]> {
-    const scoped = batchName && batchName !== 'all' ? { studentBatchName: batchName } : {};
-    const users = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
-        tx.user.findMany({
-            where: { courseId, role: 'student', deletedAt: null, ...scoped },
+    const scoped = batchName && batchName !== 'all' ? batchName : null;
+
+    const [users, roster] = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => [
+        await tx.user.findMany({
+            where: {
+                courseId,
+                role: 'student',
+                deletedAt: null,
+                ...(scoped ? { studentBatchName: scoped } : {}),
+            },
             select: { email: true },
-        })
-    );
-    return users.map((u) => u.email).filter(Boolean);
+        }),
+        await tx.batchStudent.findMany({
+            where: {
+                courseId,
+                // Someone who left the course should stop hearing from it.
+                courseStatus: { in: ['Running', 'Completed'] },
+                ...(scoped ? { batchName: scoped } : {}),
+            },
+            select: { email: true },
+        }),
+    ]);
+
+    const addresses = [...users, ...roster]
+        .map((r) => r.email?.trim().toLowerCase())
+        .filter((e): e is string => Boolean(e) && e!.includes('@'));
+
+    return [...new Set(addresses)];
+}
+
+/** How many enrolled students still have no portal login. */
+export async function countStudentsWithoutLogin(courseId: string): Promise<number> {
+    return withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+        const [roster, users] = await Promise.all([
+            tx.batchStudent.findMany({
+                where: { courseId, courseStatus: 'Running' },
+                select: { batchName: true, roll: true },
+            }),
+            tx.user.findMany({
+                where: { courseId, role: 'student', deletedAt: null },
+                select: { studentBatchName: true, studentRoll: true },
+            }),
+        ]);
+        const registered = new Set(users.map((u) => `${u.studentBatchName}::${u.studentRoll}`));
+        return roster.filter((r) => !registered.has(`${r.batchName}::${r.roll}`)).length;
+    });
 }
 
 interface DispatchResult {
@@ -140,6 +184,116 @@ export function notifyStudentsOfAssignment(assignment: {
                 ),
                 ctaLabel: 'হোমওয়ার্ক দেখুন',
                 ctaUrl: portalUrl(course.slug, '/student-dashboard/homework'),
+                footerNote: 'আপনি এই কোর্সের ছাত্র হিসেবে এই বার্তাটি পেয়েছেন।',
+            }),
+        }))
+    );
+}
+
+/** One student's address, from their login or the roster, whichever exists. */
+async function studentEmail(courseId: string, batchName: string, roll: string): Promise<string | null> {
+    return withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+        const [user, rosterRow] = await Promise.all([
+            tx.user.findFirst({
+                where: { courseId, role: 'student', deletedAt: null, studentBatchName: batchName, studentRoll: roll },
+                select: { email: true },
+            }),
+            tx.batchStudent.findUnique({
+                where: { courseId_batchName_roll: { courseId, batchName, roll } },
+                select: { email: true },
+            }),
+        ]);
+        const found = user?.email ?? rosterRow?.email ?? null;
+        return found && found.includes('@') ? found.trim().toLowerCase() : null;
+    });
+}
+
+export function notifyStudentOfLeaveDecision(decision: {
+    courseId: string;
+    batchName: string;
+    roll: string;
+    studentName: string;
+    status: 'APPROVED' | 'REJECTED' | 'PENDING';
+    startDate: string;
+    endDate: string;
+    reviewNote?: string | null;
+}): void {
+    // A leave still waiting on a decision is not news to the student.
+    if (decision.status === 'PENDING') return;
+
+    const approved = decision.status === 'APPROVED';
+
+    dispatchInBackground(`leave ${decision.status} for ${decision.batchName}/${decision.roll}`, async () => {
+        if (!isMailConfigured()) return { skipped: 'not-configured' as const };
+
+        const course = await loadCourse(decision.courseId);
+        if (!course) return { skipped: 'no-course' as const };
+        if (!isFeatureEnabled(course.settings, EMAIL_NOTIFICATIONS_FEATURE)) {
+            return { skipped: 'disabled' as const };
+        }
+
+        const to = await studentEmail(decision.courseId, decision.batchName, decision.roll);
+        if (!to) return { skipped: 'no-recipients' as const };
+
+        const heading = approved ? 'আপনার ছুটির আবেদন মঞ্জুর হয়েছে' : 'আপনার ছুটির আবেদন মঞ্জুর হয়নি';
+        const ok = await sendMail({
+            courseName: course.name,
+            to: [to],
+            subject: heading,
+            html: renderEmail({
+                courseName: course.name,
+                heading,
+                bodyHtml: paragraphs(
+                    [
+                        `${decision.studentName} (রোল ${decision.roll}),`,
+                        `ছুটির সময়: ${decision.startDate} — ${decision.endDate}`,
+                        decision.reviewNote ? `মন্তব্য: ${decision.reviewNote}` : null,
+                        approved
+                            ? 'এই দিনগুলোর অনুপস্থিতি আপনার উপস্থিতির হিসাবে ধরা হবে না।'
+                            : 'আবেদনটি মঞ্জুর হয়নি — ক্লাসে উপস্থিত থাকুন। প্রয়োজনে অ্যাডমিনের সাথে কথা বলুন।',
+                    ]
+                        .filter(Boolean)
+                        .join('\n')
+                ),
+                ctaLabel: 'পোর্টালে দেখুন',
+                ctaUrl: portalUrl(course.slug, '/student-dashboard/leave'),
+            }),
+        });
+        return ok ? { sent: 1, failed: 0 } : { sent: 0, failed: 1 };
+    });
+}
+
+/**
+ * Tells a batch their results are up.
+ *
+ * Deliberately a separate, explicit action rather than a side effect of
+ * saving the results grid — that grid is saved row by row while marks are
+ * still being typed, and every save would be another mail.
+ */
+export function notifyStudentsOfResults(published: {
+    courseId: string;
+    batchName: string;
+    examName?: string | null;
+}): void {
+    dispatchInBackground(`results for ${published.batchName}`, () =>
+        dispatch(published.courseId, published.batchName, (course) => ({
+            subject: published.examName
+                ? `ফলাফল প্রকাশিত: ${published.examName}`
+                : 'আপনার পরীক্ষার ফলাফল প্রকাশিত হয়েছে',
+            html: renderEmail({
+                courseName: course.name,
+                heading: 'পরীক্ষার ফলাফল প্রকাশিত হয়েছে',
+                bodyHtml: paragraphs(
+                    [
+                        published.examName ? `পরীক্ষা: ${published.examName}` : null,
+                        `ব্যাচ: ${published.batchName}`,
+                        'পোর্টালে লগইন করে আপনার ফলাফল দেখুন।',
+                    ]
+                        .filter(Boolean)
+                        .join('\n')
+                ),
+                ctaLabel: 'ফলাফল দেখুন',
+                ctaUrl: portalUrl(course.slug, '/student-dashboard/results'),
                 footerNote: 'আপনি এই কোর্সের ছাত্র হিসেবে এই বার্তাটি পেয়েছেন।',
             }),
         }))

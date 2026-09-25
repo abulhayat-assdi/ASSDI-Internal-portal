@@ -59,6 +59,7 @@ export default function ManageResultsPage() {
     const [presentationRecords, setPresentationRecords] = useState<PresentationRecord[]>([]);
 
     const [saving, setSaving] = useState(false);
+    const [notifying, setNotifying] = useState(false);
 
     useEffect(() => {
         const fetchInitialData = async () => {
@@ -243,6 +244,27 @@ export default function ManageResultsPage() {
         );
     }
 
+    /** Announces the published results to the batch — a deliberate action,
+     *  never a side effect of saving a row (see /api/results/notify). */
+    const notifyStudents = async () => {
+        if (!selectedBatch) return;
+        setNotifying(true);
+        try {
+            const res = await fetch("/api/results/notify", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ batchName: selectedBatch }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "পাঠানো যায়নি।");
+            toast.success(`${selectedBatch} ব্যাচকে জানানো হয়েছে।`);
+        } catch (e) {
+            toast.error(e instanceof Error ? e.message : "পাঠানো যায়নি।");
+        } finally {
+            setNotifying(false);
+        }
+    };
+
     /** One row per student per exam, with a column for every subject in play. */
     const exportResults = () => {
         if (!selectedBatch || batchStudentsList.length === 0) {
@@ -279,13 +301,22 @@ export default function ManageResultsPage() {
                     <h1 className="text-2xl font-bold text-gray-900">Manage Students Exam Results</h1>
                     <p className="text-sm text-gray-500 mt-1">Select a batch to view students and edit their result grids.</p>
                 </div>
-                <button
-                    onClick={exportResults}
-                    disabled={!selectedBatch || batchStudentsList.length === 0}
-                    className="bg-[#059669] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#047857] disabled:opacity-50"
-                >
-                    Excel ডাউনলোড
-                </button>
+                <div className="flex gap-2">
+                    <button
+                        onClick={notifyStudents}
+                        disabled={!selectedBatch || notifying}
+                        className="bg-white border border-[#059669] text-[#059669] px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#f0fdf4] disabled:opacity-50"
+                    >
+                        {notifying ? "পাঠানো হচ্ছে..." : "ছাত্রদের জানিয়ে দিন"}
+                    </button>
+                    <button
+                        onClick={exportResults}
+                        disabled={!selectedBatch || batchStudentsList.length === 0}
+                        className="bg-[#059669] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#047857] disabled:opacity-50"
+                    >
+                        Excel ডাউনলোড
+                    </button>
+                </div>
             </div>
 
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
