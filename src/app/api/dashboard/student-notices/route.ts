@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
+import { notifyStudentsOfNotice } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -59,6 +60,15 @@ export async function POST(req: NextRequest) {
                 }
             })
         );
+
+        // Mail goes out after the notice is safely stored, and never blocks
+        // the response — see @/lib/notifications.
+        notifyStudentsOfNotice({
+            courseId,
+            title: notice.title,
+            description: notice.description,
+            priority: notice.priority,
+        });
 
         return NextResponse.json(notice);
     } catch (error) {

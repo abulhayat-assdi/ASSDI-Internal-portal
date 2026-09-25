@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isTeacherOrAdmin } from "@/lib/auth";
+import { notifyStudentsOfAssignment } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -95,6 +96,14 @@ export async function POST(req: NextRequest) {
                 },
             })
         );
+
+        notifyStudentsOfAssignment({
+            courseId,
+            title: assignment.title,
+            batchName: assignment.batchName,
+            deadlineDate: assignment.deadlineDate,
+            teacherName: assignment.teacherName,
+        });
 
         return NextResponse.json(assignment, { status: 201 });
     } catch (error) {

@@ -19,6 +19,8 @@ export const ALL_FEATURES: FeatureDefinition[] = [
     { key: 'leave_tracking', label: 'Leave Tracking', description: 'শিক্ষকের ছুটি ম্যানেজমেন্ট', defaultEnabled: true },
     { key: 'attendance', label: 'Attendance', description: 'ক্লাস অ্যাটেনডেন্স (রোল কল) ও উপস্থিতির রিপোর্ট', defaultEnabled: true },
     { key: 'reports', label: 'Reports & Insights', description: 'ব্যাচভিত্তিক পারফরম্যান্স, ঝুঁকিতে থাকা ছাত্র ও এক্সপোর্ট', defaultEnabled: true },
+    // ডিফল্ট OFF: এটি চালু করলে নোটিশ/হোমওয়ার্ক দিলেই সব ছাত্রকে সত্যিকারের ইমেইল যাবে।
+    { key: 'email_notifications', label: 'Email Notifications', description: 'নতুন নোটিশ ও হোমওয়ার্ক দিলে ছাত্রদের ইমেইল পাঠানো হবে', defaultEnabled: false },
     { key: 'chat', label: 'Chat System', description: 'ছাত্র-admin chat সিস্টেম', defaultEnabled: true },
     { key: 'deployments', label: 'Student Deployments', description: 'Mini-Netlify — ছাত্রদের সাইট হোস্টিং ফিচার', defaultEnabled: true },
     { key: 'typing_game', label: 'Typing Adventure', description: 'গেমিফাইড টাইপিং প্র্যাকটিস — কোর্স/মিশন/লিডারবোর্ড সহ', defaultEnabled: true },
