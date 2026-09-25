@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import toast from "react-hot-toast";
+import { exportRowsToXlsx, type ExportRow } from "@/lib/exportRows";
 import { getAllBatchInfo, StudentBatchInfo } from "@/services/batchInfoService";
 import {
     saveSingleResult, ExamResult, getAllExamResults, createDefaultExamRecord, ExamRecord,
@@ -241,11 +243,49 @@ export default function ManageResultsPage() {
         );
     }
 
+    /** One row per student per exam, with a column for every subject in play. */
+    const exportResults = () => {
+        if (!selectedBatch || batchStudentsList.length === 0) {
+            toast.error("আগে একটি ব্যাচ বেছে নিন।");
+            return;
+        }
+
+        const rows: ExportRow[] = [];
+        for (const { student, result } of batchStudentsList) {
+            const labels = { ...Object.fromEntries(FIXED_SUBJECTS.map((s) => [s.key, s.label])), ...(result?.fixedSubjectLabels ?? {}) };
+            const customs = result?.customColumns ?? [];
+            const records = result?.examRecords ?? [];
+
+            if (records.length === 0) {
+                rows.push({ Batch: selectedBatch, Roll: student.roll, Name: student.name, Exam: "", Remarks: result?.remarks ?? "" });
+                continue;
+            }
+            for (const rec of records) {
+                const row: ExportRow = { Batch: selectedBatch, Roll: student.roll, Name: student.name, Exam: rec.examName };
+                for (const f of FIXED_SUBJECTS) row[labels[f.key] ?? f.label] = rec.subjects?.[f.key] ?? "";
+                for (const c of customs) row[c.label] = rec.subjects?.[c.id] ?? "";
+                row.Remarks = result?.remarks ?? "";
+                rows.push(row);
+            }
+        }
+
+        exportRowsToXlsx({ fileName: `results-${selectedBatch}`, sheetName: "Results", rows });
+    };
+
     return (
         <div className="p-6 max-w-7xl mx-auto space-y-6 animate-in fade-in duration-500">
-            <div>
-                <h1 className="text-2xl font-bold text-gray-900">Manage Students Exam Results</h1>
-                <p className="text-sm text-gray-500 mt-1">Select a batch to view students and edit their result grids.</p>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                    <h1 className="text-2xl font-bold text-gray-900">Manage Students Exam Results</h1>
+                    <p className="text-sm text-gray-500 mt-1">Select a batch to view students and edit their result grids.</p>
+                </div>
+                <button
+                    onClick={exportResults}
+                    disabled={!selectedBatch || batchStudentsList.length === 0}
+                    className="bg-[#059669] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#047857] disabled:opacity-50"
+                >
+                    Excel ডাউনলোড
+                </button>
             </div>
 
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">

@@ -23,6 +23,7 @@ export type PermissionKey =
     | "teachers"
     | "attendance"
     | "admin_attendance"
+    | "reports"
     | "admin_panel"
     | "admin_homework"
     | "admin_results"
@@ -63,6 +64,7 @@ export const PERMISSION_META: Record<PermissionKey, PermissionMeta> = {
     admin_results: { label: "Manage Results", path: "/dashboard/admin/manage-results", group: "admin", icon: "📝" },
     admin_leave: { label: "Manage Leaves", path: "/dashboard/admin/leave-management", group: "admin", icon: "🌴" },
     admin_attendance: { label: "Attendance Report", path: "/dashboard/admin/attendance-report", group: "admin", icon: "📈" },
+    reports: { label: "Reports & Insights", path: "/dashboard/admin/reports", group: "admin", icon: "📊" },
     admin_notices: { label: "Student Notices", path: "/dashboard/admin/student-updates", group: "admin", icon: "🔔" },
     admin_contact: { label: "Contact Messages", path: "/dashboard/admin/contact-messages", group: "admin", icon: "📩" },
     admin_resources: { label: "Admin: Resources", path: "/dashboard/admin/resource-management", group: "admin", icon: "🗂️" },
@@ -107,7 +109,7 @@ export const DEFAULT_ADMIN_PERMISSIONS: PermissionKey[] = [
     "admin_panel", "admin_homework", "admin_results", "admin_leave",
     "admin_notices", "admin_contact", "admin_resources", "admin_course_modules",
     "admin_deployments", "admin_typing_game", "typing_exam",
-    "admin_attendance", "access_management",
+    "admin_attendance", "reports", "access_management",
 ];
 
 // Teacher-feature permissions added to admin when "Include teacher features" is checked
