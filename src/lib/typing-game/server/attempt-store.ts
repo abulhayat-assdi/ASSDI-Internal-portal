@@ -6,6 +6,7 @@
  */
 import type { PostgrestClient } from "@supabase/postgrest-js";
 import type { AttemptStatus } from "@/lib/typing-game/game-engine";
+import type { MechanicOutcome } from "@/lib/typing-game/mechanics";
 import {
   computeCoinAward,
   computeXpAward,
@@ -49,6 +50,12 @@ export interface StoreAttempt {
 }
 
 export interface StoredResult {
+  /**
+   * The mechanic replay the submit handler stored in `raw.mechanic`, so a
+   * result page survives a refresh with its mechanic panel intact. Null for
+   * shell mechanics and for attempts recorded before mechanics existed.
+   */
+  mechanic: MechanicOutcome | null;
   score: number;
   accuracy: number;
   effectiveWpm: number;
@@ -105,6 +112,18 @@ export interface AttemptStore {
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+/** Minimal shape check for a mechanic outcome read back out of jsonb. */
+function isStoredMechanic(v: unknown): v is MechanicOutcome {
+  if (!isRecord(v)) return false;
+  return (
+    typeof v.mechanic === "string" &&
+    typeof v.cleared === "boolean" &&
+    typeof v.endReason === "string" &&
+    isRecord(v.lives) &&
+    isRecord(v.units)
+  );
 }
 
 function asError(e: unknown): { message: string } | null {
@@ -242,7 +261,7 @@ export function createSupabaseAttemptStore(
     async getResult(attemptId: string): Promise<StoredResult | null> {
       const res = await client
         .from("attempt_results")
-        .select("score, accuracy, effective_wpm, is_valid, rejected_reason")
+        .select("score, accuracy, effective_wpm, is_valid, rejected_reason, raw")
         .eq("attempt_id", attemptId)
         .maybeSingle();
       if (res.error || !isRecord(res.data)) return null;
@@ -255,7 +274,11 @@ export function createSupabaseAttemptStore(
       ) {
         return null;
       }
+      const raw = isRecord(d.raw) ? d.raw : {};
       return {
+        // Shape-checked rather than cast: `raw` is jsonb written by earlier
+        // versions of this route too, so an old row simply has no mechanic.
+        mechanic: isStoredMechanic(raw.mechanic) ? raw.mechanic : null,
         score: d.score,
         accuracy: d.accuracy,
         effectiveWpm: d.effective_wpm,
@@ -444,6 +467,7 @@ export function createMemoryAttemptStore(
         submittedAt: now,
         finalizedAt: now,
         result: {
+          mechanic: isStoredMechanic(input.raw.mechanic) ? input.raw.mechanic : null,
           score: input.score,
           accuracy: input.accuracy,
           effectiveWpm: input.effectiveWpm,

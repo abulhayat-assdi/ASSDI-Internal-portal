@@ -84,6 +84,9 @@ export default async function PlayPage(
             accuracy: stored.accuracy,
             effectiveWpm: stored.effectiveWpm,
             progression: null,
+            // Replayed from the stored result, so refreshing a finished run
+            // keeps its mechanic panel instead of silently dropping it.
+            mechanic: stored.mechanic,
           }}
           snap={null}
           isPB={false}
