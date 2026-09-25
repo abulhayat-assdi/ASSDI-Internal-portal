@@ -1,16 +1,47 @@
 "use client";
 
-import { Heart, Shield, Swords, Flag, Waves, Crosshair, Link2, Wind, Gauge } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-import type { MechanicOutcome, MechanicParams, MechanicUnit } from "@/lib/typing-game/mechanics";
+import { useMemo } from "react";
+import {
+  Crosshair,
+  Flag,
+  Gauge,
+  Heart,
+  Link2,
+  Package,
+  Shield,
+  Swords,
+  Waves,
+  Wind,
+} from "lucide-react";
+import type {
+  MechanicOutcome,
+  MechanicParams,
+  MechanicUnit,
+} from "@/lib/typing-game/mechanics";
+import {
+  SceneBar,
+  ScenePips,
+  SceneShell,
+  SceneStat,
+  clampPct,
+  sceneModel,
+  tokenText,
+  trailingChain,
+  type SceneModel,
+  type UnitStatus,
+} from "./scene-parts";
 
 /**
- * The mechanic HUD: what the player is actually playing against.
+ * The mechanic scene: what the player is actually playing against.
  *
- * Every number here comes from the live MechanicOutcome, which is produced by
- * the same pure rules the server replays on submit. Nothing is invented for
- * display, so the bar a player watches empty is the bar the server agrees
- * emptied.
+ * Every number drawn here comes from the live MechanicOutcome, which the
+ * server replays with the same rules on submit. Nothing is invented for
+ * display and nothing here feeds scoring — so the bar a player watches empty
+ * is the bar the server agrees emptied.
+ *
+ * The art layer is decorative and aria-hidden; the stats row carries the real
+ * state as text and ARIA. Every scene is a fixed height, so it can never push
+ * the typing text around mid-run.
  */
 export interface MechanicStageStrings {
   lives: string;
@@ -29,71 +60,7 @@ export interface MechanicStageStrings {
   bossSurvived: string;
 }
 
-function Pips({
-  max,
-  used,
-  Icon,
-  label,
-}: {
-  max: number;
-  used: number;
-  Icon: LucideIcon;
-  label: string;
-}) {
-  const left = Math.max(0, max - used);
-  return (
-    <div className="tap-mech-meta">
-      <span>{label}</span>
-      <span className="tap-mech-dots" role="img" aria-label={`${String(left)}/${String(max)}`}>
-        {Array.from({ length: max }, (_, i) => (
-          <Icon
-            key={i}
-            size={15}
-            aria-hidden="true"
-            className={i < left ? "tap-mech-pip tap-mech-pip-on" : "tap-mech-pip"}
-          />
-        ))}
-      </span>
-    </div>
-  );
-}
-
-function Meter({
-  label,
-  value,
-  max,
-  tone,
-}: {
-  label: string;
-  value: number;
-  max: number;
-  tone: "danger" | "accent";
-}) {
-  const pct = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
-  return (
-    <div className="tap-mech-meter">
-      <span className="tap-mech-meter-label">{label}</span>
-      <span
-        className="tap-mech-meter-track"
-        role="progressbar"
-        aria-valuenow={Math.round(value)}
-        aria-valuemin={0}
-        aria-valuemax={Math.round(max)}
-        aria-label={label}
-      >
-        <span
-          className={tone === "danger" ? "tap-mech-meter-fill tap-mech-meter-danger" : "tap-mech-meter-fill"}
-          style={{ width: `${String(pct)}%` }}
-        />
-      </span>
-      <span className="tap-mech-meter-value">
-        {Math.round(value)}/{Math.round(max)}
-      </span>
-    </div>
-  );
-}
-
-/** Short, plain explanation of why a run ended. */
+/** Short, plain explanation of why a run ended. Null when it just finished. */
 export function mechanicEndMessage(
   outcome: MechanicOutcome,
   s: MechanicStageStrings,
@@ -114,6 +81,99 @@ export function mechanicEndMessage(
   }
 }
 
+/** How many unit chips to draw. Beyond this they stop being legible. */
+const MAX_TOKENS = 14;
+
+/**
+ * A window of unit chips centred on the live unit, so a 40-unit run still
+ * shows where the player is instead of shrinking to invisibility.
+ */
+function tokenWindow(
+  units: MechanicUnit[],
+  statuses: UnitStatus[],
+  live: number,
+): Array<{ key: number; text: string; status: UnitStatus; live: boolean }> {
+  const total = units.length;
+  if (total === 0) return [];
+  const half = Math.floor(MAX_TOKENS / 2);
+  const start = Math.max(0, Math.min(live - half, total - MAX_TOKENS));
+  const end = Math.min(total, start + MAX_TOKENS);
+  const out: Array<{ key: number; text: string; status: UnitStatus; live: boolean }> = [];
+  for (let i = start; i < end; i++) {
+    out.push({
+      key: i,
+      text: tokenText(units[i]?.text ?? ""),
+      status: statuses[i] ?? "pending",
+      live: i === live,
+    });
+  }
+  return out;
+}
+
+function TokenTrack({
+  units,
+  model,
+  variant,
+}: {
+  units: MechanicUnit[];
+  model: SceneModel;
+  variant: "fall" | "collect" | "chain" | "wave";
+}) {
+  const tokens = useMemo(
+    () => tokenWindow(units, model.statuses, model.resolved),
+    [units, model.statuses, model.resolved],
+  );
+  return (
+    <div className={`tap-scene-track tap-scene-track-${variant}`}>
+      {tokens.map((t) => (
+        <span
+          key={t.key}
+          className={[
+            "tap-scene-token",
+            `tap-scene-token-${t.status}`,
+            t.live ? "tap-scene-token-live" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
+          {t.text}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** Two markers closing on each other along a shared track. */
+function ChaseTrack({ runner, chaser }: { runner: number; chaser: number }) {
+  return (
+    <div className="tap-scene-chase">
+      <span className="tap-scene-chase-line" />
+      <span className="tap-scene-chase-chaser" style={{ left: `${String(chaser)}%` }}>
+        <Wind size={16} aria-hidden="true" />
+      </span>
+      <span className="tap-scene-chase-runner" style={{ left: `${String(runner)}%` }}>
+        <Gauge size={16} aria-hidden="true" />
+      </span>
+    </div>
+  );
+}
+
+function GateTrack({ passed, total }: { passed: number; total: number }) {
+  const gates = Math.max(1, Math.min(12, total));
+  return (
+    <div className="tap-scene-gates">
+      {Array.from({ length: gates }, (_, i) => (
+        <span
+          key={i}
+          className={i < passed ? "tap-scene-gate tap-scene-gate-on" : "tap-scene-gate"}
+        >
+          <Flag size={14} aria-hidden="true" />
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export function MechanicStage({
   outcome,
   params,
@@ -125,47 +185,113 @@ export function MechanicStage({
   units: MechanicUnit[];
   strings: MechanicStageStrings;
 }) {
+  const model = useMemo(() => sceneModel(outcome), [outcome]);
   const d = outcome.detail;
+  const note = mechanicEndMessage(outcome, s);
+
+  const lifePips = (
+    <ScenePips label={s.lives} left={model.livesLeft} max={model.livesMax} Icon={Heart} />
+  );
 
   switch (outcome.mechanic) {
-    case "defense-shield":
+    case "defense-shield": {
+      const max = d.shieldMax ?? model.livesMax;
+      const left = d.shieldLeft ?? model.livesLeft;
       return (
-        <div className="tap-mech-stage">
-          <Pips max={outcome.lives.max} used={outcome.lives.lost} Icon={Shield} label={s.shield} />
-        </div>
+        <SceneShell
+          label={s.shield}
+          failed={model.failed}
+          danger={left <= 1}
+          note={note}
+          art={
+            <div className="tap-scene-shield">
+              <span
+                className="tap-scene-shield-core"
+                data-cracked={left < max ? "true" : "false"}
+              >
+                <Shield size={26} aria-hidden="true" />
+              </span>
+            </div>
+          }
+          stats={
+            <>
+              <ScenePips label={s.shield} left={left} max={max} Icon={Shield} tone="shield" />
+              <SceneStat
+                label={s.targets}
+                value={`${String(model.cleared)}/${String(model.total)}`}
+                Icon={Crosshair}
+              />
+            </>
+          }
+        />
       );
+    }
 
     case "boss-phased": {
-      const max = d.bossHpMax ?? units.length;
-      const left = d.bossHpLeft ?? max;
+      const hpMax = d.bossHpMax ?? units.length;
+      const hpLeft = d.bossHpLeft ?? hpMax;
+      const phases = d.phases ?? params.phases;
+      const phasesCleared = d.phasesCleared ?? 0;
       return (
-        <div className="tap-mech-stage">
-          <Meter label={s.bossHp} value={left} max={max} tone="danger" />
-          <div className="tap-mech-meta">
-            <Swords size={15} aria-hidden="true" />
-            <span>
-              {Math.round(d.phasesCleared ?? 0)}/{Math.round(d.phases ?? params.phases)}
-            </span>
-          </div>
-        </div>
+        <SceneShell
+          label={s.bossHp}
+          failed={model.failed}
+          danger={hpLeft > 0 && hpLeft / Math.max(1, hpMax) < 0.25}
+          note={note}
+          art={
+            <div className="tap-scene-boss">
+              <span
+                className="tap-scene-boss-face"
+                data-hurt={hpLeft < hpMax ? "true" : "false"}
+              >
+                <Swords size={26} aria-hidden="true" />
+              </span>
+            </div>
+          }
+          stats={
+            <>
+              <SceneBar label={s.bossHp} value={hpLeft} max={hpMax} tone="danger" size="lg" />
+              <ScenePips
+                label={s.waves}
+                left={phasesCleared}
+                max={phases}
+                Icon={Swords}
+                tone="shield"
+              />
+            </>
+          }
+        />
       );
     }
 
     case "escape-run": {
       const lead = d.lead ?? 0;
+      const span = Math.max(1, params.headStartChars);
+      const runnerPct = 20 + clampPct(Math.max(0, lead), span) * 0.75;
+      const chaserPct = Math.max(0, runnerPct - 18);
       return (
-        <div className="tap-mech-stage">
-          <div className="tap-mech-meta">
-            <Wind size={15} aria-hidden="true" />
-            <span>{s.pursuer}</span>
-          </div>
-          <Meter
-            label={s.distance}
-            value={Math.max(0, lead)}
-            max={Math.max(1, params.headStartChars)}
-            tone={lead < params.headStartChars / 3 ? "danger" : "accent"}
-          />
-        </div>
+        <SceneShell
+          label={s.pursuer}
+          failed={model.failed}
+          danger={lead < span / 3}
+          note={note}
+          art={<ChaseTrack runner={runnerPct} chaser={chaserPct} />}
+          stats={
+            <>
+              <SceneBar
+                label={s.distance}
+                value={Math.max(0, lead)}
+                max={span}
+                tone={lead < span / 3 ? "danger" : "success"}
+              />
+              <SceneStat
+                label={s.pursuer}
+                value={String(Math.round(d.chaser ?? 0))}
+                Icon={Wind}
+              />
+            </>
+          }
+        />
       );
     }
 
@@ -173,68 +299,173 @@ export function MechanicStage({
       const total = d.checkpointsTotal ?? 0;
       const passed = d.checkpointsPassed ?? 0;
       return (
-        <div className="tap-mech-stage">
-          <div className="tap-mech-meta">
-            <Flag size={15} aria-hidden="true" />
-            <span>{s.checkpoints}</span>
-            <span className="tap-mech-dots" role="img" aria-label={`${String(passed)}/${String(total)}`}>
-              {Array.from({ length: Math.max(total, 1) }, (_, i) => (
-                <span key={i} className={i < passed ? "tap-mech-dot tap-mech-dot-filled" : "tap-mech-dot"} />
-              ))}
-            </span>
-          </div>
-        </div>
+        <SceneShell
+          label={s.checkpoints}
+          failed={model.failed}
+          note={note}
+          art={<GateTrack passed={passed} total={total} />}
+          stats={
+            <>
+              <SceneStat
+                label={s.checkpoints}
+                value={`${String(passed)}/${String(total)}`}
+                Icon={Flag}
+                tone={model.failed ? "bad" : "ok"}
+              />
+              <SceneBar label={s.distance} value={model.resolved} max={model.total} />
+            </>
+          }
+        />
       );
     }
 
-    case "survival-waves":
+    case "survival-waves": {
+      const wavesCleared = d.wavesCleared ?? 0;
+      const wavesTotal = d.wavesTotal ?? 0;
       return (
-        <div className="tap-mech-stage">
-          <Pips max={outcome.lives.max} used={outcome.lives.lost} Icon={Heart} label={s.lives} />
-          <div className="tap-mech-meta">
-            <Waves size={15} aria-hidden="true" />
-            <span>
-              {Math.round(d.wavesCleared ?? 0)}/{Math.round(d.wavesTotal ?? 0)}
-            </span>
-          </div>
-        </div>
+        <SceneShell
+          label={s.waves}
+          failed={model.failed}
+          danger={model.livesLeft <= 1}
+          note={note}
+          art={<TokenTrack units={units} model={model} variant="wave" />}
+          stats={
+            <>
+              {lifePips}
+              <SceneStat
+                label={s.waves}
+                value={`${String(wavesCleared)}/${String(wavesTotal)}`}
+                Icon={Waves}
+              />
+            </>
+          }
+        />
       );
+    }
 
-    case "sequence-build":
+    case "sequence-build": {
+      const chain = trailingChain(model.statuses, model.resolved);
       return (
-        <div className="tap-mech-stage">
-          <Pips max={outcome.lives.max} used={outcome.lives.lost} Icon={Link2} label={s.chain} />
-          <div className="tap-mech-meta">
-            <span>{Math.round(d.longestChain ?? 0)}</span>
-          </div>
-        </div>
+        <SceneShell
+          label={s.chain}
+          failed={model.failed}
+          danger={model.livesLeft <= 1}
+          note={note}
+          art={<TokenTrack units={units} model={model} variant="chain" />}
+          stats={
+            <>
+              <SceneStat
+                label={s.chain}
+                value={String(chain)}
+                Icon={Link2}
+                tone={chain > 0 ? "ok" : "plain"}
+              />
+              <ScenePips
+                label={s.lives}
+                left={model.livesLeft}
+                max={model.livesMax}
+                Icon={Link2}
+              />
+            </>
+          }
+        />
       );
+    }
 
-    case "endless":
+    case "endless": {
+      const distance = d.distance ?? model.cleared;
       return (
-        <div className="tap-mech-stage">
-          <Pips max={outcome.lives.max} used={outcome.lives.lost} Icon={Heart} label={s.lives} />
-          <div className="tap-mech-meta">
-            <Gauge size={15} aria-hidden="true" />
-            <span>{Math.round(d.distance ?? 0)}</span>
-          </div>
-        </div>
+        <SceneShell
+          label={s.distance}
+          failed={model.failed}
+          danger={model.livesLeft <= 1}
+          note={note}
+          art={
+            <ChaseTrack
+              runner={20 + clampPct(model.resolved, model.total) * 0.75}
+              chaser={0}
+            />
+          }
+          stats={
+            <>
+              {lifePips}
+              <SceneStat label={s.distance} value={String(distance)} Icon={Gauge} />
+            </>
+          }
+        />
       );
+    }
+
+    case "collection": {
+      return (
+        <SceneShell
+          label={s.targets}
+          failed={model.failed}
+          danger={model.livesLeft <= 1}
+          note={note}
+          art={<TokenTrack units={units} model={model} variant="collect" />}
+          stats={
+            <>
+              {lifePips}
+              <SceneStat
+                label={s.targets}
+                value={`${String(d.collected ?? model.cleared)}/${String(model.total)}`}
+                Icon={Package}
+              />
+            </>
+          }
+        />
+      );
+    }
+
+    case "target-press": {
+      const live = units[model.resolved];
+      return (
+        <SceneShell
+          label={s.targets}
+          failed={model.failed}
+          danger={model.livesLeft <= 1}
+          note={note}
+          art={
+            <div className="tap-scene-target">
+              <span className="tap-scene-target-key">{live ? tokenText(live.text) : ""}</span>
+            </div>
+          }
+          stats={
+            <>
+              {lifePips}
+              <SceneStat
+                label={s.targets}
+                value={`${String(d.hits ?? model.cleared)}/${String(model.total)}`}
+                Icon={Crosshair}
+              />
+            </>
+          }
+        />
+      );
+    }
 
     case "falling-catch":
-    case "collection":
-    case "target-press":
-    default:
+    default: {
       return (
-        <div className="tap-mech-stage">
-          <Pips max={outcome.lives.max} used={outcome.lives.lost} Icon={Heart} label={s.lives} />
-          <div className="tap-mech-meta">
-            <Crosshair size={15} aria-hidden="true" />
-            <span>
-              {outcome.units.cleared}/{units.length}
-            </span>
-          </div>
-        </div>
+        <SceneShell
+          label={s.targets}
+          failed={model.failed}
+          danger={model.livesLeft <= 1}
+          note={note}
+          art={<TokenTrack units={units} model={model} variant="fall" />}
+          stats={
+            <>
+              {lifePips}
+              <SceneStat
+                label={s.targets}
+                value={`${String(d.caught ?? model.cleared)}/${String(model.total)}`}
+                Icon={Crosshair}
+              />
+            </>
+          }
+        />
       );
+    }
   }
 }

@@ -1173,47 +1173,6 @@ html[data-theme="dark"] .tap-scope .tap-badge-danger { color: #fda4af; }
   background: linear-gradient(135deg, var(--tap-accent-from), var(--tap-accent-to));
   transform: scale(1.2);
 }
-/* Mechanic stage HUD: lives/shield pips, boss + pursuit meters.
-   Every value shown here is produced by the mechanic replay, so these are
-   pure presentation — no state lives in CSS. */
-.tap-scope .tap-mech-stage {
-  display: flex; align-items: center; flex-wrap: wrap; gap: 0.75rem;
-}
-.tap-scope .tap-mech-pip {
-  color: var(--tap-border-strong);
-  transition: color 0.25s ease, transform 0.25s ease, filter 0.25s ease;
-}
-.tap-scope .tap-mech-pip-on {
-  color: var(--tap-danger, #ef4444);
-  transform: scale(1.08);
-  filter: drop-shadow(0 1px 4px rgba(239, 68, 68, 0.45));
-}
-.tap-scope .tap-mech-meter {
-  display: flex; align-items: center; gap: 0.5rem;
-  font-size: 0.78rem; font-weight: 700; color: var(--tap-ink-muted);
-}
-.tap-scope .tap-mech-meter-label { white-space: nowrap; }
-.tap-scope .tap-mech-meter-track {
-  position: relative; display: block;
-  width: 7rem; height: 0.5rem; border-radius: 9999px;
-  background: var(--tap-border-strong); overflow: hidden;
-}
-.tap-scope .tap-mech-meter-fill {
-  display: block; height: 100%; border-radius: 9999px;
-  background: linear-gradient(135deg, var(--tap-accent-from), var(--tap-accent-to));
-  transition: width 0.25s ease;
-}
-.tap-scope .tap-mech-meter-danger {
-  background: linear-gradient(135deg, #f97316, #ef4444);
-}
-.tap-scope .tap-mech-meter-value {
-  font-variant-numeric: tabular-nums; color: var(--tap-ink);
-}
-@media (prefers-reduced-motion: reduce) {
-  .tap-scope .tap-mech-pip,
-  .tap-scope .tap-mech-meter-fill { transition: none; }
-}
-
 .tap-scope .tap-mech-ring-wrap { position: relative; display: inline-flex; }
 .tap-scope .tap-mech-ring-value {
   position: absolute; inset: 0;
@@ -1282,4 +1241,235 @@ html[data-theme="dark"] .tap-scope .tap-badge-danger { color: #fda4af; }
 
 @media (prefers-reduced-motion: reduce) {
   .tap-scope * { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+}
+
+/* =========================================================================
+   Mechanic scenes (@tap/mechanics)
+   The art layer is decorative; the stats row carries the real state. Every
+   scene keeps a FIXED height so it can never push the typing text around
+   mid-run, and every value drawn comes from the server-replayed outcome.
+   ========================================================================= */
+.tap-scope .tap-scene {
+  display: flex; flex-direction: column; gap: 0.5rem;
+  width: 100%; min-width: 0;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--tap-border);
+  border-radius: 0.9rem;
+  background: var(--tap-surface);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.tap-scope .tap-scene-danger {
+  border-color: #f9731688;
+  box-shadow: 0 0 0 1px #f9731633, 0 4px 14px rgba(249, 115, 22, 0.16);
+}
+.tap-scope .tap-scene-failed {
+  border-color: #ef444488;
+  box-shadow: 0 0 0 1px #ef444433, 0 4px 14px rgba(239, 68, 68, 0.2);
+}
+
+/* Art: fixed height, clipped, never grows with content. */
+.tap-scope .tap-scene-art {
+  position: relative;
+  height: 3.1rem;
+  display: flex; align-items: center;
+  overflow: hidden;
+  border-radius: 0.6rem;
+  background: var(--tap-surface-strong);
+}
+.tap-scope .tap-scene-stats {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem 0.9rem;
+}
+.tap-scope .tap-scene-note {
+  margin: 0; font-size: 0.78rem; font-weight: 700; color: #ef4444;
+}
+
+/* Stats */
+.tap-scope .tap-scene-stat {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  font-size: 0.76rem; font-weight: 700; color: var(--tap-ink-muted);
+}
+.tap-scope .tap-scene-stat-label { white-space: nowrap; }
+.tap-scope .tap-scene-stat-value {
+  color: var(--tap-ink); font-variant-numeric: tabular-nums;
+}
+.tap-scope .tap-scene-stat-ok .tap-scene-stat-value { color: #16a34a; }
+.tap-scope .tap-scene-stat-bad .tap-scene-stat-value { color: #ef4444; }
+
+/* Pips (lives / shield charges / phases) */
+.tap-scope .tap-scene-pips {
+  display: inline-flex; align-items: center; gap: 0.2rem;
+  font-size: 0.76rem; font-weight: 700; color: var(--tap-ink-muted);
+}
+.tap-scope .tap-scene-pips .tap-scene-stat-label { margin-right: 0.15rem; }
+.tap-scope .tap-scene-pip {
+  color: var(--tap-border-strong);
+  transition: color 0.25s ease, transform 0.25s ease;
+}
+.tap-scope .tap-scene-pips-life .tap-scene-pip-on {
+  color: #ef4444; transform: scale(1.06);
+  filter: drop-shadow(0 1px 3px rgba(239, 68, 68, 0.4));
+}
+.tap-scope .tap-scene-pips-shield .tap-scene-pip-on {
+  color: var(--tap-accent-from); transform: scale(1.06);
+}
+
+/* Bars */
+.tap-scope .tap-scene-bar {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  font-size: 0.76rem; font-weight: 700; color: var(--tap-ink-muted);
+  min-width: 0;
+}
+.tap-scope .tap-scene-bar-track {
+  position: relative; display: block; height: 0.45rem;
+  width: 5.5rem; flex-shrink: 0;
+  border-radius: 9999px; background: var(--tap-border-strong); overflow: hidden;
+}
+.tap-scope .tap-scene-bar-lg .tap-scene-bar-track { width: 8rem; height: 0.55rem; }
+.tap-scope .tap-scene-bar-fill {
+  display: block; height: 100%; border-radius: 9999px;
+  transition: width 0.25s ease;
+  background: linear-gradient(135deg, var(--tap-accent-from), var(--tap-accent-to));
+}
+.tap-scope .tap-scene-bar-danger { background: linear-gradient(135deg, #f97316, #ef4444); }
+.tap-scope .tap-scene-bar-success { background: linear-gradient(135deg, #22c55e, #16a34a); }
+.tap-scope .tap-scene-bar-value {
+  color: var(--tap-ink); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+
+/* Token track (falling / collecting / chaining / waves) */
+.tap-scope .tap-scene-track {
+  display: flex; align-items: center; gap: 0.3rem;
+  padding: 0 0.5rem; width: 100%; overflow: hidden;
+}
+.tap-scope .tap-scene-token {
+  flex-shrink: 0;
+  padding: 0.15rem 0.4rem;
+  border-radius: 0.35rem;
+  font-size: 0.72rem; font-weight: 800;
+  font-family: ui-monospace, monospace;
+  color: var(--tap-ink-muted);
+  background: var(--tap-surface);
+  border: 1px solid var(--tap-border);
+  transition: transform 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+}
+.tap-scope .tap-scene-token-cleared {
+  color: #fff; background: linear-gradient(135deg, #22c55e, #16a34a); border-color: transparent;
+}
+.tap-scope .tap-scene-token-missed {
+  color: #fff; background: linear-gradient(135deg, #f97316, #ef4444); border-color: transparent;
+}
+.tap-scope .tap-scene-token-live {
+  color: var(--tap-ink);
+  border-color: var(--tap-accent-from);
+  transform: scale(1.14);
+  box-shadow: 0 2px 10px rgba(99, 102, 241, 0.3);
+}
+/* The live token drifts downward in the falling variant. */
+.tap-scope .tap-scene-track-fall .tap-scene-token-live {
+  animation: tap-scene-fall 1.4s ease-in-out infinite alternate;
+}
+@keyframes tap-scene-fall {
+  from { transform: translateY(-0.3rem) scale(1.14); }
+  to   { transform: translateY(0.3rem) scale(1.14); }
+}
+/* Chain links sit flush, reading as one connected run. */
+.tap-scope .tap-scene-track-chain { gap: 0.1rem; }
+
+/* Chase track (escape-run / endless) */
+.tap-scope .tap-scene-chase { position: relative; width: 100%; height: 100%; }
+.tap-scope .tap-scene-chase-line {
+  position: absolute; left: 0.5rem; right: 0.5rem; top: 50%;
+  height: 2px; border-radius: 2px;
+  background: repeating-linear-gradient(
+    90deg, var(--tap-border-strong) 0 8px, transparent 8px 16px
+  );
+}
+.tap-scope .tap-scene-chase-runner,
+.tap-scope .tap-scene-chase-chaser {
+  position: absolute; top: 50%;
+  display: flex; align-items: center; justify-content: center;
+  width: 1.5rem; height: 1.5rem; margin: -0.75rem 0 0 -0.75rem;
+  border-radius: 9999px;
+  transition: left 0.25s ease;
+}
+.tap-scope .tap-scene-chase-runner {
+  color: #fff; background: linear-gradient(135deg, var(--tap-accent-from), var(--tap-accent-to));
+}
+.tap-scope .tap-scene-chase-chaser { color: #fff; background: linear-gradient(135deg, #f97316, #ef4444); }
+
+/* Checkpoint gates */
+.tap-scope .tap-scene-gates {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.2rem; width: 100%; padding: 0 0.6rem;
+}
+.tap-scope .tap-scene-gate {
+  display: flex; align-items: center; justify-content: center;
+  width: 1.4rem; height: 1.4rem; border-radius: 0.4rem;
+  color: var(--tap-border-strong); background: var(--tap-surface);
+  border: 1px solid var(--tap-border);
+  transition: color 0.25s ease, background-color 0.25s ease;
+}
+.tap-scope .tap-scene-gate-on {
+  color: #fff; border-color: transparent;
+  background: linear-gradient(135deg, var(--tap-accent-from), var(--tap-accent-to));
+}
+
+/* Shield / boss / target emblems */
+.tap-scope .tap-scene-shield,
+.tap-scope .tap-scene-boss,
+.tap-scope .tap-scene-target {
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; height: 100%;
+}
+.tap-scope .tap-scene-shield-core,
+.tap-scope .tap-scene-boss-face {
+  display: flex; align-items: center; justify-content: center;
+  width: 2.4rem; height: 2.4rem; border-radius: 9999px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--tap-accent-from), var(--tap-accent-to));
+}
+.tap-scope .tap-scene-shield-core[data-cracked="true"],
+.tap-scope .tap-scene-boss-face[data-hurt="true"] {
+  background: linear-gradient(135deg, #f97316, #ef4444);
+  animation: tap-scene-shake 0.5s ease-in-out infinite alternate;
+}
+@keyframes tap-scene-shake {
+  from { transform: translateX(-1.5px) rotate(-2deg); }
+  to   { transform: translateX(1.5px) rotate(2deg); }
+}
+.tap-scope .tap-scene-target-key {
+  display: flex; align-items: center; justify-content: center;
+  min-width: 2.2rem; height: 2.2rem; padding: 0 0.5rem;
+  border-radius: 0.5rem;
+  font-family: ui-monospace, monospace;
+  font-size: 1.05rem; font-weight: 800; color: var(--tap-ink);
+  background: var(--tap-surface);
+  border: 2px solid var(--tap-accent-from);
+  box-shadow: 0 3px 0 var(--tap-border-strong);
+  animation: tap-scene-pulse 1.2s ease-in-out infinite alternate;
+}
+@keyframes tap-scene-pulse {
+  from { box-shadow: 0 3px 0 var(--tap-border-strong), 0 0 0 0 rgba(99, 102, 241, 0.35); }
+  to   { box-shadow: 0 3px 0 var(--tap-border-strong), 0 0 0 6px rgba(99, 102, 241, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tap-scope .tap-scene,
+  .tap-scope .tap-scene-pip,
+  .tap-scope .tap-scene-token,
+  .tap-scope .tap-scene-bar-fill,
+  .tap-scope .tap-scene-gate,
+  .tap-scope .tap-scene-chase-runner,
+  .tap-scope .tap-scene-chase-chaser { transition: none; }
+  .tap-scope .tap-scene-track-fall .tap-scene-token-live,
+  .tap-scope .tap-scene-shield-core[data-cracked="true"],
+  .tap-scope .tap-scene-boss-face[data-hurt="true"],
+  .tap-scope .tap-scene-target-key { animation: none; }
+}
+
+/* Phone: the stats row wraps, the art shortens, nothing overflows. */
+@media (max-width: 480px) {
+  .tap-scope .tap-scene-art { height: 2.6rem; }
+  .tap-scope .tap-scene-bar-track { width: 4.2rem; }
+  .tap-scope .tap-scene-bar-lg .tap-scene-bar-track { width: 5.5rem; }
 }
