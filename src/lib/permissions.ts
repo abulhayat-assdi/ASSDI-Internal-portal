@@ -23,6 +23,7 @@ export type PermissionKey =
     | "teachers"
     | "attendance"
     | "admin_attendance"
+    | "admin_routine"
     | "reports"
     | "admin_panel"
     | "admin_homework"
@@ -49,7 +50,7 @@ export interface PermissionMeta {
 
 export const PERMISSION_META: Record<PermissionKey, PermissionMeta> = {
     schedule: { label: "Class Schedule", path: "/dashboard/schedule", group: "teacher", icon: "📅" },
-    routine: { label: "Manage Routine", path: "/dashboard/manage-routine", group: "teacher", icon: "📆" },
+    routine: { label: "Routine (view)", path: "/dashboard/manage-routine", group: "teacher", icon: "📆" },
     batch_info: { label: "All Batch Info", path: "/dashboard/all-batch-info", group: "teacher", icon: "📊" },
     resources: { label: "Resource Library", path: "/dashboard/resources", group: "teacher", icon: "🗂️" },
     course_modules: { label: "Course Modules", path: "/dashboard/course-modules", group: "teacher", icon: "📚" },
@@ -64,6 +65,7 @@ export const PERMISSION_META: Record<PermissionKey, PermissionMeta> = {
     admin_results: { label: "Manage Results", path: "/dashboard/admin/manage-results", group: "admin", icon: "📝" },
     admin_leave: { label: "Manage Leaves", path: "/dashboard/admin/leave-management", group: "admin", icon: "🌴" },
     admin_attendance: { label: "Attendance Report", path: "/dashboard/admin/attendance-report", group: "admin", icon: "📈" },
+    admin_routine: { label: "Update Routine", path: "/dashboard/manage-routine", group: "admin", icon: "📆" },
     reports: { label: "Reports & Insights", path: "/dashboard/admin/reports", group: "admin", icon: "📊" },
     admin_notices: { label: "Student Notices", path: "/dashboard/admin/student-updates", group: "admin", icon: "🔔" },
     admin_contact: { label: "Contact Messages", path: "/dashboard/admin/contact-messages", group: "admin", icon: "📩" },
@@ -109,7 +111,7 @@ export const DEFAULT_ADMIN_PERMISSIONS: PermissionKey[] = [
     "admin_panel", "admin_homework", "admin_results", "admin_leave",
     "admin_notices", "admin_contact", "admin_resources", "admin_course_modules",
     "admin_deployments", "admin_typing_game", "typing_exam",
-    "admin_attendance", "reports", "access_management",
+    "admin_attendance", "admin_routine", "reports", "access_management",
 ];
 
 // Teacher-feature permissions added to admin when "Include teacher features" is checked

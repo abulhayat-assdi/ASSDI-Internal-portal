@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
-import { getSessionUser, isTeacherOrAdmin } from "@/lib/auth";
+import { getSessionUser, hasRequiredPermission, isAdmin, isTeacherOrAdmin } from "@/lib/auth";
+
+/**
+ * Viewing a routine is open to everyone in the course — students see their own
+ * batch's image, teachers see every batch. Uploading or removing one is an
+ * admin job (`admin_routine`), following the same split as homework, results
+ * and resources. Checked here as well as in the screen, so the UI is a
+ * convenience rather than the guard.
+ */
+function canManageRoutine(user: Parameters<typeof isAdmin>[0]) {
+    return hasRequiredPermission(user, "admin_routine");
+}
 import fs from "fs";
 import { unlink } from "fs/promises";
 import path from "path";
@@ -100,7 +111,7 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user || !isTeacherOrAdmin(user) || !user.courseId) {
+    if (!user || !isTeacherOrAdmin(user) || !user.courseId || !canManageRoutine(user)) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     const courseId = user.courseId;
@@ -143,7 +154,7 @@ export async function POST(req: NextRequest) {
 /** DELETE /api/routines?id=...  — remove a routine image (and its file) */
 export async function DELETE(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user || !isTeacherOrAdmin(user) || !user.courseId) {
+    if (!user || !isTeacherOrAdmin(user) || !user.courseId || !canManageRoutine(user)) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     const courseId = user.courseId;
