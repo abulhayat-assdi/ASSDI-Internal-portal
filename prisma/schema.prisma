@@ -451,6 +451,8 @@ model AttendanceSession {
   batchName   String   @map("batch_name")
   // "YYYY-MM-DD", the same convention classes and schedules use.
   date        String
+  // Informational only — which class the roll call was taken in. Attendance
+  // is one roll call per batch per day, so this is not part of the key.
   subject     String   @default("")
   takenByUid  String   @map("taken_by_uid")
   takenByName String   @map("taken_by_name")
@@ -462,9 +464,9 @@ model AttendanceSession {
   batch   Batch              @relation(fields: [batchId], references: [id], onDelete: Cascade)
   records AttendanceRecord[]
 
-  // One roll call per batch, day and subject — a second save for the same
-  // slot updates the first instead of double-counting the day.
-  @@unique([courseId, batchId, date, subject])
+  // One roll call per batch per day, whoever takes it: a second save for the
+  // same day updates the first instead of double-counting it.
+  @@unique([courseId, batchId, date])
   @@index([courseId])
   @@index([batchId])
   @@index([date])
