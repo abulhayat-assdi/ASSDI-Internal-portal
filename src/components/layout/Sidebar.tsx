@@ -30,6 +30,7 @@ const teacherAdminTopNavItems: NavItem[] = [
     { href: "/dashboard/admin/contact-messages", label: "Messages", icon: "💬", permission: null },
     { href: "/dashboard/course-modules", label: "Course Modules", icon: "📚", permission: "course_modules", feature: "course_modules" },
     { href: "/dashboard/homework", label: "Homework", icon: "📝", permission: "homework", feature: "homework" },
+    { href: "/dashboard/attendance", label: "Attendance", icon: "🗓️", permission: "attendance", feature: "attendance" },
     { href: "/dashboard/leave-tracking", label: "Leave Tracking", icon: "🌴", permission: "leave_tracking", feature: "leave_tracking" },
     { href: "/dashboard/student-leaves", label: "Student Leaves", icon: "🏖️", permission: "admin_leave", feature: "student_leaves" },
 ];
@@ -97,6 +98,7 @@ const teacherAdminNavSections: NavSection[] = [
             { href: "/dashboard/admin/access-management", label: "Access Management", icon: "🔑", permission: "access_management" },
             { href: "/dashboard/admin/batch-forms", label: "Batch Forms", icon: "📝", permission: "admin_panel", feature: "batch_forms" },
             { href: "/dashboard/admin/leave-management", label: "Manage Leaves", icon: "🌴", permission: "admin_leave", feature: "leave_tracking" },
+            { href: "/dashboard/admin/attendance-report", label: "Attendance Report", icon: "📈", permission: "admin_attendance", feature: "attendance" },
             { href: "/dashboard/settings/branding", label: "Branding & Settings", icon: "🎨", permission: "admin_panel" },
         ]
     }
@@ -109,6 +111,7 @@ const studentNavItems: NavItem[] = [
     { href: "/student-dashboard/course-outline", label: "Course Outline", icon: "📋", permission: null, feature: "course_modules" },
     { href: "/student-dashboard/homework", label: "Homework", icon: "📝", permission: null, feature: "homework" },
     { href: "/student-dashboard/results", label: "Results", icon: "🎓", permission: null, feature: "exam_results" },
+    { href: "/student-dashboard/attendance", label: "My Attendance", icon: "🗓️", permission: null, feature: "attendance" },
     { href: "/student-dashboard/deployments", label: "My Deployments", icon: "🚀", permission: null, feature: "deployments" },
     { href: "/student-dashboard/profile", label: "Profile", icon: "👤", permission: null },
     { href: "/student-dashboard/leave", label: "Leave Request", icon: "🏖️", permission: null },

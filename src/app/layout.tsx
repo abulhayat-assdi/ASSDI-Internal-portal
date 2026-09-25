@@ -6,6 +6,7 @@ import { ConfirmProvider } from "@/contexts/ConfirmContext";
 import { withCourseContext } from "@/lib/db";
 import { getCourseById } from "@/lib/course";
 import { headers } from "next/headers";
+import { Toaster } from "react-hot-toast";
 
 const geistSans = Geist({
     variable: "--font-geist-sans",
@@ -84,6 +85,9 @@ export default async function RootLayout({
                 <AuthProvider>
                     <ConfirmProvider>
                         {children}
+                        {/* 19 pages call react-hot-toast; without this mount
+                            none of those toasts were ever rendered. */}
+                        <Toaster position="top-center" toastOptions={{ duration: 4000 }} />
                     </ConfirmProvider>
                 </AuthProvider>
             </body>

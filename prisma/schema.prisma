@@ -32,6 +32,13 @@ enum ClassStatus {
   UPCOMING
 }
 
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
 enum ScheduleStatus {
   Scheduled
   Completed
@@ -158,6 +165,8 @@ model Course {
   classSchedules           ClassSchedule[]
   batches                  Batch[]
   batchStudents            BatchStudent[]
+  attendanceSessions       AttendanceSession[]
+  attendanceRecords        AttendanceRecord[]
   notices                  Notice[]
   studentNotices           StudentNotice[]
   homeworkSubmissions      HomeworkSubmission[]
@@ -365,8 +374,9 @@ model Batch {
   createdAt DateTime    @default(now()) @map("created_at")
   updatedAt DateTime    @updatedAt @map("updated_at")
 
-  course   Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  students BatchStudent[]
+  course              Course              @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  students            BatchStudent[]
+  attendanceSessions  AttendanceSession[]
 
   @@unique([courseId, name])
   @@index([status])
@@ -415,8 +425,9 @@ model BatchStudent {
   tShirtSize         String?         @map("t_shirt_size")
   courseGoal         String?         @map("course_goal")
 
-  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  batch  Batch  @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  course            Course             @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  batch             Batch              @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  attendanceRecords AttendanceRecord[]
 
   @@unique([courseId, batchName, roll])
   @@index([batchName])
@@ -424,6 +435,63 @@ model BatchStudent {
   @@index([courseStatus])
   @@index([courseId])
   @@map("batch_students")
+}
+
+// ============================================================
+// ATTENDANCE
+// ============================================================
+
+// One roll call: a batch on a date, for one subject/slot. The records hang
+// off it, so re-opening a roll call to correct it edits rows in place rather
+// than creating a second set for the same class.
+model AttendanceSession {
+  id          String   @id @default(uuid())
+  courseId    String   @map("course_id")
+  batchId     String   @map("batch_id")
+  batchName   String   @map("batch_name")
+  // "YYYY-MM-DD", the same convention classes and schedules use.
+  date        String
+  subject     String   @default("")
+  takenByUid  String   @map("taken_by_uid")
+  takenByName String   @map("taken_by_name")
+  note        String   @default("")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  course  Course             @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  batch   Batch              @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  records AttendanceRecord[]
+
+  // One roll call per batch, day and subject — a second save for the same
+  // slot updates the first instead of double-counting the day.
+  @@unique([courseId, batchId, date, subject])
+  @@index([courseId])
+  @@index([batchId])
+  @@index([date])
+  @@map("attendance_sessions")
+}
+
+model AttendanceRecord {
+  id          String           @id @default(uuid())
+  courseId    String           @map("course_id")
+  sessionId   String           @map("session_id")
+  studentId   String           @map("student_id")
+  roll        String
+  studentName String           @map("student_name")
+  status      AttendanceStatus @default(PRESENT)
+  note        String           @default("")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt      @map("updated_at")
+
+  course  Course            @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  session AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  student BatchStudent      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, studentId])
+  @@index([courseId])
+  @@index([studentId])
+  @@index([status])
+  @@map("attendance_records")
 }
 
 // ============================================================
