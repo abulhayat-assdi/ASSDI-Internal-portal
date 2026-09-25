@@ -406,6 +406,12 @@ model BatchStudent {
   photo              String?
   batchType          BatchType       @default(Running) @map("batch_type")
   isPublic           Boolean         @default(true) @map("is_public")
+  // A roll may be registered once. An admin flips this on to let the same
+  // roll be claimed by a different email; registering consumes it again.
+  registrationUnlocked Boolean       @default(false) @map("registration_unlocked")
+  // When the course status last moved to a blocking value, for the notice
+  // shown to the student and for the admin's own records.
+  accessBlockedAt    DateTime?       @map("access_blocked_at")
   createdAt          DateTime        @default(now()) @map("created_at")
   completedAt        DateTime?       @map("completed_at")
 

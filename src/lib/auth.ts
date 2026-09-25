@@ -4,6 +4,7 @@ import { cookies } from 'next/headers';
 import { COOKIES } from './constants';
 import { withCourseContext, type CourseContext } from './db';
 import { getEffectivePermissions, PermissionKey } from './permissions';
+import { isPortalAccessBlocked, studentAccessSelect } from './studentAccess';
 
 
 export interface JWTPayload {
@@ -117,6 +118,33 @@ async function applyDbUserOverrides(payload: JWTPayload): Promise<JWTPayload | n
 
     const session = dbUser.activeSession;
     if (!session || session.expiresAt.getTime() <= Date.now()) return null;
+
+    // A student whose course status says they have left loses access from the
+    // moment the admin changes it — including on a session opened beforehand.
+    // Checked here rather than at login alone so an already-open tab cannot
+    // keep working for the rest of the month.
+    if (
+        dbUser.role === 'student' &&
+        dbUser.courseId &&
+        dbUser.studentBatchName &&
+        dbUser.studentRoll
+    ) {
+        const student = await withCourseContext(
+            { courseId: dbUser.courseId, isSuperAdmin: false },
+            (tx) =>
+                tx.batchStudent.findUnique({
+                    where: {
+                        courseId_batchName_roll: {
+                            courseId: dbUser.courseId!,
+                            batchName: dbUser.studentBatchName!,
+                            roll: dbUser.studentRoll!,
+                        },
+                    },
+                    select: studentAccessSelect,
+                })
+        );
+        if (isPortalAccessBlocked(student)) return null;
+    }
 
     payload.role = dbUser.role;
     payload.courseId = dbUser.courseId;
