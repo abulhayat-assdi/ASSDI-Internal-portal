@@ -17,19 +17,16 @@ interface Student {
     photo?: string | null;
 }
 
+interface Teacher {
+    id: string;
+    displayName: string;
+    role: string;
+}
+
 interface SavedRecord {
     studentId: string;
     status: AttendanceStatus;
     note: string;
-}
-
-interface ScheduledClass {
-    batchName: string;
-    subject: string;
-    teacherName: string;
-    time: string;
-    attendanceTaken: boolean;
-    takenByName: string | null;
 }
 
 interface SavedSession {
@@ -61,7 +58,12 @@ export default function AttendancePage() {
     const [marks, setMarks] = useState<Record<string, AttendanceStatus>>({});
     const [savedAt, setSavedAt] = useState<SavedSession | null>(null);
 
-    const [scheduled, setScheduled] = useState<ScheduledClass[]>([]);
+    // Who is signing for this roll call, and their password. Deliberately not
+    // remembered between saves — the screen is shared.
+    const [teachers, setTeachers] = useState<Teacher[]>([]);
+    const [teacherId, setTeacherId] = useState("");
+    const [teacherPassword, setTeacherPassword] = useState("");
+
     const [loadingRoster, setLoadingRoster] = useState(false);
     const [saving, setSaving] = useState(false);
 
@@ -75,24 +77,14 @@ export default function AttendancePage() {
                 }
             })
             .catch(() => toast.error("ব্যাচ তালিকা লোড করা যায়নি।"));
+
+        fetch("/api/attendance/teachers")
+            .then((r) => r.json())
+            .then((d) => Array.isArray(d.teachers) && setTeachers(d.teachers))
+            .catch(() => toast.error("শিক্ষক তালিকা লোড করা যায়নি।"));
         // Runs once — the batch list doesn't change while the screen is open.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
-
-    /** The routine's classes for the chosen day, with roll-call status. */
-    const loadScheduled = useCallback(async () => {
-        try {
-            const res = await fetch(`/api/attendance/today?date=${date}`);
-            const data = await res.json();
-            setScheduled(Array.isArray(data.classes) ? data.classes : []);
-        } catch {
-            setScheduled([]);
-        }
-    }, [date]);
-
-    useEffect(() => {
-        loadScheduled();
-    }, [loadScheduled]);
 
     /** Loads the batch roster and, if this day was already taken, its saved marks. */
     const loadRoster = useCallback(async () => {
@@ -147,6 +139,14 @@ export default function AttendancePage() {
 
     const save = async () => {
         if (!students.length) return;
+        if (!teacherId) {
+            toast.error("কোন শিক্ষক অ্যাটেনডেন্স নিচ্ছেন সেটা বেছে নিন।");
+            return;
+        }
+        if (!teacherPassword) {
+            toast.error("শিক্ষকের পাসওয়ার্ড দিন।");
+            return;
+        }
         setSaving(true);
         try {
             const res = await fetch("/api/attendance/sessions", {
@@ -155,6 +155,8 @@ export default function AttendancePage() {
                 body: JSON.stringify({
                     batchName,
                     date,
+                    teacherId,
+                    teacherPassword,
                     subject: subject.trim(),
                     note: note.trim(),
                     records: students.map((s) => ({
@@ -167,8 +169,9 @@ export default function AttendancePage() {
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "সেভ করা যায়নি।");
             setSavedAt(data.session);
-            loadScheduled();
-            toast.success("অ্যাটেনডেন্স সেভ হয়েছে।");
+            // Never leave a password sitting in a shared browser.
+            setTeacherPassword("");
+            toast.success(`অ্যাটেনডেন্স সেভ হয়েছে — ${data.session.takenByName}`);
         } catch (e) {
             toast.error(e instanceof Error ? e.message : "সেভ করা যায়নি।");
         } finally {
@@ -181,62 +184,11 @@ export default function AttendancePage() {
             <div>
                 <h1 className="text-2xl font-bold text-slate-800">অ্যাটেনডেন্স</h1>
                 <p className="text-slate-500 text-sm mt-1">
-                    প্রতিদিন প্রতি ব্যাচে একবার রোল কল — যে কোনো শিক্ষক নিতে পারেন। একই দিনে আবার সেভ
-                    করলে আগেরটাই সংশোধন হবে, নতুন করে গোনা হবে না।
+                    প্রতিদিন প্রতি ব্যাচে একবার রোল কল। যে শিক্ষক নিচ্ছেন তিনি নিজের নাম বেছে পাসওয়ার্ড
+                    দেবেন — রেকর্ডে তাঁর নামই থাকবে। একই দিনে আবার সেভ করলে আগেরটাই সংশোধন হবে।
                 </p>
             </div>
 
-            {/* Today's classes, straight from the routine */}
-            {scheduled.length > 0 && (
-                <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-100">
-                    <h2 className="text-sm font-semibold text-slate-700 mb-3">
-                        {date === todayStr() ? "আজকের ক্লাস" : `${date} তারিখের ক্লাস`}
-                        <span className="ml-2 text-xs font-normal text-slate-400">
-                            (রুটিন থেকে — ট্যাপ করলে ব্যাচ ও বিষয় বসে যাবে)
-                        </span>
-                    </h2>
-                    <div className="flex flex-wrap gap-2">
-                        {scheduled.map((c) => {
-                            const active = c.batchName === batchName;
-                            return (
-                                <button
-                                    key={c.batchName}
-                                    onClick={() => {
-                                        setBatchName(c.batchName);
-                                        if (c.subject) setSubject(c.subject);
-                                    }}
-                                    className={`text-left rounded-lg border px-3 py-2 transition-colors ${
-                                        active
-                                            ? "border-emerald-500 bg-emerald-50"
-                                            : "border-slate-200 hover:border-emerald-300 hover:bg-slate-50"
-                                    }`}
-                                >
-                                    <span className="block text-sm font-medium text-slate-700">
-                                        {c.batchName}
-                                        {c.time ? (
-                                            <span className="ml-2 text-xs font-normal text-slate-400">{c.time}</span>
-                                        ) : null}
-                                    </span>
-                                    <span className="block text-xs text-slate-500 truncate max-w-[220px]">
-                                        {c.subject || "বিষয় লেখা নেই"}
-                                    </span>
-                                    <span
-                                        className={`inline-block mt-1 text-[11px] font-medium px-2 py-0.5 rounded-full ${
-                                            c.attendanceTaken
-                                                ? "bg-emerald-100 text-emerald-700"
-                                                : "bg-amber-100 text-amber-700"
-                                        }`}
-                                    >
-                                        {c.attendanceTaken
-                                            ? `নেওয়া হয়েছে${c.takenByName ? ` — ${c.takenByName}` : ""}`
-                                            : "এখনো নেওয়া হয়নি"}
-                                    </span>
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>
-            )}
 
             {/* Selectors */}
             <div className="bg-white rounded-xl p-5 shadow-sm border border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -370,6 +322,44 @@ export default function AttendancePage() {
                         placeholder="এই ক্লাস সম্পর্কে নোট (ঐচ্ছিক)"
                         className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     />
+
+                    {/* The signature. The record carries this teacher's name,
+                        whoever is signed in on the device. */}
+                    <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-100">
+                        <p className="text-sm font-semibold text-slate-700 mb-3">কে অ্যাটেনডেন্স নিচ্ছেন?</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-xs text-slate-500 mb-1">শিক্ষক</label>
+                                <select
+                                    value={teacherId}
+                                    onChange={(e) => setTeacherId(e.target.value)}
+                                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                >
+                                    <option value="">— নাম বেছে নিন —</option>
+                                    {teachers.map((t) => (
+                                        <option key={t.id} value={t.id}>
+                                            {t.displayName}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs text-slate-500 mb-1">পাসওয়ার্ড</label>
+                                <input
+                                    type="password"
+                                    value={teacherPassword}
+                                    onChange={(e) => setTeacherPassword(e.target.value)}
+                                    autoComplete="off"
+                                    placeholder="আপনার পোর্টাল পাসওয়ার্ড"
+                                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                />
+                            </div>
+                        </div>
+                        <p className="text-xs text-slate-400 mt-2">
+                            রেকর্ডে এই শিক্ষকের নামই সংরক্ষিত থাকবে।
+                        </p>
+                    </div>
+
                     <button
                         onClick={save}
                         disabled={saving}

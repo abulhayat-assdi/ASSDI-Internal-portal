@@ -11,7 +11,9 @@ import { useAuth } from "@/contexts/AuthContext";
 export default function ManageRoutinePage() {
     const confirm = useConfirm();
     const { hasPermission } = useAuth();
-    const canManageRoutine = hasPermission("routine");
+    // Teachers open this screen to look at every batch's routine; only
+    // admins (or an admin+teacher granted it) can replace one.
+    const canManageRoutine = hasPermission("admin_routine");
     const [batches, setBatches] = useState<{ id: string; name: string; status: string }[]>([]);
     const [loadingBatches, setLoadingBatches] = useState(true);
     const [selectedBatch, setSelectedBatch] = useState<string | null>(null);

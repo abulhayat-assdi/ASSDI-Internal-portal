@@ -6,6 +6,8 @@ import { z } from "zod";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser, hasRequiredPermission, isAdmin } from "@/lib/auth";
 import { ATTENDANCE_STATUSES, isValidDate } from "@/lib/attendance";
+import bcrypt from "bcryptjs";
+import { MINUTE, limitFromEnv, rateLimit } from "@/lib/rateLimit";
 
 /** Taking a roll call is a teaching task; the report side is a separate permission. */
 function canTakeAttendance(user: Parameters<typeof isAdmin>[0]) {
@@ -19,6 +21,11 @@ function canTakeAttendance(user: Parameters<typeof isAdmin>[0]) {
 const saveSchema = z.object({
     batchName: z.string().min(1),
     date: z.string().refine(isValidDate, "date must be YYYY-MM-DD"),
+    // Who is taking the roll call, proved with their own password. The screen
+    // usually lives on a shared device, so the signed-in session says who may
+    // reach it while these two say whose name goes on the record.
+    teacherId: z.string().min(1),
+    teacherPassword: z.string().min(1),
     subject: z.string().max(120).default(""),
     note: z.string().max(500).default(""),
     records: z
@@ -84,7 +91,9 @@ export async function GET(req: NextRequest) {
  * POST /api/attendance/sessions — save (or correct) one roll call.
  *
  * One roll call per batch per day, taken by whichever teacher is free to do
- * it. Saving the same day again replaces its records rather than adding a
+ * it: they pick their own name and confirm with their password, and that is
+ * the name stored on the record — not whoever happens to be signed in on the
+ * device. Saving the same day again replaces its records rather than adding a
  * second set, so reopening a day to fix a mistake cannot inflate the count.
  */
 export async function POST(req: NextRequest) {
@@ -101,7 +110,26 @@ export async function POST(req: NextRequest) {
             { status: 400 }
         );
     }
-    const { batchName, date, subject, note, records } = parsed.data;
+    const { batchName, date, subject, note, records, teacherId, teacherPassword } = parsed.data;
+
+    // A password prompt on a shared screen is a guessing target; cap it per
+    // teacher so a wrong password cannot be brute-forced from the classroom.
+    if (!rateLimit(`attendance-teacher:${teacherId}`, limitFromEnv("ATTENDANCE_TEACHER", 10), 10 * MINUTE).ok) {
+        return NextResponse.json(
+            { error: "অনেকবার ভুল চেষ্টা হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।" },
+            { status: 429 }
+        );
+    }
+
+    const teacher = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+        tx.user.findFirst({
+            where: { id: teacherId, courseId, role: { in: ["teacher", "admin"] }, deletedAt: null },
+            select: { id: true, displayName: true, passwordHash: true },
+        })
+    );
+    if (!teacher || !(await bcrypt.compare(teacherPassword, teacher.passwordHash))) {
+        return NextResponse.json({ error: "শিক্ষকের পাসওয়ার্ড সঠিক নয়।" }, { status: 401 });
+    }
 
     try {
         const session = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
@@ -126,7 +154,7 @@ export async function POST(req: NextRequest) {
             const saved = existing
                 ? await tx.attendanceSession.update({
                       where: { id: existing.id },
-                      data: { subject, note, takenByUid: user.id, takenByName: user.displayName ?? "" },
+                      data: { subject, note, takenByUid: teacher.id, takenByName: teacher.displayName },
                   })
                 : await tx.attendanceSession.create({
                       data: {
@@ -136,8 +164,8 @@ export async function POST(req: NextRequest) {
                           date,
                           subject,
                           note,
-                          takenByUid: user.id,
-                          takenByName: user.displayName ?? "",
+                          takenByUid: teacher.id,
+                          takenByName: teacher.displayName,
                       },
                   });
 
