@@ -37,18 +37,62 @@ async function loadCourse(courseId: string): Promise<CourseMailContext | null> {
 /**
  * Student addresses for a course, optionally one batch.
  *
+ * Two sources on purpose. `users` only has students who created a login, but
+ * the roster (`batch_students`) holds everyone the admin enrolled, with the
+ * address collected on the student information form. Mailing only registered
+ * students would miss exactly the people a reminder is aimed at, so the two
+ * are merged and de-duplicated.
+ *
  * `batchName` of "all" (what the homework screens use for a course-wide
  * assignment) means everyone, same as leaving it out.
  */
 async function studentEmails(courseId: string, batchName?: string | null): Promise<string[]> {
-    const scoped = batchName && batchName !== 'all' ? { studentBatchName: batchName } : {};
-    const users = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
-        tx.user.findMany({
-            where: { courseId, role: 'student', deletedAt: null, ...scoped },
+    const scoped = batchName && batchName !== 'all' ? batchName : null;
+
+    const [users, roster] = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => [
+        await tx.user.findMany({
+            where: {
+                courseId,
+                role: 'student',
+                deletedAt: null,
+                ...(scoped ? { studentBatchName: scoped } : {}),
+            },
             select: { email: true },
-        })
-    );
-    return users.map((u) => u.email).filter(Boolean);
+        }),
+        await tx.batchStudent.findMany({
+            where: {
+                courseId,
+                // Someone who left the course should stop hearing from it.
+                courseStatus: { in: ['Running', 'Completed'] },
+                ...(scoped ? { batchName: scoped } : {}),
+            },
+            select: { email: true },
+        }),
+    ]);
+
+    const addresses = [...users, ...roster]
+        .map((r) => r.email?.trim().toLowerCase())
+        .filter((e): e is string => Boolean(e) && e!.includes('@'));
+
+    return [...new Set(addresses)];
+}
+
+/** How many enrolled students still have no portal login. */
+export async function countStudentsWithoutLogin(courseId: string): Promise<number> {
+    return withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+        const [roster, users] = await Promise.all([
+            tx.batchStudent.findMany({
+                where: { courseId, courseStatus: 'Running' },
+                select: { batchName: true, roll: true },
+            }),
+            tx.user.findMany({
+                where: { courseId, role: 'student', deletedAt: null },
+                select: { studentBatchName: true, studentRoll: true },
+            }),
+        ]);
+        const registered = new Set(users.map((u) => `${u.studentBatchName}::${u.studentRoll}`));
+        return roster.filter((r) => !registered.has(`${r.batchName}::${r.roll}`)).length;
+    });
 }
 
 interface DispatchResult {

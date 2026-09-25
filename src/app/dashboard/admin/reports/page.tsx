@@ -42,6 +42,7 @@ interface Overview {
         homeworkSubmissions: number;
         examAverage: number | null;
         atRisk: number;
+        withoutLogin: number;
     };
     batches: BatchRow[];
     students: StudentRow[];
@@ -184,12 +185,17 @@ export default function ReportsPage() {
 
             {/* Headline numbers */}
             {data && (
-                <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
                     <Stat label="ছাত্র" value={data.totals.students} />
                     <Stat label="গড় উপস্থিতি" value={pct(data.totals.attendanceAverage)} />
                     <Stat label="হোমওয়ার্ক জমা" value={data.totals.homeworkSubmissions} />
                     <Stat label="পরীক্ষার গড়" value={pct(data.totals.examAverage)} />
                     <Stat label="ঝুঁকিতে" value={data.totals.atRisk} tone={data.totals.atRisk ? "warn" : "normal"} />
+                    <Stat
+                        label="লগইন নেই"
+                        value={data.totals.withoutLogin}
+                        tone={data.totals.withoutLogin ? "warn" : "normal"}
+                    />
                 </div>
             )}
 
