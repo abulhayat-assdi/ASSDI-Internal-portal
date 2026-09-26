@@ -6,7 +6,7 @@ import { BLOCKED_MESSAGE, isPortalAccessBlocked, studentAccessSelect } from '@/l
 import { signJWT } from '@/lib/auth';
 import { COOKIES } from '@/lib/constants';
 import { PORTAL_OWNER_EMAIL } from '@/lib/permissions';
-import bcrypt from 'bcryptjs';
+import { hashPassword, needsRehash, verifyPassword } from '@/lib/password';
 import { z } from 'zod';
 import { MINUTE, getClientIp, isOverLimit, limitFromEnv, recordAttempt, clearRateLimit } from '@/lib/rateLimit';
 
@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Invalid email or password.' }, { status: 401 });
         }
 
-        const isValid = await bcrypt.compare(password, user.passwordHash);
+        const isValid = await verifyPassword(password, user.passwordHash);
         if (!isValid) {
             recordFailedAttempt(normalizedEmail);
             recordAttempt(ipKey, WINDOW_MS);
@@ -161,10 +161,19 @@ export async function POST(req: NextRequest) {
         const enforceRole = isSuperAdminHost && user.email === PORTAL_OWNER_EMAIL && user.role !== 'super_admin'
             ? { role: 'super_admin' as const }
             : {};
+        // Existing hashes keep the cost they were created with, so lowering
+        // PASSWORD_COST would otherwise never reach accounts that already
+        // exist. The plaintext is in hand right here and the row is being
+        // written anyway, so upgrade it in passing — the fleet converges one
+        // login at a time, with no reset for anyone.
+        const rehashed = needsRehash(user.passwordHash)
+            ? { passwordHash: await hashPassword(password) }
+            : {};
+
         await withCourseContext(ctx, (tx) =>
             tx.user.update({
                 where: { id: user.id },
-                data: { lastLoginAt: new Date(), ...enforceRole },
+                data: { lastLoginAt: new Date(), ...enforceRole, ...rehashed },
             })
         );
         if (enforceRole.role) user.role = enforceRole.role;

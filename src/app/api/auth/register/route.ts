@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma, withCourseContext } from '@/lib/db';
 import { signJWT } from '@/lib/auth';
 import { AUTH_ROLES, COOKIES } from '@/lib/constants';
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '@/lib/password';
 import { z } from 'zod';
 import { HOUR, limitFromEnv, rateLimitByIp } from '@/lib/rateLimit';
 import { checkRegistration, studentAccessSelect } from '@/lib/studentAccess';
@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
             }
 
             // Hash password
-            const passwordHash = await bcrypt.hash(password, 12);
+            const passwordHash = await hashPassword(password);
 
             // Create user in DB
             const created = await tx.user.create({

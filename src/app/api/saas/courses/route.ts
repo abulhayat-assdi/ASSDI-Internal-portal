@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
+import { hashPassword } from "@/lib/password";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isSuperAdmin } from "@/lib/auth";
 import { z } from "zod";
@@ -94,8 +95,7 @@ export async function POST(req: NextRequest) {
             });
 
             if (adminEmail && adminPassword && adminName) {
-                const bcrypt = await import("bcryptjs");
-                const passwordHash = await bcrypt.hash(adminPassword, 12);
+                const passwordHash = await hashPassword(adminPassword);
                 await tx.user.create({
                     data: {
                         courseId: course.id,

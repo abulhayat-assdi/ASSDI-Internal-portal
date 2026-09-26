@@ -3,7 +3,7 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin } from "@/lib/auth";
-import bcrypt from "bcryptjs";
+import { hashPassword } from "@/lib/password";
 import { z } from "zod";
 
 const schema = z.object({
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
                 return NextResponse.json({ error: "User not found" }, { status: 404 });
             }
 
-            const passwordHash = await bcrypt.hash(newPassword, 12);
+            const passwordHash = await hashPassword(newPassword);
 
             await tx.user.update({
                 where: { id: userId, courseId },

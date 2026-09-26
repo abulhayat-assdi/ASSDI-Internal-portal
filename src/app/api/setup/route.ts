@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { timingSafeEqual } from 'crypto';
 import { withCourseContext } from '@/lib/db';
-import bcrypt from 'bcryptjs';
-
+import { hashPassword } from '@/lib/password';
 export const dynamic = 'force-dynamic';
 
 /**
@@ -60,7 +59,7 @@ export async function POST(req: NextRequest) {
         // The platform's super_admin has no course — every operation here runs
         // under the super-admin RLS bypass.
         const user = await withCourseContext({ courseId: null, isSuperAdmin: true }, async (tx) => {
-            const passwordHash = await bcrypt.hash(password, 12);
+            const passwordHash = await hashPassword(password);
             return tx.user.upsert({
                 where: { email },
                 update: { passwordHash, role: 'super_admin', courseId: null, permissions: [] },

@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isSuperAdmin } from "@/lib/auth";
 import bcrypt from "bcryptjs";
+import { hashPassword } from "@/lib/password";
 import { z } from "zod";
 
 const schema = z.object({
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
         if (!valid) return "wrong";
         await tx.user.update({
             where: { id: caller.id },
-            data: { passwordHash: await bcrypt.hash(parsed.data.newPassword, 12) },
+            data: { passwordHash: await hashPassword(parsed.data.newPassword) },
         });
         return true;
     });

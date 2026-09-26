@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin, hasRequiredPermission } from "@/lib/auth";
 import { AUTH_ROLES } from "@/lib/constants";
-import bcrypt from "bcryptjs";
+import { hashPassword } from "@/lib/password";
 import { z } from "zod";
 import {
     DEFAULT_TEACHER_PERMISSIONS,
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
         }
 
         // 4. Hash password
-        const passwordHash = await bcrypt.hash(password, 12);
+        const passwordHash = await hashPassword(password);
         const role = grantAdmin ? AUTH_ROLES.ADMIN : AUTH_ROLES.TEACHER;
 
         // Determine default permissions

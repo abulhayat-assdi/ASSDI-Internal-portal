@@ -4,7 +4,7 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, withCourseContext } from "@/lib/db";
 import { getSessionUser, isSuperAdmin } from "@/lib/auth";
-import bcrypt from "bcryptjs";
+import { hashPassword } from '@/lib/password';
 import { z } from "zod";
 
 const schema = z.object({ newPassword: z.string().min(6) });
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         if (target.role === "super_admin" && target.id !== caller.id) {
             return { error: "Cannot change another super-admin's password." as const, status: 403 };
         }
-        await tx.user.update({ where: { id }, data: { passwordHash: await bcrypt.hash(parsed.data.newPassword, 12) } });
+        await tx.user.update({ where: { id }, data: { passwordHash: await hashPassword(parsed.data.newPassword) } });
         // Revoke any session still running on the old password.
         await prisma.activeSession.deleteMany({ where: { userId: id } });
         if (target.courseId) {

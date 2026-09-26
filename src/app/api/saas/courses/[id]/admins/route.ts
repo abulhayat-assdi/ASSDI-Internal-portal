@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
+import { hashPassword } from "@/lib/password";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isSuperAdmin } from "@/lib/auth";
 import { z } from "zod";
@@ -56,8 +57,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             const existing = await tx.user.findUnique({ where: { email: normalizedEmail } });
             if (existing) return { error: "An account with this email already exists." as const, status: 409 };
 
-            const bcrypt = await import("bcryptjs");
-            const passwordHash = await bcrypt.hash(password, 12);
+            const passwordHash = await hashPassword(password);
 
             const admin = await tx.user.create({
                 data: {

@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma, withCourseContext } from '@/lib/db';
 import crypto from 'crypto';
 import { z } from 'zod';
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '@/lib/password';
 import { HOUR, MINUTE, limitFromEnv, rateLimit, rateLimitByIp } from '@/lib/rateLimit';
 import { getBrandingForCourseId } from '@/lib/branding';
 import { escapeHtml, renderEmail, sendMail } from '@/lib/mailer';
@@ -159,7 +159,7 @@ export async function PATCH(req: NextRequest) {
 
         // Hash new password and update. The token itself is the credential
         // here (not a course session), so this bypasses course-scoped RLS.
-        const passwordHash = await bcrypt.hash(password, 12);
+        const passwordHash = await hashPassword(password);
 
         await withCourseContext({ courseId: null, isSuperAdmin: true }, async (tx) => {
             await tx.user.update({
