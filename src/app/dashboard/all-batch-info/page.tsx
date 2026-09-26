@@ -6,7 +6,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useConfirm } from "@/contexts/ConfirmContext";
 import { StudentBatchInfo, saveBatchInfo, getAllBatchInfo, updateStudentPhoto, deleteBatch } from "@/services/batchInfoService";
 import Button from "@/components/ui/Button";
-import * as XLSX from "xlsx";
 import RegistrationLockPanel from "@/components/students/RegistrationLockPanel";
 
 function toDriveImg(url: string): string {
@@ -624,8 +623,10 @@ export default function AllBatchInfoPage() {
         }
     };
 
-    const executeExportExcel = (batchName: string) => {
+    const executeExportExcel = async (batchName: string) => {
         try {
+            // Loaded on demand — only paid for when an admin actually exports.
+            const XLSX = await import("xlsx");
             const isAll = batchName === "all";
             const currentExportStudents = isAll ? allStudents : allStudents.filter(s => s.batchName === batchName);
 

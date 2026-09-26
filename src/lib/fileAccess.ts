@@ -1,6 +1,6 @@
 import "server-only";
 import path from "path";
-import fs from "fs";
+import { stat } from "fs/promises";
 import { withCourseContext } from "./db";
 import type { JWTPayload } from "./auth";
 
@@ -153,8 +153,13 @@ export interface ResolvedFile {
  * containment after resolution. Tries the storage volume first, then the
  * legacy public/ directory, with and without the `uploads/` prefix — the four
  * shapes the various upload routes have written over time.
+ *
+ * Async on purpose. This runs on every file, image and homework request, and
+ * the synchronous `statSync` it used to call stalled the whole Node event
+ * loop — up to four times per request, once per candidate path. On a single
+ * process that is every other user's request waiting too.
  */
-export function resolveStoredFile(normalizedPath: string): ResolvedFile | null {
+export async function resolveStoredFile(normalizedPath: string): Promise<ResolvedFile | null> {
     const bases = [getStorageBase(), getFallbackBase()];
     const relatives = [normalizedPath, `uploads/${normalizedPath}`];
 
@@ -164,8 +169,8 @@ export function resolveStoredFile(normalizedPath: string): ResolvedFile | null {
             // Defence in depth: normalizeStoredPath already rejects traversal.
             if (absolutePath !== base && !absolutePath.startsWith(base + path.sep)) continue;
             try {
-                const stat = fs.statSync(absolutePath);
-                if (stat.isFile()) return { absolutePath, size: stat.size };
+                const stats = await stat(absolutePath);
+                if (stats.isFile()) return { absolutePath, size: stats.size };
             } catch {
                 // Not here — try the next candidate.
             }

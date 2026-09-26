@@ -16,7 +16,11 @@ tasm-skill.asf.bd, *.tasm-skill.asf.bd {
     # tls {
     #     dns cloudflare {env.CF_API_TOKEN}
     # }
-    encode gzip
+    # zstd compresses smaller and faster than gzip; Caddy picks whichever the
+    # client's Accept-Encoding prefers, so listing both costs nothing and
+    # gzip stays as the fallback for older clients. (Brotli isn't in stock
+    # Caddy — it needs the caddy-cbrotli plugin via xcaddy if you want it.)
+    encode zstd gzip
     reverse_proxy 127.0.0.1:3000 {
         header_up Host {host}
         header_up X-Forwarded-Host {host}

@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
         );
     }
 
-    const file = resolveStoredFile(relPath);
+    const file = await resolveStoredFile(relPath);
     if (!file) {
         return NextResponse.json({ error: "File not found" }, { status: 404 });
     }

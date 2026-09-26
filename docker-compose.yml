@@ -6,6 +6,18 @@ services:
       POSTGRES_USER: ${DB_USER:?DB_USER must be set}
       POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
       POSTGRES_DB: ${DB_NAME:?DB_NAME must be set}
+    # The image's own defaults (shared_buffers=128MB, work_mem=4MB) are sized
+    # for a container with no idea how much RAM its host actually has — safe,
+    # but well under what a dedicated small VPS can spare for its only
+    # database. These assume ~2GB available to Postgres; scale them with
+    # POSTGRES_* overrides in .env if the box is bigger or smaller.
+    command: >
+      postgres
+      -c shared_buffers=${POSTGRES_SHARED_BUFFERS:-256MB}
+      -c effective_cache_size=${POSTGRES_EFFECTIVE_CACHE_SIZE:-768MB}
+      -c work_mem=${POSTGRES_WORK_MEM:-8MB}
+      -c maintenance_work_mem=${POSTGRES_MAINTENANCE_WORK_MEM:-64MB}
+      -c max_connections=${POSTGRES_MAX_CONNECTIONS:-100}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     # MVP: DB NOT exposed to host/internet — only compose network.

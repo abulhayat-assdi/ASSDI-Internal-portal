@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import * as XLSX from "xlsx";
 import { motion, useReducedMotion } from "framer-motion";
 import { ArrowLeft, Download, Copy, Check, Link2, Users, AlertTriangle, ClipboardList } from "lucide-react";
 import { AmbientOrbs, GLASS_PANEL, RESULT_META, fadeUp, staggerContainer } from "@/components/typing-exam/ui";
@@ -63,7 +62,9 @@ function formatSheetTime(date: Date): string {
   return `${hours}:${minutes}:${seconds} ${ampm}`;
 }
 
-function exportToExcel(exam: Exam, attempts: Attempt[]) {
+async function exportToExcel(exam: Exam, attempts: Attempt[]) {
+  // Loaded on demand — only paid for when a teacher actually exports results.
+  const XLSX = await import("xlsx");
   const wb = XLSX.utils.book_new();
   const sheetData: (string | number)[][] = [];
 
@@ -178,9 +179,9 @@ export default function TypingExamResultsPage() {
     setTimeout(() => setCopied(false), 2000);
   }
 
-  function handleExport() {
+  async function handleExport() {
     if (!exam) return;
-    exportToExcel(exam, attempts);
+    await exportToExcel(exam, attempts);
   }
 
   if (loading) {

@@ -7,8 +7,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { getBatchClassCounts, getBatches, BatchItem } from "@/services/scheduleService";
 import { getRoutineByBatch, BatchRoutine, uploadRoutineImage } from "@/services/routinesService";
 import ImageLightbox from "@/components/ui/ImageLightbox";
-import * as XLSX from "xlsx";
-import ExcelJS from "exceljs";
+// ExcelJS is loaded on demand inside handleExcelUpload — it's only needed
+// for the rare "upload a routine spreadsheet" action, not on every visit to
+// this page. (XLSX itself was imported here but never called — the comment
+// below explains why parsing goes through ExcelJS instead; the dead import
+// has been removed.)
+import type ExcelJS from "exceljs";
 
 /**
  * Turns a worksheet into the row-objects shape XLSX.utils.sheet_to_json
@@ -226,8 +230,12 @@ export default function SchedulePage() {
 
                     // exceljs, not XLSX.read: SheetJS's npm build is
                     // abandoned at 0.18.5 with an unfixed prototype-pollution
-                    // advisory in exactly this parse path. Writing with it is
-                    // unaffected, so the export helpers below still use it.
+                    // advisory in exactly this parse path. (This page has no
+                    // XLSX writing to worry about; other pages that still
+                    // write with XLSX are unaffected, since only reading
+                    // hits the advisory.) Loaded on demand — most visits to
+                    // this page never touch the upload button.
+                    const { default: ExcelJS } = await import("exceljs");
                     const workbook = new ExcelJS.Workbook();
                     await workbook.xlsx.load(data as ArrayBuffer);
                     const worksheet = workbook.worksheets[0];

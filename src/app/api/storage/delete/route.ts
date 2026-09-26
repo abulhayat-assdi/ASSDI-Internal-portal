@@ -34,7 +34,7 @@ export async function DELETE(request: NextRequest) {
         );
     }
 
-    const file = resolveStoredFile(relPath);
+    const file = await resolveStoredFile(relPath);
     if (!file) {
         // Not on disk — report success so the caller can still drop its DB row.
         console.warn(`[Delete API] File not found on disk: ${relPath}`);

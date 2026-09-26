@@ -1,5 +1,3 @@
-import * as XLSX from "xlsx";
-
 export type ExportCell = string | number | boolean | null | undefined;
 export type ExportRow = Record<string, ExportCell>;
 
@@ -18,10 +16,15 @@ interface ExportOptions {
  * Every list in the portal used to grow its own copy of this (and most lists
  * had no export at all), so it lives here: pass plain objects keyed by the
  * column header you want, get a spreadsheet with sensible column widths.
+ *
+ * XLSX is loaded on demand, not imported at module scope: it's a ~500KB
+ * library that every visitor to a page with an export button used to pay for
+ * up front, whether or not they ever clicked it.
  */
-export function exportRowsToXlsx({ fileName, sheetName = "Sheet1", rows, columns }: ExportOptions) {
+export async function exportRowsToXlsx({ fileName, sheetName = "Sheet1", rows, columns }: ExportOptions) {
     if (!rows.length) return;
 
+    const XLSX = await import("xlsx");
     const headers = columns ?? Object.keys(rows[0]);
     const body = rows.map((row) => headers.map((h) => row[h] ?? ""));
     const sheet = XLSX.utils.aoa_to_sheet([headers, ...body]);

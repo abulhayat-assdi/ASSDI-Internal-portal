@@ -32,9 +32,18 @@ export DATABASE_URL="$BOOTSTRAP_DATABASE_URL"
 # The server's own connection: the unprivileged role created by
 # scripts/ensure-app-role.js, which is NOSUPERUSER/NOBYPASSRLS and therefore
 # actually subject to the RLS policies.
+#
+# connection_limit is set explicitly rather than left to Prisma's default
+# (num_cpus * 2 + 1): withCourseContext() opens an interactive transaction
+# for every RLS-scoped query, and every request through middleware runs at
+# least one of those before anything else happens, so under load this pool
+# is what a page load actually queues behind. Postgres' own max_connections
+# (docker-compose.yml, default 100) has to stay comfortably above this plus
+# PGRST_DB_POOL plus headroom for psql/migrations, so raise both together —
+# DB_POOL_SIZE is deliberately independent of POSTGRES_MAX_CONNECTIONS.
 if [ -n "${APP_DB_PASSWORD:-}" ]; then
     _enc_app_pwd=$(node -e "console.log(encodeURIComponent(process.env.APP_DB_PASSWORD))")
-    export DATABASE_URL="postgresql://${APP_DB_USER:-asm_app}:${_enc_app_pwd}@db:5432/${DB_NAME:-asm_portal}?schema=public"
+    export DATABASE_URL="postgresql://${APP_DB_USER:-asm_app}:${_enc_app_pwd}@db:5432/${DB_NAME:-asm_portal}?schema=public&connection_limit=${DB_POOL_SIZE:-15}&pool_timeout=${DB_POOL_TIMEOUT:-20}"
 else
     echo "WARNING: APP_DB_PASSWORD is not set. The app will connect as the" >&2
     echo "         database superuser, which BYPASSES row-level security and" >&2

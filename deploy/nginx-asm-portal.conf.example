@@ -10,6 +10,22 @@ upstream asm_portal {
     keepalive 32;
 }
 
+# Nginx shipped with no compression at all — every HTML/JSON/JS response left
+# this proxy at its full uncompressed size. gzip_static would need the files
+# on disk next to Nginx, which standalone mode's runtime-written storage
+# doesn't give us, so this compresses on the fly instead.
+gzip on;
+gzip_vary on;
+gzip_comp_level 6;
+gzip_min_length 512;
+gzip_types text/plain text/css text/xml application/json application/javascript
+    application/xml application/xml+rss application/vnd.ms-fontobject
+    application/x-font-ttf font/opentype image/svg+xml;
+
+# Backs the /_next/static/ cache below. Create the dir once:
+#   mkdir -p /var/cache/nginx/asm-portal && chown www-data:www-data /var/cache/nginx/asm-portal
+proxy_cache_path /var/cache/nginx/asm-portal levels=1:2 keys_zone=asm_static:10m max_size=200m inactive=30d use_temp_path=off;
+
 server {
     listen 80;
     server_name tasm-skill.asf.bd admin.tasm-skill.asf.bd;
@@ -27,6 +43,21 @@ server {
 
     client_max_body_size 100m; # must match next.config serverActions.bodySizeLimit
     proxy_read_timeout 120s;
+
+    # Next's static chunks are content-hashed (immutable, already sent with a
+    # 1-year Cache-Control by Next itself) — letting Nginx hold a short-lived
+    # copy means a repeat visitor's asset requests never even reach Node, and
+    # a burst of students loading the same JS at once hits Nginx, not the
+    # single app process behind it.
+    location /_next/static/ {
+        proxy_pass http://asm_portal;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_cache asm_static;
+        proxy_cache_valid 200 30d;
+        proxy_cache_use_stale error timeout updating;
+        add_header X-Cache-Status $upstream_cache_status always;
+    }
 
     location / {
         proxy_pass http://asm_portal;

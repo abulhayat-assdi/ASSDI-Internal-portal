@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readFile } from "fs/promises";
+import { createReadStream } from "fs";
 import path from "path";
 import { isPublicStoredPath, normalizeStoredPath, resolveStoredFile } from "@/lib/fileAccess";
 import type { NextRequest } from "next/server";
@@ -38,16 +38,20 @@ export async function GET(req: NextRequest) {
         return new NextResponse("Not found", { status: 404 });
     }
 
-    const file = resolveStoredFile(relPath);
+    const file = await resolveStoredFile(relPath);
     if (!file) {
         return new NextResponse("Not found", { status: 404 });
     }
 
     try {
-        const buffer = await readFile(file.absolutePath);
-        return new NextResponse(buffer, {
+        // Streamed rather than buffered: branding and instructor photos are
+        // requested on nearly every page, and holding each one whole in
+        // memory made peak RSS scale with concurrent viewers.
+        const stream = createReadStream(file.absolutePath);
+        return new Response(stream as unknown as ReadableStream, {
             headers: {
                 "Content-Type": contentType,
+                "Content-Length": String(file.size),
                 "Cache-Control": "public, max-age=31536000, immutable",
                 "X-Content-Type-Options": "nosniff",
             },

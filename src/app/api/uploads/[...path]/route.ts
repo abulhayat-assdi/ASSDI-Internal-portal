@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import path from "path";
-import fs from "fs";
+import { createReadStream } from "fs";
 import { getSessionUser } from "@/lib/auth";
 import {
     authorizeFileRead,
@@ -44,15 +44,19 @@ export async function GET(
         });
     }
 
-    const file = resolveStoredFile(relPath);
+    const file = await resolveStoredFile(relPath);
     if (!file) {
         return new NextResponse("Not Found", { status: 404 });
     }
 
     const fileName = path.basename(file.absolutePath);
-    const fileBuffer = fs.readFileSync(file.absolutePath);
+    // Streamed, not readFileSync. This route serves every image and document
+    // in the portal; reading them synchronously blocked the single Node event
+    // loop for the whole read, so concurrent requests queued behind each
+    // other instead of being served in parallel.
+    const stream = createReadStream(file.absolutePath);
 
-    return new NextResponse(fileBuffer, {
+    return new Response(stream as unknown as ReadableStream, {
         status: 200,
         headers: {
             "Content-Type": contentTypeFor(file.absolutePath),

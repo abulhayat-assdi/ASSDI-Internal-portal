@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import * as XLSX from "xlsx";
 
 type LeaveRequest = {
     id: string;
@@ -297,7 +296,7 @@ export default function AdminStudentLeavesPage() {
         }
     };
 
-    const handleExecuteExport = () => {
+    const handleExecuteExport = async () => {
         try {
             let exportRecords: LeaveRequest[] = [];
             let fileName = "";
@@ -323,6 +322,9 @@ export default function AdminStudentLeavesPage() {
                 return;
             }
 
+            // Loaded on demand — XLSX is a large library and this handler
+            // only runs when the user actually asks to export.
+            const XLSX = await import("xlsx");
             const wb = XLSX.utils.book_new();
             const sheetData: (string | number)[][] = [];
 

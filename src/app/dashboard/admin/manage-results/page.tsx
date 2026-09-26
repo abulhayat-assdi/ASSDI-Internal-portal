@@ -266,7 +266,7 @@ export default function ManageResultsPage() {
     };
 
     /** One row per student per exam, with a column for every subject in play. */
-    const exportResults = () => {
+    const exportResults = async () => {
         if (!selectedBatch || batchStudentsList.length === 0) {
             toast.error("আগে একটি ব্যাচ বেছে নিন।");
             return;
@@ -291,7 +291,7 @@ export default function ManageResultsPage() {
             }
         }
 
-        exportRowsToXlsx({ fileName: `results-${selectedBatch}`, sheetName: "Results", rows });
+        await exportRowsToXlsx({ fileName: `results-${selectedBatch}`, sheetName: "Results", rows });
     };
 
     return (

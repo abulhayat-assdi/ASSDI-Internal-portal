@@ -110,14 +110,14 @@ export default function ReportsPage() {
             Risks: s.risks.join("; "),
         }));
 
-    const download = (kind: "xlsx" | "csv") => {
+    const download = async (kind: "xlsx" | "csv") => {
         const rows = studentRows();
         if (!rows.length) {
             toast.error("এক্সপোর্ট করার মতো কিছু নেই।");
             return;
         }
         const fileName = `report-${batchName === "ALL" ? "all-batches" : batchName}-${from}_${to}`;
-        if (kind === "xlsx") exportRowsToXlsx({ fileName, sheetName: "Students", rows });
+        if (kind === "xlsx") await exportRowsToXlsx({ fileName, sheetName: "Students", rows });
         else exportRowsToCsv({ fileName, rows });
     };
 

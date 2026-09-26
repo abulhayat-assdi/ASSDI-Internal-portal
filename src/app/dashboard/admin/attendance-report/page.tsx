@@ -82,12 +82,12 @@ export default function AttendanceReportPage() {
 
     const rows = onlyLow ? summaries.filter((s) => s.low) : summaries;
 
-    const exportXlsx = () => {
+    const exportXlsx = async () => {
         if (!rows.length) {
             toast.error("এক্সপোর্ট করার মতো কিছু নেই।");
             return;
         }
-        exportRowsToXlsx({
+        await exportRowsToXlsx({
             fileName: `attendance-${batchName === "ALL" ? "all-batches" : batchName}-${from}_${to}`,
             sheetName: "Attendance",
             rows: rows.map((s) => ({
