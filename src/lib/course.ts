@@ -29,8 +29,34 @@ function setCached(slug: string, course: Course | null) {
   cache.set(slug, { course, expiresAt: Date.now() + CACHE_TTL_MS });
 }
 
-export function invalidateCourseCache(slug: string) {
+// Separate map, same TTL: getCourseById is keyed by id, not slug, and a
+// course's id and slug are never the same string, but two independent Maps
+// rule out any doubt rather than relying on that. This is the one branding
+// falls back to on every page render (getBrandingForCourseId →
+// getCourseById), which previously had no cross-request cache at all —
+// reactCache only dedupes within a single request, so every render on every
+// request re-ran a full withCourseContext transaction just to get the logo
+// and course name.
+const byIdCache = new Map<string, CacheEntry>();
+
+function getCachedById(id: string): Course | null | undefined {
+  const entry = byIdCache.get(id);
+  if (!entry) return undefined;
+  if (Date.now() > entry.expiresAt) {
+    byIdCache.delete(id);
+    return undefined;
+  }
+  return entry.course;
+}
+
+function setCachedById(id: string, course: Course | null) {
+  byIdCache.set(id, { course, expiresAt: Date.now() + CACHE_TTL_MS });
+}
+
+/** Drops a course from both the slug- and id-keyed caches. */
+export function invalidateCourseCache(slug: string, id?: string) {
   cache.delete(slug);
+  if (id) byIdCache.delete(id);
 }
 
 // ── Subdomain extraction ─────────────────────────────────────────────────────
@@ -94,12 +120,19 @@ export async function getCourseBySlug(slug: string): Promise<Course | null> {
   return course;
 }
 
-// Deduped per-request: the root layout's generateMetadata and the page it
-// renders both look up the same course, so this avoids a duplicate query.
+// reactCache dedupes repeats within one request (root layout's
+// generateMetadata and the page it renders both look up the same course);
+// the byIdCache Map above is what makes a second *request* moments later
+// skip the DB entirely.
 export const getCourseById = reactCache(async (id: string): Promise<Course | null> => {
-  return withCourseContext({ courseId: null, isSuperAdmin: true }, (tx) =>
+  const cached = getCachedById(id);
+  if (cached !== undefined) return cached;
+
+  const course = await withCourseContext({ courseId: null, isSuperAdmin: true }, (tx) =>
     tx.course.findUnique({ where: { id } })
   );
+  setCachedById(id, course);
+  return course;
 });
 
 export function isCourseUsable(course: Course): boolean {

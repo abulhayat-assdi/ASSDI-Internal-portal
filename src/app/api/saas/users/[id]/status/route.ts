@@ -3,7 +3,7 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, withCourseContext } from "@/lib/db";
-import { getSessionUser, isSuperAdmin } from "@/lib/auth";
+import { getSessionUser, isSuperAdmin, invalidateUserOverrideCache } from "@/lib/auth";
 import { z } from "zod";
 
 const schema = z.object({ disabled: z.boolean() });
@@ -34,6 +34,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         } else {
             await tx.user.update({ where: { id }, data: { deletedAt: null } });
         }
+        invalidateUserOverrideCache(id);
         if (target.courseId) {
             await tx.activityLog.create({
                 data: {

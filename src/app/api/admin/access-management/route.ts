@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
-import { getSessionUser, isSuperAdmin, isAdmin } from "@/lib/auth";
+import { getSessionUser, isSuperAdmin, isAdmin, invalidateUserOverrideCache } from "@/lib/auth";
 import {
     PORTAL_OWNER_EMAIL,
     getEffectivePermissions,
@@ -173,6 +173,7 @@ export async function PUT(req: NextRequest) {
                 ...(finalPermissions !== undefined ? { permissions: finalPermissions } : {}),
             },
         });
+        invalidateUserOverrideCache(userId);
 
         // Sync Teacher.isAdmin
         if (roleChanged) {

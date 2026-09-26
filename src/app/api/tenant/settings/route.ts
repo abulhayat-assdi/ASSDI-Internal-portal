@@ -97,9 +97,9 @@ export async function PATCH(req: NextRequest) {
         return tx.course.update({ where: { id: courseId }, data });
     });
 
-    // Slug→course lookups are cached for a minute; drop it so the new name and
-    // logo show up on the next request instead of after the TTL.
-    invalidateCourseCache(updated.slug);
+    // Slug- and id-keyed course lookups are cached for a minute; drop both so
+    // the new name and logo show up on the next request instead of after the TTL.
+    invalidateCourseCache(updated.slug, updated.id);
 
     return NextResponse.json({ tenant: serialize(updated) });
 }

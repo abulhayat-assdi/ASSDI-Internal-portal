@@ -6,6 +6,95 @@ import { withCourseContext, type CourseContext } from './db';
 import { getEffectivePermissions, PermissionKey } from './permissions';
 import { isPortalAccessBlocked, studentAccessSelect } from './studentAccess';
 
+/**
+ * Short-lived cache for applyDbUserOverrides' DB round trip.
+ *
+ * That check runs on every middleware pass (i.e. every request) plus again
+ * in whichever API route or server component handles it — for a student
+ * that's up to two withCourseContext transactions (five DB round trips each:
+ * BEGIN, two set_config calls, the query, COMMIT) repeated on every single
+ * request from every signed-in user. A page with a handful of client-side
+ * fetches was re-proving "is this still a valid, non-revoked session?" from
+ * scratch several times over for what is, in practice, an unchanged answer
+ * from one request to the next a few seconds apart.
+ *
+ * Same trade-off rateLimit.ts makes for the same reason (documented there
+ * too): a Map, not Redis, because this runs as one process; and here,
+ * bounded staleness instead of a DB hit on every request. A role change,
+ * account disable, or "kick out" from the super-admin console now takes up
+ * to AUTH_OVERRIDE_CACHE_MS to take effect instead of being instant — short
+ * enough that it doesn't undermine the fail-closed intent (the risk this
+ * guards against is a 30-day-old JWT outliving an account by weeks, not by
+ * single-digit seconds).
+ */
+interface CachedOverride {
+    /** false = applyDbUserOverrides must return null (session rejected). */
+    ok: boolean;
+    role?: string;
+    courseId?: string | null;
+    permissions?: string[];
+    displayName?: string;
+    studentBatchName?: string;
+    studentRoll?: string;
+    expiresAt: number;
+}
+
+const overrideCache = new Map<string, CachedOverride>();
+const OVERRIDE_CACHE_MS = Math.max(0, Number(process.env.AUTH_OVERRIDE_CACHE_MS) || 10_000);
+const OVERRIDE_CACHE_MAX_KEYS = 20_000;
+
+function getCachedOverride(userId: string): CachedOverride | undefined {
+    const cached = overrideCache.get(userId);
+    if (!cached) return undefined;
+    if (cached.expiresAt <= Date.now()) {
+        overrideCache.delete(userId);
+        return undefined;
+    }
+    return cached;
+}
+
+function setCachedOverride(userId: string, entry: Omit<CachedOverride, 'expiresAt'>): void {
+    if (OVERRIDE_CACHE_MS <= 0) return;
+    if (overrideCache.size > OVERRIDE_CACHE_MAX_KEYS) {
+        const now = Date.now();
+        for (const [key, value] of overrideCache) {
+            if (value.expiresAt <= now) overrideCache.delete(key);
+        }
+    }
+    overrideCache.set(userId, { ...entry, expiresAt: Date.now() + OVERRIDE_CACHE_MS });
+}
+
+/**
+ * Drops a user's cached override immediately, instead of waiting out
+ * OVERRIDE_CACHE_MS. Called from every route that edits a user's own
+ * role/permissions/deletedAt or revokes their session — login, logout,
+ * password resets, impersonation, account enable/disable, and the
+ * super-admin/admin role and access-management editors.
+ *
+ * Not called from the batch-info bulk editor, which is the other input to
+ * isPortalAccessBlocked: a student's courseStatus lives on BatchStudent, not
+ * User, keyed by batch+roll rather than a user id, and that save can touch
+ * hundreds of rows at once. Resolving each one to a user id to invalidate
+ * would put a DB lookup back on the exact path this cache exists to shorten.
+ * A newly-blocked student's session closes within OVERRIDE_CACHE_MS instead
+ * of instantly — the same bounded-staleness trade-off as everywhere else
+ * here, just via the TTL rather than an explicit call.
+ */
+export function invalidateUserOverrideCache(userId: string): void {
+    overrideCache.delete(userId);
+}
+
+/** Applies a cached (or freshly computed) override onto a request's own payload object. */
+function applyOverride(payload: JWTPayload, override: CachedOverride): JWTPayload {
+    payload.role = override.role!;
+    payload.courseId = override.courseId ?? null;
+    payload.permissions = override.permissions;
+    if (override.displayName) payload.displayName = override.displayName;
+    if (override.studentBatchName) payload.studentBatchName = override.studentBatchName;
+    if (override.studentRoll) payload.studentRoll = override.studentRoll;
+    return payload;
+}
+
 
 export interface JWTPayload {
     id: string;
@@ -95,6 +184,9 @@ export async function verifyJWT(token: string): Promise<JWTPayload> {
  * that match is assumed to already hold.
  */
 async function applyDbUserOverrides(payload: JWTPayload): Promise<JWTPayload | null> {
+    const cached = getCachedOverride(payload.id);
+    if (cached) return cached.ok ? applyOverride(payload, cached) : null;
+
     const ctx = courseContextFor(payload);
     const dbUser = await withCourseContext(ctx, (tx) =>
         tx.user.findUnique({
@@ -114,10 +206,16 @@ async function applyDbUserOverrides(payload: JWTPayload): Promise<JWTPayload | n
         })
     );
 
-    if (!dbUser || dbUser.deletedAt) return null;
+    if (!dbUser || dbUser.deletedAt) {
+        setCachedOverride(payload.id, { ok: false });
+        return null;
+    }
 
     const session = dbUser.activeSession;
-    if (!session || session.expiresAt.getTime() <= Date.now()) return null;
+    if (!session || session.expiresAt.getTime() <= Date.now()) {
+        setCachedOverride(payload.id, { ok: false });
+        return null;
+    }
 
     // A student whose course status says they have left loses access from the
     // moment the admin changes it — including on a session opened beforehand.
@@ -143,17 +241,24 @@ async function applyDbUserOverrides(payload: JWTPayload): Promise<JWTPayload | n
                     select: studentAccessSelect,
                 })
         );
-        if (isPortalAccessBlocked(student)) return null;
+        if (isPortalAccessBlocked(student)) {
+            setCachedOverride(payload.id, { ok: false });
+            return null;
+        }
     }
 
-    payload.role = dbUser.role;
-    payload.courseId = dbUser.courseId;
-    payload.permissions = getEffectivePermissions(dbUser.role, dbUser.permissions as string[]);
-    if (dbUser.displayName) payload.displayName = dbUser.displayName;
-    if (dbUser.studentBatchName) payload.studentBatchName = dbUser.studentBatchName;
-    if (dbUser.studentRoll) payload.studentRoll = dbUser.studentRoll;
+    const override: Omit<CachedOverride, 'expiresAt'> = {
+        ok: true,
+        role: dbUser.role,
+        courseId: dbUser.courseId,
+        permissions: getEffectivePermissions(dbUser.role, dbUser.permissions as string[]),
+        displayName: dbUser.displayName ?? undefined,
+        studentBatchName: dbUser.studentBatchName ?? undefined,
+        studentRoll: dbUser.studentRoll ?? undefined,
+    };
+    setCachedOverride(payload.id, override);
 
-    return payload;
+    return applyOverride(payload, { ...override, expiresAt: 0 });
 }
 
 /**

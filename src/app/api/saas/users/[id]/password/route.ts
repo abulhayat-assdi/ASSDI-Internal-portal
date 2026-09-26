@@ -3,7 +3,7 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, withCourseContext } from "@/lib/db";
-import { getSessionUser, isSuperAdmin } from "@/lib/auth";
+import { getSessionUser, isSuperAdmin, invalidateUserOverrideCache } from "@/lib/auth";
 import { hashPassword } from '@/lib/password';
 import { z } from "zod";
 
@@ -30,6 +30,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         await tx.user.update({ where: { id }, data: { passwordHash: await hashPassword(parsed.data.newPassword) } });
         // Revoke any session still running on the old password.
         await prisma.activeSession.deleteMany({ where: { userId: id } });
+        invalidateUserOverrideCache(id);
         if (target.courseId) {
             await tx.activityLog.create({
                 data: {

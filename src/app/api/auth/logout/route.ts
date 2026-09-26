@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getSessionUser } from '@/lib/auth';
+import { getSessionUser, invalidateUserOverrideCache } from '@/lib/auth';
 import { COOKIES } from '@/lib/constants';
 
 export async function DELETE(req: NextRequest) {
@@ -10,6 +10,7 @@ export async function DELETE(req: NextRequest) {
         const user = await getSessionUser(req);
         if (user?.id) {
             await prisma.activeSession.deleteMany({ where: { userId: user.id } });
+            invalidateUserOverrideCache(user.id);
         }
     } catch {
         // Ignore errors — cookie will still be cleared

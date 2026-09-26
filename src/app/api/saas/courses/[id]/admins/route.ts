@@ -4,7 +4,7 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { hashPassword } from "@/lib/password";
 import { withCourseContext } from "@/lib/db";
-import { getSessionUser, isSuperAdmin } from "@/lib/auth";
+import { getSessionUser, isSuperAdmin, invalidateUserOverrideCache } from "@/lib/auth";
 import { z } from "zod";
 
 const createAdminSchema = z.object({
@@ -103,6 +103,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
             data: { deletedAt: new Date() },
         })
     );
+    invalidateUserOverrideCache(userId);
 
     return NextResponse.json({ success: true });
 }

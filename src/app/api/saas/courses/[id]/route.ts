@@ -137,10 +137,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             return NextResponse.json({ error: result.error }, { status: result.status });
         }
 
-        // The middleware's course cache is keyed by slug — invalidate both the
-        // old and new slug so branding/status/slug changes take effect immediately.
+        // The middleware's course cache is keyed by slug, and branding's by
+        // id — invalidate both slugs and the id so slug/status/branding
+        // changes take effect immediately instead of after the TTL.
         invalidateCourseCache(result.oldSlug);
-        invalidateCourseCache(result.course.slug);
+        invalidateCourseCache(result.course.slug, result.course.id);
 
         return NextResponse.json({ course: result.course });
     } catch (error) {
@@ -170,7 +171,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
         if (!course) return NextResponse.json({ error: "Course not found" }, { status: 404 });
 
-        invalidateCourseCache(course.slug);
+        invalidateCourseCache(course.slug, course.id);
         return NextResponse.json({ success: true });
     } catch (error) {
         console.error("[SaaS Course DELETE]", error);

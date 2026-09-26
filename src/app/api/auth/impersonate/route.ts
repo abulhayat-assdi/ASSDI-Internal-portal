@@ -3,7 +3,7 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, withCourseContext } from "@/lib/db";
-import { signJWT } from "@/lib/auth";
+import { signJWT, invalidateUserOverrideCache } from "@/lib/auth";
 import { COOKIES } from "@/lib/constants";
 import { consumeImpersonationToken } from "@/lib/impersonation";
 
@@ -47,6 +47,7 @@ export async function GET(req: NextRequest) {
                 update: { expiresAt: new Date(Date.now() + SESSION_MAX_AGE * 1000) },
                 create: { userId: target.id, expiresAt: new Date(Date.now() + SESSION_MAX_AGE * 1000) },
             });
+            invalidateUserOverrideCache(target.id);
 
             await tx.user.update({
                 where: { id: target.id },

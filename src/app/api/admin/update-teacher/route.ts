@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
-import { getSessionUser, isAdmin } from "@/lib/auth";
+import { getSessionUser, isAdmin, invalidateUserOverrideCache } from "@/lib/auth";
 import { z } from "zod";
 import { PORTAL_OWNER_EMAIL } from "@/lib/permissions";
 
@@ -77,6 +77,7 @@ export async function POST(req: NextRequest) {
                         ...(teacherId ? { teacherId } : {}),
                     },
                 });
+                invalidateUserOverrideCache(user.id);
             }
 
             return NextResponse.json({ success: true, message: "Teacher updated successfully." });

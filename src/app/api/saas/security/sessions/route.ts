@@ -3,7 +3,7 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, withCourseContext } from "@/lib/db";
-import { getSessionUser, isSuperAdmin } from "@/lib/auth";
+import { getSessionUser, isSuperAdmin, invalidateUserOverrideCache } from "@/lib/auth";
 
 /** GET — all super_admin accounts + their session state (super_admin only) */
 export async function GET(req: NextRequest) {
@@ -49,5 +49,6 @@ export async function DELETE(req: NextRequest) {
     );
     if (!target) return NextResponse.json({ error: "Super-admin not found." }, { status: 404 });
     await prisma.activeSession.deleteMany({ where: { userId } });
+    invalidateUserOverrideCache(userId);
     return NextResponse.json({ success: true });
 }

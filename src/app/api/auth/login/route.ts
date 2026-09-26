@@ -3,7 +3,7 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma, withCourseContext, type CourseContext } from '@/lib/db';
 import { BLOCKED_MESSAGE, isPortalAccessBlocked, studentAccessSelect } from '@/lib/studentAccess';
-import { signJWT } from '@/lib/auth';
+import { signJWT, invalidateUserOverrideCache } from '@/lib/auth';
 import { COOKIES } from '@/lib/constants';
 import { PORTAL_OWNER_EMAIL } from '@/lib/permissions';
 import { hashPassword, needsRehash, verifyPassword } from '@/lib/password';
@@ -155,6 +155,9 @@ export async function POST(req: NextRequest) {
             update: { expiresAt: sessionExpiry },
             create: { userId: user.id, expiresAt: sessionExpiry },
         });
+        // A fresh login should never be blocked by a stale "no session" cache
+        // entry from moments before (e.g. a resumed tab racing this request).
+        invalidateUserOverrideCache(user.id);
 
         // Permanent-super-admin safety net only applies on the admin host —
         // a course subdomain login must never silently grant platform-wide access.
