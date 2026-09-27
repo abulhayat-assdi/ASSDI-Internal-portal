@@ -27,9 +27,16 @@ import { COOKIES } from '@/lib/constants';
 
 const POSTGREST_URL = process.env.POSTGREST_URL ?? 'http://postgrest:3000';
 
+// Without this, a stuck/unreachable PostgREST leaves every caller's `await`
+// hanging forever — Next.js then shows the route's `loading.tsx` skeleton
+// indefinitely instead of surfacing an error, since the fetch never
+// resolves or rejects on its own.
+const POSTGREST_TIMEOUT_MS = 10_000;
+
 function buildClient(bearerToken: string): PostgrestClient {
     return new PostgrestClient(POSTGREST_URL, {
         headers: { Authorization: `Bearer ${bearerToken}` },
+        timeout: POSTGREST_TIMEOUT_MS,
     });
 }
 
