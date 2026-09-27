@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 import { NextRequest, NextResponse } from 'next/server';
 import { withCourseContext } from '@/lib/db';
-import { getSessionUser } from '@/lib/auth';
+import { getSessionUser, getCachedProfile, setCachedProfile, type CachedProfileFields } from '@/lib/auth';
 import { COOKIES, AUTH_ROLES } from '@/lib/constants';
 import { getEffectivePermissions } from '@/lib/permissions';
 
@@ -15,6 +15,17 @@ export async function GET(req: NextRequest) {
         const sessionUser = await getSessionUser(req);
         if (!sessionUser) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        // impersonatedBy/impersonatedAt come from the JWT, not the DB, so
+        // they're merged in fresh on every call — see getCachedProfile's doc.
+        const cached = getCachedProfile(sessionUser.id);
+        if (cached) {
+            return NextResponse.json({
+                ...cached,
+                impersonatedBy: sessionUser.impersonatedBy ?? null,
+                impersonatedAt: sessionUser.impersonatedAt ?? null,
+            });
         }
 
         const ctx = sessionUser.role === 'super_admin'
@@ -67,7 +78,7 @@ export async function GET(req: NextRequest) {
             const storedPerms = Array.isArray(user.permissions) ? user.permissions as string[] : [];
             const permissions = getEffectivePermissions(user.role, storedPerms);
 
-            return {
+            const fields: CachedProfileFields = {
                 id: user.id,
                 email: user.email,
                 displayName: user.displayName,
@@ -80,17 +91,22 @@ export async function GET(req: NextRequest) {
                 permissions,
                 createdAt: user.createdAt,
                 lastLoginAt: user.lastLoginAt,
-                // Super-admin impersonation marker (if this session came from "Login as admin")
-                impersonatedBy: sessionUser.impersonatedBy ?? null,
-                impersonatedAt: sessionUser.impersonatedAt ?? null,
             };
+            return fields;
         });
 
         if (!result) {
             return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
         }
 
-        return NextResponse.json(result);
+        setCachedProfile(sessionUser.id, result);
+
+        return NextResponse.json({
+            ...result,
+            // Super-admin impersonation marker (if this session came from "Login as admin")
+            impersonatedBy: sessionUser.impersonatedBy ?? null,
+            impersonatedAt: sessionUser.impersonatedAt ?? null,
+        });
     } catch (error) {
         console.error('[Profile API] Error:', error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

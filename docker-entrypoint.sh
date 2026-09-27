@@ -41,9 +41,17 @@ export DATABASE_URL="$BOOTSTRAP_DATABASE_URL"
 # (docker-compose.yml, default 100) has to stay comfortably above this plus
 # PGRST_DB_POOL plus headroom for psql/migrations, so raise both together —
 # DB_POOL_SIZE is deliberately independent of POSTGRES_MAX_CONNECTIONS.
+#
+# Default raised from 15 to 30 after a k6 run at 500 concurrent users showed
+# requests queuing for a pool slot until pool_timeout (20s) and failing —
+# max observed request duration landed almost exactly on 20.29s, i.e. the
+# timeout itself, not a slow query. 30 + PGRST_DB_POOL(10) + a few reserved
+# for migrations still leaves half of the default max_connections(100)
+# spare, and costs on the order of tens of MB of Postgres memory even under
+# worst-case concurrent sorts — comfortable on a 4GB box.
 if [ -n "${APP_DB_PASSWORD:-}" ]; then
     _enc_app_pwd=$(node -e "console.log(encodeURIComponent(process.env.APP_DB_PASSWORD))")
-    export DATABASE_URL="postgresql://${APP_DB_USER:-asm_app}:${_enc_app_pwd}@db:5432/${DB_NAME:-asm_portal}?schema=public&connection_limit=${DB_POOL_SIZE:-15}&pool_timeout=${DB_POOL_TIMEOUT:-20}"
+    export DATABASE_URL="postgresql://${APP_DB_USER:-asm_app}:${_enc_app_pwd}@db:5432/${DB_NAME:-asm_portal}?schema=public&connection_limit=${DB_POOL_SIZE:-30}&pool_timeout=${DB_POOL_TIMEOUT:-20}"
 else
     echo "WARNING: APP_DB_PASSWORD is not set. The app will connect as the" >&2
     echo "         database superuser, which BYPASSES row-level security and" >&2

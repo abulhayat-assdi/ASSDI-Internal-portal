@@ -65,11 +65,12 @@ function setCachedOverride(userId: string, entry: Omit<CachedOverride, 'expiresA
 }
 
 /**
- * Drops a user's cached override immediately, instead of waiting out
- * OVERRIDE_CACHE_MS. Called from every route that edits a user's own
- * role/permissions/deletedAt or revokes their session — login, logout,
- * password resets, impersonation, account enable/disable, and the
- * super-admin/admin role and access-management editors.
+ * Drops a user's cached override AND cached profile (below) immediately,
+ * instead of waiting out their TTLs. Called from every route that edits a
+ * user's own role/permissions/deletedAt/displayName/photo or revokes their
+ * session — login, logout, password resets, impersonation, account
+ * enable/disable, and the super-admin/admin role and access-management
+ * editors.
  *
  * Not called from the batch-info bulk editor, which is the other input to
  * isPortalAccessBlocked: a student's courseStatus lives on BatchStudent, not
@@ -82,6 +83,71 @@ function setCachedOverride(userId: string, entry: Omit<CachedOverride, 'expiresA
  */
 export function invalidateUserOverrideCache(userId: string): void {
     overrideCache.delete(userId);
+    profileCache.delete(userId);
+}
+
+/**
+ * Cache for GET /api/auth/profile's own DB read.
+ *
+ * That route does a second, separate withCourseContext transaction on top of
+ * whatever getSessionUser already ran — a full user record plus a teacher
+ * directory lookup for non-students — and it had no cache at all. Under a
+ * load test at 500 concurrent users this route hit only 56% while
+ * /student-dashboard hit 98%: the two DB round trips this adds on top of
+ * everything else per request were exactly what saturated the Prisma pool
+ * first.
+ *
+ * In real usage a browser calls this once per full page load (AuthContext
+ * mounts once), not once per navigation, so this mostly protects against
+ * bursts — many tabs/students loading within the same few seconds — rather
+ * than being read on some tight per-click loop.
+ *
+ * Session-specific fields (impersonatedBy/impersonatedAt) come from the JWT,
+ * not the DB, so they are deliberately NOT cached here — they're merged onto
+ * the cached DB fields fresh on every call, in profile/route.ts.
+ */
+export interface CachedProfileFields {
+    id: string;
+    email: string;
+    displayName: string;
+    role: string;
+    courseId: string | null;
+    teacherId: string | null;
+    studentBatchName: string | null;
+    studentRoll: string | null;
+    profileImageUrl: string | null;
+    permissions: string[];
+    createdAt: Date;
+    lastLoginAt: Date | null;
+}
+
+interface CachedProfileEntry extends CachedProfileFields {
+    expiresAt: number;
+}
+
+const profileCache = new Map<string, CachedProfileEntry>();
+const PROFILE_CACHE_MS = Math.max(0, Number(process.env.PROFILE_CACHE_MS) || 10_000);
+const PROFILE_CACHE_MAX_KEYS = 20_000;
+
+export function getCachedProfile(userId: string): CachedProfileFields | undefined {
+    const cached = profileCache.get(userId);
+    if (!cached) return undefined;
+    if (cached.expiresAt <= Date.now()) {
+        profileCache.delete(userId);
+        return undefined;
+    }
+    return cached;
+}
+
+export function setCachedProfile(userId: string, fields: CachedProfileFields): void {
+    if (PROFILE_CACHE_MS <= 0) return;
+    if (profileCache.size > PROFILE_CACHE_MAX_KEYS) {
+        const now = Date.now();
+        for (const [key, value] of profileCache) {
+            if (value.expiresAt <= now) profileCache.delete(key);
+        }
+    }
+    profileCache.set(userId, { ...fields, expiresAt: Date.now() + PROFILE_CACHE_MS });
 }
 
 /** Applies a cached (or freshly computed) override onto a request's own payload object. */
