@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
         ...(role ? { role: role as string } : {}),
         ...(courseId ? { courseId } : {}),
         ...(includeDeleted ? {} : { deletedAt: null }),
+        isSuperAdminShadow: false,
     };
 
     const { users, total, courses } = await withCourseContext(

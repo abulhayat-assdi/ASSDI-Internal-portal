@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     try {
         const users = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
             tx.user.findMany({
-                where: { courseId, deletedAt: null },
+                where: { courseId, isSuperAdminShadow: false, deletedAt: null },
                 select: {
                     id: true,
                     email: true,

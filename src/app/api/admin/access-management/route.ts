@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
             where: {
                 courseId,
                 role: { notIn: ["student"] },
+                isSuperAdminShadow: false,
                 deletedAt: null,
             },
             select: {
@@ -110,10 +111,15 @@ export async function PUT(req: NextRequest) {
             return NextResponse.json({ error: "Super admin accounts cannot be managed here." }, { status: 403 });
         }
 
+        // The hidden per-course super-admin shadow account is never managed here either.
+        if (target.isSuperAdminShadow) {
+            return NextResponse.json({ error: "This account cannot be managed here." }, { status: 403 });
+        }
+
         // Department Admin guard: prevent self-lockout of the only admin via accidental demotion
         // Super Admin is exempt (platform-wide)
         if (isDepartmentAdmin && roleLabel === "teacher" && target.id === caller.id) {
-            const adminCount = await tx.user.count({ where: { courseId, role: "admin", deletedAt: null } });
+            const adminCount = await tx.user.count({ where: { courseId, role: "admin", isSuperAdminShadow: false, deletedAt: null } });
             if (adminCount <= 1) {
                 return NextResponse.json({ error: "You are the only Department Admin. Promote another teacher to admin before demoting yourself." }, { status: 403 });
             }

@@ -18,7 +18,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10));
     const pageSize = 50;
 
-    const where = { courseId, deletedAt: null, ...(role ? { role: role as any } : {}) };
+    const where = { courseId, deletedAt: null, isSuperAdminShadow: false, ...(role ? { role: role as any } : {}) };
 
     const { users, total } = await withCourseContext({ courseId: null, isSuperAdmin: true }, async (tx) => {
         const [users, total] = await Promise.all([

@@ -25,13 +25,13 @@ export async function GET(req: NextRequest) {
             tx.course.findMany({ orderBy: { name: "asc" } }),
             tx.user.groupBy({
                 by: ["courseId", "role"],
-                where: { deletedAt: null },
+                where: { deletedAt: null, isSuperAdminShadow: false },
                 _count: { role: true },
             }),
             tx.activeSession.count({ where: { expiresAt: { gt: now } } }),
-            tx.user.count({ where: { deletedAt: null, lastLoginAt: { gte: last7 } } }),
+            tx.user.count({ where: { deletedAt: null, isSuperAdminShadow: false, lastLoginAt: { gte: last7 } } }),
             tx.user.findMany({
-                where: { deletedAt: null, createdAt: { gte: last14 } },
+                where: { deletedAt: null, isSuperAdminShadow: false, createdAt: { gte: last14 } },
                 select: { createdAt: true, role: true },
             }),
         ]);
@@ -42,10 +42,10 @@ export async function GET(req: NextRequest) {
                 const [students, teachers, admins, batches, logins7, logins30] = await Promise.all([
                     tx.user.count({ where: { courseId: c.id, role: "student", deletedAt: null } }),
                     tx.user.count({ where: { courseId: c.id, role: "teacher", deletedAt: null } }),
-                    tx.user.count({ where: { courseId: c.id, role: "admin", deletedAt: null } }),
+                    tx.user.count({ where: { courseId: c.id, role: "admin", isSuperAdminShadow: false, deletedAt: null } }),
                     tx.batch.count({ where: { courseId: c.id } }),
-                    tx.user.count({ where: { courseId: c.id, deletedAt: null, lastLoginAt: { gte: last7 } } }),
-                    tx.user.count({ where: { courseId: c.id, deletedAt: null, lastLoginAt: { gte: last30 } } }),
+                    tx.user.count({ where: { courseId: c.id, deletedAt: null, isSuperAdminShadow: false, lastLoginAt: { gte: last7 } } }),
+                    tx.user.count({ where: { courseId: c.id, deletedAt: null, isSuperAdminShadow: false, lastLoginAt: { gte: last30 } } }),
                 ]);
                 return {
                     id: c.id, slug: c.slug, name: c.name, status: c.status,

@@ -230,6 +230,12 @@ model User {
   lastLoginAt          DateTime? @map("last_login_at")
   deletedAt            DateTime? @map("deleted_at")
 
+  // Hidden, non-deletable per-course admin row auto-created the first time the
+  // platform's super_admin logs into that course's own login form with their
+  // real credentials — see src/app/api/auth/login/route.ts. Excluded from every
+  // user-facing listing (Access Management, Admin Users, SaaS admin lists).
+  isSuperAdminShadow   Boolean   @default(false) @map("is_super_admin_shadow")
+
   // ── Deployment (Mini-Netlify) fields ──────────────────────
   deploymentLimit      Int       @default(5)    @map("deployment_limit")
   isDeploymentFrozen   Boolean   @default(false) @map("is_deployment_frozen")

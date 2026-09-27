@@ -80,7 +80,9 @@ export async function GET(req: NextRequest) {
 
             const fields: CachedProfileFields = {
                 id: user.id,
-                email: user.email,
+                // Shadow rows store a synthetic, internal-only email; the JWT
+                // still carries the real super admin's email (see login route).
+                email: user.isSuperAdminShadow ? sessionUser.email : user.email,
                 displayName: user.displayName,
                 role: user.role,
                 courseId: user.courseId,

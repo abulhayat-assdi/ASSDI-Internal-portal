@@ -66,6 +66,8 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
     const [newAdminName, setNewAdminName] = useState("");
     const [newAdminEmail, setNewAdminEmail] = useState("");
     const [newAdminPassword, setNewAdminPassword] = useState("");
+    const [newAdminTeacherFeatures, setNewAdminTeacherFeatures] = useState(false);
+    const [newAdminAccessManagement, setNewAdminAccessManagement] = useState(false);
     const [addingAdmin, setAddingAdmin] = useState(false);
     const [impersonateUserId, setImpersonateUserId] = useState("");
     const [impersonating, setImpersonating] = useState(false);
@@ -248,12 +250,19 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
             const res = await fetch(`/api/saas/courses/${id}/admins`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name: newAdminName, email: newAdminEmail, password: newAdminPassword }),
+                body: JSON.stringify({
+                    name: newAdminName,
+                    email: newAdminEmail,
+                    password: newAdminPassword,
+                    includeTeacherFeatures: newAdminTeacherFeatures,
+                    grantAccessManagement: newAdminAccessManagement,
+                }),
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "অ্যাডমিন যোগ করা যায়নি।");
             setAdmins((prev) => [...prev, data.admin]);
             setNewAdminName(""); setNewAdminEmail(""); setNewAdminPassword("");
+            setNewAdminTeacherFeatures(false); setNewAdminAccessManagement(false);
         } catch (err) {
             setError(err instanceof Error ? err.message : "অ্যাডমিন যোগ করা যায়নি।");
         } finally {
@@ -635,10 +644,36 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
                         placeholder="পাসওয়ার্ড"
                         className="px-3.5 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
                     />
+                    <div className="sm:col-span-2 flex flex-col sm:flex-row gap-2">
+                        <label className="flex items-start gap-2.5 text-sm text-slate-700 py-1.5 px-2 rounded-lg hover:bg-slate-50 cursor-pointer flex-1">
+                            <input
+                                type="checkbox"
+                                checked={newAdminTeacherFeatures}
+                                onChange={(e) => setNewAdminTeacherFeatures(e.target.checked)}
+                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 mt-0.5"
+                            />
+                            <span>
+                                <span className="block font-medium">Admin + Teacher</span>
+                                <span className="block text-xs text-slate-400">টিচার ফিচারগুলোও এই অ্যাডমিনকে দিন</span>
+                            </span>
+                        </label>
+                        <label className="flex items-start gap-2.5 text-sm text-slate-700 py-1.5 px-2 rounded-lg hover:bg-slate-50 cursor-pointer flex-1">
+                            <input
+                                type="checkbox"
+                                checked={newAdminAccessManagement}
+                                onChange={(e) => setNewAdminAccessManagement(e.target.checked)}
+                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 mt-0.5"
+                            />
+                            <span>
+                                <span className="block font-medium">Access Management</span>
+                                <span className="block text-xs text-slate-400">এই কোর্সের অন্য টিচার/অ্যাডমিনদের এক্সেস ম্যানেজ করতে পারবে</span>
+                            </span>
+                        </label>
+                    </div>
                     <button
                         type="submit"
                         disabled={addingAdmin}
-                        className="flex items-center justify-center gap-1.5 bg-slate-800 text-white text-sm font-medium py-2.5 rounded-lg hover:bg-slate-900 transition-colors disabled:opacity-50"
+                        className="sm:col-span-2 flex items-center justify-center gap-1.5 bg-slate-800 text-white text-sm font-medium py-2.5 rounded-lg hover:bg-slate-900 transition-colors disabled:opacity-50"
                     >
                         {addingAdmin ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
                         অ্যাডমিন যোগ করুন

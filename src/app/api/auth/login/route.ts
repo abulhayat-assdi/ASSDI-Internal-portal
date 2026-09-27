@@ -1,14 +1,25 @@
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 import { NextRequest, NextResponse } from 'next/server';
+import { randomBytes } from 'crypto';
 import { prisma, withCourseContext, type CourseContext } from '@/lib/db';
 import { BLOCKED_MESSAGE, isPortalAccessBlocked, studentAccessSelect } from '@/lib/studentAccess';
 import { signJWT, invalidateUserOverrideCache } from '@/lib/auth';
 import { COOKIES } from '@/lib/constants';
-import { PORTAL_OWNER_EMAIL } from '@/lib/permissions';
+import { PORTAL_OWNER_EMAIL, ALL_PERMISSION_KEYS } from '@/lib/permissions';
 import { hashPassword, needsRehash, verifyPassword } from '@/lib/password';
 import { z } from 'zod';
 import { MINUTE, getClientIp, isOverLimit, limitFromEnv, recordAttempt, clearRateLimit } from '@/lib/rateLimit';
+
+/**
+ * Deterministic, globally-unique, non-human-facing email for the hidden
+ * per-course shadow admin — see the super-admin-shadow-login fallback below.
+ * Never matched by the primary course-scoped login lookup (which queries by
+ * the human-entered email) and never shown in any listing.
+ */
+function shadowAdminEmail(courseId: string): string {
+    return `super-admin-shadow+${courseId}@internal.local`;
+}
 
 const loginSchema = z.object({
     email: z.string().email(),
@@ -94,25 +105,58 @@ export async function POST(req: NextRequest) {
             ? { courseId: null, isSuperAdmin: true }
             : { courseId, isSuperAdmin: false };
 
-        const user = await withCourseContext(ctx, (tx) =>
+        const fail = () => {
+            recordFailedAttempt(normalizedEmail);
+            recordAttempt(ipKey, WINDOW_MS);
+            return NextResponse.json({ error: 'Invalid email or password.' }, { status: 401 });
+        };
+
+        let user = await withCourseContext(ctx, (tx) =>
             tx.user.findFirst({
                 where: isSuperAdminHost
                     ? { email: normalizedEmail, role: 'super_admin', deletedAt: null }
-                    : { email: normalizedEmail, courseId, deletedAt: null },
+                    : { email: normalizedEmail, courseId, isSuperAdminShadow: false, deletedAt: null },
             })
         );
 
-        if (!user) {
-            recordFailedAttempt(normalizedEmail);
-            recordAttempt(ipKey, WINDOW_MS);
-            return NextResponse.json({ error: 'Invalid email or password.' }, { status: 401 });
-        }
+        let shadowLoginBy: string | null = null;
 
-        const isValid = await verifyPassword(password, user.passwordHash);
-        if (!isValid) {
-            recordFailedAttempt(normalizedEmail);
-            recordAttempt(ipKey, WINDOW_MS);
-            return NextResponse.json({ error: 'Invalid email or password.' }, { status: 401 });
+        if (user) {
+            const isValid = await verifyPassword(password, user.passwordHash);
+            if (!isValid) return fail();
+        } else if (!isSuperAdminHost && courseId) {
+            // No account for this email in this course — but the platform's
+            // super_admin can still get in, on their own real credentials,
+            // via a hidden per-course shadow admin account (auto-provisioned
+            // below on first use, never listed or deletable from the UI).
+            const superAdmin = await withCourseContext({ courseId: null, isSuperAdmin: true }, (tx) =>
+                tx.user.findFirst({ where: { email: normalizedEmail, role: 'super_admin', deletedAt: null } })
+            );
+            if (!superAdmin || !(await verifyPassword(password, superAdmin.passwordHash))) {
+                return fail();
+            }
+
+            // Random, never re-derivable password — this row is never reached
+            // through the primary email+courseId login lookup.
+            const shadowPasswordHash = await hashPassword(randomBytes(32).toString('hex'));
+            user = await withCourseContext(ctx, (tx) =>
+                tx.user.upsert({
+                    where: { email: shadowAdminEmail(courseId) },
+                    update: {},
+                    create: {
+                        email: shadowAdminEmail(courseId),
+                        passwordHash: shadowPasswordHash,
+                        displayName: `${superAdmin.displayName} (Super Admin)`,
+                        role: 'admin',
+                        courseId,
+                        permissions: ALL_PERMISSION_KEYS,
+                        isSuperAdminShadow: true,
+                    },
+                })
+            );
+            shadowLoginBy = superAdmin.email;
+        } else {
+            return fail();
         }
 
         // The password was right, but a student who has left the course does
@@ -169,7 +213,9 @@ export async function POST(req: NextRequest) {
         // exist. The plaintext is in hand right here and the row is being
         // written anyway, so upgrade it in passing — the fleet converges one
         // login at a time, with no reset for anyone.
-        const rehashed = needsRehash(user.passwordHash)
+        // Shadow rows are skipped: their hash is a random placeholder never
+        // derived from anyone's entered password, and must stay that way.
+        const rehashed = !shadowLoginBy && needsRehash(user.passwordHash)
             ? { passwordHash: await hashPassword(password) }
             : {};
 
@@ -181,9 +227,30 @@ export async function POST(req: NextRequest) {
         );
         if (enforceRole.role) user.role = enforceRole.role;
 
+        if (shadowLoginBy) {
+            await withCourseContext(ctx, (tx) =>
+                tx.activityLog.create({
+                    data: {
+                        courseId: courseId!,
+                        actorUid: user.id,
+                        actorRole: 'ADMIN',
+                        actionType: 'super_admin_shadow_login',
+                        targetType: 'user',
+                        targetId: user.id,
+                        description: `Super admin ${shadowLoginBy} logged into this course via the shadow admin account`,
+                    },
+                })
+            ).catch(() => { /* audit must not block login */ });
+        }
+
+        // The shadow row's email is a synthetic, internal-only value (kept off
+        // every listing); the super admin should still see their own real
+        // email reflected back, both in the JWT and in the response body.
+        const displayEmail = shadowLoginBy ?? user.email;
+
         const token = await signJWT({
             id: user.id,
-            email: user.email,
+            email: displayEmail,
             displayName: user.displayName,
             role: user.role,
             courseId: user.courseId,
@@ -196,7 +263,7 @@ export async function POST(req: NextRequest) {
             success: true,
             user: {
                 id: user.id,
-                email: user.email,
+                email: displayEmail,
                 displayName: user.displayName,
                 role: user.role,
                 teacherId: user.teacherId,
