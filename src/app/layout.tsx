@@ -5,6 +5,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ConfirmProvider } from "@/contexts/ConfirmContext";
 import { withCourseContext } from "@/lib/db";
 import { getCourseById } from "@/lib/course";
+import { getPlatformSettings } from "@/lib/platformSettings";
 import { headers } from "next/headers";
 import { Toaster } from "react-hot-toast";
 
@@ -27,15 +28,25 @@ const PLATFORM_TITLE = "As-Sunnah Skill Development Institute — Internal Porta
 const PLATFORM_DESCRIPTION =
     "Internal course portal for As-Sunnah Skill Development Institute — sign in to your course.";
 
+// Stored URLs are usually /api/uploads/..., but very old rows hold /api/file?path=.
+function toIconUrl(rawUrl: string | null | undefined): string | undefined {
+    if (!rawUrl) return undefined;
+    return rawUrl.startsWith("/api/file?path=") ? "/" + rawUrl.replace("/api/file?path=", "") : rawUrl;
+}
+
 export async function generateMetadata(): Promise<Metadata> {
     const courseId = (await headers()).get("x-course-id");
+    const platform = await getPlatformSettings();
+    const platformIcon = toIconUrl(platform.faviconUrl ?? platform.logoUrl);
 
     if (!courseId) {
         return {
             title: { default: PLATFORM_TITLE, template: `%s | ${PLATFORM_NAME}` },
             description: PLATFORM_DESCRIPTION,
             robots: { index: true, follow: true },
-            icons: { icon: "/favicon.ico" },
+            icons: platformIcon
+                ? { icon: platformIcon, apple: platformIcon }
+                : { icon: "/favicon.ico" },
         };
     }
 
@@ -47,15 +58,12 @@ export async function generateMetadata(): Promise<Metadata> {
             tx.cmsContent.findUnique({ where: { courseId_key: { courseId, key: "site_settings" } } })
         );
         const cms = cmsRecord?.value as Record<string, unknown> | null;
-        // Priority: course.faviconUrl > course.logoUrl > legacy cms.logoUrl > default
-        const rawUrl = course?.faviconUrl ?? course?.logoUrl ?? (cms?.logoUrl as string | undefined) ?? undefined;
-        if (rawUrl?.startsWith("/api/file?path=")) {
-            faviconUrl = "/" + rawUrl.replace("/api/file?path=", "");
-        } else if (rawUrl) {
-            faviconUrl = rawUrl;
-        }
+        // Priority: course.faviconUrl > course.logoUrl > legacy cms.logoUrl > global favicon/logo > default
+        faviconUrl =
+            toIconUrl(course?.faviconUrl ?? course?.logoUrl ?? (cms?.logoUrl as string | undefined)) ??
+            platformIcon;
     } catch {
-        // use default icon
+        faviconUrl = platformIcon;
     }
 
     const courseName = course?.name ?? "Course Portal";

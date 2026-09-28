@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getServerSessionUser } from "@/lib/auth";
 import { getTenantFeatures } from "@/lib/features";
+import { getPlatformSettings } from "@/lib/platformSettings";
 
 // GET /api/site-settings — sidebar-এর জন্য: logo, siteName, feature flags
 export async function GET() {
@@ -14,6 +15,7 @@ export async function GET() {
             return NextResponse.json({ logoUrl: null, siteName: null, features: {} });
         }
         const courseId = caller.courseId;
+        const platform = await getPlatformSettings();
 
         return await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
             const [cmsRecord, course] = await Promise.all([
@@ -23,9 +25,10 @@ export async function GET() {
             const cms = cmsRecord?.value as Record<string, unknown> | null;
 
             // Course row first: it is the editable source of truth (Super Admin →
-            // Courses, and Dashboard → Branding). The cms `site_settings` record is
-            // legacy single-tenant data kept only as a fallback.
-            const logoUrl = course?.logoUrl || (cms?.logoUrl as string) || null;
+            // Courses, and Dashboard → Branding). A course without its own logo
+            // shows the institute's global one (Super Admin → Branding); the cms
+            // `site_settings` record is legacy single-tenant data, last resort.
+            const logoUrl = course?.logoUrl || platform.logoUrl || (cms?.logoUrl as string) || null;
             const siteName = course?.name || (cms?.siteName as string) || null;
             const features = getTenantFeatures(course?.settings);
 

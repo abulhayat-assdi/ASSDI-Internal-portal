@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { Shield, LayoutGrid, LogOut, BarChart3, Users, ScrollText, Megaphone, ShieldCheck } from "lucide-react";
+import { Shield, LayoutGrid, LogOut, BarChart3, Users, ScrollText, Megaphone, ShieldCheck, ImageIcon } from "lucide-react";
 import Link from "next/link";
 
 export default function SuperAdminLayout({ children }: { children: React.ReactNode }) {
@@ -46,6 +46,10 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
                         <Link href="/super-admin/announcements" className="hidden md:flex items-center gap-1.5 text-slate-300 hover:text-white transition-colors">
                             <Megaphone className="w-4 h-4" />
                             Notices
+                        </Link>
+                        <Link href="/super-admin/branding" className="hidden md:flex items-center gap-1.5 text-slate-300 hover:text-white transition-colors">
+                            <ImageIcon className="w-4 h-4" />
+                            Branding
                         </Link>
                         <Link href="/super-admin/security" className="hidden md:flex items-center gap-1.5 text-slate-300 hover:text-white transition-colors">
                             <ShieldCheck className="w-4 h-4" />

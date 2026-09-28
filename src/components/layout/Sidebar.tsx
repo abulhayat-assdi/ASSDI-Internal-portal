@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import BrandLogo from "@/components/ui/BrandLogo";
+import { useBranding } from "@/contexts/BrandingContext";
 import { useSidebarNotifications } from "@/hooks/useSidebarNotifications";
 import { PermissionKey } from "@/lib/permissions";
 
@@ -126,8 +127,10 @@ export default function Sidebar() {
     const router = useRouter();
     const { userProfile, logout, loading, hasPermission } = useAuth();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-    const [siteLogoUrl, setSiteLogoUrl] = useState<string | null>(null);
-    const [siteName, setSiteName] = useState<string | null>(null);
+    // Seeded from the server-resolved branding (course logo, else the global
+    // institute logo) so the right logo is there on first paint.
+    const branding = useBranding();
+    const [siteLogoUrl, setSiteLogoUrl] = useState<string | null>(branding.logoUrl);
     const [features, setFeatures] = useState<Record<string, boolean>>({});
     const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
 
@@ -141,7 +144,6 @@ export default function Sidebar() {
             if (res.ok) {
                 const data = await res.json();
                 setSiteLogoUrl(data.logoUrl || null);
-                setSiteName(data.siteName || null);
                 if (data.features && typeof data.features === "object") {
                     setFeatures(data.features);
                 }
@@ -258,18 +260,18 @@ export default function Sidebar() {
                         className="cursor-pointer group"
                         onClick={() => setIsMobileMenuOpen(false)}
                     >
-                        <div suppressHydrationWarning className="bg-[#0D1B2A] rounded-xl px-4 py-3 flex items-center gap-3 shadow-sm transition-all duration-300 ease-in-out group-hover:shadow-md group-hover:-translate-y-0.5">
-                            <BrandLogo size={36} primaryColor="#FFFFFF" arrowColor="#4CAF50" logoUrl={siteLogoUrl} />
-                            {siteName ? (
-                                <div suppressHydrationWarning className="text-white font-bold text-sm leading-tight tracking-wide">
-                                    {siteName}
-                                </div>
-                            ) : (
-                                <div suppressHydrationWarning className="text-white font-bold text-sm leading-tight tracking-wide">
-                                    SALES <br />MARKETING
-                                </div>
-                            )}
-                        </div>
+                        {siteLogoUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                                src={siteLogoUrl}
+                                alt="Logo"
+                                className="max-h-16 max-w-full w-auto object-contain transition-transform duration-300 ease-in-out group-hover:-translate-y-0.5"
+                            />
+                        ) : (
+                            <div suppressHydrationWarning className="bg-[#0D1B2A] rounded-xl px-4 py-3 flex items-center shadow-sm transition-all duration-300 ease-in-out group-hover:shadow-md group-hover:-translate-y-0.5">
+                                <BrandLogo size={36} primaryColor="#FFFFFF" arrowColor="#4CAF50" />
+                            </div>
+                        )}
                     </Link>
                 </div>
 

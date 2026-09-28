@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { GraduationCap, ArrowRight, ShieldCheck, Building2, UserCog } from "lucide-react";
 import { listPublicCourses, buildCourseUrl, buildSuperAdminUrl, getCourseById } from "@/lib/course";
 import BrandLogo from "@/components/ui/BrandLogo";
+import { getPlatformSettings } from "@/lib/platformSettings";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,7 @@ async function CourseDirectoryPage() {
     } catch (e) {
         console.error('[CourseDirectoryPage] listPublicCourses failed:', e);
     }
+    const platform = await getPlatformSettings();
     const hdrs = await headers();
     const host = hdrs.get("x-forwarded-host") || hdrs.get("host") || "localhost:3000";
     const adminUrl = buildSuperAdminUrl(host);
@@ -30,9 +32,14 @@ async function CourseDirectoryPage() {
             <header className="border-b border-slate-200 bg-white">
                 <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-8 h-8 shrink-0 rounded-lg bg-blue-600 flex items-center justify-center">
-                            <GraduationCap className="w-5 h-5 text-white" strokeWidth={2.25} />
-                        </div>
+                        {platform.logoUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={platform.logoUrl} alt={INSTITUTE_NAME} className="h-10 w-auto max-w-[9rem] shrink-0 object-contain" />
+                        ) : (
+                            <div className="w-8 h-8 shrink-0 rounded-lg bg-blue-600 flex items-center justify-center">
+                                <GraduationCap className="w-5 h-5 text-white" strokeWidth={2.25} />
+                            </div>
+                        )}
                         <div className="min-w-0 leading-tight">
                             <div className="font-semibold text-slate-900 tracking-tight truncate">
                                 {INSTITUTE_NAME}

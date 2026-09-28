@@ -1515,3 +1515,20 @@ model TypingExamAttempt {
   @@map("typing_exam_attempts")
 }
 
+// ============================================================
+// PLATFORM (GLOBAL) SETTINGS
+// ============================================================
+// A single row, not scoped to any course — the institute's own logo and
+// favicon, used on the bare-domain course directory and as the fallback for
+// any course that hasn't uploaded its own. Editable only from Super Admin.
+
+model PlatformSettings {
+  id         String   @id @default("global")
+  logoUrl    String?  @map("logo_url")
+  faviconUrl String?  @map("favicon_url")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  updatedBy  String?  @map("updated_by")
+
+  @@map("platform_settings")
+}
+
