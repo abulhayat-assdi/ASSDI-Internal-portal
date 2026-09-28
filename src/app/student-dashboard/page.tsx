@@ -6,6 +6,7 @@ import { useCourseName } from "@/contexts/BrandingContext";
 import { getAllStudentNotices, StudentNotice } from "@/services/dashboardService";
 import Link from "next/link";
 import { getStudentProfile, BatchStudent } from "@/services/studentService";
+import { currentlyDoingLabel } from "@/lib/currentlyDoing";
 
 const AcademicCapIcon = ({ className }: { className: string }) => (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -117,7 +118,7 @@ export default function StudentDashboardOverview() {
                         <div>
                             <p className="text-sm text-gray-500 font-medium font-semibold uppercase tracking-wider">Currently Doing</p>
                             <h3 className="text-xl font-bold text-gray-900 mt-1 truncate">
-                                {studentData?.currentlyDoing === 'Nothing' ? 'Studying Further' : (studentData?.currentlyDoing || "N/A")}
+                                {currentlyDoingLabel(studentData?.currentlyDoing) || "N/A"}
                             </h3>
                         </div>
                     </div>

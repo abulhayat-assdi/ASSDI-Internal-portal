@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isTeacherOrAdmin } from "@/lib/auth";
+import { normalizeCurrentlyDoing } from "@/lib/currentlyDoing";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -94,7 +95,7 @@ export async function POST(req: NextRequest) {
                     dob: body.dob,
                     educationalDegree: body.educationalDegree,
                     courseStatus: body.courseStatus || "Running",
-                    currentlyDoing: body.currentlyDoing,
+                    currentlyDoing: normalizeCurrentlyDoing(body.currentlyDoing) || null,
                     companyName: body.companyName || "",
                     businessName: body.businessName || "",
                     salary: body.salary || 0,

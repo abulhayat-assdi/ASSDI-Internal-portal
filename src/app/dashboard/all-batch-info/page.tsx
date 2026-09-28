@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useConfirm } from "@/contexts/ConfirmContext";
 import { StudentBatchInfo, saveBatchInfo, getAllBatchInfo, updateStudentPhoto, deleteBatch } from "@/services/batchInfoService";
 import Button from "@/components/ui/Button";
+import { normalizeCurrentlyDoing, isStudyingFurther, currentlyDoingLabel } from "@/lib/currentlyDoing";
 import RegistrationLockPanel from "@/components/students/RegistrationLockPanel";
 
 function toDriveImg(url: string): string {
@@ -287,7 +288,7 @@ export default function AllBatchInfoPage() {
 
     const studentsJob = filteredStudents.filter(s => s.currentlyDoing === "Job").length;
     const studentsBusiness = filteredStudents.filter(s => s.currentlyDoing === "Business").length;
-    const studentsFurtherStudy = filteredStudents.filter(s => s.currentlyDoing === "Nothing" || s.currentlyDoing === "Studying Further").length;
+    const studentsFurtherStudy = filteredStudents.filter(s => isStudyingFurther(s.currentlyDoing)).length;
 
     const totalEarnings = filteredStudents.reduce((sum, student) => sum + (Number(student.salary) || 0), 0);
     const formattedEarnings = "৳ " + totalEarnings.toLocaleString();
@@ -355,7 +356,7 @@ export default function AllBatchInfoPage() {
         if (student.courseStatus === "Expelled") b.expelled += 1;
         if (student.currentlyDoing === "Job") b.job += 1;
         if (student.currentlyDoing === "Business") b.business += 1;
-        if (student.currentlyDoing === "Nothing" || student.currentlyDoing === "Studying Further") b.furtherStudy += 1;
+        if (isStudyingFurther(student.currentlyDoing)) b.furtherStudy += 1;
         return acc;
     }, {} as Record<string, BatchStatItem>);
 
@@ -400,7 +401,7 @@ export default function AllBatchInfoPage() {
                     tShirtSize: student.tShirtSize || "",
                     courseGoal: student.courseGoal || "",
                     courseStatus: student.courseStatus || "",
-                    currentlyDoing: student.currentlyDoing || "",
+                    currentlyDoing: normalizeCurrentlyDoing(student.currentlyDoing),
                     companyName: student.companyName || "",
                     businessName: student.businessName || "",
                     salary: student.salary ? student.salary.toString() : ""
@@ -453,7 +454,10 @@ export default function AllBatchInfoPage() {
                     const targetColIndex = startColIndex + cellIndex;
                     if (targetColIndex < COLUMNS.length) {
                         const fieldKey = COLUMNS[targetColIndex];
-                        next[targetRowIndex] = { ...next[targetRowIndex], [fieldKey]: cellValue };
+                        next[targetRowIndex] = {
+                            ...next[targetRowIndex],
+                            [fieldKey]: fieldKey === "currentlyDoing" ? (normalizeCurrentlyDoing(cellValue) || cellValue) : cellValue,
+                        };
                     }
                 });
             });
@@ -637,7 +641,7 @@ export default function AllBatchInfoPage() {
             const expExpelled = currentExportStudents.filter(s => s.courseStatus === "Expelled").length;
             const expJob = currentExportStudents.filter(s => s.currentlyDoing === "Job").length;
             const expBusiness = currentExportStudents.filter(s => s.currentlyDoing === "Business").length;
-            const expFurtherStudy = currentExportStudents.filter(s => s.currentlyDoing === "Nothing" || s.currentlyDoing === "Studying Further").length;
+            const expFurtherStudy = currentExportStudents.filter(s => isStudyingFurther(s.currentlyDoing)).length;
             const expEarnings = currentExportStudents.reduce((sum, s) => sum + (Number(s.salary) || 0), 0);
 
             const wb = XLSX.utils.book_new();
@@ -698,7 +702,7 @@ export default function AllBatchInfoPage() {
                     s.tShirtSize || "-",
                     s.courseGoal || "-",
                     s.courseStatus || "-",
-                    s.currentlyDoing === 'Nothing' ? 'Studying Further' : (s.currentlyDoing || "-"),
+                    currentlyDoingLabel(s.currentlyDoing) || "-",
                     s.companyName || "-",
                     s.businessName || "-",
                     s.salary ? `৳ ${s.salary.toLocaleString()}` : "-"
@@ -855,7 +859,7 @@ export default function AllBatchInfoPage() {
                                 ["সর্বোচ্চ ডিগ্রি", detailStudent.latestDegree || detailStudent.educationalDegree],
                                 ["GPA / ফলাফল", detailStudent.gpaResult],
                                 ["Course Status", detailStudent.courseStatus],
-                                ["Currently Doing", detailStudent.currentlyDoing],
+                                ["Currently Doing", currentlyDoingLabel(detailStudent.currentlyDoing)],
                                 ["Company", detailStudent.companyName],
                                 ["Business", detailStudent.businessName],
                                 ["Salary", detailStudent.salary ? `৳ ${detailStudent.salary.toLocaleString()}` : undefined],
@@ -1270,8 +1274,8 @@ export default function AllBatchInfoPage() {
                                             <td className="px-4 py-3 text-sm border-b border-gray-200">
                                                 <span className={`px-2 py-1 rounded text-xs font-semibold ${student.currentlyDoing === 'Job' ? 'bg-cyan-100/50 text-cyan-700' :
                                                     student.currentlyDoing === 'Business' ? 'bg-purple-100/50 text-purple-700' :
-                                                        (student.currentlyDoing === 'Nothing' || student.currentlyDoing === 'Studying Further') ? 'bg-slate-100 text-slate-600' : 'text-gray-500'
-                                                    }`}>{student.currentlyDoing === 'Nothing' ? 'Studying Further' : (student.currentlyDoing || "-")}</span>
+                                                        isStudyingFurther(student.currentlyDoing) ? 'bg-slate-100 text-slate-600' : 'text-gray-500'
+                                                    }`}>{currentlyDoingLabel(student.currentlyDoing) || "-"}</span>
                                             </td>
                                             <td className="px-4 py-3 text-sm text-gray-600 border-b border-gray-200">{student.companyName || "-"}</td>
                                             <td className="px-4 py-3 text-sm text-gray-600 border-b border-gray-200">{student.businessName || "-"}</td>
@@ -1636,7 +1640,7 @@ export default function AllBatchInfoPage() {
                                                                 <option value=""></option>
                                                                 <option value="Job">Job</option>
                                                                 <option value="Business">Business</option>
-                                                                <option value="Studying Further">Studying Further</option>
+                                                                <option value="StudyingFurther">Studying Further</option>
                                                             </select>
                                                         ) : col === "salary" ? (
                                                             <input

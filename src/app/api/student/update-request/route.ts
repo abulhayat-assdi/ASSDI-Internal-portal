@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin } from "@/lib/auth";
+import { normalizeCurrentlyDoing } from "@/lib/currentlyDoing";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -76,7 +77,12 @@ export async function PATCH(req: NextRequest) {
             if (!request) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
             if (action === "approve") {
-                const changes = request.proposedChanges as Record<string, unknown>;
+                const changes = { ...(request.proposedChanges as Record<string, unknown>) };
+                // Requests filed before the dropdown fix carry "Studying Further",
+                // which is not a valid enum value.
+                if ("currentlyDoing" in changes) {
+                    changes.currentlyDoing = normalizeCurrentlyDoing(changes.currentlyDoing) || null;
+                }
 
                 await tx.batchStudent.updateMany({
                     where: {

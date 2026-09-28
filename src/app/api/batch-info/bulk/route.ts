@@ -4,6 +4,9 @@ import { getSessionUser, isTeacherOrAdmin } from "@/lib/auth";
 import { isBlockingStatus } from "@/lib/studentAccess";
 import { BatchType, CourseStatus, CurrentlyDoing, StudentCategory } from "@prisma/client";
 import { cleanupBatchLeaveAttachments } from "@/lib/leaveCleanup";
+import { purgeBatchHomework, deleteHomeworkFiles, type HomeworkPurgeResult } from "@/lib/homeworkPurge";
+import { logHomeworkActivity } from "@/lib/homeworkLog";
+import { normalizeCurrentlyDoing } from "@/lib/currentlyDoing";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -61,15 +64,8 @@ export async function POST(req: NextRequest) {
         }
 
         const mapCurrentlyDoing = (value: string | undefined): CurrentlyDoing | null => {
-            if (!value) return null;
-            const map: Record<string, CurrentlyDoing> = {
-                "Job": CurrentlyDoing.Job,
-                "Business": CurrentlyDoing.Business,
-                "Studying Further": CurrentlyDoing.StudyingFurther,
-                "StudyingFurther": CurrentlyDoing.StudyingFurther,
-                "Nothing": CurrentlyDoing.Nothing,
-            };
-            return map[value] ?? null;
+            const normalized = normalizeCurrentlyDoing(value);
+            return normalized ? CurrentlyDoing[normalized] : null;
         };
 
         const mapCategory = (value: string | undefined): StudentCategory | null => {
@@ -85,6 +81,8 @@ export async function POST(req: NextRequest) {
             if (value === "Running") return CourseStatus.Running;
             return bType === "Completed" ? CourseStatus.Completed : CourseStatus.Running;
         };
+
+        let homeworkPurge: HomeworkPurgeResult | null = null;
 
         const completedAtDate = completedAt ? new Date(completedAt) : batchType === "Completed" ? new Date() : null;
 
@@ -110,6 +108,20 @@ export async function POST(req: NextRequest) {
             // If batch is set to Completed, trigger automatic cleanup of leave request attachment files
             if (batchType === "Completed") {
                 await cleanupBatchLeaveAttachments(tx, courseId, batchName);
+
+                // A finished batch's homework is deleted for good — every
+                // submission and every assignment folder — while the students'
+                // own records stay. Idempotent, so re-saving a completed batch
+                // is harmless.
+                homeworkPurge = await purgeBatchHomework(tx, courseId, batchName);
+                if (homeworkPurge.submissions > 0 || homeworkPurge.assignments > 0) {
+                    await logHomeworkActivity(tx, user, {
+                        action: "HOMEWORK_BATCH_PURGED",
+                        targetType: "batch",
+                        targetId: batch.id,
+                        description: `${user.displayName} marked ${batchName} as completed — deleted ${homeworkPurge.assignments} homework folder(s) and ${homeworkPurge.submissions} submission(s)`,
+                    });
+                }
             }
 
             await Promise.all(
@@ -184,7 +196,17 @@ export async function POST(req: NextRequest) {
             });
         });
 
-        return NextResponse.json({ success: true, count: students.length });
+        // Rows are committed; now the uploaded files themselves.
+        const purge = homeworkPurge as HomeworkPurgeResult | null;
+        if (purge && purge.filePaths.length > 0) {
+            await deleteHomeworkFiles(purge.filePaths);
+        }
+
+        return NextResponse.json({
+            success: true,
+            count: students.length,
+            homeworkDeleted: purge ? { assignments: purge.assignments, submissions: purge.submissions } : undefined,
+        });
     } catch (error) {
         console.error("[batch-info/bulk POST]", error);
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

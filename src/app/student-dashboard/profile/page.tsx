@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
 import { StudentBatchInfo } from "@/services/batchInfoService";
 import { submitUpdateRequest } from "@/services/studentUpdateService";
+import { normalizeCurrentlyDoing, currentlyDoingLabel } from "@/lib/currentlyDoing";
 
 function toDriveImg(url: string): string {
     if (url && url.includes("drive.google.com") && url.includes("/d/")) {
@@ -82,7 +83,7 @@ export default function StudentProfilePage() {
                         tShirtSize: match.tShirtSize || "",
                         courseGoal: match.courseGoal || "",
                         courseStatus: (match.courseStatus as string) || "",
-                        currentlyDoing: (match.currentlyDoing as string) || "",
+                        currentlyDoing: normalizeCurrentlyDoing(match.currentlyDoing),
                         companyName: match.companyName || "",
                         businessName: match.businessName || "",
                         salary: match.salary ? String(match.salary) : "",
@@ -135,7 +136,7 @@ export default function StudentProfilePage() {
             check("tShirtSize", s?.tShirtSize);
             check("courseGoal", s?.courseGoal);
             check("courseStatus", s?.courseStatus as string);
-            check("currentlyDoing", s?.currentlyDoing as string);
+            check("currentlyDoing", normalizeCurrentlyDoing(s?.currentlyDoing));
             check("companyName", s?.companyName);
             check("businessName", s?.businessName);
             check("salary", s?.salary != null ? String(s.salary) : "");
@@ -267,7 +268,7 @@ export default function StudentProfilePage() {
                     <SectionTitle title="Course & Work" />
                     <Field label="Course Status" value={studentData?.courseStatus as string} />
                     <Field label="T-Shirt Size" value={studentData?.tShirtSize} />
-                    <Field label="Currently Doing" value={studentData?.currentlyDoing === "Nothing" ? "Studying Further" : studentData?.currentlyDoing as string} />
+                    <Field label="Currently Doing" value={currentlyDoingLabel(studentData?.currentlyDoing)} />
                     <Field label="Company Name" value={studentData?.companyName} />
                     <Field label="Business Name" value={studentData?.businessName} />
                     <Field label="Salary / Income" value={studentData?.salary ? `৳ ${Number(studentData.salary).toLocaleString()}` : undefined} />
@@ -456,7 +457,7 @@ export default function StudentProfilePage() {
                                             <option value="">Select option</option>
                                             <option value="Job">Job</option>
                                             <option value="Business">Business</option>
-                                            <option value="Studying Further">Studying Further</option>
+                                            <option value="StudyingFurther">Studying Further</option>
                                             <option value="Nothing">Nothing yet</option>
                                         </select>
                                     </div>
