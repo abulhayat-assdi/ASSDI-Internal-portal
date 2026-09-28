@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isTeacherOrAdmin } from "@/lib/auth";
 import { notifyStudentsOfAssignment } from "@/lib/notifications";
+import { logHomeworkActivity } from "@/lib/homeworkLog";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -84,8 +85,8 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const { teacherUid, teacherName, title, deadlineDate, batchName } = body;
 
-        const assignment = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
-            tx.homeworkAssignment.create({
+        const assignment = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+            const created = await tx.homeworkAssignment.create({
                 data: {
                     courseId,
                     teacherUid: teacherUid || user.id,
@@ -94,8 +95,15 @@ export async function POST(req: NextRequest) {
                     deadlineDate,
                     batchName,
                 },
-            })
-        );
+            });
+            await logHomeworkActivity(tx, user, {
+                action: "HOMEWORK_ASSIGNMENT_CREATED",
+                targetType: "homework_assignment",
+                targetId: created.id,
+                description: `${created.teacherName} created homework folder "${created.title}" for ${created.batchName === "all" ? "all batches" : created.batchName} (deadline ${created.deadlineDate})`,
+            });
+            return created;
+        });
 
         notifyStudentsOfAssignment({
             courseId,
@@ -138,6 +146,16 @@ export async function PATCH(req: NextRequest) {
                 return NextResponse.json({ error: "Only the owner can edit this assignment." }, { status: 403 });
             }
             const assignment = await tx.homeworkAssignment.update({ where: { id, courseId }, data });
+            const changes: string[] = [];
+            if (assignment.title !== existing.title) changes.push(`title "${existing.title}" → "${assignment.title}"`);
+            if (assignment.deadlineDate !== existing.deadlineDate) changes.push(`deadline ${existing.deadlineDate} → ${assignment.deadlineDate}`);
+            if (assignment.batchName !== existing.batchName) changes.push(`batch ${existing.batchName} → ${assignment.batchName}`);
+            await logHomeworkActivity(tx, user, {
+                action: "HOMEWORK_ASSIGNMENT_UPDATED",
+                targetType: "homework_assignment",
+                targetId: assignment.id,
+                description: `${user.displayName} edited homework folder "${existing.title}"${changes.length ? ` (${changes.join(", ")})` : ""}`,
+            });
             return NextResponse.json(assignment);
         });
     } catch (error) {
@@ -167,6 +185,12 @@ export async function DELETE(req: NextRequest) {
             return NextResponse.json({ error: "Only the owner can delete this assignment." }, { status: 403 });
         }
         await tx.homeworkAssignment.delete({ where: { id, courseId } });
+        await logHomeworkActivity(tx, user, {
+            action: "HOMEWORK_ASSIGNMENT_DELETED",
+            targetType: "homework_assignment",
+            targetId: existing.id,
+            description: `${user.displayName} deleted homework folder "${existing.title}" (owner ${existing.teacherName}, batch ${existing.batchName === "all" ? "all" : existing.batchName})`,
+        });
         return NextResponse.json({ success: true });
     });
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isTeacherOrAdmin } from "@/lib/auth";
+import { logHomeworkActivity } from "@/lib/homeworkLog";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -20,7 +21,7 @@ async function canManage(
 ) {
     const assignment = await tx.homeworkAssignment.findUnique({
         where: { id: assignmentId, courseId },
-        select: { id: true, teacherUid: true },
+        select: { id: true, teacherUid: true, title: true },
     });
     if (!assignment) return { ok: false as const, status: 404 as const, error: "Assignment not found" };
     const isOwner = assignment.teacherUid === userId;
@@ -95,6 +96,12 @@ export async function POST(req: NextRequest) {
         }
         if (rows.length > 0) {
             await tx.homeworkAssignmentShare.createMany({ data: rows, skipDuplicates: true });
+            await logHomeworkActivity(tx, user, {
+                action: "HOMEWORK_ASSIGNMENT_SHARED",
+                targetType: "homework_assignment",
+                targetId: assignmentId,
+                description: `${user.displayName} shared homework folder "${access.assignment.title}" with ${rows.map((r) => r.sharedWithTeacherName).join(", ")}`,
+            });
         }
         const shares = await tx.homeworkAssignmentShare.findMany({
             where: { assignmentId, courseId },
@@ -121,9 +128,21 @@ export async function DELETE(req: NextRequest) {
     return await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
         const access = await canManage(tx, assignmentId, courseId, user.id, user.role);
         if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
+        const removed = await tx.homeworkAssignmentShare.findFirst({
+            where: { assignmentId, courseId, sharedWithTeacherUid: teacherUid },
+            select: { sharedWithTeacherName: true },
+        });
         await tx.homeworkAssignmentShare.deleteMany({
             where: { assignmentId, courseId, sharedWithTeacherUid: teacherUid },
         });
+        if (removed) {
+            await logHomeworkActivity(tx, user, {
+                action: "HOMEWORK_ASSIGNMENT_UNSHARED",
+                targetType: "homework_assignment",
+                targetId: assignmentId,
+                description: `${user.displayName} stopped sharing homework folder "${access.assignment.title}" with ${removed.sharedWithTeacherName}`,
+            });
+        }
         return NextResponse.json({ success: true });
     });
 }

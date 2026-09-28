@@ -133,7 +133,8 @@ export async function POST(req: NextRequest) {
 
     try {
         const session = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
-            const batch = await tx.batch.findFirst({ where: { courseId, name: batchName } });
+            // Completed (archived) batches no longer take roll call.
+            const batch = await tx.batch.findFirst({ where: { courseId, name: batchName, status: "active" } });
             if (!batch) return null;
 
             // Only students who really are in this batch — a stale tab or a

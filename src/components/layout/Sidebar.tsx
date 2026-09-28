@@ -46,6 +46,7 @@ const teacherAdminNavSections: NavSection[] = [
             { href: "/dashboard/manage-routine", label: "Manage Routine", icon: "📆", permission: "routine", feature: "routine" },
             { href: "/dashboard/admin/course-modules", label: "Course Modules Mgr", icon: "📚", permission: "admin_course_modules", feature: "course_modules" },
             { href: "/dashboard/admin/manage-homework", label: "Manage Homework", icon: "📁", permission: "admin_homework", feature: "homework" },
+            { href: "/dashboard/admin/manage-homework/log", label: "Homework Log", icon: "📜", permission: "admin_homework", feature: "homework" },
             { href: "/dashboard/admin/manage-results", label: "Manage Results", icon: "📝", permission: "admin_results", feature: "exam_results" },
         ]
     },

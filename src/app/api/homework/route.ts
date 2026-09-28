@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isTeacherOrAdmin } from "@/lib/auth";
+import { logHomeworkActivity } from "@/lib/homeworkLog";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -38,7 +39,7 @@ export async function GET(req: NextRequest) {
             return await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
                 const assignment = await tx.homeworkAssignment.findUnique({
                     where: { id: assignmentId, courseId },
-                    select: { id: true, teacherUid: true },
+                    select: { id: true, teacherUid: true, title: true },
                 });
                 if (!assignment) return NextResponse.json({ error: "Not found" }, { status: 404 });
                 const isOwner = assignment.teacherUid === user.id;
@@ -55,6 +56,26 @@ export async function GET(req: NextRequest) {
                     where: { courseId, assignmentId, deletedAt: null },
                     orderBy: { submittedAt: "desc" },
                 });
+                // Opening a folder is logged, but at most once per 30 minutes
+                // per person and folder — the page re-fetches on every refresh.
+                const recent = await tx.activityLog.findFirst({
+                    where: {
+                        courseId,
+                        actorUid: user.id,
+                        actionType: "HOMEWORK_FOLDER_VIEWED",
+                        targetId: assignmentId,
+                        createdAt: { gte: new Date(Date.now() - 30 * 60 * 1000) },
+                    },
+                    select: { id: true },
+                });
+                if (!recent) {
+                    await logHomeworkActivity(tx, user, {
+                        action: "HOMEWORK_FOLDER_VIEWED",
+                        targetType: "homework_assignment",
+                        targetId: assignmentId,
+                        description: `${user.displayName} viewed the submissions in homework folder "${assignment.title}" (${submissions.length} submission${submissions.length === 1 ? "" : "s"})`,
+                    });
+                }
                 return NextResponse.json(submissions);
             });
         }
@@ -143,6 +164,15 @@ export async function DELETE(req: NextRequest) {
                 where: { id, courseId },
                 data: { deletedAt: new Date() },
             });
+            // Students withdrawing their own work is not staff activity; only log staff deletions.
+            if (isTeacherOrAdmin(user)) {
+                await logHomeworkActivity(tx, user, {
+                    action: "HOMEWORK_SUBMISSION_DELETED",
+                    targetType: "homework_submission",
+                    targetId: submission.id,
+                    description: `${user.displayName} deleted ${submission.studentName}'s (roll ${submission.studentRoll}, ${submission.studentBatchName}) submission "${submission.subject}"`,
+                });
+            }
 
             return NextResponse.json({ success: true });
         });

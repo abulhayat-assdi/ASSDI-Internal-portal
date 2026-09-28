@@ -559,7 +559,7 @@ export default function AllBatchInfoPage() {
             return;
         }
 
-        const ok = await confirm({ message: `Are you sure you want to mark ${newBatchName} as Completed? This will change the status of all missing/running students to 'Completed'.`, variant: "warning" });
+        const ok = await confirm({ message: `Are you sure you want to mark ${newBatchName} as Completed? This will change the status of all missing/running students to 'Completed' and permanently delete all homework (assignment folders and submitted files) of this batch. Students' personal records are kept.`, variant: "warning" });
         if (ok) {
             setIsAdding(true);
             try {

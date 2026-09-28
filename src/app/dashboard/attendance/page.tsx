@@ -8,6 +8,7 @@ import type { AttendanceStatus } from "@prisma/client";
 interface Batch {
     id: string;
     name: string;
+    status?: "active" | "archived";
 }
 
 interface Student {
@@ -72,8 +73,10 @@ export default function AttendancePage() {
             .then((r) => r.json())
             .then((d: Batch[] | { error: string }) => {
                 if (Array.isArray(d)) {
-                    setBatches(d);
-                    if (d.length && !batchName) setBatchName(d[0].name);
+                    // Roll call is only for running batches — completed ones are archived.
+                    const running = d.filter((b) => b.status !== "archived");
+                    setBatches(running);
+                    if (running.length && !batchName) setBatchName(running[0].name);
                 }
             })
             .catch(() => toast.error("ব্যাচ তালিকা লোড করা যায়নি।"));
