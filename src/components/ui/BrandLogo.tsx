@@ -22,7 +22,8 @@ export default function BrandLogo({
                 src={logoUrl}
                 alt="Brand Logo"
                 className={className}
-                style={{ width: size, height: size, objectFit: "contain", flexShrink: 0 }}
+                // Uploaded logos are rarely square: fix the height, let the width follow.
+                style={{ height: size, width: "auto", maxWidth: size * 4, objectFit: "contain", flexShrink: 0 }}
             />
         );
     }

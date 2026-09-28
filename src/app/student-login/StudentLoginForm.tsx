@@ -190,9 +190,15 @@ export default function StudentLoginForm({ brand }: { brand: CourseBranding }) {
         <div className="min-h-screen flex flex-col items-center justify-center px-4 bg-slate-50 py-12">
             <div className="mb-8">
                 <Link href="/">
-                    <div className="bg-[#1e3a5f] rounded-2xl p-3 shadow-lg hover:shadow-xl transition-shadow border border-[#2d5278] cursor-pointer">
-                        <BrandLogo size={42} primaryColor="#FFFFFF" arrowColor="#4CAF50" logoUrl={brand.logoUrl} />
-                    </div>
+                    {brand.logoUrl ? (
+                        <div className="flex justify-center cursor-pointer">
+                            <BrandLogo size={72} logoUrl={brand.logoUrl} />
+                        </div>
+                    ) : (
+                        <div className="bg-[#1e3a5f] rounded-2xl p-3 shadow-lg hover:shadow-xl transition-shadow border border-[#2d5278] cursor-pointer">
+                            <BrandLogo size={42} primaryColor="#FFFFFF" arrowColor="#4CAF50" />
+                        </div>
+                    )}
                 </Link>
                 <p className="mt-3 text-center text-base font-semibold text-gray-800">{brand.name}</p>
             </div>

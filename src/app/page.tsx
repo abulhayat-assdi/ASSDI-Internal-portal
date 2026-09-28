@@ -150,7 +150,10 @@ async function CourseDirectoryPage() {
 // marketing sites; students and teachers already know their course exists.
 
 async function CourseLoginLandingPage({ courseId }: { courseId: string }) {
-    const course = await getCourseById(courseId).catch(() => null);
+    const [course, platform] = await Promise.all([
+        getCourseById(courseId).catch(() => null),
+        getPlatformSettings(),
+    ]);
     const name = course?.name ?? "Course Portal";
     const primaryColor = course?.primaryColor ?? "#1a56db";
 
@@ -158,7 +161,7 @@ async function CourseLoginLandingPage({ courseId }: { courseId: string }) {
         <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
             <div className="w-full max-w-sm">
                 <div className="flex flex-col items-center text-center mb-8">
-                    <BrandLogo size={56} logoUrl={course?.logoUrl} primaryColor={primaryColor} />
+                    <BrandLogo size={72} logoUrl={course?.logoUrl || platform.logoUrl} primaryColor={primaryColor} />
                     <h1 className="mt-4 text-xl font-bold text-slate-900">{name}</h1>
                     {course?.tagline && (
                         <p className="mt-1 text-sm text-slate-500">{course.tagline}</p>

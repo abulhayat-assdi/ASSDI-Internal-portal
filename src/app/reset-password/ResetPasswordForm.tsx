@@ -73,9 +73,13 @@ function ResetPasswordForm({ brand }: { brand: CourseBranding }) {
             <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-md">
                 {/* Logo */}
                 <div className="flex justify-center mb-6">
-                    <div className="bg-[#0D1B2A] rounded-2xl p-3 flex items-center justify-center shadow-sm">
-                        <BrandLogo size={52} primaryColor="#FFFFFF" arrowColor="#4CAF50" logoUrl={brand.logoUrl} />
-                    </div>
+                    {brand.logoUrl ? (
+                        <BrandLogo size={72} logoUrl={brand.logoUrl} />
+                    ) : (
+                        <div className="bg-[#0D1B2A] rounded-2xl p-3 flex items-center justify-center shadow-sm">
+                            <BrandLogo size={52} primaryColor="#FFFFFF" arrowColor="#4CAF50" />
+                        </div>
+                    )}
                 </div>
 
                 <h1 className="text-2xl font-bold text-center text-[#1f2937] mb-2">
