@@ -16,6 +16,11 @@ function ResetPasswordForm({ brand }: { brand: CourseBranding }) {
     const [successMessage, setSuccessMessage] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [tokenValid, setTokenValid] = useState<boolean | null>(null);
+    const [loginUrl, setLoginUrl] = useState("/login");
+
+    const goToLogin = (url: string = loginUrl) => {
+        window.location.href = url;
+    };
 
     useEffect(() => {
         if (!token) {
@@ -58,8 +63,13 @@ function ResetPasswordForm({ brand }: { brand: CourseBranding }) {
                 throw new Error(data.error || "Failed to reset password.");
             }
 
+            // Server knows which host this user signs in on (course subdomain /
+            // admin host); only that absolute URL is right if this page was
+            // opened on the root domain.
+            const nextLogin = typeof data.loginUrl === "string" ? data.loginUrl : "/login";
+            setLoginUrl(nextLogin);
             setSuccessMessage("Password changed successfully! Redirecting to login...");
-            setTimeout(() => router.push("/login"), 2500);
+            setTimeout(() => goToLogin(nextLogin), 2500);
         } catch (err) {
             const msg = err instanceof Error ? err.message : "Something went wrong. Please try again.";
             setError(msg);
@@ -172,7 +182,7 @@ function ResetPasswordForm({ brand }: { brand: CourseBranding }) {
                 ) : (
                     <div className="text-center">
                         <button
-                            onClick={() => router.push("/login")}
+                            onClick={() => goToLogin()}
                             className="w-full bg-[#059669] text-white font-semibold py-3 rounded-full hover:bg-[#047857] transition-colors duration-200"
                         >
                             Go to Login

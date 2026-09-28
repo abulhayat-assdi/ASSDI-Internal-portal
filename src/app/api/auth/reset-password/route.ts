@@ -8,6 +8,7 @@ import { hashPassword } from '@/lib/password';
 import { HOUR, MINUTE, limitFromEnv, rateLimit, rateLimitByIp } from '@/lib/rateLimit';
 import { getBrandingForCourseId } from '@/lib/branding';
 import { escapeHtml, renderEmail, sendMail } from '@/lib/mailer';
+import { loginUrlForUser, portalOriginForUser } from '@/lib/portalUrls';
 
 const requestSchema = z.object({
     email: z.string().email(),
@@ -86,8 +87,9 @@ export async function POST(req: NextRequest) {
         const brand = await getBrandingForCourseId(user.courseId ?? null);
         const courseName = brand.name;
 
-        const appUrl = (process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/$/, '');
-        const resetUrl = `${appUrl}/reset-password?token=${rawToken}`;
+        // The link opens on the user's own host (course subdomain / admin host),
+        // not the root domain — the root has no sign-in to return to afterwards.
+        const resetUrl = `${await portalOriginForUser(user)}/reset-password?token=${rawToken}`;
 
         try {
             const delivered = await sendMail({
@@ -161,15 +163,17 @@ export async function PATCH(req: NextRequest) {
         // here (not a course session), so this bypasses course-scoped RLS.
         const passwordHash = await hashPassword(password);
 
-        await withCourseContext({ courseId: null, isSuperAdmin: true }, async (tx) => {
-            await tx.user.update({
+        const user = await withCourseContext({ courseId: null, isSuperAdmin: true }, async (tx) => {
+            const updated = await tx.user.update({
                 where: { id: resetToken.userId },
                 data: { passwordHash },
+                select: { courseId: true, role: true },
             });
             await tx.passwordResetToken.update({
                 where: { id: resetToken.id },
                 data: { usedAt: new Date() },
             });
+            return updated;
         });
 
         // A password change must invalidate any session still running on the
@@ -177,7 +181,9 @@ export async function PATCH(req: NextRequest) {
         // their access for the rest of the 30-day JWT window.
         await prisma.activeSession.deleteMany({ where: { userId: resetToken.userId } });
 
-        return NextResponse.json({ success: true });
+        // Tell the page where to send the user next; links mailed before the
+        // host fix land on the root domain, which has no sign-in.
+        return NextResponse.json({ success: true, loginUrl: await loginUrlForUser(user) });
     } catch (error) {
         console.error('[Reset Password API] Reset error:', error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
