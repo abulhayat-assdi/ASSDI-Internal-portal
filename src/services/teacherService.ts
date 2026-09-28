@@ -15,7 +15,6 @@ export interface Teacher {
     imageObjectPosition?: string;
     isAdmin: boolean;
     order?: number;
-    leaveTrackingEnabled?: boolean;
 }
 
 const TEACHER_IMAGES: Record<string, string> = {
@@ -57,7 +56,6 @@ export const addTeacher = async (data: Omit<Teacher, "id"> & { password: string 
             isAdmin: data.isAdmin,
             order: data.order,
             profileImageUrl: data.profileImageUrl,
-            leaveTrackingEnabled: data.leaveTrackingEnabled,
         }),
     });
     const result = await res.json();

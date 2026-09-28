@@ -16,7 +16,6 @@ export const ALL_FEATURES: FeatureDefinition[] = [
     { key: 'exam_results', label: 'পরীক্ষার ফলাফল', description: 'পরীক্ষার ফলাফল এন্ট্রি ও দেখার সিস্টেম', defaultEnabled: true },
     { key: 'cv_builder', label: 'CV Builder', description: 'ছাত্রদের CV তৈরির টুল', defaultEnabled: true },
     { key: 'policies', label: 'Policy & Minutes', description: 'Policy documents ও meeting minutes', defaultEnabled: true },
-    { key: 'leave_tracking', label: 'Leave Tracking', description: 'শিক্ষকের ছুটি ম্যানেজমেন্ট', defaultEnabled: true },
     { key: 'attendance', label: 'Attendance', description: 'ক্লাস অ্যাটেনডেন্স (রোল কল) ও উপস্থিতির রিপোর্ট', defaultEnabled: true },
     { key: 'reports', label: 'Reports & Insights', description: 'ব্যাচভিত্তিক পারফরম্যান্স, ঝুঁকিতে থাকা ছাত্র ও এক্সপোর্ট', defaultEnabled: true },
     // ডিফল্ট OFF: এটি চালু করলে নোটিশ/হোমওয়ার্ক দিলেই সব ছাত্রকে সত্যিকারের ইমেইল যাবে।

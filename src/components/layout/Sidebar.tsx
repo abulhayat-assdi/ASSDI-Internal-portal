@@ -32,7 +32,6 @@ const teacherAdminTopNavItems: NavItem[] = [
     { href: "/dashboard/course-modules", label: "Course Modules", icon: "📚", permission: "course_modules", feature: "course_modules" },
     { href: "/dashboard/homework", label: "Homework", icon: "📝", permission: "homework", feature: "homework" },
     { href: "/dashboard/attendance", label: "Attendance", icon: "🗓️", permission: "attendance", feature: "attendance" },
-    { href: "/dashboard/leave-tracking", label: "Leave Tracking", icon: "🌴", permission: "leave_tracking", feature: "leave_tracking" },
     { href: "/dashboard/student-leaves", label: "Student Leaves", icon: "🏖️", permission: "admin_leave", feature: "student_leaves" },
 ];
 
@@ -98,7 +97,6 @@ const teacherAdminNavSections: NavSection[] = [
             { href: "/dashboard/admin", label: "Admin Panel", icon: "⚙️", permission: "admin_panel" },
             { href: "/dashboard/admin/access-management", label: "Access Management", icon: "🔑", permission: "access_management" },
             { href: "/dashboard/admin/batch-forms", label: "Batch Forms", icon: "📝", permission: "admin_panel", feature: "batch_forms" },
-            { href: "/dashboard/admin/leave-management", label: "Manage Leaves", icon: "🌴", permission: "admin_leave", feature: "leave_tracking" },
             { href: "/dashboard/admin/attendance-report", label: "Attendance Report", icon: "📈", permission: "admin_attendance", feature: "attendance" },
             { href: "/dashboard/admin/reports", label: "Reports & Insights", icon: "📊", permission: "reports", feature: "reports" },
             { href: "/dashboard/settings/branding", label: "Branding & Settings", icon: "🎨", permission: "admin_panel" },
@@ -252,12 +250,12 @@ export default function Sidebar() {
                 // Desktop: always visible
                 "lg:translate-x-0"
             )}>
-                {/* Logo/Brand */}
-                <div className="p-6 border-b border-[#e5e7eb] flex items-center justify-center">
+                {/* Logo/Brand — compact row, same height as the top navbar (h-16) so the two borders line up */}
+                <div className="h-16 flex-shrink-0 px-4 border-b border-[#e5e7eb] flex items-center justify-center">
                     <Link
                         href={isStudent ? "/student-dashboard" : "/dashboard"}
                         prefetch={true}
-                        className="cursor-pointer group"
+                        className="cursor-pointer group flex items-center justify-center h-full"
                         onClick={() => setIsMobileMenuOpen(false)}
                     >
                         {siteLogoUrl ? (
@@ -265,11 +263,11 @@ export default function Sidebar() {
                             <img
                                 src={siteLogoUrl}
                                 alt="Logo"
-                                className="max-h-16 max-w-full w-auto object-contain transition-transform duration-300 ease-in-out group-hover:-translate-y-0.5"
+                                className="h-10 w-auto max-w-[10rem] object-contain transition-transform duration-300 ease-in-out group-hover:-translate-y-0.5"
                             />
                         ) : (
-                            <div suppressHydrationWarning className="bg-[#0D1B2A] rounded-xl px-4 py-3 flex items-center shadow-sm transition-all duration-300 ease-in-out group-hover:shadow-md group-hover:-translate-y-0.5">
-                                <BrandLogo size={36} primaryColor="#FFFFFF" arrowColor="#4CAF50" />
+                            <div suppressHydrationWarning className="bg-[#0D1B2A] rounded-xl px-3 py-1.5 flex items-center shadow-sm transition-all duration-300 ease-in-out group-hover:shadow-md group-hover:-translate-y-0.5">
+                                <BrandLogo size={28} primaryColor="#FFFFFF" arrowColor="#4CAF50" />
                             </div>
                         )}
                     </Link>

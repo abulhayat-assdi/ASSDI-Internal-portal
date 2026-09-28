@@ -19,7 +19,6 @@ export type PermissionKey =
     | "policies"
     | "feedback"
     | "homework"
-    | "leave_tracking"
     | "teachers"
     | "attendance"
     | "admin_attendance"
@@ -57,13 +56,12 @@ export const PERMISSION_META: Record<PermissionKey, PermissionMeta> = {
     policies: { label: "Policy & Minutes", path: "/dashboard/policies", group: "teacher", icon: "📋" },
     feedback: { label: "Feedback", path: "/dashboard/feedback", group: "teacher", icon: "💬" },
     homework: { label: "Homework", path: "/dashboard/homework", group: "teacher", icon: "📝" },
-    leave_tracking: { label: "Leave Tracking", path: "/dashboard/leave-tracking", group: "teacher", icon: "🌴" },
     attendance: { label: "Attendance", path: "/dashboard/attendance", group: "teacher", icon: "🗓️" },
     teachers: { label: "Teacher Directory", path: "/dashboard/teachers", group: "management", icon: "👥" },
     admin_panel: { label: "Admin Panel", path: "/dashboard/admin", group: "admin", icon: "⚙️" },
     admin_homework: { label: "Manage Homework", path: "/dashboard/admin/manage-homework", group: "admin", icon: "📁" },
     admin_results: { label: "Manage Results", path: "/dashboard/admin/manage-results", group: "admin", icon: "📝" },
-    admin_leave: { label: "Manage Leaves", path: "/dashboard/admin/leave-management", group: "admin", icon: "🌴" },
+    admin_leave: { label: "Student Leaves", path: "/dashboard/student-leaves", group: "admin", icon: "🏖️" },
     admin_attendance: { label: "Attendance Report", path: "/dashboard/admin/attendance-report", group: "admin", icon: "📈" },
     admin_routine: { label: "Update Routine", path: "/dashboard/manage-routine", group: "admin", icon: "📆" },
     reports: { label: "Reports & Insights", path: "/dashboard/admin/reports", group: "admin", icon: "📊" },
@@ -97,7 +95,7 @@ export const ADMIN_TEACHER_MARKER = "__role:admin_teacher";
 // explicitly via Access Management, it is not granted by default.
 export const DEFAULT_TEACHER_PERMISSIONS: PermissionKey[] = [
     "schedule", "routine", "batch_info", "resources", "course_modules",
-    "policies", "feedback", "homework", "leave_tracking", "attendance",
+    "policies", "feedback", "homework", "attendance",
     "teachers", "admin_results", "typing_exam",
 ];
 
@@ -117,7 +115,7 @@ export const DEFAULT_ADMIN_PERMISSIONS: PermissionKey[] = [
 // Teacher-feature permissions added to admin when "Include teacher features" is checked
 export const TEACHER_FEATURE_PERMISSIONS: PermissionKey[] = [
     "schedule", "routine", "resources", "course_modules",
-    "policies", "feedback", "homework", "leave_tracking", "attendance",
+    "policies", "feedback", "homework", "attendance",
     "typing_game_teacher", "typing_exam",
 ];
 

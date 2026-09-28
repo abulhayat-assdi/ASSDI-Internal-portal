@@ -24,7 +24,6 @@ const createTeacherSchema = z.object({
     isAdmin: z.boolean().optional(),
     includeTeacherFeatures: z.boolean().optional(),
     order: z.number().optional(),
-    leaveTrackingEnabled: z.boolean().optional(),
     profileImageUrl: z.string().optional(),
 });
 
@@ -44,7 +43,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: parsed.error.message }, { status: 400 });
         }
 
-        const { teacherId, loginEmail, displayEmail, password, name, phone, designation, about, isAdmin: grantAdmin, includeTeacherFeatures, order, leaveTrackingEnabled, profileImageUrl } = parsed.data;
+        const { teacherId, loginEmail, displayEmail, password, name, phone, designation, about, isAdmin: grantAdmin, includeTeacherFeatures, order, profileImageUrl } = parsed.data;
 
         // 2. Admin grant: Super Admin can grant anywhere; Department Admin (admin role)
         // can grant ONLY within its own courseId (department). Cross-department already
@@ -119,7 +118,6 @@ export async function POST(req: NextRequest) {
                     loginEmail: normalizedLoginEmail,
                     isAdmin: grantAdmin || false,
                     order: order || 0,
-                    leaveTrackingEnabled: leaveTrackingEnabled || false,
                     ...(profileImageUrl ? { profileImageUrl } : {}),
                 },
             });

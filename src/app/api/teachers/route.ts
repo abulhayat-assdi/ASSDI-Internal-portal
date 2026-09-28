@@ -59,7 +59,6 @@ export async function PATCH(req: NextRequest) {
         if (data.profileImageUrl !== undefined) updateData.profileImageUrl = data.profileImageUrl;
         if (data.isAdmin !== undefined) updateData.isAdmin = data.isAdmin;
         if (data.order !== undefined) updateData.order = data.order;
-        if (data.leaveTrackingEnabled !== undefined) updateData.leaveTrackingEnabled = data.leaveTrackingEnabled;
         if (data.imageObjectPosition !== undefined) updateData.imageObjectPosition = data.imageObjectPosition;
 
         if (Object.keys(updateData).length > 0) {

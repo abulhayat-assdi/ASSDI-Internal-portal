@@ -49,7 +49,6 @@ export default function TeachersPage() {
         isAdmin: false,
         includeTeacherFeatures: true,
         order: 0,
-        leaveTrackingEnabled: false,
     });
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -132,7 +131,6 @@ export default function TeachersPage() {
             isAdmin: false,
             includeTeacherFeatures: true,
             order: 0,
-            leaveTrackingEnabled: false,
         });
         setSelectedFile(null);
         setImagePreview(null);
@@ -183,7 +181,6 @@ export default function TeachersPage() {
             isAdmin: Boolean(teacher.isAdmin),
             includeTeacherFeatures: true,
             order: teacher.order || 0,
-            leaveTrackingEnabled: Boolean(teacher.leaveTrackingEnabled),
         });
         setImagePreview(teacher.profileImageUrl || null);
         setIsEditMode(true);
@@ -292,7 +289,6 @@ export default function TeachersPage() {
                     profileImageUrl: finalImageUrl || undefined,
                     isAdmin: formData.isAdmin,
                     order: Number(formData.order),
-                    leaveTrackingEnabled: formData.leaveTrackingEnabled,
                 });
             } else {
                 // --- ADD MODE ---
@@ -314,7 +310,6 @@ export default function TeachersPage() {
                         isAdmin: formData.isAdmin,
                         includeTeacherFeatures: formData.isAdmin ? formData.includeTeacherFeatures : undefined,
                         order: Number(formData.order),
-                        leaveTrackingEnabled: formData.leaveTrackingEnabled,
                         profileImageUrl: finalImageUrl || undefined,
                     }),
                 });
@@ -730,26 +725,7 @@ export default function TeachersPage() {
                                     <label htmlFor="includeTeacherFeatures" className="text-sm font-medium text-slate-700 cursor-pointer">
                                         📚 Include Teacher Features
                                         <span className="block text-xs font-normal text-slate-500 mt-0.5">
-                                            টিক দিলে এই অ্যাডমিন টিচারদের সব ফিচারও (Schedule, Homework, Leave Tracking ইত্যাদি) পাবে
-                                        </span>
-                                    </label>
-                                </div>
-                            )}
-
-                            {/* Leave Tracking Toggle */}
-                            {isAdminUser && (
-                                <div className="flex items-center gap-3 p-3 rounded-lg border border-emerald-100 bg-emerald-50">
-                                    <input
-                                        type="checkbox"
-                                        id="leaveTrackingEnabled"
-                                        checked={formData.leaveTrackingEnabled}
-                                        onChange={(e) => setFormData({ ...formData, leaveTrackingEnabled: e.target.checked })}
-                                        className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
-                                    />
-                                    <label htmlFor="leaveTrackingEnabled" className="text-sm font-medium text-slate-700 cursor-pointer">
-                                        🌴 লিভ ট্র্যাকিং চালু থাকবে
-                                        <span className="block text-xs font-normal text-slate-500 mt-0.5">
-                                            চেক করলে এই টিচারের ডেটা &quot;Leave Tracking&quot; পেইজে দেখাবে
+                                            টিক দিলে এই অ্যাডমিন টিচারদের সব ফিচারও (Schedule, Homework, Attendance ইত্যাদি) পাবে
                                         </span>
                                     </label>
                                 </div>
