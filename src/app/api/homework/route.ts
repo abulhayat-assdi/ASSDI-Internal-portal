@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isTeacherOrAdmin } from "@/lib/auth";
 import { logHomeworkActivity } from "@/lib/homeworkLog";
+import { logActivity } from "@/lib/activityLog";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -130,9 +131,19 @@ export async function POST(req: NextRequest) {
     };
 
     try {
-        const submission = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
-            tx.homeworkSubmission.create({ data: submissionData })
-        );
+        const submission = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+            const created = await tx.homeworkSubmission.create({ data: submissionData });
+            await logActivity(tx, {
+                courseId,
+                actorUid: user.id,
+                actorRole: user.role === "teacher" ? "TEACHER" : user.role === "student" ? "STUDENT" : "ADMIN",
+                actionType: "HOMEWORK_SUBMITTED",
+                targetType: "homework_submission",
+                targetId: created.id,
+                description: `${submissionData.studentName} ${submissionData.subject} বিষয়ে হোমওয়ার্ক জমা দিয়েছে`,
+            });
+            return created;
+        });
         return NextResponse.json({ id: submission.id, success: true }, { status: 201 });
     } catch (error) {
         console.error("[Homework POST]", error);

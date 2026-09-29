@@ -39,19 +39,30 @@ export async function GET(req: NextRequest) {
         // Per-course rollups (counts only — no per-user data leaves the server)
         const perCourse = await Promise.all(
             courses.map(async (c) => {
-                const [students, teachers, admins, batches, logins7, logins30] = await Promise.all([
+                const [
+                    students, teachers, admins, batches, logins7, logins30,
+                    homeworkSubmissions30, typingExamAttempts30, typingExamAgg, deployments,
+                ] = await Promise.all([
                     tx.user.count({ where: { courseId: c.id, role: "student", deletedAt: null } }),
                     tx.user.count({ where: { courseId: c.id, role: "teacher", deletedAt: null } }),
                     tx.user.count({ where: { courseId: c.id, role: "admin", isSuperAdminShadow: false, deletedAt: null } }),
                     tx.batch.count({ where: { courseId: c.id } }),
                     tx.user.count({ where: { courseId: c.id, deletedAt: null, isSuperAdminShadow: false, lastLoginAt: { gte: last7 } } }),
                     tx.user.count({ where: { courseId: c.id, deletedAt: null, isSuperAdminShadow: false, lastLoginAt: { gte: last30 } } }),
+                    tx.homeworkSubmission.count({ where: { courseId: c.id, deletedAt: null, submittedAt: { gte: last30 } } }),
+                    tx.typingExamAttempt.count({ where: { courseId: c.id, submittedAt: { gte: last30 } } }),
+                    tx.typingExamAttempt.aggregate({ where: { courseId: c.id, submittedAt: { gte: last30 } }, _avg: { wpm: true } }),
+                    tx.deployment.count({ where: { courseId: c.id } }),
                 ]);
                 return {
                     id: c.id, slug: c.slug, name: c.name, status: c.status,
                     createdAt: c.createdAt,
                     billing: getBilling(c.settings),
                     students, teachers, admins, batches, logins7, logins30,
+                    homeworkSubmissions30,
+                    typingExamAttempts30,
+                    typingExamAvgWpm: Math.round((typingExamAgg._avg.wpm ?? 0) * 10) / 10,
+                    deployments,
                 };
             })
         );

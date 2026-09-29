@@ -8,6 +8,7 @@ import * as cheerio from "cheerio";
 import { readFile } from "fs/promises";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
+import { logActivity } from "@/lib/activityLog";
 import unzipper from "unzipper";
 import * as fs from "fs";
 
@@ -240,8 +241,8 @@ export async function POST(req: NextRequest) {
         }
 
         const liveUrl = buildLiveUrl(rawSubdomain);
-        const deployment = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
-            tx.deployment.create({
+        const deployment = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+            const created = await tx.deployment.create({
                 data: {
                     courseId,
                     userId: user.id,
@@ -250,8 +251,18 @@ export async function POST(req: NextRequest) {
                     folderPath: targetDir,
                     liveUrl,
                 },
-            })
-        );
+            });
+            await logActivity(tx, {
+                courseId,
+                actorUid: user.id,
+                actorRole: "STUDENT",
+                actionType: "DEPLOYMENT_CREATED",
+                targetType: "deployment",
+                targetId: created.id,
+                description: `${user.displayName || user.id} "${rawSubdomain}" নামে একটা প্রজেক্ট ডেপ্লয় করেছে`,
+            });
+            return created;
+        });
 
         await injectTrackingPixel(path.join(targetDir, "index.html"), deployment.id);
 

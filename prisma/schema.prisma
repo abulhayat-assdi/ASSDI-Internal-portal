@@ -107,6 +107,7 @@ enum ResourceType {
 enum ActorRole {
   ADMIN
   TEACHER
+  STUDENT
 }
 
 enum TenantStatus {
@@ -197,6 +198,7 @@ model Course {
   competitionGroups        CompetitionGroup[]
   typingExams              TypingExam[]
   typingExamAttempts       TypingExamAttempt[]
+  loginEvents              LoginEvent[]
 
   @@index([slug])
   @@index([status])
@@ -242,6 +244,7 @@ model User {
   cvDrafts            CvDraft[]
   activeSession       ActiveSession?
   deployments         Deployment[]
+  loginEvents         LoginEvent[]
 
   @@index([email])
   @@index([role])
@@ -260,6 +263,29 @@ model ActiveSession {
 
   @@index([expiresAt])
   @@map("active_sessions")
+}
+
+// Insert-only login history — never updated, never purged, so platform
+// analytics can chart real login activity over any date range. Distinct
+// from ActiveSession (one mutable row per user) and from User.lastLoginAt
+// (overwritten every login). email/displayName/role are denormalized so a
+// record stays meaningful even after the user row is later deleted.
+model LoginEvent {
+  id          String    @id @default(uuid())
+  courseId    String?   @map("course_id")
+  userId      String?   @map("user_id")
+  role        UserRole
+  email       String
+  displayName String    @map("display_name")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  course Course? @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([courseId, createdAt])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("login_events")
 }
 
 model PasswordResetToken {

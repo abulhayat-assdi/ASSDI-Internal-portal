@@ -29,6 +29,14 @@ export default function AuditPage() {
     const [qInput, setQInput] = useState("");
     const [loading, setLoading] = useState(true);
 
+    // A course row on the analytics page links here with ?courseId=... to
+    // preselect that course's log. Read on mount only — client-side, so it
+    // doesn't require a Suspense boundary like next/navigation's useSearchParams.
+    useEffect(() => {
+        const initial = new URLSearchParams(window.location.search).get("courseId");
+        if (initial) setCourseId(initial);
+    }, []);
+
     const load = useCallback(async () => {
         setLoading(true);
         const sp = new URLSearchParams({ page: String(page) });

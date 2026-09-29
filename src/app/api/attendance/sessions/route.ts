@@ -6,6 +6,7 @@ import { z } from "zod";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser, hasRequiredPermission, isAdmin } from "@/lib/auth";
 import { ATTENDANCE_STATUSES, isValidDate } from "@/lib/attendance";
+import { logActivity } from "@/lib/activityLog";
 import bcrypt from "bcryptjs";
 import { MINUTE, limitFromEnv, rateLimit } from "@/lib/rateLimit";
 
@@ -124,7 +125,7 @@ export async function POST(req: NextRequest) {
     const teacher = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
         tx.user.findFirst({
             where: { id: teacherId, courseId, role: { in: ["teacher", "admin"] }, deletedAt: null },
-            select: { id: true, displayName: true, passwordHash: true },
+            select: { id: true, displayName: true, passwordHash: true, role: true },
         })
     );
     if (!teacher || !(await bcrypt.compare(teacherPassword, teacher.passwordHash))) {
@@ -183,6 +184,16 @@ export async function POST(req: NextRequest) {
                         status: r.status,
                         note: r.note,
                     })),
+            });
+
+            await logActivity(tx, {
+                courseId,
+                actorUid: teacher.id,
+                actorRole: teacher.role === "admin" ? "ADMIN" : "TEACHER",
+                actionType: "ATTENDANCE_MARKED",
+                targetType: "attendance_session",
+                targetId: saved.id,
+                description: `${teacher.displayName} ${batch.name} ব্যাচের ${date} তারিখের অ্যাটেন্ডেন্স নিয়েছেন`,
             });
 
             return tx.attendanceSession.findUnique({

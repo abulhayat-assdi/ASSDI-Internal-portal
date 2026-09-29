@@ -4,6 +4,7 @@ import { getSessionUser } from "@/lib/auth";
 import { scoreAttempt, gradeAttempt } from "@/lib/typing-exam/scoring";
 import { loadVisibleExam } from "@/lib/typing-exam/visibility";
 import { checkRetryPassword } from "@/lib/typing-exam/retryGate";
+import { logActivity } from "@/lib/activityLog";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -76,7 +77,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
                 failAccuracy: exam.failAccuracy,
             });
 
-            await tx.typingExamAttempt.create({
+            const attempt = await tx.typingExamAttempt.create({
                 data: {
                     courseId,
                     examId: exam.id,
@@ -93,6 +94,16 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
                     durationTakenSeconds: clampedElapsed,
                     result: gradeResult,
                 },
+            });
+
+            await logActivity(tx, {
+                courseId,
+                actorUid: user.id,
+                actorRole: "STUDENT",
+                actionType: "TYPING_EXAM_ATTEMPTED",
+                targetType: "typing_exam_attempt",
+                targetId: attempt.id,
+                description: `${user.displayName || user.id} "${exam.title}" এক্সামে অংশ নিয়েছে — ${wpm} WPM, ${gradeResult}`,
             });
 
             return NextResponse.json({ wpm, accuracy, result: gradeResult });

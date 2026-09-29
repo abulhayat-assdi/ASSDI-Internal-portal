@@ -3,6 +3,7 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
 import { prisma, withCourseContext, type CourseContext } from '@/lib/db';
+import { logActivity } from '@/lib/activityLog';
 import { BLOCKED_MESSAGE, isPortalAccessBlocked, studentAccessSelect } from '@/lib/studentAccess';
 import { signJWT, invalidateUserOverrideCache } from '@/lib/auth';
 import { COOKIES } from '@/lib/constants';
@@ -227,6 +228,40 @@ export async function POST(req: NextRequest) {
         );
         if (enforceRole.role) user.role = enforceRole.role;
 
+        // The shadow row's email is a synthetic, internal-only value (kept off
+        // every listing); the super admin should still see their own real
+        // email reflected back, both in the JWT and in the response body.
+        const displayEmail = shadowLoginBy ?? user.email;
+
+        // Permanent login history for platform analytics — never updated or
+        // purged, unlike ActiveSession (one mutable row) and lastLoginAt
+        // (overwritten every login). Must not be able to fail the login.
+        await withCourseContext(ctx, (tx) =>
+            tx.loginEvent.create({
+                data: {
+                    courseId: ctx.courseId,
+                    userId: user.id,
+                    role: user.role,
+                    email: displayEmail,
+                    displayName: user.displayName,
+                },
+            })
+        ).catch((error) => console.error('[Login API] could not write LoginEvent:', error));
+
+        if (courseId) {
+            await withCourseContext(ctx, (tx) =>
+                logActivity(tx, {
+                    courseId,
+                    actorUid: user.id,
+                    actorRole: user.role === 'teacher' ? 'TEACHER' : user.role === 'student' ? 'STUDENT' : 'ADMIN',
+                    actionType: 'LOGIN',
+                    targetType: 'user',
+                    targetId: user.id,
+                    description: `${displayEmail} লগইন করেছেন`,
+                })
+            );
+        }
+
         if (shadowLoginBy) {
             await withCourseContext(ctx, (tx) =>
                 tx.activityLog.create({
@@ -242,11 +277,6 @@ export async function POST(req: NextRequest) {
                 })
             ).catch(() => { /* audit must not block login */ });
         }
-
-        // The shadow row's email is a synthetic, internal-only value (kept off
-        // every listing); the super admin should still see their own real
-        // email reflected back, both in the JWT and in the response body.
-        const displayEmail = shadowLoginBy ?? user.email;
 
         const token = await signJWT({
             id: user.id,
