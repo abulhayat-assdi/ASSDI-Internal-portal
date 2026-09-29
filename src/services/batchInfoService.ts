@@ -13,7 +13,6 @@ export interface BatchStudent {
     educationalDegree?: string;
     category?: string;
     bloodGroup?: string;
-    totalPaidTk?: string;
     courseStatus?: "Running" | "Completed" | "Incomplete" | "Expelled";
     currentlyDoing?: string;
     companyName?: string;

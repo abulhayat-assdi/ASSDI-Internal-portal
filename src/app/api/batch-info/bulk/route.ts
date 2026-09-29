@@ -137,7 +137,6 @@ export async function POST(req: NextRequest) {
                         educationalDegree: s.educationalDegree ? String(s.educationalDegree) : null,
                         category: mapCategory(s.category as string),
                         bloodGroup: s.bloodGroup ? String(s.bloodGroup) : null,
-                        totalPaidTk: s.totalPaidTk ? String(s.totalPaidTk) : null,
                         courseStatus: mapCourseStatus(s.courseStatus as string, batchType),
                         currentlyDoing: mapCurrentlyDoing(s.currentlyDoing as string),
                         companyName: String(s.companyName || ""),

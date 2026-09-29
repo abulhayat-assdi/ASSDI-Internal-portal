@@ -15,14 +15,14 @@ type FormData = {
   guardianName: string; guardianPhone: string; lastInstitute: string;
   latestDegree: string; gpaResult: string; currentDistrict: string;
   homeDistrict: string; category: string; tShirtSize: string;
-  totalPayment: string; courseGoal: string;
+  courseGoal: string;
 };
 const EMPTY: FormData = {
   roll:"",name:"",phone:"",nidBirthNo:"",dob:"",email:"",bloodGroup:"",
   fatherName:"",motherName:"",presentAddress:"",permanentAddress:"",
   guardianName:"",guardianPhone:"",lastInstitute:"",latestDegree:"",
   gpaResult:"",currentDistrict:"",homeDistrict:"",category:"",tShirtSize:"",
-  totalPayment:"",courseGoal:"",
+  courseGoal:"",
 };
 
 const input = "w-full border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all placeholder:text-slate-300";
@@ -310,15 +310,6 @@ export default function StudentFormClient({ brand }: { brand: CourseBranding }) 
           <div>
             <label className={label}>GPA / ফলাফল {req}</label>
             <input type="text" value={form.gpaResult} onChange={(e) => set("gpaResult",e.target.value)} required className={input} placeholder="5.00, Mumtaz, A+..." />
-          </div>
-        </Section>
-
-        {/* পেমেন্ট */}
-        <Section dot="bg-amber-500" title="কোর্স ফি">
-          <div className="sm:col-span-2">
-            <label className={label}>সর্বমোট কোর্স ফি (টাকা) {req}</label>
-            <input type="number" value={form.totalPayment} onChange={(e) => set("totalPayment",e.target.value)} required min="0" className={input} placeholder="e.g. 15000" />
-            <p className="text-xs text-slate-400 mt-1">আপনি এই কোর্সে সর্বমোট কত টাকা পেমেন্ট করবেন</p>
           </div>
         </Section>
 

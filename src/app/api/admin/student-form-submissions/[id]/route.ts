@@ -49,7 +49,6 @@ export async function PATCH(
           currentDistrict: sub.currentDistrict || undefined,
           homeDistrict: sub.homeDistrict || undefined,
           tShirtSize: sub.tShirtSize || undefined,
-          totalPaidTk: sub.totalPayment || undefined,
           courseGoal: sub.courseGoal || undefined,
           category: sub.category === "Alim" || sub.category === "General" ? sub.category : undefined,
         },

@@ -112,7 +112,7 @@ interface OverviewStat {
 }
 
 const COLUMNS = [
-    "roll", "name", "phone", "dob", "educationalDegree", "category", "bloodGroup", "totalPaidTk", "address",
+    "roll", "name", "phone", "dob", "educationalDegree", "category", "bloodGroup", "address",
     "email", "nidBirthNo", "fatherName", "motherName", "permanentAddress",
     "guardianName", "guardianPhone", "lastInstitute", "latestDegree", "gpaResult",
     "currentDistrict", "homeDistrict", "tShirtSize", "courseGoal",
@@ -132,7 +132,6 @@ const GRID_COLUMN_META: { key: string; label: string; width: number }[] = [
     { key: "educationalDegree", label: "Educational Degree", width: 190 },
     { key: "category", label: "Category", width: 120 },
     { key: "bloodGroup", label: "Blood Group", width: 120 },
-    { key: "totalPaidTk", label: "Total Paid TK", width: 120 },
     { key: "address", label: "Address", width: 260 },
     { key: "email", label: "Email", width: 200 },
     { key: "nidBirthNo", label: "NID / Birth No", width: 160 },
@@ -384,7 +383,6 @@ export default function AllBatchInfoPage() {
                     educationalDegree: student.educationalDegree || "",
                     category: student.category || "",
                     bloodGroup: student.bloodGroup || "",
-                    totalPaidTk: student.totalPaidTk ? student.totalPaidTk.toString() : "",
                     address: student.address || "",
                     email: student.email || "",
                     nidBirthNo: student.nidBirthNo || "",
@@ -499,7 +497,6 @@ export default function AllBatchInfoPage() {
                 educationalDegree: row.educationalDegree || "",
                 category: (row.category || "") as StudentBatchInfo['category'],
                 bloodGroup: row.bloodGroup || "",
-                totalPaidTk: row.totalPaidTk || "",
                 address: row.address || "",
                 email: row.email || "",
                 nidBirthNo: row.nidBirthNo || "",
@@ -590,7 +587,6 @@ export default function AllBatchInfoPage() {
                         educationalDegree: row.educationalDegree || "",
                         category: (row.category || "") as StudentBatchInfo['category'],
                         bloodGroup: row.bloodGroup || "",
-                        totalPaidTk: row.totalPaidTk || "",
                         address: row.address || "",
                         email: row.email || "",
                         nidBirthNo: row.nidBirthNo || "",
@@ -668,7 +664,7 @@ export default function AllBatchInfoPage() {
             sheetData.push(["Student List"]);
             sheetData.push([
                 "Batch", "Roll", "Name", "Phone", "Date of Birth", "Educational Degree", "Category", "Blood Group",
-                "Total Paid TK", "Address", "Email", "NID / Birth No", "Father Name", "Mother Name", "Permanent Address",
+                "Address", "Email", "NID / Birth No", "Father Name", "Mother Name", "Permanent Address",
                 "Guardian Name", "Guardian Phone", "Last Institute", "Latest Degree", "GPA / Result",
                 "Current District", "Home District", "T-Shirt Size", "Course Goal",
                 "Status", "Currently", "Company Name", "Business Name", "Salary"
@@ -685,7 +681,6 @@ export default function AllBatchInfoPage() {
                     s.educationalDegree || "-",
                     s.category || "-",
                     s.bloodGroup || "-",
-                    s.totalPaidTk || "-",
                     s.address || "-",
                     s.email || "-",
                     s.nidBirthNo || "-",
@@ -720,7 +715,6 @@ export default function AllBatchInfoPage() {
                 { wch: 18 }, // Educational Degree
                 { wch: 12 }, // Category
                 { wch: 10 }, // Blood Group
-                { wch: 14 }, // Total Paid TK
                 { wch: 30 }, // Address
                 { wch: 26 }, // Email
                 { wch: 16 }, // NID / Birth No
@@ -840,7 +834,6 @@ export default function AllBatchInfoPage() {
                         <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
                             {([
                                 ["ফোন", detailStudent.phone],
-                                ["সর্বমোট পেমেন্ট", detailStudent.totalPaidTk ? `৳ ${detailStudent.totalPaidTk}` : undefined],
                                 ["ই-মেইল", detailStudent.email],
                                 ["NID / জন্ম নং", detailStudent.nidBirthNo],
                                 ["জন্ম তারিখ", detailStudent.dob],
@@ -1172,7 +1165,6 @@ export default function AllBatchInfoPage() {
                                     <th className="px-4 py-3 font-medium border border-[#2d5278] min-w-[150px]">Educational Degree</th>
                                     <th className="px-4 py-3 font-medium border border-[#2d5278]">Category</th>
                                     <th className="px-4 py-3 font-medium border border-[#2d5278] min-w-[100px]">Blood Group</th>
-                                    <th className="px-4 py-3 font-medium border border-[#2d5278] min-w-[100px]">Total Paid TK</th>
                                     <th className="px-4 py-3 font-medium border border-[#2d5278] min-w-[200px]">Address</th>
                                     <th className="px-4 py-3 font-medium border border-[#2d5278] min-w-[160px]">Email</th>
                                     <th className="px-4 py-3 font-medium border border-[#2d5278] min-w-[140px]">NID / Birth No</th>
@@ -1236,9 +1228,6 @@ export default function AllBatchInfoPage() {
                                             </td>
                                             <td className="px-4 py-3 text-sm text-gray-600 border-b border-gray-200 text-center">
                                                 <span className="font-bold text-red-600">{student.bloodGroup || "-"}</span>
-                                            </td>
-                                            <td className="px-4 py-3 text-sm text-gray-600 border-b border-gray-200 text-center">
-                                                <span className="font-semibold text-emerald-600">{student.totalPaidTk || "-"}</span>
                                             </td>
                                             <td className="px-4 py-3 text-sm text-gray-600 border-b border-gray-200 max-w-[200px]">
                                                 <div className="flex items-center gap-1.5">

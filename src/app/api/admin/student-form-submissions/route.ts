@@ -47,7 +47,6 @@ export async function GET(req: NextRequest) {
     homeDistrict: r.homeDistrict,
     category: r.category,
     tShirtSize: r.tShirtSize,
-    totalPayment: r.totalPayment,
     courseGoal: r.courseGoal,
     status: r.status,
     adminNote: r.adminNote,

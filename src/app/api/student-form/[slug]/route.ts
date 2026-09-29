@@ -77,7 +77,7 @@ export async function POST(
     fatherName, motherName, presentAddress, permanentAddress,
     guardianName, guardianPhone, lastInstitute, latestDegree,
     gpaResult, currentDistrict, homeDistrict, category, tShirtSize,
-    totalPayment, courseGoal,
+    courseGoal,
   } = body;
 
   const required: Record<string, unknown> = {
@@ -85,7 +85,7 @@ export async function POST(
     fatherName, motherName, presentAddress, permanentAddress,
     guardianName, guardianPhone, lastInstitute, latestDegree,
     gpaResult, currentDistrict, homeDistrict, category, tShirtSize,
-    totalPayment, courseGoal,
+    courseGoal,
   };
   for (const [key, val] of Object.entries(required)) {
     if (!val || String(val).trim() === "") {
@@ -130,7 +130,6 @@ export async function POST(
         homeDistrict: String(homeDistrict),
         category: String(category),
         tShirtSize: String(tShirtSize),
-        totalPayment: String(totalPayment),
         courseGoal: String(courseGoal),
         status: "pending",
       },
