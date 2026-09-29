@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
-import { getSessionUser, isAdmin } from "@/lib/auth";
+import { getSessionUser, isAdmin, isTeacherOrAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -64,11 +64,10 @@ export async function GET(req: NextRequest) {
                 counts["/dashboard/messages"] = chatUnread;
             }
 
-            // 4. Feedback (Admin only)
-            if (isAdmin(user)) {
-                const ts = getTs("/dashboard/feedback");
+            // 4. Feedback — unread count (Admin & Teacher)
+            if (isTeacherOrAdmin(user)) {
                 counts["/dashboard/feedback"] = await tx.feedback.count({
-                    where: { courseId, createdAt: { gt: ts } }
+                    where: { courseId, isRead: false }
                 });
             }
 

@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { withCourseContext } from "@/lib/db";
-import { getSessionUser, isAdmin } from "@/lib/auth";
+import { getSessionUser, isTeacherOrAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(request: NextRequest) {
     const user = await getSessionUser(request);
-    if (!user || !isAdmin(user) || !user.courseId) {
+    if (!user || !isTeacherOrAdmin(user) || !user.courseId) {
         return new Response("Unauthorized", { status: 401 });
     }
     const courseId = user.courseId;
@@ -27,18 +27,18 @@ export async function GET(request: NextRequest) {
                     // for a long time, so a single transaction for its whole
                     // lifetime would hold a pooled connection indefinitely.
                     const data = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+                        // Anonymized — no student identity, matching /api/feedback.
                         const pendingFeedback = await tx.feedback.findMany({
-                            where: { courseId, status: "PENDING" },
+                            where: { courseId, isRead: false },
                             orderBy: { createdAt: "desc" },
                             select: {
                                 id: true,
-                                studentName: true,
-                                batch: true,
+                                batchName: true,
+                                category: true,
                                 message: true,
                                 rating: true,
-                                status: true,
+                                isRead: true,
                                 createdAt: true,
-                                submittedFrom: true,
                             },
                         });
 

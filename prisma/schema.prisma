@@ -77,9 +77,12 @@ enum StudentCategory {
   General
 }
 
-enum FeedbackStatus {
-  APPROVED
-  PENDING
+enum FeedbackCategory {
+  CourseContent
+  Teacher
+  Facilities
+  Administration
+  Other
 }
 
 enum MessageStatus {
@@ -371,6 +374,7 @@ model Batch {
   course              Course              @relation(fields: [courseId], references: [id], onDelete: Cascade)
   students            BatchStudent[]
   attendanceSessions  AttendanceSession[]
+  feedback            Feedback[]
 
   @@unique([courseId, name])
   @@index([status])
@@ -615,26 +619,34 @@ model HomeworkAssignmentShare {
 // FEEDBACK
 // ============================================================
 
+// Anonymous, course-wise student feedback. Submitted from the student
+// portal by a signed-in student — identity is stored (studentUid/Name/Roll)
+// but only ever exposed to a genuine super_admin session; every course-scoped
+// role (teacher/admin) only ever sees batch + category + message.
 model Feedback {
-  id            String         @id @default(uuid())
-  courseId      String         @map("course_id")
-  studentName   String         @map("student_name")
-  batch         String
-  role          String         @default("")
-  company       String         @default("")
-  message       String
-  rating        Int            @default(5)
-  status        FeedbackStatus @default(PENDING)
-  submittedFrom String         @default("PUBLIC_FORM") @map("submitted_from")
-  approvedByUid String?        @map("approved_by_uid")
-  createdAt     DateTime       @default(now()) @map("created_at")
-  updatedAt     DateTime       @updatedAt @map("updated_at")
+  id          String           @id @default(uuid())
+  courseId    String           @map("course_id")
+  studentUid  String           @map("student_uid")
+  studentName String           @map("student_name")
+  studentRoll String           @map("student_roll")
+  batchId     String?          @map("batch_id")
+  batchName   String           @map("batch_name")
+  category    FeedbackCategory @default(Other)
+  message     String
+  rating      Int              @default(5)
+  isRead      Boolean          @default(false) @map("is_read")
+  readByUid   String?          @map("read_by_uid")
+  readAt      DateTime?        @map("read_at")
+  createdAt   DateTime         @default(now()) @map("created_at")
 
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  batch  Batch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
 
-  @@index([status])
-  @@index([createdAt])
   @@index([courseId])
+  @@index([isRead])
+  @@index([category])
+  @@index([batchId])
+  @@index([createdAt])
   @@map("feedback")
 }
 

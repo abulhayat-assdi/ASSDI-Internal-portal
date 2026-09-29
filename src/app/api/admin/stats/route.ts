@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
                 tx.notice.count({ where: { courseId } }),
                 tx.resource.count({ where: { courseId } }),
                 tx.feedback.count({ where: { courseId } }),
-                tx.feedback.count({ where: { courseId, status: "PENDING" } }),
+                tx.feedback.count({ where: { courseId, isRead: false } }),
                 tx.class.count({ where: { courseId, status: "PENDING" } })
             ]);
 

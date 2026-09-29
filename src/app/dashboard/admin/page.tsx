@@ -63,9 +63,9 @@ export default function AdminPage() {
         loadData();
     }, []);
 
-    // REAL-TIME: Subscribe to pending feedbacks
+    // REAL-TIME: Subscribe to unread feedback
     useEffect(() => {
-        const unsubscribe = feedbackService.subscribeToPendingFeedback((feedbacks) => {
+        const unsubscribe = feedbackService.subscribeToUnreadFeedback((feedbacks) => {
             setPendingFeedbacks(feedbacks);
         });
 
@@ -490,17 +490,25 @@ export default function AdminPage() {
                                 </svg>
                                 <div>
                                     <h3 className="text-lg font-semibold text-[#1f2937]">
-                                        Pending Feedback Review ({pendingFeedbacks.length})
+                                        Unread Feedback ({pendingFeedbacks.length})
                                     </h3>
-                                    <p className="text-sm text-[#6b7280] mt-1">Review and approve student feedbacks before publishing</p>
+                                    <p className="text-sm text-[#6b7280] mt-1">Anonymous course feedback from running batches — identity is never shown here</p>
                                 </div>
                             </div>
-                            <button
-                                onClick={() => setShowPendingFeedback(!showPendingFeedback)}
-                                className="px-4 py-2 border-2 border-[#059669] text-[#059669] font-semibold rounded-lg hover:bg-[#059669] hover:text-white transition-colors"
-                            >
-                                {showPendingFeedback ? "Hide Pending Feedbacks" : "Show Pending Feedbacks"}
-                            </button>
+                            <div className="flex gap-2">
+                                <a
+                                    href="/dashboard/feedback"
+                                    className="px-4 py-2 bg-[#059669] text-white font-semibold rounded-lg hover:bg-[#047857] transition-colors"
+                                >
+                                    Open Feedback
+                                </a>
+                                <button
+                                    onClick={() => setShowPendingFeedback(!showPendingFeedback)}
+                                    className="px-4 py-2 border-2 border-[#059669] text-[#059669] font-semibold rounded-lg hover:bg-[#059669] hover:text-white transition-colors"
+                                >
+                                    {showPendingFeedback ? "Hide" : "Preview"}
+                                </button>
+                            </div>
                         </div>
 
                         {showPendingFeedback && (
@@ -512,7 +520,10 @@ export default function AdminPage() {
                                                 <div className="flex-1">
                                                     <div className="flex items-center gap-2 mb-2">
                                                         <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-xs font-semibold rounded">
-                                                            {fb.batch}
+                                                            {fb.batchName}
+                                                        </span>
+                                                        <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs font-semibold rounded">
+                                                            {fb.category}
                                                         </span>
                                                         <span className="text-xs text-gray-500">
                                                             {fb.createdAt ? formatDateShort(new Date(fb.createdAt as any).toISOString()) : "Just now"}
@@ -523,25 +534,23 @@ export default function AdminPage() {
                                                 <div className="flex gap-2 flex-shrink-0">
                                                     <button
                                                         onClick={async () => {
-                                                            if (!user) return;
                                                             try {
-                                                                await feedbackService.approveFeedback(fb.id, user.id);
+                                                                await feedbackService.setFeedbackRead(fb.id, true);
                                                                 setPendingFeedbacks(prev => prev.filter(f => f.id !== fb.id));
                                                             } catch {
-                                                                alert("Failed to approve feedback");
+                                                                alert("Failed to update feedback");
                                                             }
                                                         }}
                                                         className="px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded hover:bg-green-700 transition-colors"
                                                     >
-                                                        ✓ Approve
+                                                        ✓ Mark Read
                                                     </button>
                                                     <button
                                                         onClick={async () => {
-                                                            if (!user) return;
                                                             const ok = await confirm({ message: "Are you sure you want to delete this feedback?", variant: "danger" });
                                                             if (ok) {
                                                                 try {
-                                                                    await feedbackService.deleteFeedback(fb.id, user.id);
+                                                                    await feedbackService.deleteFeedback(fb.id);
                                                                     setPendingFeedbacks(prev => prev.filter(f => f.id !== fb.id));
                                                                 } catch {
                                                                     alert("Failed to delete feedback");
@@ -557,7 +566,7 @@ export default function AdminPage() {
                                         </div>
                                     ))
                                 ) : (
-                                    <p className="text-center text-gray-500 py-8">No pending feedbacks to review.</p>
+                                    <p className="text-center text-gray-500 py-8">No unread feedback.</p>
                                 )}
                             </div>
                         )}

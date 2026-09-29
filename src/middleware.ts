@@ -19,7 +19,6 @@ const PUBLIC_API_ROUTES = [
     '/api/auth/login',
     '/api/auth/reset-password',
     '/api/auth/impersonate', // super-admin "login as admin" token exchange (pre-session)
-    '/api/feedback',
     '/api/setup',
     '/api/cv/public/',
     '/api/cv/admin/templates',

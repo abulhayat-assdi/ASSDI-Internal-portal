@@ -1,102 +1,77 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
-import { getSessionUser, isAdmin } from "@/lib/auth";
-import { HOUR, limitFromEnv, rateLimitByIp } from "@/lib/rateLimit";
+import { getSessionUser, isTeacherOrAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-/** GET /api/feedback — public: approved only; admin: all */
+const CATEGORIES = ["CourseContent", "Teacher", "Facilities", "Administration", "Other"] as const;
+
+// Fields shared with every teacher/admin in the course — student identity
+// (studentUid/studentName/studentRoll) is never selected here. Only a
+// genuine super_admin session (see /api/saas/feedback) can see who wrote it.
+const ANONYMIZED_SELECT = {
+    id: true,
+    batchName: true,
+    category: true,
+    message: true,
+    rating: true,
+    isRead: true,
+    createdAt: true,
+} as const;
+
+/** GET /api/feedback — teacher/admin: anonymized feedback for their course */
 export async function GET(req: NextRequest) {
+    const user = await getSessionUser(req);
+    if (!user || !isTeacherOrAdmin(user) || !user.courseId) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    const courseId = user.courseId;
+
     const { searchParams } = new URL(req.url);
-    const all = searchParams.get("all") === "true";
-    const id = searchParams.get("id");
-
-    const user = all ? await getSessionUser(req) : null;
-    const courseId = user?.courseId || req.headers.get("x-course-id");
-    if (!courseId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-    if (id) {
-        const item = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
-            tx.feedback.findUnique({ where: { id, courseId } })
-        );
-        return NextResponse.json(item);
-    }
-
-    if (all) {
-        if (!user || !isAdmin(user)) {
-            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-        }
-        const items = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
-            tx.feedback.findMany({ where: { courseId }, orderBy: { createdAt: "desc" } })
-        );
-        return NextResponse.json(items);
-    }
+    const category = searchParams.get("category");
+    const readParam = searchParams.get("isRead");
+    // Defaults to running batches only, matching the roll-call convention.
+    const allBatches = searchParams.get("allBatches") === "true";
 
     const items = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
         tx.feedback.findMany({
-            where: { courseId, status: "APPROVED" },
+            where: {
+                courseId,
+                ...(category && CATEGORIES.includes(category as any) ? { category: category as any } : {}),
+                ...(readParam === "true" ? { isRead: true } : readParam === "false" ? { isRead: false } : {}),
+                ...(allBatches ? {} : { batch: { status: "active" } }),
+            },
+            select: ANONYMIZED_SELECT,
             orderBy: { createdAt: "desc" },
         })
     );
+
     return NextResponse.json(items);
 }
 
-/** POST /api/feedback — public submission */
-export async function POST(req: NextRequest) {
-    const limited = rateLimitByIp(req, "feedback", limitFromEnv("FEEDBACK", 60), HOUR);
-    if (limited) return limited;
-
-    try {
-        const courseId = req.headers.get("x-course-id");
-        if (!courseId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-        const body = await req.json();
-        const { studentName, batch, role, company, message, rating, submittedFrom } = body;
-
-        if (!studentName || !message) {
-            return NextResponse.json({ error: "Name and message are required" }, { status: 400 });
-        }
-
-        const item = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
-            tx.feedback.create({
-                data: {
-                    courseId,
-                    studentName,
-                    batch: batch || "",
-                    role: role || "",
-                    company: company || "",
-                    message,
-                    rating: Number(rating) || 5,
-                    status: "PENDING",
-                    submittedFrom: submittedFrom || "PUBLIC_FORM",
-                },
-            })
-        );
-
-        return NextResponse.json(item, { status: 201 });
-    } catch (error) {
-        console.error("[Feedback POST]", error);
-        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
-    }
-}
-
-/** PATCH /api/feedback — approve/reject */
+/** PATCH /api/feedback — mark a feedback item read/unread */
 export async function PATCH(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user || !isAdmin(user) || !user.courseId) {
+    if (!user || !isTeacherOrAdmin(user) || !user.courseId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     const courseId = user.courseId;
 
     try {
         const body = await req.json();
-        const { id, status, approvedByUid } = body;
+        const { id, isRead } = body;
+        if (!id || typeof isRead !== "boolean") {
+            return NextResponse.json({ error: "id and isRead are required" }, { status: 400 });
+        }
 
         const item = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
             tx.feedback.update({
                 where: { id, courseId },
-                data: { status, approvedByUid: approvedByUid || user.id },
+                data: isRead
+                    ? { isRead: true, readByUid: user.id, readAt: new Date() }
+                    : { isRead: false, readByUid: null, readAt: null },
+                select: ANONYMIZED_SELECT,
             })
         );
 
@@ -110,7 +85,7 @@ export async function PATCH(req: NextRequest) {
 /** DELETE /api/feedback?id=... */
 export async function DELETE(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user || !isAdmin(user) || !user.courseId) {
+    if (!user || !isTeacherOrAdmin(user) || !user.courseId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     const courseId = user.courseId;

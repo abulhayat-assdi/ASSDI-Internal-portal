@@ -116,6 +116,7 @@ const studentNavItems: NavItem[] = [
     { href: "/student-dashboard/deployments", label: "My Deployments", icon: "🚀", permission: null, feature: "deployments" },
     { href: "/student-dashboard/profile", label: "Profile", icon: "👤", permission: null },
     { href: "/student-dashboard/leave", label: "Leave Request", icon: "🏖️", permission: null },
+    { href: "/student-dashboard/feedback", label: "Feedback", icon: "💬", permission: null, feature: "feedback" },
     { href: "/student-dashboard/cv", label: "My CV", icon: "📄", permission: null, feature: "cv_builder" },
     { href: "/student-dashboard/typing-game/dashboard", label: "Typing Adventure", icon: "⌨️", permission: null, feature: "typing_game" },
     { href: "/student-dashboard/typing-exam", label: "Typing Exam", icon: "📝", permission: null, feature: "typing_exam" },
