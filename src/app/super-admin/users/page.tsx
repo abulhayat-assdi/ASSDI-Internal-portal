@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { ArrowLeft, Users, Ban, CheckCircle, KeyRound } from "lucide-react";
+import { ArrowLeft, Users, Ban, CheckCircle, KeyRound, Trash2 } from "lucide-react";
 
 interface SaaSUser {
     id: string;
@@ -13,6 +13,7 @@ interface SaaSUser {
     studentBatchName: string | null;
     studentRoll: string | null;
     lastLoginAt: string | null;
+    loginCount: number;
     createdAt: string;
     deletedAt: string | null;
 }
@@ -85,6 +86,25 @@ export default function UsersPage() {
         }
     };
 
+    const removeUser = async (u: SaaSUser) => {
+        setMsg(""); setErr("");
+        if (!confirm(`${u.email}-কে স্থায়ীভাবে ডিলিট করতে চান? এই অ্যাকশন আর ফেরানো যাবে না — তার সব ডেটা (সেশন, ডিপ্লয়মেন্ট ইত্যাদি) মুছে যাবে।`)) return;
+        const typed = prompt(`নিশ্চিত করতে নিচে এই ইউজারের ইমেইলটি হুবহু টাইপ করুন:\n${u.email}`);
+        if (typed !== u.email) {
+            if (typed !== null) setErr("ইমেইল মিলেনি, ডিলিট বাতিল হয়েছে।");
+            return;
+        }
+        try {
+            const res = await fetch(`/api/saas/users/${u.id}`, { method: "DELETE" });
+            const d = await res.json();
+            if (!res.ok) throw new Error(d.error || "ব্যর্থ হয়েছে।");
+            setMsg(`${d.email} স্থায়ীভাবে ডিলিট হয়েছে।`);
+            load();
+        } catch (e) {
+            setErr(e instanceof Error ? e.message : "ব্যর্থ হয়েছে।");
+        }
+    };
+
     return (
         <div className="p-6 max-w-6xl mx-auto">
             <Link href="/super-admin" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 mb-4">
@@ -95,7 +115,7 @@ export default function UsersPage() {
                 <Users className="w-5 h-5 text-indigo-600" />
                 <h1 className="text-xl font-bold text-slate-800">Global Users</h1>
             </div>
-            <p className="text-sm text-slate-500 mb-5">সব কোর্স মিলিয়ে ইউজার খুঁজুন, পাসওয়ার্ড রিসেট বা অ্যাকাউন্ট disable/enable করুন ({total} জন)</p>
+            <p className="text-sm text-slate-500 mb-5">সব কোর্স মিলিয়ে ইউজার খুঁজুন, পাসওয়ার্ড রিসেট করুন, অ্যাকাউন্ট disable/enable বা স্থায়ীভাবে ডিলিট করুন, এবং কতবার লগইন করেছে দেখুন ({total} জন)</p>
 
             {err && <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">{err}</div>}
             {msg && <div className="mb-3 p-3 bg-green-50 border border-green-200 rounded-lg text-green-600 text-sm">{msg}</div>}
@@ -138,6 +158,7 @@ export default function UsersPage() {
                                     <th className="px-4 py-3 font-medium">রোল</th>
                                     <th className="px-4 py-3 font-medium">কোর্স</th>
                                     <th className="px-4 py-3 font-medium">শেষ লগইন</th>
+                                    <th className="px-4 py-3 font-medium text-center">লগইন সংখ্যা</th>
                                     <th className="px-4 py-3 font-medium text-right">অ্যাকশন</th>
                                 </tr>
                             </thead>
@@ -151,6 +172,7 @@ export default function UsersPage() {
                                         <td className="px-4 py-3"><span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">{u.role}</span></td>
                                         <td className="px-4 py-3 text-xs text-slate-600">{u.courseId ? courses[u.courseId]?.name || "—" : "—"}</td>
                                         <td className="px-4 py-3 text-xs text-slate-500">{u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</td>
+                                        <td className="px-4 py-3 text-xs text-slate-600 text-center">{u.loginCount}</td>
                                         <td className="px-4 py-3 text-right whitespace-nowrap">
                                             {u.role !== "super_admin" && (
                                                 <>
@@ -160,6 +182,7 @@ export default function UsersPage() {
                                                     ) : (
                                                         <button onClick={() => act(u.id, "disable")} title="Disable" className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"><Ban className="w-4 h-4" /></button>
                                                     )}
+                                                    <button onClick={() => removeUser(u)} title="স্থায়ীভাবে ডিলিট করুন" className="p-1.5 text-red-700 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
                                                 </>
                                             )}
                                         </td>

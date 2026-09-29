@@ -222,6 +222,7 @@ model User {
   createdAt            DateTime  @default(now()) @map("created_at")
   updatedAt            DateTime  @updatedAt @map("updated_at")
   lastLoginAt          DateTime? @map("last_login_at")
+  loginCount           Int       @default(0) @map("login_count")
   deletedAt            DateTime? @map("deleted_at")
 
   // Hidden, non-deletable per-course admin row auto-created the first time the

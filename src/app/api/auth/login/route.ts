@@ -222,7 +222,7 @@ export async function POST(req: NextRequest) {
         await withCourseContext(ctx, (tx) =>
             tx.user.update({
                 where: { id: user.id },
-                data: { lastLoginAt: new Date(), ...enforceRole, ...rehashed },
+                data: { lastLoginAt: new Date(), loginCount: { increment: 1 }, ...enforceRole, ...rehashed },
             })
         );
         if (enforceRole.role) user.role = enforceRole.role;

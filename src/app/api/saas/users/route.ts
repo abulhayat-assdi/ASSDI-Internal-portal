@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
                     select: {
                         id: true, email: true, displayName: true, role: true, courseId: true,
                         studentBatchName: true, studentRoll: true,
-                        lastLoginAt: true, createdAt: true, deletedAt: true,
+                        lastLoginAt: true, loginCount: true, createdAt: true, deletedAt: true,
                     },
                     orderBy: { createdAt: "desc" },
                     skip: (page - 1) * pageSize,
