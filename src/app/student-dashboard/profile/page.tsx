@@ -86,7 +86,7 @@ export default function StudentProfilePage() {
                         currentlyDoing: normalizeCurrentlyDoing(match.currentlyDoing),
                         companyName: match.companyName || "",
                         businessName: match.businessName || "",
-                        salary: match.salary ? String(match.salary) : "",
+                        salary: match.salary != null ? String(match.salary) : "",
                     });
                 }
             } catch (err) {

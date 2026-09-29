@@ -74,7 +74,10 @@ export const approveUpdateRequest = async (requestId: string, reviewerName: stri
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ requestId, action: "approve", reviewerName }),
     });
-    if (!res.ok) throw new Error("Failed to approve update request.");
+    if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Failed to approve update request.");
+    }
 };
 
 export const rejectUpdateRequest = async (requestId: string, reviewerName: string, adminNote: string): Promise<void> => {
@@ -83,5 +86,8 @@ export const rejectUpdateRequest = async (requestId: string, reviewerName: strin
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ requestId, action: "reject", reviewerName, adminNote }),
     });
-    if (!res.ok) throw new Error("Failed to reject update request.");
+    if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Failed to reject update request.");
+    }
 };

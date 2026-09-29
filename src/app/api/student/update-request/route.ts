@@ -77,12 +77,28 @@ export async function PATCH(req: NextRequest) {
             if (!request) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
             if (action === "approve") {
-                const changes = { ...(request.proposedChanges as Record<string, unknown>) };
+                const raw = { ...(request.proposedChanges as Record<string, unknown>) };
                 // Requests filed before the dropdown fix carry "Studying Further",
                 // which is not a valid enum value.
-                if ("currentlyDoing" in changes) {
-                    changes.currentlyDoing = normalizeCurrentlyDoing(changes.currentlyDoing) || null;
+                if ("currentlyDoing" in raw) {
+                    raw.currentlyDoing = normalizeCurrentlyDoing(raw.currentlyDoing) || null;
                 }
+                // proposedChanges is student-submitted, loosely-typed JSON (every
+                // field arrives as a string from the form) — coerce it to match
+                // the BatchStudent column types before writing, so a stray value
+                // (e.g. salary "") can't 500 the whole approval instead of just
+                // that one field.
+                if ("category" in raw && raw.category !== "Alim" && raw.category !== "General") {
+                    delete raw.category;
+                }
+                if ("courseStatus" in raw && !["Running", "Completed", "Incomplete", "Expelled"].includes(raw.courseStatus as string)) {
+                    delete raw.courseStatus;
+                }
+                if ("salary" in raw) {
+                    const n = Number(raw.salary);
+                    raw.salary = Number.isFinite(n) ? n : 0;
+                }
+                const changes = raw;
 
                 await tx.batchStudent.updateMany({
                     where: {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import toast from "react-hot-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import {
     getAllUpdateRequests,
@@ -48,8 +49,10 @@ export default function StudentUpdatesPage() {
         try {
             await approveUpdateRequest(requestId, userProfile?.displayName || "Admin");
             await fetchRequests();
+            toast.success("Approved and updated.");
         } catch (e) {
             console.error("Approval failed", e);
+            toast.error(e instanceof Error ? e.message : "Approval failed.");
         } finally {
             setActionId(null);
         }
@@ -60,8 +63,10 @@ export default function StudentUpdatesPage() {
         try {
             await rejectUpdateRequest(requestId, userProfile?.displayName || "Admin", rejectNote[requestId] || "");
             await fetchRequests();
+            toast.success("Request rejected.");
         } catch (e) {
             console.error("Rejection failed", e);
+            toast.error(e instanceof Error ? e.message : "Rejection failed.");
         } finally {
             setActionId(null);
         }
