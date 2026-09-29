@@ -400,6 +400,11 @@ export const isTeacherOrAdmin = (user: JWTPayload) =>
 
 export const hasRequiredPermission = (user: JWTPayload, permission: PermissionKey) => {
     if (user.role === 'super_admin') return true;
+    // A super-admin impersonating an admin ("Login as admin") should be able to
+    // do everything a real super-admin could in that course, regardless of
+    // what's actually stored on the target admin's own permissions row —
+    // except Homework, which stays off-limits/hidden for impersonated sessions.
+    if (user.impersonatedBy) return permission !== 'homework';
     if (!user.permissions) return false;
     return user.permissions.includes(permission);
 };

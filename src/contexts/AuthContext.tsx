@@ -142,6 +142,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const hasPermission = (key: string): boolean => {
         if (!user) return false;
         if (user.role === "super_admin") return true;
+        // Impersonated ("Login as admin") sessions get full super-admin-equivalent
+        // access in this course, except Homework — which stays hidden/off-limits.
+        if (user.impersonatedBy) return key !== "homework";
         const perms = user.permissions ?? getEffectivePermissions(user.role, []);
         return perms.includes(key);
     };
