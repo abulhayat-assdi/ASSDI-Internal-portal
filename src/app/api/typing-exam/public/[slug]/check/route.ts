@@ -5,33 +5,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { normalizePhone } from "@/lib/typing-exam/identity";
 import { checkRetryPassword } from "@/lib/typing-exam/retryGate";
+import { resolvePublicExam } from "@/lib/typing-exam/publicExam";
+import { cleanExamText } from "@/lib/typing-exam/examText";
 import { HOUR, limitFromEnv, rateLimitByIp } from "@/lib/rateLimit";
 
 type RouteParams = { params: Promise<{ slug: string }> };
-
-/**
- * Resolves a public typing exam by its globally-unique slug (RLS bypass,
- * mirrors the student-form/[slug] precedent), then validates it is actually
- * open to the public right now. Returns a discriminated result so both GET
- * (metadata for the identity page) and POST (identity+password gate) share
- * one source of truth for "is this exam takeable".
- */
-async function resolveOpenExam(slug: string) {
-  const exam = await withCourseContext({ courseId: null, isSuperAdmin: true }, (tx) =>
-    tx.typingExam.findUnique({ where: { publicSlug: slug } })
-  );
-  if (!exam) return { ok: false as const, status: 404, error: "not_found" };
-  if (exam.accessType !== "PUBLIC") return { ok: false as const, status: 403, error: "not_public" };
-  if (!exam.isActive) return { ok: false as const, status: 403, error: "not_active" };
-  const now = new Date();
-  if (exam.scheduleStart && now < exam.scheduleStart) {
-    return { ok: false as const, status: 403, error: "not_started" };
-  }
-  if (exam.scheduleEnd && now > exam.scheduleEnd) {
-    return { ok: false as const, status: 403, error: "ended" };
-  }
-  return { ok: true as const, exam };
-}
 
 // GET /api/typing-exam/public/[slug]/check
 // Unauthenticated metadata lookup so the identity page can show the exam's
@@ -39,7 +17,7 @@ async function resolveOpenExam(slug: string) {
 // before the visitor has typed anything.
 export async function GET(_req: NextRequest, { params }: RouteParams) {
   const { slug } = await params;
-  const resolved = await resolveOpenExam(slug);
+  const resolved = await resolvePublicExam(slug, { requireOpen: true });
   if (!resolved.ok) {
     return NextResponse.json({ error: resolved.error }, { status: resolved.status });
   }
@@ -62,7 +40,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   if (limited) return limited;
 
   const { slug } = await params;
-  const resolved = await resolveOpenExam(slug);
+  const resolved = await resolvePublicExam(slug, { requireOpen: true });
   if (!resolved.ok) {
     return NextResponse.json({ error: resolved.error }, { status: resolved.status });
   }
@@ -91,7 +69,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
   return NextResponse.json({
     examId: exam.id,
-    examText: exam.examText,
+    examText: cleanExamText(exam.examText),
     durationSeconds: exam.durationSeconds,
     title: exam.title,
   });

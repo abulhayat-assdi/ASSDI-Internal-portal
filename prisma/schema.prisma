@@ -138,6 +138,18 @@ enum TypingExamResult {
   FAIL
 }
 
+enum TypingExamFinishReason {
+  TIME_UP
+  COMPLETED
+  ABANDONED
+}
+
+enum TypingExamSessionStatus {
+  OPEN
+  FINALIZED
+  DISCARDED
+}
+
 enum QuizQuestionType {
   SINGLE_CHOICE
   MULTI_CHOICE
@@ -230,6 +242,7 @@ model Course {
   competitionGroups        CompetitionGroup[]
   typingExams              TypingExam[]
   typingExamAttempts       TypingExamAttempt[]
+  typingExamSessions       TypingExamSession[]
   loginEvents              LoginEvent[]
   quizzes                  Quiz[]
   quizQuestions            QuizQuestion[]
@@ -1481,6 +1494,7 @@ model TypingExam {
 
   course   Course              @relation(fields: [courseId], references: [id], onDelete: Cascade)
   attempts TypingExamAttempt[]
+  sessions TypingExamSession[]
 
   @@index([courseId])
   @@index([accessType])
@@ -1515,6 +1529,16 @@ model TypingExamAttempt {
   durationTakenSeconds Int              @default(0) @map("duration_taken_seconds")
   result               TypingExamResult
 
+  // Engine v2 audit trail (src/lib/typing-exam/engine.ts). Rows recorded
+  // before it have engineVersion 1, an empty typedText and no finishReason.
+  engineVersion     Int                     @default(1) @map("engine_version")
+  rawWpm            Float                   @default(0) @map("raw_wpm")
+  keystrokesTotal   Int                     @default(0) @map("keystrokes_total")
+  keystrokesCorrect Int                     @default(0) @map("keystrokes_correct")
+  typedText         String                  @default("") @map("typed_text")
+  finishReason      TypingExamFinishReason? @map("finish_reason")
+  sessionId         String?                 @unique @map("session_id")
+
   startedAt   DateTime @default(now()) @map("started_at")
   submittedAt DateTime @default(now()) @map("submitted_at")
 
@@ -1526,6 +1550,54 @@ model TypingExamAttempt {
   @@index([publicPhone])
   @@index([courseId])
   @@map("typing_exam_attempts")
+}
+
+// One in-flight run of a typing exam. Created when the taker starts, kept
+// up to date by autosave, and turned into exactly one TypingExamAttempt —
+// by the taker's own submit, or (if they closed the tab / lost the network)
+// by finalizeStaleSessions from the last autosaved progress. This is what
+// guarantees a taker who typed something never ends up with a blank result.
+model TypingExamSession {
+  id       String @id @default(uuid())
+  courseId String @map("course_id")
+  examId   String @map("exam_id")
+
+  takerType        TypingExamTakerType @map("taker_type")
+  studentUserId    String?             @map("student_user_id")
+  studentName      String              @default("") @map("student_name")
+  studentRoll      String              @default("") @map("student_roll")
+  studentBatchName String              @default("") @map("student_batch_name")
+  publicName       String              @default("") @map("public_name")
+  publicRoll       String              @default("") @map("public_roll")
+  publicPhone      String              @default("") @map("public_phone")
+
+  // sha256 of the bearer token handed to a PUBLIC taker at start (they have
+  // no login session). Empty for STUDENT sessions, which use the auth cookie.
+  tokenHash     String                  @default("") @map("token_hash")
+  attemptNumber Int                     @default(1) @map("attempt_number")
+  status        TypingExamSessionStatus @default(OPEN)
+
+  // Last autosaved progress (all elapsed values already clamped to server time).
+  typedText          String                  @default("") @map("typed_text")
+  keystrokesTotal    Int                     @default(0) @map("keystrokes_total")
+  keystrokesCorrect  Int                     @default(0) @map("keystrokes_correct")
+  elapsedMs          Int                     @default(0) @map("elapsed_ms")
+  finishReason       TypingExamFinishReason? @map("finish_reason")
+
+  attemptId String? @unique @map("attempt_id")
+
+  createdAt      DateTime  @default(now()) @map("created_at")
+  lastProgressAt DateTime? @map("last_progress_at")
+  finalizedAt    DateTime? @map("finalized_at")
+
+  course Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  exam   TypingExam @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  @@index([examId, status])
+  @@index([studentUserId])
+  @@index([publicPhone])
+  @@index([courseId])
+  @@map("typing_exam_sessions")
 }
 
 // ============================================================

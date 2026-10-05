@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import ExamRunner from "@/components/typing-exam/ExamRunner";
+import ExamRunner, { type ExamRunnerSubmitPayload } from "@/components/typing-exam/ExamRunner";
+import { ExamTransport } from "@/lib/typing-exam/client";
 import ExamResultPanel from "@/components/typing-exam/ExamResultPanel";
 
 type Stage = "loading" | "not_found" | "not_active" | "identity" | "running" | "result";
@@ -42,6 +43,8 @@ export default function PublicTypingExamPage() {
   const [examData, setExamData] = useState<ExamData | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [resultData, setResultData] = useState<ResultData | null>(null);
+  const [failedPayload, setFailedPayload] = useState<ExamRunnerSubmitPayload | null>(null);
+  const transportRef = useRef<ExamTransport | null>(null);
 
   useEffect(() => {
     if (!slug) return;
@@ -98,6 +101,14 @@ export default function PublicTypingExamPage() {
         return;
       }
       const d = await res.json();
+      transportRef.current = new ExamTransport(
+        {
+          start: `/api/typing-exam/public/${slug}/start`,
+          progress: `/api/typing-exam/public/${slug}/progress`,
+          attempt: `/api/typing-exam/public/${slug}/attempt`,
+        },
+        { name, roll, phone, password: password || undefined }
+      );
       setExamData(d);
       setStage("running");
     } catch {
@@ -107,40 +118,28 @@ export default function PublicTypingExamPage() {
     }
   }
 
-  async function submitAttempt(payload: { typedText: string; elapsedSeconds: number }) {
+  async function submitAttempt(payload: ExamRunnerSubmitPayload) {
+    const transport = transportRef.current;
+    if (!transport) return;
     setSubmitting(true);
+    setFailedPayload(null);
     try {
-      const res = await fetch(`/api/typing-exam/public/${slug}/attempt`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          roll,
-          phone,
-          password: password || undefined,
-          typedText: payload.typedText,
-          elapsedSeconds: payload.elapsedSeconds,
-        }),
-      });
-      if (res.status === 401) {
-        // Retry password expired/rejected mid-flow (unlikely, but handle gracefully) —
-        // send them back to the identity step to re-authenticate.
+      const out = await transport.submit(payload);
+      if (out.status === 200) {
+        setResultData(out.data as ResultData);
+        setStage("result");
+        return;
+      }
+      if (out.status === 401) {
+        // Only reachable on the session-less fallback path (the /start call
+        // failed and the retry gate re-ran) — send them back to re-authenticate.
         setNeedsPassword(true);
         setFormError("আপনি ইতিমধ্যে এই পরীক্ষা দিয়েছেন। আবার দিতে চাইলে পাসওয়ার্ড দিন।");
         setStage("identity");
         return;
       }
-      if (!res.ok) {
-        setFormError("জমা দেওয়ার সময় একটি সমস্যা হয়েছে। আবার চেষ্টা করুন।");
-        setStage("identity");
-        return;
-      }
-      const d = await res.json();
-      setResultData(d);
-      setStage("result");
-    } catch {
-      setFormError("সার্ভারে সংযোগ করতে পারা যাচ্ছে না।");
-      setStage("identity");
+      // Keep the exact payload so "আবার জমা দিন" resubmits the same run.
+      setFailedPayload(payload);
     } finally {
       setSubmitting(false);
     }
@@ -292,13 +291,31 @@ export default function PublicTypingExamPage() {
           </form>
         )}
 
-        {stage === "running" && examData && (
+        {stage === "running" && examData && !failedPayload && (
           <ExamRunner
             examText={examData.examText}
             durationSeconds={examData.durationSeconds}
+            onBegin={() => transportRef.current?.begin()}
+            onProgress={(p, beacon) => transportRef.current?.progress(p, beacon)}
             onSubmit={submitAttempt}
             submitting={submitting}
           />
+        )}
+
+        {stage === "running" && failedPayload && (
+          <div className="bg-white rounded-xl border border-amber-200 shadow-sm p-6 text-center space-y-4">
+            <p className="text-sm text-slate-700">
+              ইন্টারনেট সংযোগের সমস্যার কারণে ফলাফল এখনো জমা হয়নি। আপনার টাইপ করা লেখা সংরক্ষিত আছে — নিচের বাটনে চাপ দিয়ে আবার জমা দিন।
+            </p>
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={() => submitAttempt(failedPayload)}
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white font-bold py-3 rounded-xl text-base transition-colors"
+            >
+              {submitting ? "জমা হচ্ছে..." : "আবার জমা দিন"}
+            </button>
+          </div>
         )}
 
         <p className="text-center text-slate-400 text-xs pt-8 pb-2">

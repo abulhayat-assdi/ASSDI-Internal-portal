@@ -27,6 +27,7 @@ import { entrepreneurshipPassages } from "./entrepreneurship";
 import { leadershipPassages } from "./leadership";
 import { productivityPassages } from "./productivity";
 import { educationInstitutesPassages } from "./education-institutes";
+import { cleanExamText } from "../examText";
 
 export type { ExamPassage, ExamTextLanguage };
 
@@ -70,7 +71,7 @@ export function pickBankPassage(language: ExamTextLanguage, category?: string): 
     if (scoped.length > 0) pool = scoped;
   }
   if (pool.length === 0) pool = ALL_PASSAGES.filter((p) => p.language === "en");
-  return pickRandom(pool).text;
+  return cleanExamText(pickRandom(pool).text);
 }
 
 export const EXAM_TEXT_LANGUAGES: { value: ExamTextLanguage; label: string }[] = [

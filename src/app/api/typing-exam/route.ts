@@ -8,6 +8,8 @@ import { getSessionUser, hasRequiredPermission } from "@/lib/auth";
 import { validateThresholds } from "@/lib/typing-exam/scoring";
 import { pickBankPassage, EXAM_TEXT_CATEGORIES, type ExamTextLanguage } from "@/lib/typing-exam/content";
 import { makePublicExamSlug } from "@/lib/typing-exam/slug";
+import { finalizeStaleSessions } from "@/lib/typing-exam/sessionStore";
+import { cleanExamText, parseDurationSeconds } from "@/lib/typing-exam/examText";
 
 // GET /api/typing-exam — list exams for the course + active batches for the create-form dropdown
 export async function GET(req: NextRequest) {
@@ -18,6 +20,9 @@ export async function GET(req: NextRequest) {
   const courseId = user.courseId;
 
   const result = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+    // Grade runs whose taker never submitted, so the counts include them.
+    await finalizeStaleSessions(tx, { courseId });
+
     const exams = await tx.typingExam.findMany({
       where: { courseId },
       orderBy: { createdAt: "desc" },
@@ -100,6 +105,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: thresholdError }, { status: 400 });
   }
 
+  const resolvedDuration = parseDurationSeconds(durationSeconds ?? 60);
+  if (resolvedDuration === null) {
+    return NextResponse.json({ error: "সময়সীমা ১০ থেকে ৩৬০০ সেকেন্ডের মধ্যে একটি পূর্ণ সংখ্যা হতে হবে" }, { status: 400 });
+  }
+
   const resolvedAccessType = accessType === "PUBLIC" ? "PUBLIC" : "INTERNAL";
 
   let resolvedBatchNames: string[] = [];
@@ -121,10 +131,10 @@ export async function POST(req: NextRequest) {
       ? textCategory
       : null;
   if (resolvedTextSource === "CUSTOM") {
-    if (!customText || typeof customText !== "string" || !customText.trim()) {
+    examText = typeof customText === "string" ? cleanExamText(customText) : "";
+    if (!examText) {
       return NextResponse.json({ error: "Custom টেক্সট আবশ্যক" }, { status: 400 });
     }
-    examText = customText;
   } else {
     examText = pickBankPassage(resolvedLanguage, resolvedCategory ?? undefined);
   }
@@ -144,7 +154,7 @@ export async function POST(req: NextRequest) {
         description: typeof description === "string" ? description : "",
         accessType: resolvedAccessType,
         batchNames: resolvedBatchNames,
-        durationSeconds: Number(durationSeconds) > 0 ? Number(durationSeconds) : 60,
+        durationSeconds: resolvedDuration,
         passWpm: thresholds.passWpm,
         passAccuracy: thresholds.passAccuracy,
         failWpm: thresholds.failWpm,

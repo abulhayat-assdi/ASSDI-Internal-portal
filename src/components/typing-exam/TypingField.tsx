@@ -85,6 +85,20 @@ export default function TypingField({ examText, typedText, onChange, disabled }:
     if (!disabled) hiddenInputRef.current?.focus();
   }, [disabled]);
 
+  // If focus wanders off the hidden input (a click on the timer, the
+  // fullscreen banner, the page background), the next keystroke would be
+  // silently lost while the clock keeps running. Pull focus back on any key
+  // press — moving focus inside keydown routes that same key to the input.
+  useEffect(() => {
+    if (disabled) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      const input = hiddenInputRef.current;
+      if (input && document.activeElement !== input && !e.ctrlKey && !e.metaKey && !e.altKey) input.focus();
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [disabled]);
+
   const lines = useMemo(() => wrapIntoLines(examText, charsPerLine), [examText, charsPerLine]);
   const curIndex = useMemo(() => currentLineIndex(lines, typedText.length), [lines, typedText.length]);
 
@@ -100,6 +114,24 @@ export default function TypingField({ examText, typedText, onChange, disabled }:
   }, [lines, curIndex]);
 
   const focusHiddenInput = () => hiddenInputRef.current?.focus();
+
+  // Typing only ever happens at the end of the text, as on Monkeytype. A
+  // caret moved left (arrow keys, Home, a click) would insert characters in
+  // the middle and shift everything after them; undo/redo and select-all
+  // would rewrite the text in bulk. All of those are blocked here.
+  const keepCaretAtEnd = () => {
+    const input = hiddenInputRef.current;
+    if (!input) return;
+    const end = input.value.length;
+    if (input.selectionStart !== end || input.selectionEnd !== end) input.setSelectionRange(end, end);
+  };
+  const blockEditingKeys = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const nav = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown", "Delete"];
+    const mod = e.ctrlKey || e.metaKey;
+    if (nav.includes(e.key) || (mod && ["a", "z", "y"].includes(e.key.toLowerCase()))) {
+      e.preventDefault();
+    }
+  };
 
   return (
     <div
@@ -129,6 +161,10 @@ export default function TypingField({ examText, typedText, onChange, disabled }:
         onChange={(e) => onChange(e.target.value)}
         onPaste={(e) => e.preventDefault()}
         onCopy={(e) => e.preventDefault()}
+        onCut={(e) => e.preventDefault()}
+        onDrop={(e) => e.preventDefault()}
+        onKeyDown={blockEditingKeys}
+        onSelect={keepCaretAtEnd}
         disabled={disabled}
         spellCheck={false}
         autoCorrect="off"

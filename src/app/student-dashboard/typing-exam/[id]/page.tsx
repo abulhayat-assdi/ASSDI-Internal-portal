@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { AlertTriangle } from "lucide-react";
 import ExamRunner, { ExamRunnerSubmitPayload } from "@/components/typing-exam/ExamRunner";
 import ExamResultPanel, { ExamResultPanelData } from "@/components/typing-exam/ExamResultPanel";
 import { AmbientOrbs, GLASS_PANEL } from "@/components/typing-exam/ui";
+import { ExamTransport } from "@/lib/typing-exam/client";
 
 interface ExamDetail {
     id: string;
@@ -29,6 +30,16 @@ export default function StudentTypingExamDetailPage() {
     const [submitting, setSubmitting] = useState(false);
     const [submitError, setSubmitError] = useState<string | null>(null);
     const [result, setResult] = useState<ExamResultPanelData | null>(null);
+    const [failedPayload, setFailedPayload] = useState<ExamRunnerSubmitPayload | null>(null);
+    const transport = useMemo(
+        () =>
+            new ExamTransport({
+                start: `/api/student/typing-exam/${id}/start`,
+                progress: `/api/student/typing-exam/${id}/progress`,
+                attempt: `/api/student/typing-exam/${id}/attempt`,
+            }),
+        [id]
+    );
     // Bumped on retry to force ExamRunner to remount fresh (clears its
     // internal phase/typedText state and re-reads the latest attemptsUsed).
     const [runnerKey, setRunnerKey] = useState(0);
@@ -75,21 +86,26 @@ export default function StudentTypingExamDetailPage() {
     const handleSubmit = async (payload: ExamRunnerSubmitPayload) => {
         setSubmitting(true);
         setSubmitError(null);
+        setFailedPayload(null);
         try {
-            const res = await fetch(`/api/student/typing-exam/${id}/attempt`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
-            });
-            const data = await res.json();
-            if (res.status === 401 && data.needsPassword) {
+            const out = await transport.submit(payload);
+            if (out.status === 200) {
+                setResult(out.data as unknown as ExamResultPanelData);
+                return;
+            }
+            if (out.status === 401 && out.data.needsPassword) {
                 setSubmitError("পাসওয়ার্ড যাচাই ব্যর্থ হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।");
                 return;
             }
-            if (!res.ok) throw new Error(data.error || "জমা দিতে সমস্যা হয়েছে।");
-            setResult(data);
-        } catch (err) {
-            setSubmitError(err instanceof Error ? err.message : "জমা দিতে সমস্যা হয়েছে।");
+            // Keep the exact payload so "আবার জমা দিন" resubmits the same run.
+            setFailedPayload(payload);
+            setSubmitError(
+                out.networkError
+                    ? "ইন্টারনেট সংযোগের সমস্যার কারণে ফলাফল এখনো জমা হয়নি। আপনার টাইপ করা লেখা সংরক্ষিত আছে — আবার জমা দিন।"
+                    : typeof out.data.error === "string"
+                      ? out.data.error
+                      : "জমা দিতে সমস্যা হয়েছে।"
+            );
         } finally {
             setSubmitting(false);
         }
@@ -102,6 +118,7 @@ export default function StudentTypingExamDetailPage() {
     // page-level password prompt is needed.
     const handleRetryClick = async () => {
         setSubmitError(null);
+        setFailedPayload(null);
         setResult(null);
         setRunnerKey((k) => k + 1);
         await loadExam();
@@ -163,12 +180,24 @@ export default function StudentTypingExamDetailPage() {
                             durationSeconds={exam.durationSeconds}
                             attemptsUsed={exam.attemptsUsed}
                             onVerifyRetryPassword={verifyRetryPassword}
+                            onBegin={(retryPassword) => transport.begin(retryPassword ? { retryPassword } : {})}
+                            onProgress={(p, beacon) => transport.progress(p, beacon)}
                             onSubmit={handleSubmit}
                             submitting={submitting}
                         />
                         {submitError && (
-                            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                                {submitError}
+                            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 space-y-3">
+                                <p>{submitError}</p>
+                                {failedPayload && (
+                                    <button
+                                        type="button"
+                                        disabled={submitting}
+                                        onClick={() => handleSubmit(failedPayload)}
+                                        className="cursor-pointer inline-flex items-center justify-center py-2 px-4 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 disabled:bg-slate-300 rounded-lg transition-colors"
+                                    >
+                                        {submitting ? "জমা হচ্ছে..." : "আবার জমা দিন"}
+                                    </button>
+                                )}
                             </div>
                         )}
                     </motion.div>

@@ -4,6 +4,7 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser, hasRequiredPermission } from "@/lib/auth";
+import { finalizeStaleSessions } from "@/lib/typing-exam/sessionStore";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -19,6 +20,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   const result = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
     const exam = await tx.typingExam.findFirst({ where: { id: examId, courseId } });
     if (!exam) return null;
+
+    // Grade runs whose taker closed the tab / lost the network before
+    // submitting, from their last autosave — never a missing or blank row.
+    await finalizeStaleSessions(tx, { courseId, examId });
 
     const attempts = await tx.typingExamAttempt.findMany({
       where: { examId, courseId },
@@ -38,6 +43,11 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       correctChars: a.correctChars,
       totalChars: a.totalChars,
       durationTakenSeconds: a.durationTakenSeconds,
+      rawWpm: a.rawWpm,
+      keystrokesTotal: a.keystrokesTotal,
+      keystrokesCorrect: a.keystrokesCorrect,
+      finishReason: a.finishReason,
+      engineVersion: a.engineVersion,
       result: a.result,
       startedAt: a.startedAt,
       submittedAt: a.submittedAt,

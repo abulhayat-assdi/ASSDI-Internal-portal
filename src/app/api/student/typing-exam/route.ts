@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
+import { finalizeStaleSessions } from "@/lib/typing-exam/sessionStore";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -24,6 +25,8 @@ export async function GET(req: NextRequest) {
         const now = new Date();
 
         const exams = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+            await finalizeStaleSessions(tx, { courseId });
+
             const candidates = await tx.typingExam.findMany({
                 where: {
                     courseId,

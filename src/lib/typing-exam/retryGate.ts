@@ -17,6 +17,46 @@ export type RetryGateResult =
   | { ok: true; attemptsUsed: number }
   | { ok: false; status: 401; body: { needsPassword: true } };
 
+export function takerWhere(courseId: string, examId: string, identity: RetryIdentity) {
+  return "studentUserId" in identity
+    ? { courseId, examId, takerType: "STUDENT" as const, studentUserId: identity.studentUserId }
+    : { courseId, examId, takerType: "PUBLIC" as const, publicPhone: identity.publicPhone };
+}
+
+/**
+ * Attempts already recorded plus runs still in flight (OPEN sessions) —
+ * both count as used, so reloading the page mid-exam can't be used to
+ * start over without the password.
+ */
+export async function countUsedAttempts(
+  tx: Prisma.TransactionClient,
+  courseId: string,
+  examId: string,
+  identity: RetryIdentity
+): Promise<number> {
+  const where = takerWhere(courseId, examId, identity);
+  const recorded = await tx.typingExamAttempt.count({ where });
+  const inFlight = await tx.typingExamSession.count({ where: { ...where, status: "OPEN" } });
+  return recorded + inFlight;
+}
+
+/** Wrong retry passwords one student may try per hour, across all exams. */
+export const STUDENT_PASSWORD_FAILURES_PER_HOUR = 10;
+
+export function studentPasswordLimitKey(userId: string): string {
+  return `typing-exam-pw:${userId}`;
+}
+
+/** bcrypt check of a supplied retry password against the exam's hash. */
+export async function retryPasswordMatches(providedPassword: unknown, retryPasswordHash: string | null): Promise<boolean> {
+  return (
+    typeof providedPassword === "string" &&
+    !!providedPassword &&
+    !!retryPasswordHash &&
+    (await bcrypt.compare(providedPassword, retryPasswordHash))
+  );
+}
+
 export async function checkRetryPassword(
   tx: Prisma.TransactionClient,
   courseId: string,
@@ -25,17 +65,10 @@ export async function checkRetryPassword(
   retryPasswordHash: string | null,
   providedPassword: string | undefined
 ): Promise<RetryGateResult> {
-  const where =
-    "studentUserId" in identity
-      ? { courseId, examId, takerType: "STUDENT" as const, studentUserId: identity.studentUserId }
-      : { courseId, examId, takerType: "PUBLIC" as const, publicPhone: identity.publicPhone };
-
-  const attemptsUsed = await tx.typingExamAttempt.count({ where });
+  const attemptsUsed = await countUsedAttempts(tx, courseId, examId, identity);
 
   if (attemptsUsed > 0) {
-    const passwordOk =
-      !!providedPassword && !!retryPasswordHash && (await bcrypt.compare(providedPassword, retryPasswordHash));
-    if (!passwordOk) {
+    if (!(await retryPasswordMatches(providedPassword, retryPasswordHash))) {
       return { ok: false, status: 401, body: { needsPassword: true } };
     }
   }

@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { loadVisibleExam } from "@/lib/typing-exam/visibility";
-import { checkRetryPassword } from "@/lib/typing-exam/retryGate";
+import { checkRetryPassword, STUDENT_PASSWORD_FAILURES_PER_HOUR, studentPasswordLimitKey } from "@/lib/typing-exam/retryGate";
+import { HOUR, isOverLimit, recordAttempt } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -25,6 +26,12 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const studentBatchName = user.studentBatchName || "";
     const { id } = await params;
 
+    // A logged-in student could otherwise brute-force the retry password here.
+    const limitKey = studentPasswordLimitKey(user.id);
+    if (isOverLimit(limitKey, STUDENT_PASSWORD_FAILURES_PER_HOUR)) {
+        return NextResponse.json({ error: "অনেকবার ভুল পাসওয়ার্ড দেওয়া হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।" }, { status: 429 });
+    }
+
     const body = await req.json().catch(() => ({}));
     const password = typeof body.password === "string" ? body.password : undefined;
 
@@ -45,6 +52,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
                 password
             );
             if (!gate.ok) {
+                recordAttempt(limitKey, HOUR);
                 return NextResponse.json(gate.body, { status: gate.status });
             }
 

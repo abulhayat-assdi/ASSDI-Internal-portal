@@ -210,3 +210,53 @@ describe("validateThresholds", () => {
     expect(result).not.toBeNull();
   });
 });
+
+describe("scoreAttempt — engine v2 rules", () => {
+  it("uses milliseconds when given (45 s, 150 correct chars = 40 WPM)", () => {
+    const r = scoreAttempt({ originalText: "a".repeat(200), typedText: "a".repeat(150), elapsedMs: 45_000 });
+    expect(r.wpm).toBe(40);
+    expect(r.rawWpm).toBe(40);
+  });
+
+  it("net WPM counts only correct chars; raw WPM counts everything", () => {
+    const r = scoreAttempt({ originalText: "a".repeat(100), typedText: "a".repeat(40) + "b".repeat(10), elapsedMs: 60_000 });
+    expect(r.wpm).toBe(8);
+    expect(r.rawWpm).toBe(10);
+  });
+
+  it("accuracy comes from keystrokes when they are consistent with the final text", () => {
+    const r = scoreAttempt({
+      originalText: "abcd",
+      typedText: "abcd",
+      elapsedMs: 60_000,
+      keystrokes: { total: 5, correct: 4 }, // one wrong key, deleted
+    });
+    expect(r.accuracy).toBe(80);
+    expect(r.accuracySource).toBe("keystrokes");
+  });
+
+  it("falls back to final-text accuracy when keystrokes are impossible (tampered)", () => {
+    const base = { originalText: "abcd", typedText: "abxd", elapsedMs: 60_000 };
+    // correct > total
+    expect(scoreAttempt({ ...base, keystrokes: { total: 4, correct: 9 } }).accuracySource).toBe("final_text");
+    // fewer keystrokes than characters on screen
+    expect(scoreAttempt({ ...base, keystrokes: { total: 2, correct: 2 } }).accuracySource).toBe("final_text");
+    // more correct keystrokes than the final text + deleted keystrokes can explain
+    expect(scoreAttempt({ ...base, keystrokes: { total: 5, correct: 5 } }).accuracySource).toBe("final_text");
+    expect(scoreAttempt({ ...base, keystrokes: { total: 2, correct: 2 } }).accuracy).toBe(75);
+  });
+
+  it("NFC-normalizes so the same visible Bangla text never scores as wrong", () => {
+    const composed = "ো"; // ো (precomposed)
+    const decomposed = "ো"; // ে + া
+    expect(composed.normalize("NFC")).toBe(decomposed.normalize("NFC"));
+    const r = scoreAttempt({ originalText: "ক" + composed, typedText: "ক" + decomposed, elapsedMs: 60_000 });
+    expect(r.correctChars).toBe(r.totalChars);
+    expect(r.accuracy).toBe(100);
+  });
+
+  it("never divides by less than one second", () => {
+    const r = scoreAttempt({ originalText: "aaaaa", typedText: "aaaaa", elapsedMs: 0 });
+    expect(r.wpm).toBe(60);
+  });
+});

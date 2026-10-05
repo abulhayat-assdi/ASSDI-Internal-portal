@@ -84,8 +84,11 @@ export default function ExamReadyScreen({
       <p className="mb-2 text-sm text-slate-500">
         শুরু করলে স্ক্রিন ফুলস্ক্রিন হয়ে যাবে, তারপর একটি ছোট কাউন্টডাউন শেষে টাইপিং শুরু হবে।
       </p>
-      <p className="mb-5 text-sm text-slate-500">
+      <p className="mb-2 text-sm text-slate-500">
         সময়: <span className="font-semibold text-slate-700">{durationLabel}</span>
+      </p>
+      <p className="mb-5 text-xs text-slate-400">
+        সময় শেষ হলে বা পুরো অনুচ্ছেদ টাইপ করা হয়ে গেলে পরীক্ষা নিজে থেকেই জমা হবে। আপনি যতটুকু টাইপ করবেন, সেটুকুর ভিত্তিতেই ফলাফল হবে।
       </p>
 
       {needsPassword && !verified ? (

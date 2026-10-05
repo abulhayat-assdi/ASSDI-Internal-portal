@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Timer, Zap, Target, Percent } from "lucide-react";
 import { scoreAttempt } from "@/lib/typing-exam/scoring";
+import { TypingExamEngine } from "@/lib/typing-exam/engine";
+import { toWirePayload, type ExamWirePayload } from "@/lib/typing-exam/client";
 import { GLASS_PANEL, StatPill } from "@/components/typing-exam/ui";
 import ExamReadyScreen from "@/components/typing-exam/ExamReadyScreen";
 import ExamCountdown from "@/components/typing-exam/ExamCountdown";
@@ -12,17 +14,17 @@ import TypingField from "@/components/typing-exam/TypingField";
 
 type Phase = "ready" | "countdown" | "running" | "finished";
 
-export interface ExamRunnerSubmitPayload {
-  typedText: string;
-  elapsedSeconds: number;
+/** UI refresh rate for the timer and live stats; the deadline itself is exact. */
+const TICK_MS = 200;
+/** Autosave interval while typing (only sent when something changed). */
+const AUTOSAVE_MS = 3000;
+
+export interface ExamRunnerSubmitPayload extends ExamWirePayload {
   /**
    * Present only when the taker went through the ready-screen retry-password
    * gate (attemptsUsed > 0) and it verified. ExamRunner itself stays
-   * taker-type-agnostic (STUDENT vs PUBLIC) — it just forwards whatever
-   * password the ready screen collected; the calling page decides how (or
-   * whether) to include it in its own `/attempt` POST body. Purely
-   * additive to the payload shape — existing call sites that only read
-   * `typedText`/`elapsedSeconds` are unaffected.
+   * taker-type-agnostic (STUDENT vs PUBLIC) — the calling page decides how
+   * to include it in its own requests.
    */
   retryPassword?: string;
 }
@@ -30,7 +32,12 @@ export interface ExamRunnerSubmitPayload {
 export interface ExamRunnerProps {
   examText: string;
   durationSeconds: number;
+  /** Called once, when the run ends (time up or passage completed). */
   onSubmit: (payload: ExamRunnerSubmitPayload) => void | Promise<void>;
+  /** Called as the countdown begins — the page opens its server session here. */
+  onBegin?: (retryPassword?: string) => void;
+  /** Autosave hook. `beacon` is true when the tab is being hidden or closed. */
+  onProgress?: (payload: ExamWirePayload, beacon: boolean) => void;
   submitting?: boolean;
   /** Number of prior attempts by this taker. >0 shows the retry-password gate on the ready screen. */
   attemptsUsed?: number;
@@ -38,35 +45,54 @@ export interface ExamRunnerProps {
   onVerifyRetryPassword?: (password: string) => Promise<boolean>;
 }
 
+/** Keeps a ref pointing at the latest value, so effects never read a stale prop. */
+function useLatest<T>(value: T) {
+  const ref = useRef(value);
+  useEffect(() => {
+    ref.current = value;
+  }, [value]);
+  return ref;
+}
+
 /**
  * Shared typing-exam taking UI. Phases: "ready" (explains flow, requests
  * fullscreen + retry-password gate) -> "countdown" (3-2-1-go overlay) ->
  * "running" (timer + Monkeytype-style passage + live WPM/accuracy preview)
  * -> "finished" (brief loading state while the async onSubmit resolves).
- * The authoritative score is always recomputed server-side from the
- * submitted typedText + elapsedSeconds — this component's live numbers are
- * UX only. Deliberately does NOT render the graded result itself — the
- * calling page receives the payload via onSubmit, awaits its own API call,
- * and renders <ExamResultPanel> with the real server-graded response once
- * it has it (see ExamResultPanel.tsx).
+ *
+ * All run state lives in a TypingExamEngine held in a ref (see engine.ts);
+ * React state here is only a render mirror of it. The submission is always
+ * built from engine.snapshot() at the moment the run ends, never from a
+ * value captured in a closure — that closure bug is what made every
+ * time-up submission arrive empty (0 WPM / 0%) before this engine.
+ *
+ * The authoritative score is recomputed server-side; the live numbers here
+ * are UX only. The calling page renders <ExamResultPanel> with the server's
+ * graded response.
  */
 export default function ExamRunner({
   examText,
   durationSeconds,
   onSubmit,
+  onBegin,
+  onProgress,
   submitting,
   attemptsUsed,
   onVerifyRetryPassword,
 }: ExamRunnerProps) {
   const [phase, setPhase] = useState<Phase>("ready");
   const [typedText, setTypedText] = useState("");
-  const [secondsLeft, setSecondsLeft] = useState(durationSeconds);
+  const [clock, setClock] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(true);
-  const startedAtRef = useRef<number | null>(null);
+  const engineRef = useRef<TypingExamEngine | null>(null);
   const submittedRef = useRef(false);
   const pendingRetryPasswordRef = useRef<string | undefined>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
   const reduceMotion = useReducedMotion();
+
+  const onSubmitRef = useLatest(onSubmit);
+  const onBeginRef = useLatest(onBegin);
+  const onProgressRef = useLatest(onProgress);
 
   const requestFullscreen = useCallback(() => {
     const el = containerRef.current;
@@ -82,76 +108,118 @@ export default function ExamRunner({
     return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
   }, []);
 
-  const finish = useCallback(
-    (finalTypedText: string) => {
-      if (submittedRef.current) return;
-      submittedRef.current = true;
-      setPhase("finished");
-      if (document.fullscreenElement) {
-        document.exitFullscreen().catch(() => {});
-      }
-      const elapsed = startedAtRef.current
-        ? Math.min(durationSeconds, Math.round((Date.now() - startedAtRef.current) / 1000))
-        : durationSeconds;
-      onSubmit({
-        typedText: finalTypedText,
-        elapsedSeconds: Math.max(elapsed, 1),
-        ...(pendingRetryPasswordRef.current ? { retryPassword: pendingRetryPasswordRef.current } : {}),
-      });
-    },
-    [durationSeconds, onSubmit]
-  );
+  // Stable for the component's lifetime: reads everything through refs.
+  const finish = useCallback(() => {
+    const engine = engineRef.current;
+    if (!engine || submittedRef.current) return;
+    submittedRef.current = true;
+    const payload = toWirePayload(engine.snapshot(Date.now()));
+    setTypedText(payload.typedText);
+    setPhase("finished");
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
+    onSubmitRef.current({
+      ...payload,
+      ...(pendingRetryPasswordRef.current ? { retryPassword: pendingRetryPasswordRef.current } : {}),
+    });
+  }, [onSubmitRef]);
 
   useEffect(() => {
     if (phase !== "running") return;
-    const interval = setInterval(() => {
-      setSecondsLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          finish(typedText);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, finish]);
+    const engine = engineRef.current;
+    if (!engine) return;
+
+    const save = (beacon: boolean) => onProgressRef.current?.(toWirePayload(engine.snapshot(Date.now())), beacon);
+
+    // The deadline is wall-clock based inside the engine, so a throttled
+    // background tab or a missed tick can delay the UI but never the cutoff.
+    const tick = setInterval(() => {
+      const now = Date.now();
+      if (engine.tick(now)) {
+        finish();
+        return;
+      }
+      setClock(now);
+    }, TICK_MS);
+
+    let savedRevision = engine.revision;
+    const autosave = setInterval(() => {
+      if (engine.finished || engine.revision === savedRevision) return;
+      savedRevision = engine.revision;
+      save(false);
+    }, AUTOSAVE_MS);
+
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden" && !engine.finished) save(true);
+    };
+    const onPageHide = () => {
+      if (!engine.finished) save(true);
+    };
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (engine.finished) return;
+      save(true);
+      e.preventDefault();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", onPageHide);
+    window.addEventListener("beforeunload", onBeforeUnload);
+
+    return () => {
+      clearInterval(tick);
+      clearInterval(autosave);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("beforeunload", onBeforeUnload);
+    };
+  }, [phase, finish, onProgressRef]);
 
   const handleReadyStart = useCallback(
     (retryPassword?: string) => {
       pendingRetryPasswordRef.current = retryPassword;
       submittedRef.current = false;
+      engineRef.current = new TypingExamEngine(examText, durationSeconds * 1000);
       setTypedText("");
-      setSecondsLeft(durationSeconds);
+      setClock(0);
       setPhase("countdown");
+      onBeginRef.current?.(retryPassword);
     },
-    [durationSeconds]
+    [examText, durationSeconds, onBeginRef]
   );
 
   const handleCountdownComplete = useCallback(() => {
-    startedAtRef.current = Date.now();
+    const now = Date.now();
+    engineRef.current?.start(now);
+    setClock(now);
     setPhase("running");
   }, []);
 
   const handleChange = (value: string) => {
-    // No early submit: reaching the end of the passage no longer
-    // auto-finishes the attempt (nor is there a manual submit button —
-    // see the "running" phase JSX below). Only the countdown timer hitting
-    // 0 calls finish(). Clamp at examText.length purely so the value can't
-    // grow unbounded once there's nothing left to compare against —
-    // backspacing/retyping within that bound to fix mistakes while waiting
-    // for time to run out is still fully allowed.
-    setTypedText(value.length > examText.length ? value.slice(0, examText.length) : value);
+    const engine = engineRef.current;
+    if (!engine) return;
+    const now = Date.now();
+    setTypedText(engine.input(value, now));
+    setClock(now);
+    // Typing the last character of the passage (or input arriving after the
+    // deadline) ends the run.
+    if (engine.finished) finish();
   };
 
+  const engine = engineRef.current;
   const live = useMemo(() => {
-    const elapsed = startedAtRef.current
-      ? Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000))
-      : 1;
-    return scoreAttempt({ originalText: examText, typedText, elapsedSeconds: elapsed });
-  }, [examText, typedText]);
+    if (!engine || !engine.started) return { wpm: 0, accuracy: 0 };
+    const snap = engine.snapshot(clock || Date.now());
+    return scoreAttempt({
+      originalText: examText,
+      typedText: snap.typedText,
+      elapsedMs: snap.elapsedMs,
+      keystrokes: snap.keystrokes,
+    });
+    // typedText is the render mirror of the engine's text — recompute on it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [engine, examText, typedText, clock]);
 
+  const secondsLeft = engine ? Math.ceil(engine.remainingMs(clock || Date.now()) / 1000) : durationSeconds;
   const minutes = String(Math.floor(secondsLeft / 60)).padStart(2, "0");
   const seconds = String(secondsLeft % 60).padStart(2, "0");
   const timeUrgent = secondsLeft <= 10 && phase === "running";
@@ -198,7 +266,7 @@ export default function ExamRunner({
             >
               <div className="flex flex-wrap items-center justify-center gap-2.5">
                 <StatPill icon={Timer} value={`${minutes}:${seconds}`} tone={timeUrgent ? "urgent" : "neutral"} big pulse={timeUrgent} />
-                <StatPill icon={Zap} label="WPM" value={live.wpm} tone="blue" />
+                <StatPill icon={Zap} label="WPM" value={Math.round(live.wpm)} tone="blue" />
                 <StatPill icon={Target} label="Accuracy" value={`${live.accuracy}%`} tone="emerald" />
                 <StatPill icon={Percent} label="সম্পন্ন" value={`${charProgress}%`} tone="violet" />
               </div>
@@ -221,20 +289,6 @@ export default function ExamRunner({
                 onChange={handleChange}
                 disabled={phase !== "running" || submitting}
               />
-
-              <AnimatePresence>
-                {phase === "running" && charProgress >= 100 && (
-                  <motion.div
-                    initial={reduceMotion ? undefined : { opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={reduceMotion ? undefined : { opacity: 0, y: 8 }}
-                    transition={{ duration: 0.25, ease: "easeOut" }}
-                    className="mx-auto flex max-w-xl items-center justify-center gap-2 rounded-xl bg-emerald-50 px-4 py-3 text-center text-sm font-medium text-emerald-700"
-                  >
-                    সম্পন্ন! সময় শেষ না হওয়া পর্যন্ত অপেক্ষা করুন — তারপর স্বয়ংক্রিয়ভাবে জমা হয়ে যাবে।
-                  </motion.div>
-                )}
-              </AnimatePresence>
             </motion.div>
           )}
 

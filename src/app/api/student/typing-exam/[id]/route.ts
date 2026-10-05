@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { loadVisibleExam } from "@/lib/typing-exam/visibility";
+import { cleanExamText } from "@/lib/typing-exam/examText";
+import { countUsedAttempts } from "@/lib/typing-exam/retryGate";
+import { finalizeStaleSessions } from "@/lib/typing-exam/sessionStore";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -30,19 +33,15 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             }
             const { exam } = result;
 
-            const attemptsUsed = await tx.typingExamAttempt.count({
-                where: {
-                    courseId,
-                    examId: exam.id,
-                    takerType: "STUDENT",
-                    studentUserId: user.id,
-                },
-            });
+            await finalizeStaleSessions(tx, { courseId, examId: exam.id });
+            // Includes a run still in flight (e.g. this page reloaded mid-exam),
+            // so the ready screen asks for the retry password when it must.
+            const attemptsUsed = await countUsedAttempts(tx, courseId, exam.id, { studentUserId: user.id });
 
             return NextResponse.json({
                 id: exam.id,
                 title: exam.title,
-                examText: exam.examText,
+                examText: cleanExamText(exam.examText),
                 durationSeconds: exam.durationSeconds,
                 attemptsUsed,
             });

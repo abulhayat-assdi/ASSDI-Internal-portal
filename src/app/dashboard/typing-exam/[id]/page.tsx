@@ -40,9 +40,27 @@ type Attempt = {
   correctChars: number;
   totalChars: number;
   durationTakenSeconds: number;
+  finishReason: "TIME_UP" | "COMPLETED" | "ABANDONED" | null;
   result: "PASS" | "AVERAGE" | "FAIL";
   submittedAt: string;
 };
+
+/**
+ * How the run ended. `null` = recorded before engine v2, when a time-up
+ * submission could arrive empty — those 0 WPM rows are not trustworthy.
+ */
+function finishLabel(a: Pick<Attempt, "finishReason">): string {
+  switch (a.finishReason) {
+    case "TIME_UP":
+      return "সময় শেষ";
+    case "COMPLETED":
+      return "সম্পূর্ণ টাইপ";
+    case "ABANDONED":
+      return "মাঝপথে বন্ধ";
+    default:
+      return "পুরনো সিস্টেম";
+  }
+}
 
 /** "5 Sep 26" */
 function formatSheetDate(date: Date): string {
@@ -88,6 +106,7 @@ async function exportToExcel(exam: Exam, attempts: Attempt[]) {
     "Correct Chars",
     "Total Typed Chars",
     "Time Taken (sec)",
+    "Ended By",
     "Result",
     "Date",
     "Time",
@@ -107,6 +126,7 @@ async function exportToExcel(exam: Exam, attempts: Attempt[]) {
       a.correctChars,
       a.totalChars,
       a.durationTakenSeconds,
+      finishLabel(a),
       a.result,
       formatSheetDate(submittedAt),
       formatSheetTime(submittedAt),
@@ -126,6 +146,7 @@ async function exportToExcel(exam: Exam, attempts: Attempt[]) {
     { wch: 13 }, // Correct Chars
     { wch: 15 }, // Total Typed Chars
     { wch: 14 }, // Time Taken
+    { wch: 14 }, // Ended By
     { wch: 10 }, // Result
     { wch: 11 }, // Date
     { wch: 13 }, // Time
@@ -326,6 +347,8 @@ export default function TypingExamResultsPage() {
                 <th className="px-4 py-3 font-medium">Batch</th>
                 <th className="px-4 py-3 font-medium">WPM</th>
                 <th className="px-4 py-3 font-medium">Accuracy</th>
+                <th className="px-4 py-3 font-medium">সময়</th>
+                <th className="px-4 py-3 font-medium">অবস্থা</th>
                 <th className="px-4 py-3 font-medium">Result</th>
                 <th className="px-4 py-3 font-medium">Submitted At</th>
               </tr>
@@ -350,6 +373,8 @@ export default function TypingExamResultsPage() {
                   </td>
                   <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{a.wpm}</td>
                   <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{a.accuracy}%</td>
+                  <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{a.durationTakenSeconds}s</td>
+                  <td className="px-4 py-3 text-slate-500 whitespace-nowrap text-xs">{finishLabel(a)}</td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${RESULT_META[a.result].badge}`}>
                       {RESULT_META[a.result].label}
