@@ -75,6 +75,7 @@ export async function GET(
         return {
             error: null,
             released: true,
+            optionLabelStyle: quiz.optionLabelStyle,
             status: attempt.status,
             score: attempt.score,
             totalMarks: attempt.totalMarks,

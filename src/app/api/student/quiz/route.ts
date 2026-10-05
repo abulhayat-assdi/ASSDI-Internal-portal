@@ -47,7 +47,8 @@ export async function GET(req: NextRequest) {
             return visible.map((quiz) => {
                 const own = attempts.filter((a) => a.quizId === quiz.id);
                 const graded = own.filter((a) => !a.isPractice);
-                const inProgress = own.find((a) => a.status === "IN_PROGRESS");
+                // Practice and live-session attempts are also "in progress" rows; only a graded one is resumable from the list.
+                const inProgress = own.find((a) => a.status === "IN_PROGRESS" && !a.isPractice);
                 return {
                     id: quiz.id,
                     title: quiz.title,

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
-import { sanitizeRichText } from "@/lib/sanitizeHtml";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -27,6 +26,9 @@ export async function POST(
         };
         if (!questionId) return NextResponse.json({ error: "questionId required" }, { status: 400 });
 
+        // Short answers are plain textarea input — stored as text (never HTML) and rendered as text.
+        const plainAnswer = typeof shortAnswerText === "string" ? shortAnswerText.slice(0, 5000) : null;
+
         const result = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
             const attempt = await tx.quizAttempt.findFirst({
                 where: { id: attemptId, courseId, quizId, studentUserId: user.id },
@@ -41,11 +43,11 @@ export async function POST(
                     attemptId,
                     questionId,
                     selectedOptionIds: Array.isArray(selectedOptionIds) ? selectedOptionIds : [],
-                    shortAnswerText: typeof shortAnswerText === "string" ? sanitizeRichText(shortAnswerText) : null,
+                    shortAnswerText: plainAnswer,
                 },
                 update: {
                     selectedOptionIds: Array.isArray(selectedOptionIds) ? selectedOptionIds : [],
-                    shortAnswerText: typeof shortAnswerText === "string" ? sanitizeRichText(shortAnswerText) : null,
+                    shortAnswerText: plainAnswer,
                     answeredAt: new Date(),
                 },
             });
