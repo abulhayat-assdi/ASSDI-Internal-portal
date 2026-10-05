@@ -138,12 +138,12 @@ export function FinishedScreen({ state, onBack }: { state: LiveState; onBack: ()
                 <div className="mt-10 flex items-end justify-center gap-3">
                     {order.map((p, i) =>
                         p ? (
-                            <div key={p.rank} className="w-28 sm:w-40">
+                            <div key={`p-${i}`} className="w-28 sm:w-40">
                                 <p className="font-bold text-lg truncate">{p.name}</p>
                                 <p className="text-emerald-300 font-black tabular-nums">{p.score}</p>
                                 <div className={`${heights[i]} mt-2 rounded-t-2xl flex items-start justify-center pt-3 text-4xl font-black text-slate-900 ${p.rank === 1 ? "bg-amber-400" : p.rank === 2 ? "bg-slate-300" : "bg-orange-400"}`}>{p.rank}</div>
                             </div>
-                        ) : <div key={i} className="w-28 sm:w-40" />
+                        ) : <div key={`gap-${i}`} className="w-28 sm:w-40" />
                     )}
                 </div>
             )}
