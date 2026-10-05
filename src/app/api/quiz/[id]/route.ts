@@ -16,6 +16,7 @@ interface IncomingQuestion {
     explanationHtml?: string;
     tag?: string;
     difficulty?: string;
+    timeLimitSeconds?: number | null;
     options?: QuizOptionData[];
     sourceBankItemId?: string;
 }
@@ -30,6 +31,7 @@ function sanitizeQuestion(q: IncomingQuestion, order: number, courseId: string) 
         explanationHtml: sanitizeRichText(q.explanationHtml || ""),
         tag: q.tag || null,
         difficulty: q.difficulty || null,
+        timeLimitSeconds: typeof q.timeLimitSeconds === "number" && q.timeLimitSeconds >= 5 ? Math.round(q.timeLimitSeconds) : null,
         options: (q.options || []).map((o) => ({
             id: o.id,
             textHtml: sanitizeRichText(o.textHtml || ""),
@@ -96,7 +98,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         for (const key of [
             "title", "batchNames", "optionLabelStyle", "shuffleQuestions", "shuffleOptions",
             "allowBacktrack", "durationSeconds", "maxAttempts", "practiceModeAllowed",
-            "negativeMarkPerWrong", "passPercentage", "resultReleaseMode", "isActive",
+            "negativeMarkPerWrong", "passPercentage", "showLeaderboard", "leaderboardShowNames",
+            "resultReleaseMode", "isActive",
         ]) {
             if (key in settings) data[key] = settings[key];
         }

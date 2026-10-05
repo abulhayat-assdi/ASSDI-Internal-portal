@@ -156,6 +156,13 @@ enum QuizResultReleaseMode {
   HELD
 }
 
+enum QuizLiveStatus {
+  LOBBY
+  QUESTION
+  REVEAL
+  FINISHED
+}
+
 enum QuizAttemptStatus {
   IN_PROGRESS
   SUBMITTED
@@ -229,6 +236,7 @@ model Course {
   quizQuestionBankItems    QuizQuestionBankItem[]
   quizAttempts             QuizAttempt[]
   quizAnswers              QuizAnswer[]
+  quizLiveSessions         QuizLiveSession[]
 
   @@index([slug])
   @@index([status])
@@ -301,13 +309,13 @@ model ActiveSession {
 // (overwritten every login). email/displayName/role are denormalized so a
 // record stays meaningful even after the user row is later deleted.
 model LoginEvent {
-  id          String    @id @default(uuid())
-  courseId    String?   @map("course_id")
-  userId      String?   @map("user_id")
+  id          String   @id @default(uuid())
+  courseId    String?  @map("course_id")
+  userId      String?  @map("user_id")
   role        UserRole
   email       String
-  displayName String    @map("display_name")
-  createdAt   DateTime  @default(now()) @map("created_at")
+  displayName String   @map("display_name")
+  createdAt   DateTime @default(now()) @map("created_at")
 
   course Course? @relation(fields: [courseId], references: [id], onDelete: SetNull)
   user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
@@ -1546,6 +1554,10 @@ model Quiz {
   negativeMarkPerWrong Float  @default(0) @map("negative_mark_per_wrong")
   passPercentage       Float? @map("pass_percentage")
 
+  // Leaderboard shown to students of the quiz's batches once results are visible.
+  showLeaderboard      Boolean @default(true) @map("show_leaderboard")
+  leaderboardShowNames Boolean @default(true) @map("leaderboard_show_names")
+
   resultReleaseMode QuizResultReleaseMode @default(IMMEDIATE) @map("result_release_mode")
   resultReleaseAt   DateTime?             @map("result_release_at") // scheduled auto-release
   resultsReleasedAt DateTime?             @map("results_released_at") // set when a teacher manually releases early
@@ -1561,9 +1573,10 @@ model Quiz {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  course    Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  questions QuizQuestion[]
-  attempts  QuizAttempt[]
+  course       Course            @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  questions    QuizQuestion[]
+  attempts     QuizAttempt[]
+  liveSessions QuizLiveSession[]
 
   @@index([courseId])
   @@index([isActive])
@@ -1575,13 +1588,14 @@ model QuizQuestion {
   courseId String @map("course_id")
   quizId   String @map("quiz_id")
 
-  order           Int              @default(0)
-  type            QuizQuestionType @default(SINGLE_CHOICE)
-  bodyHtml        String           @default("") @map("body_html")
-  marks           Float            @default(1)
-  explanationHtml String           @default("") @map("explanation_html")
-  tag             String?
-  difficulty      String?
+  order            Int              @default(0)
+  type             QuizQuestionType @default(SINGLE_CHOICE)
+  bodyHtml         String           @default("") @map("body_html")
+  marks            Float            @default(1)
+  explanationHtml  String           @default("") @map("explanation_html")
+  tag              String?
+  difficulty       String?
+  timeLimitSeconds Int?             @map("time_limit_seconds") // live mode per-question timer; null = session default
 
   // [{ id, textHtml, isCorrect }] — empty for SHORT_ANSWER.
   options Json @default("[]")
@@ -1651,14 +1665,19 @@ model QuizAttempt {
 
   tabSwitchCount Int @default(0) @map("tab_switch_count")
 
+  // Set when this attempt is a player in a hosted live session.
+  liveSessionId String? @map("live_session_id")
+
   startedAt            DateTime  @default(now()) @map("started_at")
   submittedAt          DateTime? @map("submitted_at")
   durationTakenSeconds Int?      @map("duration_taken_seconds")
 
-  course  Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  quiz    Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
-  answers QuizAnswer[]
+  course      Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  quiz        Quiz             @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  answers     QuizAnswer[]
+  liveSession QuizLiveSession? @relation(fields: [liveSessionId], references: [id], onDelete: SetNull)
 
+  @@index([liveSessionId])
   @@index([quizId])
   @@index([studentUserId])
   @@index([courseId])
@@ -1678,6 +1697,7 @@ model QuizAnswer {
   marksAwarded      Float    @default(0) @map("marks_awarded")
 
   answeredAt DateTime @default(now()) @map("answered_at")
+  responseMs Int?     @map("response_ms") // live mode: time taken to answer
 
   course  Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
   attempt QuizAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
@@ -1687,6 +1707,39 @@ model QuizAnswer {
   @@index([questionId])
   @@index([courseId])
   @@map("quiz_answers")
+}
+
+// A teacher/admin-hosted live run of a quiz (Kahoot style). Students join with
+// the code from their logged-in portal. State advances only through host
+// actions; the question deadline is computed from questionStartedAt.
+model QuizLiveSession {
+  id       String @id @default(uuid())
+  courseId String @map("course_id")
+  quizId   String @map("quiz_id")
+
+  joinCode String         @map("join_code")
+  status   QuizLiveStatus @default(LOBBY)
+
+  // Question ids in play order, locked at creation.
+  questionOrder          Json      @default("[]") @map("question_order")
+  currentIndex           Int       @default(-1) @map("current_index")
+  questionStartedAt      DateTime? @map("question_started_at")
+  defaultQuestionSeconds Int       @default(20) @map("default_question_seconds")
+
+  hostUid  String @map("host_uid")
+  hostName String @default("") @map("host_name")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  endedAt   DateTime? @map("ended_at")
+
+  course   Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  quiz     Quiz          @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  attempts QuizAttempt[]
+
+  @@index([courseId])
+  @@index([quizId])
+  @@index([joinCode])
+  @@map("quiz_live_sessions")
 }
 
 // ============================================================

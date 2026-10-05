@@ -15,6 +15,7 @@ interface IncomingQuestion {
     explanationHtml?: string;
     tag?: string;
     difficulty?: string;
+    timeLimitSeconds?: number | null;
     options?: QuizOptionData[];
     sourceBankItemId?: string;
 }
@@ -29,6 +30,7 @@ function sanitizeQuestion(q: IncomingQuestion, order: number, courseId: string) 
         explanationHtml: sanitizeRichText(q.explanationHtml || ""),
         tag: q.tag || null,
         difficulty: q.difficulty || null,
+        timeLimitSeconds: typeof q.timeLimitSeconds === "number" && q.timeLimitSeconds >= 5 ? Math.round(q.timeLimitSeconds) : null,
         options: (q.options || []).map((o) => ({
             id: o.id,
             textHtml: sanitizeRichText(o.textHtml || ""),
@@ -85,6 +87,8 @@ export async function POST(req: NextRequest) {
             practiceModeAllowed,
             negativeMarkPerWrong,
             passPercentage,
+            showLeaderboard,
+            leaderboardShowNames,
             resultReleaseMode,
             resultReleaseAt,
             scheduleStart,
@@ -112,6 +116,8 @@ export async function POST(req: NextRequest) {
                     practiceModeAllowed: practiceModeAllowed ?? false,
                     negativeMarkPerWrong: negativeMarkPerWrong ?? 0,
                     passPercentage: passPercentage ?? null,
+                    showLeaderboard: showLeaderboard ?? true,
+                    leaderboardShowNames: leaderboardShowNames ?? true,
                     resultReleaseMode: resultReleaseMode || "IMMEDIATE",
                     resultReleaseAt: resultReleaseAt ? new Date(resultReleaseAt) : null,
                     scheduleStart: scheduleStart ? new Date(scheduleStart) : null,
