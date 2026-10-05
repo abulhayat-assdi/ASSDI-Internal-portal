@@ -53,7 +53,7 @@ export default function QuizEditor({ quizId }: { quizId?: string }) {
     const [error, setError] = useState("");
 
     useEffect(() => {
-        fetch("/api/typing-exam")
+        fetch("/api/quiz/batches")
             .then((r) => (r.ok ? r.json() : null))
             .then((d) => d && setBatches(d.batches ?? []))
             .catch(() => {});
