@@ -5,7 +5,7 @@ import { getSessionUser, isTeacherOrAdmin } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-/** GET /api/quiz/[id]/grading — the manual short-answer grading queue for one quiz. */
+/** GET /api/quiz/[id]/grading — short-answer responses for one quiz, pending (isCorrect null) and already graded. */
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const user = await getSessionUser(req);
     if (!user || !isTeacherOrAdmin(user) || !user.courseId) {
@@ -17,17 +17,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const data = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
         const questions = await tx.quizQuestion.findMany({
             where: { quizId: id, courseId },
-            select: { id: true, bodyHtml: true, marks: true },
+            select: { id: true, bodyHtml: true, marks: true, type: true },
         });
+        const shortIds = questions.filter((q) => q.type === "SHORT_ANSWER").map((q) => q.id);
         const questionById = new Map(questions.map((q) => [q.id, q]));
 
         const attempts = await tx.quizAttempt.findMany({
-            where: { quizId: id, courseId, status: "AWAITING_GRADING" },
-            include: { answers: { where: { isCorrect: null } } },
+            where: { quizId: id, courseId, isPractice: false, status: { in: ["AWAITING_GRADING", "GRADED"] } },
+            // Graded short answers stay listed (isCorrect set) so a mistaken grade can be flipped.
+            include: { answers: { where: { questionId: { in: shortIds } } } },
             orderBy: { submittedAt: "asc" },
         });
 
-        return attempts.map((a) => ({
+        return attempts.filter((a) => a.answers.length > 0).map((a) => ({
             attemptId: a.id,
             studentName: a.studentName,
             studentRoll: a.studentRoll,
@@ -39,6 +41,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
                 questionBodyHtml: questionById.get(ans.questionId)?.bodyHtml ?? "",
                 questionMarks: questionById.get(ans.questionId)?.marks ?? 0,
                 shortAnswerText: ans.shortAnswerText,
+                isCorrect: ans.isCorrect,
             })),
         }));
     });

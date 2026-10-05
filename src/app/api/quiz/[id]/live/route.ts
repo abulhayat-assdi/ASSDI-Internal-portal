@@ -27,6 +27,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         const playable = quiz.questions.filter((q) => q.type !== "SHORT_ANSWER");
         if (playable.length === 0) return { error: "no-questions" as const };
 
+        // Double-click / re-open: hand back this host's untouched lobby instead of orphaning it with a second one.
+        const lobby = await tx.quizLiveSession.findFirst({
+            where: { courseId, quizId, hostUid: user.id, status: "LOBBY", currentIndex: -1 },
+            orderBy: { createdAt: "desc" },
+        });
+        if (lobby) return { error: null, session: lobby };
+
         // A code only has to be unique among sessions that can still be joined.
         let joinCode = generateJoinCode();
         for (let i = 0; i < 10; i++) {

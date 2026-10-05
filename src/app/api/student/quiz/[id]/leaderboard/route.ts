@@ -37,6 +37,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
             select: { studentUserId: true, studentName: true, score: true, percentage: true, durationTakenSeconds: true },
         });
 
+        // Attempts still waiting on manual grading are left out of the ranking; say so instead of looking empty.
+        const pending = await tx.quizAttempt.count({
+            where: { courseId, quizId, isPractice: false, status: "AWAITING_GRADING", studentBatchName: batchName },
+        });
+
         const best = new Map<string, (typeof attempts)[number]>();
         for (const a of attempts) {
             const cur = best.get(a.studentUserId);
@@ -54,7 +59,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
                 isMe: a.studentUserId === user.id,
             }));
 
-        return { error: null, total: ranked.length, top: ranked.slice(0, 10), me: ranked.find((r) => r.isMe) ?? null };
+        return { error: null, pending, total: ranked.length, top: ranked.slice(0, 10), me: ranked.find((r) => r.isMe) ?? null };
     });
 
     if (data.error) {

@@ -46,7 +46,10 @@ for i in $(seq 1 30); do
 done
 
 echo "🗄️ Ensuring migrations (idempotent; also runs on container boot)..."
-docker compose exec -T app prisma migrate deploy || true
+if ! docker compose exec -T app prisma migrate deploy; then
+    echo "❌ Migrations FAILED — the new code may not match the database. Check: docker compose logs app"
+    exit 1
+fi
 
 echo ""
 echo "✅ Deployment completed."

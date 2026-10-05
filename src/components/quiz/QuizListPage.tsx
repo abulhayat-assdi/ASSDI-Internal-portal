@@ -30,6 +30,12 @@ export default function QuizListPage({ scope }: { scope: "mine" | "all" }) {
         setLoading(false);
     }, [scope, user]);
 
+    // Arriving from the editor's redirect would otherwise keep the old scroll offset.
+    useEffect(() => {
+        window.scrollTo(0, 0);
+        document.querySelector("main")?.scrollTo?.(0, 0);
+    }, []);
+
     useEffect(() => {
         if (!authLoading) load();
     }, [authLoading, load]);

@@ -13,7 +13,8 @@ export default function LiveHost({ sessionId }: { sessionId: string }) {
     const [busy, setBusy] = useState(false);
     const [remaining, setRemaining] = useState(0);
     const polled = useRef<{ at: number; remainingMs: number }>({ at: 0, remainingMs: 0 });
-    const finished = state?.status === "FINISHED";
+    const status = state?.status;
+    const finished = status === "FINISHED";
 
     const poll = useCallback(async () => {
         try {
@@ -35,9 +36,10 @@ export default function LiveHost({ sessionId }: { sessionId: string }) {
     useEffect(() => {
         poll();
         if (finished) return;
-        const t = setInterval(poll, 1500);
+        // Poll faster while a question is open so the "answered" counter keeps up.
+        const t = setInterval(poll, status === "QUESTION" ? 700 : 1500);
         return () => clearInterval(t);
-    }, [poll, finished]);
+    }, [poll, finished, status]);
 
     // Tick the countdown locally between polls.
     useEffect(() => {
