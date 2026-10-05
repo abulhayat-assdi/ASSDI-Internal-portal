@@ -190,6 +190,62 @@ export function notifyStudentsOfAssignment(assignment: {
     );
 }
 
+export function notifyStudentsOfQuiz(quiz: {
+    courseId: string;
+    title: string;
+    batchName: string | null;
+    scheduleEnd?: string | null;
+    teacherName?: string | null;
+}): void {
+    dispatchInBackground(`quiz "${quiz.title}"`, () =>
+        dispatch(quiz.courseId, quiz.batchName, (course) => ({
+            subject: `নতুন কুইজ: ${quiz.title}`,
+            html: renderEmail({
+                courseName: course.name,
+                heading: `নতুন কুইজ: ${quiz.title}`,
+                bodyHtml: paragraphs(
+                    [
+                        quiz.teacherName ? `শিক্ষক: ${quiz.teacherName}` : null,
+                        quiz.scheduleEnd ? `শেষ সময়: ${quiz.scheduleEnd}` : null,
+                        'পোর্টালে লগইন করে সময়মতো কুইজ দিন।',
+                    ]
+                        .filter(Boolean)
+                        .join('\n')
+                ),
+                ctaLabel: 'কুইজ দেখুন',
+                ctaUrl: portalUrl(course.slug, '/student-dashboard/quiz'),
+                footerNote: 'আপনি এই কোর্সের ছাত্র হিসেবে এই বার্তাটি পেয়েছেন।',
+            }),
+        }))
+    );
+}
+
+/**
+ * Tells a batch a quiz's results are up. A separate, explicit action (like
+ * notifyStudentsOfResults) rather than firing on every attempt submission.
+ */
+export function notifyStudentsOfQuizResults(released: {
+    courseId: string;
+    batchName: string | null;
+    quizTitle: string;
+}): void {
+    dispatchInBackground(`quiz results for "${released.quizTitle}"`, () =>
+        dispatch(released.courseId, released.batchName, (course) => ({
+            subject: `ফলাফল প্রকাশিত: ${released.quizTitle}`,
+            html: renderEmail({
+                courseName: course.name,
+                heading: 'কুইজের ফলাফল প্রকাশিত হয়েছে',
+                bodyHtml: paragraphs(
+                    [`কুইজ: ${released.quizTitle}`, 'পোর্টালে লগইন করে আপনার ফলাফল দেখুন।'].join('\n')
+                ),
+                ctaLabel: 'ফলাফল দেখুন',
+                ctaUrl: portalUrl(course.slug, '/student-dashboard/quiz'),
+                footerNote: 'আপনি এই কোর্সের ছাত্র হিসেবে এই বার্তাটি পেয়েছেন।',
+            }),
+        }))
+    );
+}
+
 /** One student's address, from their login or the roster, whichever exists. */
 async function studentEmail(courseId: string, batchName: string, roll: string): Promise<string | null> {
     return withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {

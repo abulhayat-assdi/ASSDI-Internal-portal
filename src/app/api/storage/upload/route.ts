@@ -21,7 +21,7 @@ function getStorageBase(): string {
 
 /**
  * POST /api/storage/upload
- * FormData: { file, category (homework|resource), path (optional) }
+ * FormData: { file, category (homework|resource|quiz), path (optional) }
  */
 export async function POST(request: NextRequest) {
     const sessionUser = await getSessionUserFromRequestOrBearer(request);
@@ -63,6 +63,8 @@ export async function POST(request: NextRequest) {
         let storagePath: string;
         if (category === "homework") {
             storagePath = `uploads/homework/${sessionUser.id}/${safeName}`;
+        } else if (category === "quiz") {
+            storagePath = `uploads/quiz/${sessionUser.id}/${safeName}`;
         } else {
             const folder = subPath ? subPath.replace(/[^a-zA-Z0-9_]/g, "_") : "";
             storagePath = folder

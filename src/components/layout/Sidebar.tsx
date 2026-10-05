@@ -31,6 +31,7 @@ const teacherAdminTopNavItems: NavItem[] = [
     { href: "/dashboard/admin/contact-messages", label: "Messages", icon: "💬", permission: null },
     { href: "/dashboard/course-modules", label: "Course Modules", icon: "📚", permission: "course_modules", feature: "course_modules" },
     { href: "/dashboard/homework", label: "Homework", icon: "📝", permission: "homework", feature: "homework" },
+    { href: "/dashboard/quiz", label: "Quiz", icon: "❓", permission: "quiz", feature: "quiz" },
     { href: "/dashboard/attendance", label: "Attendance", icon: "🗓️", permission: "attendance", feature: "attendance" },
     { href: "/dashboard/student-leaves", label: "Student Leaves", icon: "🏖️", permission: "admin_leave", feature: "student_leaves" },
 ];
@@ -47,6 +48,7 @@ const teacherAdminNavSections: NavSection[] = [
             { href: "/dashboard/admin/course-modules", label: "Course Modules Mgr", icon: "📚", permission: "admin_course_modules", feature: "course_modules" },
             { href: "/dashboard/admin/manage-homework", label: "Manage Homework", icon: "📁", permission: "admin_homework", feature: "homework" },
             { href: "/dashboard/admin/manage-homework/log", label: "Homework Log", icon: "📜", permission: "admin_homework", feature: "homework" },
+            { href: "/dashboard/admin/manage-quiz", label: "Manage Quiz", icon: "❓", permission: "admin_quiz", feature: "quiz" },
             { href: "/dashboard/admin/manage-results", label: "Manage Results", icon: "📝", permission: "admin_results", feature: "exam_results" },
         ]
     },
@@ -111,6 +113,7 @@ const studentNavItems: NavItem[] = [
     { href: "/student-dashboard/resource", label: "Resource", icon: "📚", permission: null, feature: "resources" },
     { href: "/student-dashboard/course-outline", label: "Course Outline", icon: "📋", permission: null, feature: "course_modules" },
     { href: "/student-dashboard/homework", label: "Homework", icon: "📝", permission: null, feature: "homework" },
+    { href: "/student-dashboard/quiz", label: "Quiz", icon: "❓", permission: null, feature: "quiz" },
     { href: "/student-dashboard/results", label: "Results", icon: "🎓", permission: null, feature: "exam_results" },
     { href: "/student-dashboard/attendance", label: "My Attendance", icon: "🗓️", permission: null, feature: "attendance" },
     { href: "/student-dashboard/deployments", label: "My Deployments", icon: "🚀", permission: null, feature: "deployments" },

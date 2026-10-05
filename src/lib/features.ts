@@ -35,6 +35,8 @@ export const ALL_FEATURES: FeatureDefinition[] = [
     { key: 'batch_forms', label: 'Batch Forms', description: 'ব্যাচভিত্তিক ফর্ম ম্যানেজমেন্ট', defaultEnabled: true },
     { key: 'contact_messages', label: 'Contact Messages', description: 'যোগাযোগ ফর্মের মেসেজ ইনবক্স', defaultEnabled: true },
     { key: 'student_leaves', label: 'Student Leaves', description: 'ছাত্রদের ছুটির আবেদন দেখা ও ম্যানেজ করা', defaultEnabled: true },
+    // নতুন ফিচার — ডিফল্ট OFF, সুপার-এডমিন টগল অন না করা পর্যন্ত কোনো কোর্সে দেখাবে না।
+    { key: 'quiz', label: 'Quiz', description: 'ডায়নামিক MCQ/কুইজ ইঞ্জিন — শিক্ষক/এডমিন কুইজ তৈরি করবে, ছাত্র পোর্টাল থেকে দেবে' },
 ];
 
 export type FeatureKey = string;

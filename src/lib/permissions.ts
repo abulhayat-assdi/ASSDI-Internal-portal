@@ -19,6 +19,7 @@ export type PermissionKey =
     | "policies"
     | "feedback"
     | "homework"
+    | "quiz"
     | "teachers"
     | "attendance"
     | "admin_attendance"
@@ -26,6 +27,7 @@ export type PermissionKey =
     | "reports"
     | "admin_panel"
     | "admin_homework"
+    | "admin_quiz"
     | "admin_results"
     | "admin_leave"
     | "admin_notices"
@@ -56,10 +58,12 @@ export const PERMISSION_META: Record<PermissionKey, PermissionMeta> = {
     policies: { label: "Policy & Minutes", path: "/dashboard/policies", group: "teacher", icon: "📋" },
     feedback: { label: "Feedback", path: "/dashboard/feedback", group: "teacher", icon: "💬" },
     homework: { label: "Homework", path: "/dashboard/homework", group: "teacher", icon: "📝" },
+    quiz: { label: "Quiz", path: "/dashboard/quiz", group: "teacher", icon: "❓" },
     attendance: { label: "Attendance", path: "/dashboard/attendance", group: "teacher", icon: "🗓️" },
     teachers: { label: "Teacher Directory", path: "/dashboard/teachers", group: "management", icon: "👥" },
     admin_panel: { label: "Admin Panel", path: "/dashboard/admin", group: "admin", icon: "⚙️" },
     admin_homework: { label: "Manage Homework", path: "/dashboard/admin/manage-homework", group: "admin", icon: "📁" },
+    admin_quiz: { label: "Manage Quiz", path: "/dashboard/admin/manage-quiz", group: "admin", icon: "❓" },
     admin_results: { label: "Manage Results", path: "/dashboard/admin/manage-results", group: "admin", icon: "📝" },
     admin_leave: { label: "Student Leaves", path: "/dashboard/student-leaves", group: "admin", icon: "🏖️" },
     admin_attendance: { label: "Attendance Report", path: "/dashboard/admin/attendance-report", group: "admin", icon: "📈" },
@@ -95,7 +99,7 @@ export const ADMIN_TEACHER_MARKER = "__role:admin_teacher";
 // explicitly via Access Management, it is not granted by default.
 export const DEFAULT_TEACHER_PERMISSIONS: PermissionKey[] = [
     "schedule", "routine", "batch_info", "resources", "course_modules",
-    "policies", "feedback", "homework", "attendance",
+    "policies", "feedback", "homework", "quiz", "attendance",
     "teachers", "admin_results", "typing_exam",
 ];
 
@@ -106,7 +110,7 @@ export const DEFAULT_TEACHER_PERMISSIONS: PermissionKey[] = [
 // control via admin.tasm-skill.asf.bd.
 export const DEFAULT_ADMIN_PERMISSIONS: PermissionKey[] = [
     "teachers", "batch_info",
-    "admin_panel", "admin_homework", "admin_results", "admin_leave",
+    "admin_panel", "admin_homework", "admin_quiz", "admin_results", "admin_leave",
     "admin_notices", "admin_contact", "admin_resources", "admin_course_modules",
     "admin_deployments", "admin_typing_game", "typing_exam",
     "admin_attendance", "admin_routine", "reports", "access_management",
@@ -115,7 +119,7 @@ export const DEFAULT_ADMIN_PERMISSIONS: PermissionKey[] = [
 // Teacher-feature permissions added to admin when "Include teacher features" is checked
 export const TEACHER_FEATURE_PERMISSIONS: PermissionKey[] = [
     "schedule", "routine", "resources", "course_modules",
-    "policies", "feedback", "homework", "attendance",
+    "policies", "feedback", "homework", "quiz", "attendance",
     "typing_game_teacher", "typing_exam",
 ];
 
