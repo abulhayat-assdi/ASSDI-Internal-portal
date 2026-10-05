@@ -15,6 +15,7 @@ interface IncomingQuestion {
     explanationHtml?: string;
     tag?: string;
     difficulty?: string;
+    timeLimitSeconds?: number | null;
     options?: QuizOptionData[];
     sourceBankItemId?: string;
 }
@@ -61,6 +62,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                     explanationHtml: sanitizeRichText(q.explanationHtml || ""),
                     tag: q.tag || null,
                     difficulty: q.difficulty || null,
+                    timeLimitSeconds: typeof q.timeLimitSeconds === "number" && q.timeLimitSeconds >= 5 ? Math.round(q.timeLimitSeconds) : null,
                     options: (q.options || []).map((o) => ({
                         id: o.id,
                         textHtml: sanitizeRichText(o.textHtml || ""),
