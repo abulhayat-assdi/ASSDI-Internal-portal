@@ -4,6 +4,8 @@ import { getSessionUser, isTeacherOrAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
+type GroupMember = { roll: string; name: string; isLeader?: boolean };
+
 export async function GET(req: NextRequest) {
     try {
         const courseId = req.headers.get("x-course-id");
@@ -42,7 +44,7 @@ export async function POST(req: NextRequest) {
         const courseId = user.courseId;
 
         const body = await req.json();
-        const { id, batchName, competitionId, groupName, members } = body;
+        const { id, batchName, competitionId, groupName, members, leaderRoll } = body;
 
         if (!batchName || !batchName.trim()) {
             return NextResponse.json({ error: "Batch Name is required" }, { status: 400 });
@@ -51,33 +53,54 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Group Name is required" }, { status: 400 });
         }
 
-        const result = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) => {
+        // Normalise members: unique rolls, and at most one leader who must be a member.
+        const seenRolls = new Set<string>();
+        const cleanMembers: GroupMember[] = [];
+        for (const m of Array.isArray(members) ? members : []) {
+            const roll = String(m?.roll ?? "").trim();
+            if (!roll || seenRolls.has(roll)) continue;
+            seenRolls.add(roll);
+            cleanMembers.push({ roll, name: String(m?.name ?? "") });
+        }
+        const leader = cleanMembers.find((m) => m.roll === String(leaderRoll ?? "").trim());
+        if (leader) leader.isLeader = true;
+
+        const result = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+            // A student may belong to only one group per batch.
+            const otherGroups = await tx.competitionGroup.findMany({
+                where: { courseId, batchName: batchName.trim(), ...(id ? { NOT: { id } } : {}) },
+                select: { groupName: true, members: true },
+            });
+            const conflicts: string[] = [];
+            for (const g of otherGroups) {
+                for (const m of (Array.isArray(g.members) ? g.members : []) as any[]) {
+                    if (seenRolls.has(String(m?.roll))) conflicts.push(`${m.roll} (${g.groupName})`);
+                }
+            }
+            if (conflicts.length > 0) return { conflicts, group: null };
+
+            const data = {
+                groupName: groupName.trim(),
+                batchName: batchName.trim(),
+                competitionId: competitionId || null,
+                members: cleanMembers as any,
+            };
             if (id) {
                 // Update existing group
-                return tx.competitionGroup.update({
-                    where: { id, courseId },
-                    data: {
-                        groupName: groupName.trim(),
-                        batchName: batchName.trim(),
-                        competitionId: competitionId || null,
-                        members: members || [],
-                    }
-                });
-            } else {
-                // Create new group
-                return tx.competitionGroup.create({
-                    data: {
-                        courseId,
-                        groupName: groupName.trim(),
-                        batchName: batchName.trim(),
-                        competitionId: competitionId || null,
-                        members: members || [],
-                    }
-                });
+                return { conflicts: null, group: await tx.competitionGroup.update({ where: { id, courseId }, data }) };
             }
+            // Create new group
+            return { conflicts: null, group: await tx.competitionGroup.create({ data: { courseId, ...data } }) };
         });
 
-        return NextResponse.json(result);
+        if (result.conflicts) {
+            return NextResponse.json(
+                { error: `Already in another group: ${result.conflicts.join(", ")}. Remove them from that group first.` },
+                { status: 409 }
+            );
+        }
+
+        return NextResponse.json(result.group);
     } catch (error: any) {
         console.error("Failed to create/update competition group:", error);
         return NextResponse.json({ error: error?.message || "Internal Server Error" }, { status: 500 });
