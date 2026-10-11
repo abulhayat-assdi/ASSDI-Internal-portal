@@ -193,7 +193,7 @@ export default function TypingField({ examText, typedText, onChange, disabled }:
                 className={`whitespace-pre text-center leading-relaxed ${isCurrent ? `${CURRENT_LINE_TEXT_CLASS} text-slate-800` : `${OTHER_LINE_TEXT_CLASS} text-slate-400`}`}
               >
                 {isCurrent ? (
-                  <LineChars line={line} examText={examText} typedText={typedText} reduceMotion={!!reduceMotion} />
+                  <LineChars line={line} examText={examText} typedText={typedText} />
                 ) : (
                   <span>{line.text}</span>
                 )}
@@ -211,12 +211,10 @@ function LineChars({
   line,
   examText,
   typedText,
-  reduceMotion,
 }: {
   line: WrappedLine;
   examText: string;
   typedText: string;
-  reduceMotion: boolean;
 }) {
   const chars = renderLineChars(line, examText, typedText);
   return (
@@ -225,12 +223,7 @@ function LineChars({
         if (state === "caret") {
           return (
             <span key={j} className="relative inline-block">
-              <motion.span
-                aria-hidden="true"
-                className="absolute -left-px top-0 h-full w-[3px] rounded-full bg-brand-600"
-                animate={reduceMotion ? { opacity: 1 } : { opacity: [1, 1, 0, 0] }}
-                transition={reduceMotion ? undefined : { duration: 1, repeat: Infinity, times: [0, 0.5, 0.5, 1] }}
-              />
+              <span aria-hidden="true" className="exam-caret" />
               <span className="text-slate-300">{ch}</span>
             </span>
           );
