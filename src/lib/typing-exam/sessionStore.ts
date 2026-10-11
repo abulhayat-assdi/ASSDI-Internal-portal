@@ -37,13 +37,30 @@ type ExamForGrading = Pick<
   "id" | "courseId" | "examText" | "durationSeconds" | "passWpm" | "passAccuracy" | "failWpm" | "failAccuracy"
 >;
 
+/** Extra figures shown on the result screen next to WPM and accuracy. */
+export interface ResultDetails {
+  rawWpm: number;
+  correctChars: number;
+  totalChars: number;
+  /** Keystrokes that did not match the passage (fixed mistakes included). */
+  wrongKeystrokes: number;
+  keystrokesTotal: number;
+  durationSeconds: number;
+}
+
 export interface RecordedResult {
   attemptId: string;
   wpm: number;
   accuracy: number;
+  details: ResultDetails;
   result: ExamResultTier;
   /** false when the run had already been finalized (a retried submit). */
   fresh: boolean;
+}
+
+/** The JSON the attempt endpoints send back to the taker. */
+export function resultBody(r: RecordedResult) {
+  return { wpm: r.wpm, accuracy: r.accuracy, result: r.result, ...r.details };
 }
 
 function identityOf(taker: Taker): RetryIdentity {
@@ -132,7 +149,21 @@ async function writeAttempt(
     },
   });
 
-  return { attemptId: attempt.id, wpm: score.wpm, accuracy: score.accuracy, result: graded.result, fresh: true };
+  return {
+    attemptId: attempt.id,
+    wpm: score.wpm,
+    accuracy: score.accuracy,
+    details: {
+      rawWpm: score.rawWpm,
+      correctChars: score.correctChars,
+      totalChars: score.totalChars,
+      wrongKeystrokes: Math.max(0, params.snapshot.keystrokesTotal - params.snapshot.keystrokesCorrect),
+      keystrokesTotal: params.snapshot.keystrokesTotal,
+      durationSeconds: graded.durationTakenSeconds,
+    },
+    result: graded.result,
+    fresh: true,
+  };
 }
 
 function storedSnapshot(s: TypingExamSession): ClientSnapshot {
@@ -154,7 +185,22 @@ async function lockSession(tx: Prisma.TransactionClient, sessionId: string) {
 async function resultOfFinalized(tx: Prisma.TransactionClient, s: TypingExamSession): Promise<RecordedResult | null> {
   if (!s.attemptId) return null;
   const a = await tx.typingExamAttempt.findUnique({ where: { id: s.attemptId } });
-  return a ? { attemptId: a.id, wpm: a.wpm, accuracy: a.accuracy, result: a.result, fresh: false } : null;
+  if (!a) return null;
+  return {
+    attemptId: a.id,
+    wpm: a.wpm,
+    accuracy: a.accuracy,
+    details: {
+      rawWpm: a.rawWpm,
+      correctChars: a.correctChars,
+      totalChars: a.totalChars,
+      wrongKeystrokes: Math.max(0, a.keystrokesTotal - a.keystrokesCorrect),
+      keystrokesTotal: a.keystrokesTotal,
+      durationSeconds: a.durationTakenSeconds,
+    },
+    result: a.result,
+    fresh: false,
+  };
 }
 
 /**

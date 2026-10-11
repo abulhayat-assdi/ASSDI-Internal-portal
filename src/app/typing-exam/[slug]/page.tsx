@@ -4,13 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import ExamRunner, { type ExamRunnerSubmitPayload } from "@/components/typing-exam/ExamRunner";
 import { ExamTransport } from "@/lib/typing-exam/client";
-import ExamResultPanel from "@/components/typing-exam/ExamResultPanel";
+import ExamResultPanel, { type ExamResultPanelData } from "@/components/typing-exam/ExamResultPanel";
 
 type Stage = "loading" | "not_found" | "not_active" | "identity" | "running" | "result";
 
 type Meta = { title: string; description: string; durationSeconds: number };
 type ExamData = { examId: string; examText: string; durationSeconds: number; title: string };
-type ResultData = { wpm: number; accuracy: number; result: "PASS" | "AVERAGE" | "FAIL" };
+type ResultData = ExamResultPanelData;
 
 const input =
   "w-full border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all placeholder:text-slate-300";
@@ -126,7 +126,7 @@ export default function PublicTypingExamPage() {
     try {
       const out = await transport.submit(payload);
       if (out.status === 200) {
-        setResultData(out.data as ResultData);
+        setResultData(out.data as unknown as ResultData);
         setStage("result");
         return;
       }

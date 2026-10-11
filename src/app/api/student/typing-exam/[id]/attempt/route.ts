@@ -5,7 +5,7 @@ import { loadVisibleExam } from "@/lib/typing-exam/visibility";
 import { retryPasswordMatches, STUDENT_PASSWORD_FAILURES_PER_HOUR, studentPasswordLimitKey } from "@/lib/typing-exam/retryGate";
 import { HOUR, isOverLimit, recordAttempt } from "@/lib/rateLimit";
 import { parseClientSnapshot, readJsonBody } from "@/lib/typing-exam/session";
-import { finalizeSession, findOwnedSession, submitWithoutSession, type RecordedResult } from "@/lib/typing-exam/sessionStore";
+import { finalizeSession, findOwnedSession, resultBody, submitWithoutSession, type RecordedResult } from "@/lib/typing-exam/sessionStore";
 import { logActivity } from "@/lib/activityLog";
 
 export const dynamic = "force-dynamic";
@@ -94,7 +94,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
                 description: `${user.displayName || user.id} "${examTitle}" এক্সামে অংশ নিয়েছে — ${recorded.wpm} WPM, ${recorded.result}`,
             });
 
-            return NextResponse.json({ wpm: recorded.wpm, accuracy: recorded.accuracy, result: recorded.result });
+            return NextResponse.json(resultBody(recorded));
         });
     } catch (error) {
         console.error("[Student TypingExam Attempt POST]", error);

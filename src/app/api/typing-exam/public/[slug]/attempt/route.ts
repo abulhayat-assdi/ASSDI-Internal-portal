@@ -7,7 +7,7 @@ import { normalizePhone } from "@/lib/typing-exam/identity";
 import { retryPasswordMatches } from "@/lib/typing-exam/retryGate";
 import { resolvePublicExam } from "@/lib/typing-exam/publicExam";
 import { parseClientSnapshot, readJsonBody } from "@/lib/typing-exam/session";
-import { finalizeSession, findOwnedSession, submitWithoutSession } from "@/lib/typing-exam/sessionStore";
+import { finalizeSession, findOwnedSession, resultBody, submitWithoutSession } from "@/lib/typing-exam/sessionStore";
 import { HOUR, limitFromEnv, rateLimitByIp } from "@/lib/rateLimit";
 
 type RouteParams = { params: Promise<{ slug: string }> };
@@ -44,7 +44,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       if (!session) return { status: 404 as const, body: { error: "session_not_found" } };
       const recorded = await finalizeSession(tx, exam, session.id, snapshot);
       if (!recorded) return { status: 409 as const, body: { error: "session_closed" } };
-      return { status: 200 as const, body: { wpm: recorded.wpm, accuracy: recorded.accuracy, result: recorded.result } };
+      return { status: 200 as const, body: resultBody(recorded) };
     }
 
     const name = typeof body.name === "string" ? body.name.trim() : "";
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     );
     if (!res.ok) return { status: 401 as const, body: { needsPassword: true } };
     const r = res.recorded;
-    return { status: 200 as const, body: { wpm: r.wpm, accuracy: r.accuracy, result: r.result } };
+    return { status: 200 as const, body: resultBody(r) };
   });
 
   return NextResponse.json(outcome.body, { status: outcome.status });
