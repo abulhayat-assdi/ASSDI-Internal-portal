@@ -28,8 +28,9 @@ describe("parseClientSnapshot", () => {
   });
 
   it("clamps over-long text and sanitizes counters", () => {
-    const s = parseClientSnapshot({ typedText: "abcdef", elapsedMs: 1, keystrokesTotal: -5, keystrokesCorrect: 2.7, finishReason: "HACK" }, "x".repeat(3));
-    expect(s).toMatchObject({ typedText: "abc", keystrokesTotal: 0, keystrokesCorrect: 2, finishReason: null });
+    const s = parseClientSnapshot({ typedText: "a".repeat(40), elapsedMs: 1, keystrokesTotal: -5, keystrokesCorrect: 2.7, finishReason: "HACK" }, "x".repeat(3));
+    // One 3-letter word: kept up to the word plus the allowed extra characters.
+    expect(s).toMatchObject({ typedText: "a".repeat(13), keystrokesTotal: 0, keystrokesCorrect: 2, finishReason: null });
   });
 
   it("rejects bodies without text or time", () => {

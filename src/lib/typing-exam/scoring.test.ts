@@ -105,14 +105,13 @@ describe("scoreAttempt", () => {
     const resultSpace = scoreAttempt({ originalText, typedText: typedWithWrongSpace, elapsedSeconds: 30 });
     const resultLetter = scoreAttempt({ originalText, typedText: typedWithWrongLetter, elapsedSeconds: 30 });
 
-    // Each introduces exactly one wrong character among originalText.length chars,
-    // and all three should score identically regardless of what kind of
-    // character was wrong.
+    // A wrong punctuation mark or letter loses exactly one correct char.
+    // A replaced space also merges two words, so the second word is compared
+    // against the wrong target and the closing space is lost: it costs more.
     expect(resultPunct.correctChars).toBe(originalText.length - 1);
-    expect(resultSpace.correctChars).toBe(originalText.length - 1);
     expect(resultLetter.correctChars).toBe(originalText.length - 1);
-    expect(resultPunct.accuracy).toBe(resultSpace.accuracy);
-    expect(resultSpace.accuracy).toBe(resultLetter.accuracy);
+    expect(resultPunct.accuracy).toBe(resultLetter.accuracy);
+    expect(resultSpace.correctChars).toBeLessThan(resultLetter.correctChars);
   });
 
   it("WPM formula sanity: 250 correct chars in 60 seconds is exactly 50 WPM", () => {

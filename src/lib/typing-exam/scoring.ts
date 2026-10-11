@@ -3,8 +3,10 @@
 //
 // The rules (Monkeytype-style, the de-facto standard for timed tests):
 //
-//  - correctChars: index-exact comparison of the FINAL typed text against
-//    the passage (a wrong char only ever affects its own index — no cascade).
+//  - correctChars: the FINAL typed text is judged word by word (words.ts):
+//    each typed word against its own passage word, character by character,
+//    plus the spaces that close words of the right length. A wrong, missing
+//    or extra character only ever costs its own word — no cascade.
 //  - WPM (net): correctChars / 5 / minutes. Only correct characters count,
 //    so mistakes left in the text lower the speed.
 //  - Raw WPM: every typed character / 5 / minutes, mistakes included.
@@ -19,6 +21,8 @@
 // Both strings are NFC-normalized first so a Bangla passage and a Bangla
 // keyboard that emit the same visible text in different code-point orders
 // can never be scored as wrong.
+
+import { countCorrectChars } from "./words";
 
 export interface KeystrokeCounts {
   /** Every character insertion, including ones later deleted with backspace. */
@@ -78,10 +82,7 @@ export function scoreAttempt({ originalText, typedText, elapsedMs, elapsedSecond
   const typed = normalizeText(typedText);
 
   const totalChars = typed.length;
-  let correctChars = 0;
-  for (let i = 0; i < totalChars; i++) {
-    if (typed[i] === original[i]) correctChars++;
-  }
+  const correctChars = countCorrectChars(original, typed);
 
   const rawMs = elapsedMs ?? (elapsedSeconds ?? 0) * 1000;
   const ms = Math.max(Number.isFinite(rawMs) ? rawMs : 0, MIN_SCORING_MS);

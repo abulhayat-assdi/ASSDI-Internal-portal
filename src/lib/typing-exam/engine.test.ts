@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { TypingExamEngine } from "./engine";
+import { IDLE_START_MS, TypingExamEngine } from "./engine";
+import { scoreAttempt } from "./scoring";
 
 const TEXT = "the quick brown fox jumps over the lazy dog";
 const T0 = 1_000_000;
@@ -19,10 +20,11 @@ describe("TypingExamEngine — regression: time-up snapshot carries what was typ
     const e = new TypingExamEngine(TEXT, 60_000);
     e.start(T0);
     typeChars(e, "the quick", T0 + 500, 300);
-    // Taker stops typing; nothing happens until the deadline.
+    // Taker stops typing; nothing happens until the deadline (the clock
+    // started at the first keystroke, T0 + 500).
     expect(e.tick(T0 + 30_000)).toBe(false);
-    expect(e.tick(T0 + 60_000)).toBe(true);
-    const snap = e.snapshot(T0 + 60_500);
+    expect(e.tick(T0 + 60_500)).toBe(true);
+    const snap = e.snapshot(T0 + 61_000);
     expect(snap.typedText).toBe("the quick");
     expect(snap.finishReason).toBe("TIME_UP");
     expect(snap.elapsedMs).toBe(60_000);
@@ -41,6 +43,7 @@ describe("TypingExamEngine — regression: time-up snapshot carries what was typ
   it("tick reports time-up exactly once", () => {
     const e = new TypingExamEngine(TEXT, 10_000);
     e.start(T0);
+    e.input("t", T0);
     expect(e.tick(T0 + 10_000)).toBe(true);
     expect(e.tick(T0 + 11_000)).toBe(false);
     expect(e.finishReason).toBe("TIME_UP");
@@ -69,11 +72,43 @@ describe("TypingExamEngine — keystrokes (Monkeytype accuracy)", () => {
     expect(e.snapshot(T0 + 300).keystrokes).toEqual({ total: 6, correct: 5 });
   });
 
-  it("clamps input to the passage length", () => {
+  it("refuses a runaway word instead of accepting unlimited characters", () => {
     const e = new TypingExamEngine("abc", 60_000);
     e.start(T0);
-    expect(e.input("abcdef", T0 + 100)).toBe("abc");
-    expect(e.snapshot(T0 + 100).keystrokes.total).toBe(3);
+    expect(e.input("ab", T0 + 100)).toBe("ab");
+    expect(e.input("abxxxxxxxxxxxxxxxxxxxx", T0 + 200)).toBe("ab");
+    expect(e.snapshot(T0 + 200).keystrokes.total).toBe(2);
+  });
+
+  it("a dropped letter only costs its own word (no cascade)", () => {
+    const e = new TypingExamEngine("the quick brown fox", 60_000);
+    e.start(T0);
+    // "quick" typed as "quik" — one letter missing, typed on without fixing.
+    typeChars(e, "the quik brown fox", T0, 100);
+    expect(e.finishReason).toBe("COMPLETED");
+    const snap = e.snapshot(T0 + 5_000);
+    const r = scoreAttempt({ originalText: "the quick brown fox", typedText: snap.typedText, elapsedMs: 5_000, keystrokes: snap.keystrokes });
+    // "the " ok, "quik" 3 of 5, space after "quik" is the wrong length, "brown " ok, "fox" ok.
+    expect(r.correctChars).toBe(4 + 3 + 6 + 3);
+    expect(snap.keystrokes.correct).toBe(r.correctChars);
+  });
+
+  it("an extra space on an empty word is ignored and does not shift later words", () => {
+    const e = new TypingExamEngine("ab cd", 60_000);
+    e.start(T0);
+    e.input("ab", T0);
+    e.input("ab ", T0 + 10);
+    expect(e.input("ab  ", T0 + 20)).toBe("ab ");
+    expect(e.input("ab c", T0 + 30)).toBe("ab c");
+    expect(e.input("ab cd", T0 + 40)).toBe("ab cd");
+    expect(e.finishReason).toBe("COMPLETED");
+  });
+
+  it("refuses typing past the last word", () => {
+    const e = new TypingExamEngine("ab cd", 60_000);
+    e.start(T0);
+    e.input("ab c", T0);
+    expect(e.input("ab c ", T0 + 10)).toBe("ab c");
   });
 });
 
@@ -82,16 +117,17 @@ describe("TypingExamEngine — run lifecycle", () => {
     const e = new TypingExamEngine(TEXT, 5_000);
     expect(e.input("t", T0)).toBe("");
     e.start(T0);
-    e.tick(T0 + 5_000);
-    expect(e.input("t", T0 + 5_100)).toBe("");
-    expect(e.snapshot(T0 + 6_000).keystrokes.total).toBe(0);
+    e.input("t", T0 + 100);
+    e.tick(T0 + 5_100);
+    expect(e.input("th", T0 + 5_200)).toBe("t");
+    expect(e.snapshot(T0 + 6_000).keystrokes.total).toBe(1);
   });
 
   it("input arriving after the deadline (late timer tick) is rejected and ends the run", () => {
     const e = new TypingExamEngine(TEXT, 5_000);
     e.start(T0);
     e.input("t", T0 + 1_000);
-    expect(e.input("th", T0 + 5_050)).toBe("t");
+    expect(e.input("th", T0 + 6_050)).toBe("t");
     expect(e.finishReason).toBe("TIME_UP");
     expect(e.snapshot(T0 + 6_000)).toMatchObject({ typedText: "t", elapsedMs: 5_000 });
   });
@@ -104,20 +140,35 @@ describe("TypingExamEngine — run lifecycle", () => {
     e.input("abc", T0 + 3_000);
     expect(e.finishReason).toBe("COMPLETED");
     const snap = e.snapshot(T0 + 50_000);
-    expect(snap.elapsedMs).toBe(3_000);
+    // The clock started at the first keystroke (T0 + 1_000).
+    expect(snap.elapsedMs).toBe(2_000);
   });
 
   it("remainingMs freezes once finished", () => {
     const e = new TypingExamEngine("ab", 60_000);
     e.start(T0);
+    e.input("a", T0);
     e.input("ab", T0 + 10_000);
     expect(e.remainingMs(T0 + 40_000)).toBe(50_000);
   });
 
-  it("snapshot before any input reports zero time typed", () => {
+  it("the clock does not run before the first keystroke", () => {
     const e = new TypingExamEngine(TEXT, 60_000);
     e.start(T0);
-    expect(e.snapshot(T0 + 20_000)).toMatchObject({ elapsedMs: 20_000, typedText: "" });
+    expect(e.snapshot(T0 + 10_000)).toMatchObject({ elapsedMs: 0, typedText: "" });
+    expect(e.remainingMs(T0 + 10_000)).toBe(60_000);
+    expect(e.tick(T0 + 10_000)).toBe(false);
+    e.input("t", T0 + 10_000);
+    expect(e.remainingMs(T0 + 15_000)).toBe(55_000);
+  });
+
+  it("starts the clock by itself after the idle limit so a run cannot sit open forever", () => {
+    const e = new TypingExamEngine(TEXT, 60_000);
+    e.start(T0);
+    expect(e.tick(T0 + IDLE_START_MS - 1)).toBe(false);
+    expect(e.remainingMs(T0 + IDLE_START_MS - 1)).toBe(60_000);
+    expect(e.tick(T0 + IDLE_START_MS + 60_000)).toBe(true);
+    expect(e.snapshot(T0 + IDLE_START_MS + 61_000)).toMatchObject({ elapsedMs: 60_000, finishReason: "TIME_UP" });
   });
 
   it("revision changes only on accepted changes", () => {

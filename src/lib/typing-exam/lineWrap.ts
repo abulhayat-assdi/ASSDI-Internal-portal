@@ -13,6 +13,8 @@
 // invariant is what keeps caret-position math aligned with the same index
 // space scoreAttempt() uses.
 
+import { cursorOf, passageWords } from "./words";
+
 export interface WrappedLine {
   text: string;
   startIndex: number;
@@ -64,42 +66,96 @@ export function wrapIntoLines(examText: string, charsPerLine: number): WrappedLi
 }
 
 /**
- * Which line the caret (i.e. `typedText.length`) currently sits in, as an
- * index into `lines`. The line whose `[startIndex, endIndex)` range
- * contains `typedTextLength` "wins"; once everything has been typed
- * (`typedTextLength === examText.length`) there's no such line, so this
- * clamps to the last line.
+ * The passage index the caret points at: the next character to type in the
+ * word being typed (or the space closing it once the word is full length).
+ * Typed text is judged word by word (words.ts), so this is NOT simply
+ * `typedText.length` — a short or long word shifts the two apart.
  */
-export function currentLineIndex(lines: WrappedLine[], typedTextLength: number): number {
+export function caretIndex(examText: string, typedText: string): number {
+  const { wordIndex, pos } = cursorOf(typedText);
+  const words = passageWords(examText);
+  if (wordIndex >= words.length) return examText.length;
+  let start = 0;
+  for (let w = 0; w < wordIndex; w++) start += words[w].length + 1;
+  return Math.min(start + Math.min(pos, words[wordIndex].length), examText.length);
+}
+
+/**
+ * Which line holds `index` (see caretIndex), as an index into `lines`. The
+ * line whose `[startIndex, endIndex)` range contains it wins; at the very
+ * end of the passage there is no such line, so this clamps to the last one.
+ */
+export function currentLineIndex(lines: WrappedLine[], index: number): number {
   if (lines.length === 0) return 0;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    if (typedTextLength >= line.startIndex && typedTextLength < line.endIndex) return i;
+    if (index >= line.startIndex && index < line.endIndex) return i;
   }
   return lines.length - 1;
 }
 
-export type CharState = "correct" | "incorrect" | "caret" | "pending";
+export type CharState = "correct" | "incorrect" | "missed" | "caret" | "pending";
+
+export interface RenderedChar {
+  ch: string;
+  state: CharState;
+  /** True for a character typed past the end of its word (not in the passage). */
+  extra?: boolean;
+}
 
 /**
- * Per-character render state for one line, character-index-exact against
- * the SAME absolute `examText` index space `wrapIntoLines` uses: character
- * `j` within `line.text` is `examText`/`typedText` index `line.startIndex + j`.
- * Deliberately does NOT compare against a line-relative substring of
- * `typedText` — that would silently break correctness across line
- * boundaries whenever `charsPerLine` changes (e.g. on window resize).
+ * Per-character render state for one line, judged word by word exactly as
+ * scoring does (words.ts): passage character `p` of word `w` is compared
+ * with typed word `w`'s character `p`. Characters typed past the end of a
+ * word are shown after it (state "incorrect", `extra`), and characters a
+ * finished word is missing are "missed".
  */
-export function classifyLineChars(line: WrappedLine, examText: string, typedText: string): CharState[] {
-  const states: CharState[] = new Array(line.text.length);
-  for (let j = 0; j < line.text.length; j++) {
-    const absIndex = line.startIndex + j;
-    if (absIndex < typedText.length) {
-      states[j] = typedText[absIndex] === examText[absIndex] ? "correct" : "incorrect";
-    } else if (absIndex === typedText.length) {
-      states[j] = "caret";
-    } else {
-      states[j] = "pending";
-    }
+export function renderLineChars(line: WrappedLine, examText: string, typedText: string): RenderedChar[] {
+  const words = passageWords(examText);
+  const typedWords = typedText.split(" ");
+  const { wordIndex: curWord, pos: curPos } = cursorOf(typedText);
+  const out: RenderedChar[] = [];
+
+  // Start of the word containing line.startIndex.
+  let wi = 0;
+  let wordStart = 0;
+  while (wi < words.length && wordStart + words[wi].length + 1 <= line.startIndex) {
+    wordStart += words[wi].length + 1;
+    wi++;
   }
-  return states;
+
+  for (let a = line.startIndex; a < line.endIndex; a++) {
+    while (wi < words.length && a > wordStart + words[wi].length) {
+      wordStart += words[wi].length + 1;
+      wi++;
+    }
+    const target = words[wi] ?? "";
+    const p = a - wordStart;
+    const typed = typedWords[wi];
+    const isCurrent = wi === curWord;
+    const ch = examText[a];
+
+    if (p < target.length) {
+      let state: CharState;
+      if (typed === undefined || wi > curWord) state = "pending";
+      else if (p < typed.length) state = typed[p] === ch ? "correct" : "incorrect";
+      else if (isCurrent) state = p === curPos ? "caret" : "pending";
+      else state = "missed"; // word was left before this character was typed
+      out.push({ ch, state });
+      continue;
+    }
+
+    // p === target.length: the space closing the word. Extras typed past
+    // the end of the word are shown first, then the space.
+    if (typed !== undefined && typed.length > target.length) {
+      for (let k = target.length; k < typed.length; k++) {
+        out.push({ ch: typed[k], state: "incorrect", extra: true });
+      }
+    }
+    let state: CharState = "pending";
+    if (typed !== undefined && wi < curWord) state = typed.length === target.length ? "correct" : "missed";
+    else if (isCurrent && curPos >= target.length) state = "caret";
+    out.push({ ch, state });
+  }
+  return out;
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { wrapIntoLines, currentLineIndex, classifyLineChars, type WrappedLine } from "./lineWrap";
+import { wrapIntoLines, currentLineIndex, caretIndex, renderLineChars, type WrappedLine } from "./lineWrap";
 
 function reconstruct(lines: WrappedLine[]): string {
   return lines.map((l) => l.text).join("");
@@ -117,49 +117,50 @@ describe("currentLineIndex", () => {
   });
 });
 
-describe("classifyLineChars", () => {
+describe("renderLineChars / caretIndex (word-aligned)", () => {
   const examText = "abcdef ghij";
-  // wrapIntoLines(examText, 6) -> [{"abcdef", 0, 6}, {" ghij", 6, 11}]
   const lines = wrapIntoLines(examText, 6);
+  const states = (line: WrappedLine, typed: string) => renderLineChars(line, examText, typed).map((c) => c.state);
 
-  it("marks correct/incorrect chars exactly at absolute index, not line-relative", () => {
-    // Typed "abXdef" (X wrong at absolute index 2), exactly filling line 0.
-    const typedText = "abXdef";
-    const states = classifyLineChars(lines[0], examText, typedText);
-    expect(states).toEqual(["correct", "correct", "incorrect", "correct", "correct", "correct"]);
+  it("marks correct/incorrect chars within their own word", () => {
+    expect(states(lines[0], "abXdef")).toEqual(["correct", "correct", "incorrect", "correct", "correct", "correct"]);
   });
 
-  it("places the caret at the first untyped absolute index", () => {
-    const typedText = "abc";
-    const states = classifyLineChars(lines[0], examText, typedText);
-    expect(states[3]).toBe("caret");
-    expect(states.slice(0, 3)).toEqual(["correct", "correct", "correct"]);
-    expect(states.slice(4).every((s) => s === "pending")).toBe(true);
+  it("places the caret at the next untyped character of the current word", () => {
+    const st = states(lines[0], "abc");
+    expect(st.slice(0, 3)).toEqual(["correct", "correct", "correct"]);
+    expect(st[3]).toBe("caret");
+    expect(st.slice(4).every((x) => x === "pending")).toBe(true);
+    expect(caretIndex(examText, "abc")).toBe(3);
   });
 
-  it("shows the caret on the second line once the first line is fully typed", () => {
-    const typedText = lines[0].text; // "abcdef" — exactly finishes line 0
-    const statesLine0 = classifyLineChars(lines[0], examText, typedText);
-    const statesLine1 = classifyLineChars(lines[1], examText, typedText);
-    expect(statesLine0.includes("caret")).toBe(false);
-    expect(statesLine1[0]).toBe("caret");
+  it("puts the caret on the closing space once the word is full length, then in the next word", () => {
+    expect(states(lines[0], "abcdef").every((x) => x === "correct")).toBe(true);
+    expect(states(lines[1], "abcdef")[0]).toBe("caret");
+    expect(caretIndex(examText, "abcdef")).toBe(6);
+    expect(states(lines[1], "abcdef ")[0]).toBe("correct");
+    expect(states(lines[1], "abcdef ")[1]).toBe("caret");
+    expect(caretIndex(examText, "abcdef ")).toBe(7);
   });
 
-  it("marks a wrong character using the SAME absolute index across line boundaries, with zero cascade onto line 0", () => {
-    // 'X' typed in place of the space at absolute index 6 (line 1's first
-    // char) must not affect line 0's (already-correct) classification at
-    // all — this is the no-cascade property TypingField must preserve.
-    const typedText = "abcdefX";
-    const statesLine0 = classifyLineChars(lines[0], examText, typedText);
-    const statesLine1 = classifyLineChars(lines[1], examText, typedText);
-    expect(statesLine0.every((s) => s === "correct")).toBe(true);
-    expect(statesLine1[0]).toBe("incorrect");
-    expect(statesLine1[1]).toBe("caret");
+  it("a mistake in one word does not touch the next word (no cascade)", () => {
+    // "abcdf" typed for "abcdef" (e dropped), space, then "ghij" typed right.
+    const st = states(lines[1], "abcdf ghij");
+    expect(st.slice(1).every((x) => x === "correct")).toBe(true);
+    // The short word's missing characters show as missed, not as a shift.
+    expect(states(lines[0], "abcdf ghij")).toEqual(["correct", "correct", "correct", "correct", "incorrect", "missed"]);
+  });
+
+  it("shows characters typed past the end of a word as extras before the space", () => {
+    // The closing space starts line 1, so the extras are drawn there, before it.
+    const chars = renderLineChars(lines[1], examText, "abcdefXY");
+    expect(chars.map((c) => c.ch).join("")).toBe("XY ghij");
+    expect(chars.slice(0, 2).every((c) => c.extra && c.state === "incorrect")).toBe(true);
   });
 
   it("marks everything pending (except a leading caret) on an empty typedText", () => {
-    const states = classifyLineChars(lines[0], examText, "");
-    expect(states[0]).toBe("caret");
-    expect(states.slice(1).every((s) => s === "pending")).toBe(true);
+    const st = states(lines[0], "");
+    expect(st[0]).toBe("caret");
+    expect(st.slice(1).every((x) => x === "pending")).toBe(true);
   });
 });

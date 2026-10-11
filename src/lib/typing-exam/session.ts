@@ -4,9 +4,10 @@
 
 import type { FinishReason } from "./engine";
 import { cleanExamText } from "./examText";
+import { isPassageComplete, maxTypedLength, passageWords } from "./words";
 import { gradeAttempt, scoreAttempt, type GradeThresholds, type ExamResultTier, type ScoreResult } from "./scoring";
 
-export const ENGINE_VERSION = 2;
+export const ENGINE_VERSION = 3;
 
 /**
  * How long after a session starts it may still be finalized by its own
@@ -51,7 +52,7 @@ export function parseClientSnapshot(body: unknown, examText: string): ClientSnap
   const b = body as Record<string, unknown>;
   if (typeof b.typedText !== "string") return null;
 
-  const typedText = b.typedText.normalize("NFC").slice(0, cleanExamText(examText).length);
+  const typedText = b.typedText.normalize("NFC").slice(0, maxTypedLength(cleanExamText(examText)));
   const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
   const int = (v: unknown) => {
     const n = num(v);
@@ -135,7 +136,7 @@ export function gradeSnapshot(params: {
   const snapshot = clampSnapshotToServer(params.snapshot, durationMs, serverElapsedMs);
   let reason = snapshot.finishReason ?? fallbackReason;
   // A "completed" claim with the passage not fully typed is not a completion.
-  if (reason === "COMPLETED" && snapshot.typedText.length < examText.length) reason = fallbackReason;
+  if (reason === "COMPLETED" && !isPassageComplete(passageWords(examText), snapshot.typedText)) reason = fallbackReason;
 
   const timeMs = resolveScoringTimeMs(reason, snapshot, durationMs, serverElapsedMs);
   const score = scoreAttempt({

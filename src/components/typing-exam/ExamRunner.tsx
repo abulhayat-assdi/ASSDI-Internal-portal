@@ -11,6 +11,7 @@ import ExamReadyScreen from "@/components/typing-exam/ExamReadyScreen";
 import ExamCountdown from "@/components/typing-exam/ExamCountdown";
 import ExamFullscreenBanner from "@/components/typing-exam/ExamFullscreenBanner";
 import TypingField from "@/components/typing-exam/TypingField";
+import { caretIndex } from "@/lib/typing-exam/lineWrap";
 
 type Phase = "ready" | "countdown" | "running" | "finished";
 
@@ -224,7 +225,8 @@ export default function ExamRunner({
   const seconds = String(secondsLeft % 60).padStart(2, "0");
   const timeUrgent = secondsLeft <= 10 && phase === "running";
   const timeProgress = Math.max(0, Math.min(100, (secondsLeft / durationSeconds) * 100));
-  const charProgress = examText.length > 0 ? Math.round((typedText.length / examText.length) * 100) : 0;
+  const charProgress = examText.length > 0 ? Math.round((caretIndex(examText, typedText) / examText.length) * 100) : 0;
+  const waitingForFirstKey = phase === "running" && !!engine && !engine.started;
 
   // While the browser has this container as the fullscreen element, own the
   // whole viewport with a solid light background and center everything —
@@ -282,6 +284,10 @@ export default function ExamRunner({
               <AnimatePresence>
                 {phase === "running" && !isFullscreen && <ExamFullscreenBanner onReenter={requestFullscreen} />}
               </AnimatePresence>
+
+              {waitingForFirstKey && (
+                <p className="text-center text-sm text-slate-500">প্রথম অক্ষর টাইপ করলেই সময় চালু হবে</p>
+              )}
 
               <TypingField
                 examText={examText}

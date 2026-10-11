@@ -64,3 +64,29 @@ body {
     color: transparent;
   }
 }
+
+/* Typing-exam text cursor: a thin bar that blinks like a normal editor caret.
+   Plain CSS (not a JS animation) so it keeps blinking even while the main
+   thread is busy re-rendering on every keystroke. */
+.exam-caret {
+  position: absolute;
+  left: -1px;
+  top: 0.12em;
+  bottom: 0.12em;
+  width: 3px;
+  border-radius: 2px;
+  background-color: var(--color-brand-600, #16a34a);
+  animation: exam-caret-blink 1s step-end infinite;
+  pointer-events: none;
+}
+
+@keyframes exam-caret-blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  50.01%,
+  100% {
+    opacity: 0;
+  }
+}
