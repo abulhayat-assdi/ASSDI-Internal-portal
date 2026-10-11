@@ -8,7 +8,7 @@ interface Group {
   id: string;
   groupName: string;
   batchName: string;
-  members: { roll: string; name: string }[];
+  members: { roll: string; name: string; isLeader?: boolean }[];
 }
 
 export default function SubmitCompetitionForm() {
@@ -72,16 +72,32 @@ export default function SubmitCompetitionForm() {
     } else {
       setStudentName("");
     }
+  };
 
-    // Auto-detect team name from groups if student belongs to a group
-    if (roll && groups.length > 0) {
-      const matchingGroup = groups.find(g => 
-        Array.isArray(g.members) && g.members.some((m: any) => m.roll === roll)
-      );
-      if (matchingGroup) {
-        setTeamName(matchingGroup.groupName);
-      }
-    }
+  // Team-wise flow: the team is picked first, then the roll/absent pickers are
+  // limited to that team's members. Without official groups the team name is
+  // free text and the whole batch stays selectable.
+  const teamFirst = subType === "team" && groups.length > 0;
+  const selectedGroup = teamFirst ? groups.find(g => g.groupName === teamName) : undefined;
+  const teamMembers = selectedGroup && Array.isArray(selectedGroup.members) ? selectedGroup.members : [];
+  const leaderRoll = teamMembers.find(m => m.isLeader)?.roll;
+  const rollOptions: { roll: string; name: string }[] = teamFirst ? teamMembers : students;
+
+  const resetMemberSelection = () => {
+    setRollNumber("");
+    setStudentName("");
+    setAbsentRolls([]);
+  };
+
+  const handleSubTypeChange = (type: "team" | "individual") => {
+    if (type === subType) return;
+    setSubType(type);
+    resetMemberSelection();
+  };
+
+  const handleTeamChange = (name: string) => {
+    setTeamName(name);
+    resetMemberSelection();
   };
 
   const addAbsentRollSlot = () => {
@@ -156,8 +172,8 @@ export default function SubmitCompetitionForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!rollNumber) return toast.error("Please select your Roll Number");
     if (subType === "team" && !teamName) return toast.error("Please select your Team Name");
+    if (!rollNumber) return toast.error("Please select your Roll Number");
 
     for (const field of competition.schema) {
       const error = validateField(field, formData[field.id]);
@@ -263,7 +279,7 @@ export default function SubmitCompetitionForm() {
             <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
               <button
                 type="button"
-                onClick={() => setSubType("team")}
+                onClick={() => handleSubTypeChange("team")}
                 className={`py-2.5 sm:py-3 px-2 sm:px-4 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap border ${
                   subType === "team"
                     ? "bg-emerald-600 text-white border-emerald-600 shadow-md"
@@ -274,7 +290,7 @@ export default function SubmitCompetitionForm() {
               </button>
               <button
                 type="button"
-                onClick={() => setSubType("individual")}
+                onClick={() => handleSubTypeChange("individual")}
                 className={`py-2.5 sm:py-3 px-2 sm:px-4 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap border ${
                   subType === "individual"
                     ? "bg-emerald-600 text-white border-emerald-600 shadow-md"
@@ -286,40 +302,7 @@ export default function SubmitCompetitionForm() {
             </div>
           </div>
 
-          {/* Student & Roll Selectors */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Roll Number <span className="text-red-500">*</span>
-              </label>
-              <select 
-                required 
-                className="w-full bg-white text-slate-900 border border-slate-300 px-4 py-3 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition-all text-sm font-medium"
-                value={rollNumber} 
-                onChange={handleRollChange}
-              >
-                <option value="">-- Select Roll --</option>
-                {students.map(s => (
-                  <option key={s.roll} value={s.roll}>{s.roll}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Student Name
-              </label>
-              <input 
-                type="text" 
-                readOnly 
-                className="w-full bg-slate-100 text-slate-600 border border-slate-200 px-4 py-3 rounded-xl text-sm font-medium cursor-not-allowed"
-                value={studentName} 
-                placeholder="Auto-filled from Roll"
-              />
-            </div>
-          </div>
-
-          {/* Team Name Selector (Dropdown from Created Groups) */}
+          {/* Team Name Selector (Dropdown from Created Groups) — picked first for team reports */}
           {subType === "team" && (
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
@@ -331,7 +314,7 @@ export default function SubmitCompetitionForm() {
                   required
                   className="w-full bg-white text-slate-900 border border-slate-300 px-4 py-3 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition-all text-sm font-medium"
                   value={teamName}
-                  onChange={(e) => setTeamName(e.target.value)}
+                  onChange={(e) => handleTeamChange(e.target.value)}
                 >
                   <option value="">-- Select Official Team Name --</option>
                   {groups.map((g) => (
@@ -341,10 +324,10 @@ export default function SubmitCompetitionForm() {
                   ))}
                 </select>
               ) : (
-                <input 
-                  required 
-                  type="text" 
-                  className="w-full bg-white text-slate-900 border border-slate-300 px-4 py-3 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition-all text-sm placeholder:text-slate-400" 
+                <input
+                  required
+                  type="text"
+                  className="w-full bg-white text-slate-900 border border-slate-300 px-4 py-3 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition-all text-sm placeholder:text-slate-400"
                   placeholder="Enter your official team name"
                   value={teamName}
                   onChange={(e) => setTeamName(e.target.value)}
@@ -352,6 +335,44 @@ export default function SubmitCompetitionForm() {
               )}
             </div>
           )}
+
+          {/* Student & Roll Selectors */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Roll Number <span className="text-red-500">*</span>
+              </label>
+              <select
+                required
+                className="w-full bg-white text-slate-900 border border-slate-300 px-4 py-3 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition-all text-sm font-medium disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
+                value={rollNumber}
+                onChange={handleRollChange}
+                disabled={teamFirst && !selectedGroup}
+              >
+                <option value="">
+                  {teamFirst && !selectedGroup ? "-- Select Team First --" : "-- Select Roll --"}
+                </option>
+                {rollOptions.map(s => (
+                  <option key={s.roll} value={s.roll}>
+                    {teamFirst ? `${s.roll} - ${s.name}${s.roll === leaderRoll ? " (Leader)" : ""}` : s.roll}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Student Name
+              </label>
+              <input
+                type="text"
+                readOnly
+                className="w-full bg-slate-100 text-slate-600 border border-slate-200 px-4 py-3 rounded-xl text-sm font-medium cursor-not-allowed"
+                value={studentName}
+                placeholder="Auto-filled from Roll"
+              />
+            </div>
+          </div>
 
           {/* Absent Team Members Selector (TEAM SUBMISSIONS ONLY) */}
           {subType === "team" && (
@@ -383,11 +404,13 @@ export default function SubmitCompetitionForm() {
                         className="flex-1 min-w-0 max-w-full bg-white border border-amber-300 text-slate-900 px-3 py-2 rounded-lg text-xs sm:text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none font-medium truncate"
                       >
                         <option value="">-- Select Absent Student Roll --</option>
-                        {students.map((s) => (
-                          <option key={s.roll} value={s.roll}>
-                            {s.roll} - {s.name}
-                          </option>
-                        ))}
+                        {rollOptions
+                          .filter((s) => s.roll !== rollNumber && (s.roll === absRoll || !absentRolls.includes(s.roll)))
+                          .map((s) => (
+                            <option key={s.roll} value={s.roll}>
+                              {s.roll} - {s.name}
+                            </option>
+                          ))}
                       </select>
                       <button
                         type="button"
