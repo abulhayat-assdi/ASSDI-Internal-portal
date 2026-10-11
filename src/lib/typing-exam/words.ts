@@ -90,3 +90,37 @@ export function countCorrectChars(passage: string, typed: string): number {
 export function maxTypedLength(passage: string): number {
   return passage.length + MAX_EXTRA_CHARS * Math.max(1, passageWords(passage).length);
 }
+
+/**
+ * The passage index the caret points at: the next character to type in the
+ * word being typed (the closing space once the word is full length). Typed
+ * text is judged word by word, so this is NOT `typedText.length` — a short
+ * or long word shifts the two apart. Used for the "% done" figure.
+ */
+export function caretIndex(passage: string, typed: string): number {
+  const { wordIndex, pos } = cursorOf(typed);
+  const words = passageWords(passage);
+  if (wordIndex >= words.length) return passage.length;
+  let start = 0;
+  for (let w = 0; w < wordIndex; w++) start += words[w].length + 1;
+  return Math.min(start + Math.min(pos, words[wordIndex].length), passage.length);
+}
+
+export type LetterState = "untyped" | "correct" | "wrong" | "extra";
+
+/**
+ * Per-letter state of one passage word given what was typed for it:
+ * letters not yet reached are "untyped", matching ones "correct", others
+ * "wrong", and anything typed past the end of the word is appended as
+ * "extra" letters.
+ */
+export function classifyWord(target: string, typed: string | undefined): { ch: string; state: LetterState }[] {
+  const out: { ch: string; state: LetterState }[] = [];
+  const t = typed ?? "";
+  for (let j = 0; j < target.length; j++) {
+    const state: LetterState = j >= t.length ? "untyped" : t[j] === target[j] ? "correct" : "wrong";
+    out.push({ ch: target[j], state });
+  }
+  for (let j = target.length; j < t.length; j++) out.push({ ch: t[j], state: "extra" });
+  return out;
+}

@@ -65,23 +65,26 @@ body {
   }
 }
 
-/* Typing-exam text cursor: a thin bar that blinks like a normal editor caret.
-   Plain CSS (not a JS animation) so it keeps blinking even while the main
-   thread is busy re-rendering on every keystroke. */
+/* Typing-exam text cursor: a thin bar in the portal's brand green. It is one
+   element that slides between characters (position set inline), solid while
+   the taker is typing and blinking once idle — like Monkeytype's. Plain CSS
+   so it keeps blinking while React re-renders on every keystroke. */
 .exam-caret {
   position: absolute;
-  left: -2px;
-  top: 0.02em;
-  bottom: 0.02em;
-  width: 3px;
+  left: 0;
+  top: 0;
+  width: 2.5px;
+  margin-left: -1px;
   border-radius: 2px;
-  /* Blue so it never blends into the green "typed correctly" text or the
-     grey upcoming text; the glow keeps it visible on any background. */
-  background-color: #2563eb;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9), 0 0 8px rgba(37, 99, 235, 0.55);
+  background-color: var(--color-brand-600, #16a34a);
   animation: exam-caret-blink 1.06s step-end infinite;
   pointer-events: none;
-  z-index: 1;
+  will-change: transform;
+}
+
+.exam-caret--solid {
+  animation: none;
+  opacity: 1;
 }
 
 @keyframes exam-caret-blink {
