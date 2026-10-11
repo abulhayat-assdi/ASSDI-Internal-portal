@@ -9,6 +9,15 @@
 // always reads engine.snapshot(), which is the live state.
 
 import type { KeystrokeCounts } from "./scoring";
+import { isCharCorrect, isPassageComplete, isTypeable, passageWords, sanitizeTyped } from "./words";
+
+/**
+ * The clock starts at the first keystroke (as on Monkeytype), so reading the
+ * passage is not charged against the taker. If nothing is typed for this
+ * long after the countdown the clock starts anyway, which bounds how long a
+ * run can sit idle (the server only accepts data for a limited window).
+ */
+export const IDLE_START_MS = 20_000;
 
 export type FinishReason = "TIME_UP" | "COMPLETED" | "ABANDONED";
 
@@ -27,7 +36,11 @@ export class TypingExamEngine {
   private typed = "";
   private keystrokesTotal = 0;
   private keystrokesCorrect = 0;
+  /** When the countdown ended and typing was allowed (clock not yet running). */
+  private armedAt: number | null = null;
+  /** When the clock started: the first keystroke, or the idle limit. */
   private startedAt: number | null = null;
+  private readonly words: string[];
   private finishedAt: number | null = null;
   private reason: FinishReason | null = null;
   /** Bumped on every accepted change; lets the UI skip redundant autosaves. */
@@ -36,6 +49,7 @@ export class TypingExamEngine {
   constructor(text: string, durationMs: number) {
     this.text = text.normalize("NFC");
     this.durationMs = Math.max(0, durationMs);
+    this.words = passageWords(this.text);
   }
 
   get started(): boolean {
@@ -58,9 +72,10 @@ export class TypingExamEngine {
     return this.rev;
   }
 
+  /** Allows typing from `now`. The clock itself starts at the first keystroke. */
   start(now: number): void {
-    if (this.startedAt !== null) return;
-    this.startedAt = now;
+    if (this.armedAt !== null) return;
+    this.armedAt = now;
   }
 
   remainingMs(now: number): number {
@@ -74,7 +89,11 @@ export class TypingExamEngine {
    * by time-up (so the caller submits once).
    */
   tick(now: number): boolean {
-    if (this.startedAt === null || this.finished) return false;
+    if (this.armedAt === null || this.finished) return false;
+    if (this.startedAt === null) {
+      if (now - this.armedAt < IDLE_START_MS) return false;
+      this.startedAt = this.armedAt + IDLE_START_MS;
+    }
     if (now - this.startedAt >= this.durationMs) {
       this.finish("TIME_UP", this.startedAt + this.durationMs);
       return true;
@@ -91,32 +110,38 @@ export class TypingExamEngine {
    * against the passage at its own index. Deletions are not keystrokes.
    */
   input(value: string, now: number): string {
-    if (this.startedAt === null || this.finished) return this.typed;
+    if (this.armedAt === null || this.finished) return this.typed;
     // Input that arrives after the deadline (a late timer tick) must not count.
     if (this.tick(now)) return this.typed;
 
     // NFC so a Bangla keyboard that emits e.g. "ে" + "া" lines up with a
     // passage storing the precomposed "ো" (the passage is NFC — see examText.ts).
-    const normalized = value.normalize("NFC");
-    const next = normalized.length > this.text.length ? normalized.slice(0, this.text.length) : normalized;
+    // Spaces on an empty word are dropped (Monkeytype behaviour).
+    const next = sanitizeTyped(value.normalize("NFC"));
     const prev = this.typed;
     if (next === prev) return prev;
+    // More words than the passage, or a runaway word: refuse, keep what we had.
+    if (!isTypeable(this.words, next)) return prev;
 
+    if (this.startedAt === null) this.startedAt = now;
+
+    // Keystrokes are the characters after the common prefix with the
+    // previous value, each judged against ITS OWN word's target (so an
+    // earlier slip never turns later characters into "wrong" ones).
     let p = 0;
     while (p < prev.length && p < next.length && prev[p] === next[p]) p++;
     for (let i = p; i < next.length; i++) {
       this.keystrokesTotal++;
-      if (next[i] === this.text[i]) this.keystrokesCorrect++;
+      if (isCharCorrect(this.words, next, i)) this.keystrokesCorrect++;
     }
 
     this.typed = next;
     this.rev++;
 
-    // Like Monkeytype's quote/words modes: typing the last character of the
-    // passage ends the run, and the time spent is the time taken.
-    if (this.text.length > 0 && next.length >= this.text.length) {
-      this.finish("COMPLETED", now);
-    }
+    // Like Monkeytype's quote/words modes: typing the last word of the
+    // passage to its full length ends the run, and the time spent is the
+    // time taken.
+    if (isPassageComplete(this.words, next)) this.finish("COMPLETED", now);
     return next;
   }
 

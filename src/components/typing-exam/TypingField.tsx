@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { classifyLineChars, currentLineIndex, wrapIntoLines, type WrappedLine } from "@/lib/typing-exam/lineWrap";
+import { caretIndex, currentLineIndex, renderLineChars, wrapIntoLines, type WrappedLine } from "@/lib/typing-exam/lineWrap";
 
 export interface TypingFieldProps {
   examText: string;
@@ -100,7 +100,10 @@ export default function TypingField({ examText, typedText, onChange, disabled }:
   }, [disabled]);
 
   const lines = useMemo(() => wrapIntoLines(examText, charsPerLine), [examText, charsPerLine]);
-  const curIndex = useMemo(() => currentLineIndex(lines, typedText.length), [lines, typedText.length]);
+  const curIndex = useMemo(
+    () => currentLineIndex(lines, caretIndex(examText, typedText)),
+    [lines, examText, typedText]
+  );
 
   // 4-line window, current line pinned at the 3rd visible slot (2 lines of
   // completed context above, 1 line of upcoming text below) once there's
@@ -215,11 +218,10 @@ function LineChars({
   typedText: string;
   reduceMotion: boolean;
 }) {
-  const states = classifyLineChars(line, examText, typedText);
+  const chars = renderLineChars(line, examText, typedText);
   return (
     <>
-      {line.text.split("").map((ch, j) => {
-        const state = states[j];
+      {chars.map(({ ch, state }, j) => {
         if (state === "caret") {
           return (
             <span key={j} className="relative inline-block">
@@ -238,7 +240,9 @@ function LineChars({
             ? "text-emerald-600"
             : state === "incorrect"
               ? "rounded-[3px] bg-yellow-300 text-slate-900"
-              : "text-slate-300";
+              : state === "missed"
+                ? "rounded-[3px] bg-yellow-100 text-slate-500"
+                : "text-slate-300";
         return (
           <span key={j} className={cls}>
             {ch}
