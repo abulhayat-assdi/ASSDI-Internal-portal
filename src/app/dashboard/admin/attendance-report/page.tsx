@@ -111,8 +111,7 @@ export default function AttendanceReportPage() {
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800">অ্যাটেনডেন্স রিপোর্ট</h1>
                     <p className="text-slate-500 text-sm mt-1">
-                        ব্যাচ ও তারিখ অনুযায়ী উপস্থিতির হার। দেরিতে আসা উপস্থিত হিসেবে গোনা হয়; মঞ্জুর করা
-                        ছুটি হিসাবের বাইরে থাকে।
+                        ব্যাচ ও তারিখ অনুযায়ী উপস্থিতির হার। Late counts as present; days On Leave are left out of the percentage.
                     </p>
                 </div>
                 <button
@@ -211,10 +210,10 @@ export default function AttendanceReportPage() {
                                 <th className="text-left px-4 py-3">ব্যাচ</th>
                                 <th className="text-left px-4 py-3">রোল</th>
                                 <th className="text-left px-4 py-3">নাম</th>
-                                <th className="text-right px-4 py-3">উপস্থিত</th>
-                                <th className="text-right px-4 py-3">দেরিতে</th>
-                                <th className="text-right px-4 py-3">অনুপস্থিত</th>
-                                <th className="text-right px-4 py-3">ছুটি</th>
+                                <th className="text-right px-4 py-3">Present</th>
+                                <th className="text-right px-4 py-3">Late</th>
+                                <th className="text-right px-4 py-3">Absent</th>
+                                <th className="text-right px-4 py-3">On Leave</th>
                                 <th className="text-right px-4 py-3">হার</th>
                             </tr>
                         </thead>

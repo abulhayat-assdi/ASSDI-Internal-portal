@@ -141,7 +141,13 @@ export async function POST(req: NextRequest) {
             // Only students who really are in this batch — a stale tab or a
             // hand-made request must not write records for someone else's batch.
             const students = await tx.batchStudent.findMany({
-                where: { courseId, batchId: batch.id, id: { in: records.map((r) => r.studentId) } },
+                where: {
+                    courseId,
+                    batchId: batch.id,
+                    id: { in: records.map((r) => r.studentId) },
+                    // Incomplete / Expelled students are not in the roll call.
+                    courseStatus: { notIn: ["Incomplete", "Expelled"] },
+                },
                 select: { id: true, roll: true, name: true },
             });
             const byId = new Map(students.map((s) => [s.id, s]));

@@ -55,7 +55,7 @@ export default function StudentAttendancePage() {
             <div>
                 <h1 className="text-2xl font-bold text-slate-800">আমার উপস্থিতি</h1>
                 <p className="text-slate-500 text-sm mt-1">
-                    দেরিতে আসা উপস্থিত হিসেবে গোনা হয়। মঞ্জুর করা ছুটি হিসাবের বাইরে থাকে।
+                    Late counts as present. Days On Leave are left out of the percentage.
                 </p>
             </div>
 
