@@ -57,6 +57,9 @@ export default function AdminStudentLeavesPage() {
     const [exportTargetType, setExportTargetType] = useState<"batch" | "student">("batch");
     const [exportBatch, setExportBatch] = useState("ALL");
     const [exportStudentRoll, setExportStudentRoll] = useState("");
+    const [exportStatus, setExportStatus] = useState<"ALL" | "APPROVED" | "PENDING" | "REJECTED">("ALL");
+    const [exportFrom, setExportFrom] = useState("");
+    const [exportTo, setExportTo] = useState("");
 
     // Add Leave Modal states
     const [isAddLeaveModalOpen, setIsAddLeaveModalOpen] = useState(false);
@@ -305,7 +308,7 @@ export default function AdminStudentLeavesPage() {
                 exportRecords = exportBatch === "ALL"
                     ? requests
                     : requests.filter(r => r.studentBatchName === exportBatch);
-                fileName = `Leave_Records_${exportBatch === "ALL" ? "All_Batches" : exportBatch}_${new Date().toISOString().split("T")[0]}.xlsx`;
+                fileName = `Leave_Records_${exportBatch === "ALL" ? "All_Batches" : exportBatch}_${new Date().toLocaleDateString("en-CA")}.xlsx`;
             } else {
                 exportRecords = requests.filter(r => {
                     const matchesBatch = exportBatch === "ALL" || r.studentBatchName === exportBatch;
@@ -314,8 +317,21 @@ export default function AdminStudentLeavesPage() {
                 });
                 const studentObj = exportRecords[0];
                 const studentNameClean = studentObj ? studentObj.studentName.replace(/\s+/g, "_") : "Student";
-                fileName = `Leave_Record_${studentNameClean}_Roll_${exportStudentRoll}_${new Date().toISOString().split("T")[0]}.xlsx`;
+                fileName = `Leave_Record_${studentNameClean}_Roll_${exportStudentRoll}_${new Date().toLocaleDateString("en-CA")}.xlsx`;
             }
+
+            // Status + date-range filters. A leave is included when it
+            // overlaps the chosen range (ISO strings compare chronologically).
+            if (exportStatus !== "ALL") {
+                exportRecords = exportRecords.filter(r => r.status === exportStatus);
+            }
+            if (exportFrom) exportRecords = exportRecords.filter(r => r.endDate >= exportFrom);
+            if (exportTo) exportRecords = exportRecords.filter(r => r.startDate <= exportTo);
+            exportRecords = [...exportRecords].sort((a, b) =>
+                a.studentBatchName.localeCompare(b.studentBatchName, undefined, { numeric: true, sensitivity: "base" }) ||
+                a.studentRoll.localeCompare(b.studentRoll, undefined, { numeric: true, sensitivity: "base" }) ||
+                a.startDate.localeCompare(b.startDate)
+            );
 
             if (exportRecords.length === 0) {
                 alert("No leave records found matching the selected export options.");
@@ -332,6 +348,8 @@ export default function AdminStudentLeavesPage() {
             sheetData.push([
                 `Filter Type: ${exportTargetType === "batch" ? "Whole Batch" : "Single Student"}`,
                 `Selected Batch: ${exportBatch}`,
+                `Status: ${exportStatus === "ALL" ? "All" : exportStatus}`,
+                `Period: ${exportFrom || exportTo ? `${exportFrom || "start"} to ${exportTo || "now"}` : "All time"}`,
                 `Exported Records: ${exportRecords.length}`
             ]);
             sheetData.push([`Generated on: ${new Date().toLocaleString()}`]);
@@ -385,6 +403,40 @@ export default function AdminStudentLeavesPage() {
             ];
 
             XLSX.utils.book_append_sheet(wb, ws, "Leave Records");
+
+            // Per-student summary: approved leaves/days are what counts as
+            // time actually missed; pending/rejected are listed separately.
+            const summary = new Map<string, {
+                name: string; roll: string; batch: string; phone: string;
+                approved: number; approvedDays: number; pending: number; rejected: number; last: string;
+            }>();
+            exportRecords.forEach(r => {
+                const key = `${r.studentBatchName}::${r.studentRoll}`;
+                const row = summary.get(key) ?? {
+                    name: r.studentName, roll: r.studentRoll, batch: r.studentBatchName,
+                    phone: r.studentPhone || "-", approved: 0, approvedDays: 0, pending: 0, rejected: 0, last: "",
+                };
+                if (r.status === "APPROVED") {
+                    row.approved += 1;
+                    row.approvedDays += getLeaveDays(r.startDate, r.endDate);
+                } else if (r.status === "PENDING") row.pending += 1;
+                else row.rejected += 1;
+                if (r.endDate > row.last) row.last = r.endDate;
+                summary.set(key, row);
+            });
+            const summaryData: (string | number)[][] = [[
+                "Student Name", "Roll Number", "Mobile Number", "Batch Name",
+                "Approved Leaves", "Approved Days", "Pending", "Rejected", "Last Leave Ended",
+            ]];
+            [...summary.values()]
+                .sort((a, b) => b.approvedDays - a.approvedDays)
+                .forEach(r => summaryData.push([
+                    r.name, r.roll, r.phone, r.batch, r.approved, r.approvedDays, r.pending, r.rejected,
+                    r.last ? formatDateSafe(r.last) : "-",
+                ]));
+            const summaryWs = XLSX.utils.aoa_to_sheet(summaryData);
+            summaryWs['!cols'] = [{ wch: 25 }, { wch: 12 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 18 }];
+            XLSX.utils.book_append_sheet(wb, summaryWs, "Student Summary");
             XLSX.writeFile(wb, fileName);
             setIsExportModalOpen(false);
         } catch (err) {
@@ -872,6 +924,44 @@ export default function AdminStudentLeavesPage() {
                                 )}
                             </div>
                         )}
+
+                        {/* Filters: status + period */}
+                        <div className="space-y-2">
+                            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+                                {exportTargetType === "student" ? "৪" : "৩"}. ফিল্টার (ঐচ্ছিক):
+                            </label>
+                            <select
+                                value={exportStatus}
+                                onChange={(e) => setExportStatus(e.target.value as typeof exportStatus)}
+                                className="w-full p-2.5 text-xs border border-slate-200 bg-slate-50 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#059669] focus:bg-white text-slate-800 font-medium"
+                            >
+                                <option value="ALL">সব স্ট্যাটাস</option>
+                                <option value="APPROVED">শুধু Approved</option>
+                                <option value="PENDING">শুধু Pending</option>
+                                <option value="REJECTED">শুধু Rejected</option>
+                            </select>
+                            <div className="grid grid-cols-2 gap-3">
+                                <label className="text-[11px] text-slate-500">
+                                    শুরুর তারিখ
+                                    <input
+                                        type="date"
+                                        value={exportFrom}
+                                        onChange={(e) => setExportFrom(e.target.value)}
+                                        className="mt-1 w-full p-2 text-xs border border-slate-200 bg-slate-50 rounded-xl"
+                                    />
+                                </label>
+                                <label className="text-[11px] text-slate-500">
+                                    শেষ তারিখ
+                                    <input
+                                        type="date"
+                                        value={exportTo}
+                                        min={exportFrom || undefined}
+                                        onChange={(e) => setExportTo(e.target.value)}
+                                        className="mt-1 w-full p-2 text-xs border border-slate-200 bg-slate-50 rounded-xl"
+                                    />
+                                </label>
+                            </div>
+                        </div>
 
                         {/* Action Buttons */}
                         <div className="flex gap-3 pt-3 border-t border-slate-100">

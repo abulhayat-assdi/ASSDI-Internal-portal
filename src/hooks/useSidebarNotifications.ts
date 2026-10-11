@@ -36,7 +36,8 @@ export function useSidebarNotifications() {
                     "/dashboard/admin/manage-homework",
                     "/dashboard/feedback",
                     "/dashboard/admin/contact-messages",
-                    "/dashboard/messages"
+                    "/dashboard/messages",
+                    "/dashboard/leave-status"
                 ];
                 
                 const queryParams = new URLSearchParams();

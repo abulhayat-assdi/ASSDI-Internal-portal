@@ -20,6 +20,7 @@ import {
     StudentNotice
 } from "@/services/dashboardService";
 import Button from "@/components/ui/Button";
+import OnLeaveTodayCard from "@/components/leave/OnLeaveTodayCard";
 
 
 export default function DashboardPage() {
@@ -293,6 +294,8 @@ export default function DashboardPage() {
                     </svg>
                 </div>
             </div>
+
+            <OnLeaveTodayCard />
 
             {/* Notice Board */}
             <div>

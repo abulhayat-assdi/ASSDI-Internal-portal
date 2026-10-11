@@ -11,6 +11,8 @@ type Leave = {
     startDate: string;
     endDate: string;
     reason: string;
+    totalLeaves: number;
+    totalLeaveDays: number;
 };
 
 type Batch = { id: string; name: string };
@@ -200,6 +202,9 @@ export default function LeaveStatusPage() {
                                                 <div className="text-xs text-slate-500">
                                                     {l.studentBatchName} · Roll {l.studentRoll}
                                                 </div>
+                                                <div className="text-xs text-slate-400">
+                                                    Total: {l.totalLeaves} leave{l.totalLeaves === 1 ? "" : "s"} · {l.totalLeaveDays} day(s)
+                                                </div>
                                             </td>
                                             <td className="px-4 py-3 whitespace-nowrap">
                                                 {l.studentPhone ? (
@@ -228,6 +233,9 @@ export default function LeaveStatusPage() {
                                     <div className="font-medium text-slate-900">{l.studentName}</div>
                                     <div className="text-xs text-slate-500">
                                         {l.studentBatchName} · Roll {l.studentRoll}
+                                    </div>
+                                    <div className="text-xs text-slate-400">
+                                        Total: {l.totalLeaves} leave{l.totalLeaves === 1 ? "" : "s"} · {l.totalLeaveDays} day(s)
                                     </div>
                                     {l.studentPhone && (
                                         <a href={`tel:${l.studentPhone}`} className="block text-blue-600">
