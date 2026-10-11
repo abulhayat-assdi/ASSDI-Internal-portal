@@ -70,14 +70,18 @@ body {
    thread is busy re-rendering on every keystroke. */
 .exam-caret {
   position: absolute;
-  left: -1px;
-  top: 0.12em;
-  bottom: 0.12em;
+  left: -2px;
+  top: 0.02em;
+  bottom: 0.02em;
   width: 3px;
   border-radius: 2px;
-  background-color: var(--color-brand-600, #16a34a);
-  animation: exam-caret-blink 1s step-end infinite;
+  /* Blue so it never blends into the green "typed correctly" text or the
+     grey upcoming text; the glow keeps it visible on any background. */
+  background-color: #2563eb;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9), 0 0 8px rgba(37, 99, 235, 0.55);
+  animation: exam-caret-blink 1.06s step-end infinite;
   pointer-events: none;
+  z-index: 1;
 }
 
 @keyframes exam-caret-blink {

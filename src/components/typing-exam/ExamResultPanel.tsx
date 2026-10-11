@@ -9,6 +9,12 @@ export interface ExamResultPanelData {
   wpm: number;
   accuracy: number;
   result: "PASS" | "AVERAGE" | "FAIL";
+  /** Extra breakdown; absent when talking to an older server. */
+  rawWpm?: number;
+  correctChars?: number;
+  totalChars?: number;
+  wrongKeystrokes?: number;
+  durationSeconds?: number;
 }
 
 /**
@@ -98,6 +104,8 @@ export default function ExamResultPanel({ result, variant, displayName, onRetry 
         </motion.div>
       </motion.div>
 
+      <DetailRow result={result} />
+
       {variant === "student" && onRetry && (
         <div className="pt-2">
           <p className="mb-3 text-xs text-slate-400">
@@ -114,5 +122,33 @@ export default function ExamResultPanel({ result, variant, displayName, onRetry 
         </div>
       )}
     </motion.div>
+  );
+}
+
+function formatDuration(totalSeconds: number): string {
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return m > 0 ? `${m} মি ${s} সে` : `${s} সে`;
+}
+
+/** Small breakdown under the headline numbers: what the WPM and accuracy were made of. */
+function DetailRow({ result }: { result: ExamResultPanelData }) {
+  const items: { label: string; value: string }[] = [];
+  if (typeof result.rawWpm === "number") items.push({ label: "Raw WPM", value: String(Math.round(result.rawWpm)) });
+  if (typeof result.correctChars === "number" && typeof result.totalChars === "number") {
+    items.push({ label: "সঠিক অক্ষর", value: `${result.correctChars}/${result.totalChars}` });
+  }
+  if (typeof result.wrongKeystrokes === "number") items.push({ label: "ভুল কী-স্ট্রোক", value: String(result.wrongKeystrokes) });
+  if (typeof result.durationSeconds === "number") items.push({ label: "সময়", value: formatDuration(result.durationSeconds) });
+  if (items.length === 0) return null;
+  return (
+    <dl className="mx-auto grid max-w-md grid-cols-2 gap-x-6 gap-y-3 rounded-xl border border-slate-100 bg-white/60 px-5 py-4 text-left sm:grid-cols-4 sm:text-center">
+      {items.map((it) => (
+        <div key={it.label}>
+          <dd className="text-base font-bold tabular-nums text-slate-700">{it.value}</dd>
+          <dt className="mt-0.5 text-[11px] text-slate-400">{it.label}</dt>
+        </div>
+      ))}
+    </dl>
   );
 }
