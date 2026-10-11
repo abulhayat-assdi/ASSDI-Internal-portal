@@ -17,6 +17,20 @@ export function isInRollCall(courseStatus?: string | null): boolean {
     return !(ROLL_CALL_EXCLUDED_STATUSES as readonly string[]).includes(courseStatus ?? '');
 }
 
+/**
+ * What a student may ask a day to be changed to: any status other than the
+ * one already on the record.
+ */
+export function correctionOptions(current: AttendanceStatus): AttendanceStatus[] {
+    return ATTENDANCE_STATUSES.filter((s) => s !== current);
+}
+
+export const CORRECTION_STATUS_LABELS = {
+    PENDING: 'Pending',
+    APPROVED: 'Approved',
+    REJECTED: 'Rejected',
+} as const;
+
 /** Below this percentage a student shows up on the admin's follow-up list. */
 export const LOW_ATTENDANCE_THRESHOLD = 75;
 

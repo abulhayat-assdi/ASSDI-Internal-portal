@@ -102,6 +102,7 @@ const teacherAdminNavSections: NavSection[] = [
             { href: "/dashboard/admin/access-management", label: "Access Management", icon: "🔑", permission: "access_management" },
             { href: "/dashboard/admin/batch-forms", label: "Batch Forms", icon: "📝", permission: "admin_panel", feature: "batch_forms" },
             { href: "/dashboard/admin/attendance-report", label: "Attendance Report", icon: "📈", permission: "admin_attendance", feature: "attendance" },
+            { href: "/dashboard/admin/attendance-report/requests", label: "Attendance Requests", icon: "✋", permission: "admin_attendance", feature: "attendance" },
             { href: "/dashboard/admin/reports", label: "Reports & Insights", icon: "📊", permission: "reports", feature: "reports" },
             { href: "/dashboard/settings/branding", label: "Branding & Settings", icon: "🎨", permission: "admin_panel" },
         ]

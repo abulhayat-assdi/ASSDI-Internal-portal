@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
-import { getSessionUser, isAdmin, isTeacherOrAdmin } from "@/lib/auth";
+import { getSessionUser, hasRequiredPermission, isAdmin, isTeacherOrAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -75,6 +75,13 @@ export async function GET(req: NextRequest) {
             if (isTeacherOrAdmin(user)) {
                 counts["/dashboard/leave-status"] = await tx.studentLeaveRequest.count({
                     where: { courseId, status: "APPROVED", updatedAt: { gt: getTs("/dashboard/leave-status") } },
+                });
+            }
+
+            // 6. Attendance correction requests waiting on a decision
+            if (isAdmin(user) || hasRequiredPermission(user, "admin_attendance")) {
+                counts["/dashboard/admin/attendance-report/requests"] = await tx.attendanceCorrectionRequest.count({
+                    where: { courseId, status: "PENDING" },
                 });
             }
 

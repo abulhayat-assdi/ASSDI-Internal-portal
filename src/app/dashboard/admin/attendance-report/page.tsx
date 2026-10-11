@@ -8,6 +8,7 @@ import { LOW_ATTENDANCE_THRESHOLD, today as todayStr } from "@/lib/attendance";
 interface Batch {
     id: string;
     name: string;
+    status?: "active" | "archived";
 }
 
 interface Summary {
@@ -47,6 +48,9 @@ export default function AttendanceReportPage() {
     const [to, setTo] = useState(todayStr());
     const [threshold, setThreshold] = useState(LOW_ATTENDANCE_THRESHOLD);
     const [onlyLow, setOnlyLow] = useState(false);
+    // Completed batches keep their attendance; they just stay out of the way
+    // until asked for.
+    const [showCompleted, setShowCompleted] = useState(false);
 
     const [summaries, setSummaries] = useState<Summary[]>([]);
     const [totals, setTotals] = useState<Totals | null>(null);
@@ -64,6 +68,7 @@ export default function AttendanceReportPage() {
         try {
             const params = new URLSearchParams({ from, to, threshold: String(threshold) });
             if (batchName !== "ALL") params.set("batchName", batchName);
+            if (showCompleted) params.set("includeArchived", "1");
             const res = await fetch(`/api/attendance/summary?${params}`);
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "রিপোর্ট লোড করা যায়নি।");
@@ -74,13 +79,22 @@ export default function AttendanceReportPage() {
         } finally {
             setLoading(false);
         }
-    }, [batchName, from, to, threshold]);
+    }, [batchName, from, to, threshold, showCompleted]);
 
     useEffect(() => {
         load();
     }, [load]);
 
     const rows = onlyLow ? summaries.filter((s) => s.low) : summaries;
+    const visibleBatches = showCompleted ? batches : batches.filter((b) => b.status !== "archived");
+
+    const toggleCompleted = (checked: boolean) => {
+        setShowCompleted(checked);
+        // Don't leave a completed batch selected once they are hidden again.
+        if (!checked && batches.some((b) => b.name === batchName && b.status === "archived")) {
+            setBatchName("ALL");
+        }
+    };
 
     const exportXlsx = async () => {
         if (!rows.length) {
@@ -111,7 +125,7 @@ export default function AttendanceReportPage() {
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800">অ্যাটেনডেন্স রিপোর্ট</h1>
                     <p className="text-slate-500 text-sm mt-1">
-                        ব্যাচ ও তারিখ অনুযায়ী উপস্থিতির হার। Late counts as present; days On Leave are left out of the percentage.
+                        রানিং ব্যাচের উপস্থিতির হার, ব্যাচ ও তারিখ অনুযায়ী। Late counts as present; days On Leave are left out of the percentage.
                     </p>
                 </div>
                 <button
@@ -132,9 +146,10 @@ export default function AttendanceReportPage() {
                         className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
                     >
                         <option value="ALL">সব ব্যাচ</option>
-                        {batches.map((b) => (
+                        {visibleBatches.map((b) => (
                             <option key={b.id} value={b.name}>
                                 {b.name}
+                                {b.status === "archived" ? " (Completed)" : ""}
                             </option>
                         ))}
                     </select>
@@ -187,15 +202,26 @@ export default function AttendanceReportPage() {
                 </div>
             )}
 
-            <label className="flex items-center gap-2 text-sm text-slate-600">
-                <input
-                    type="checkbox"
-                    checked={onlyLow}
-                    onChange={(e) => setOnlyLow(e.target.checked)}
-                    className="rounded border-slate-300"
-                />
-                শুধু থ্রেশহোল্ডের নিচের ছাত্রদের দেখাও
-            </label>
+            <div className="flex flex-wrap gap-x-6 gap-y-2">
+                <label className="flex items-center gap-2 text-sm text-slate-600">
+                    <input
+                        type="checkbox"
+                        checked={onlyLow}
+                        onChange={(e) => setOnlyLow(e.target.checked)}
+                        className="rounded border-slate-300"
+                    />
+                    শুধু থ্রেশহোল্ডের নিচের ছাত্রদের দেখাও
+                </label>
+                <label className="flex items-center gap-2 text-sm text-slate-600">
+                    <input
+                        type="checkbox"
+                        checked={showCompleted}
+                        onChange={(e) => toggleCompleted(e.target.checked)}
+                        className="rounded border-slate-300"
+                    />
+                    কমপ্লিট হওয়া ব্যাচও দেখাও
+                </label>
+            </div>
 
             {/* Table */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-x-auto">

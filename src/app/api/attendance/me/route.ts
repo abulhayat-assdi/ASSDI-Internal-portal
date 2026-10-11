@@ -38,12 +38,13 @@ export async function GET(req: NextRequest) {
             select: {
                 status: true,
                 note: true,
-                session: { select: { date: true, subject: true } },
+                session: { select: { id: true, date: true, subject: true } },
             },
         });
 
         const entries = records
             .map((r) => ({
+                sessionId: r.session.id,
                 date: r.session.date,
                 subject: r.session.subject,
                 status: r.status,
