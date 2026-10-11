@@ -1,8 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { caretIndex, currentLineIndex, renderLineChars, wrapIntoLines, type WrappedLine } from "@/lib/typing-exam/lineWrap";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { classifyWord, cursorOf, passageWords, type LetterState } from "@/lib/typing-exam/words";
 
 export interface TypingFieldProps {
   examText: string;
@@ -11,155 +10,212 @@ export interface TypingFieldProps {
   disabled?: boolean;
 }
 
-const MIN_CHARS_PER_LINE = 10;
-const PROBE_CHAR_COUNT = 60;
-const RESIZE_DEBOUNCE_MS = 120;
-// Must exactly match the current-line text classes below — the probe is
-// measured at runtime via getBoundingClientRect, so if these two class
-// lists ever drift apart, charsPerLine goes back to being wrong (the same
-// class of bug as before, just re-introduced by a font-size change instead
-// of a padding one).
-const CURRENT_LINE_TEXT_CLASS = "text-3xl md:text-4xl";
-const OTHER_LINE_TEXT_CLASS = "text-xl md:text-2xl";
+/** Lines visible at once. The line being typed is always the top one. */
+const VISIBLE_LINES = 3;
+/** Line height as a multiple of the font size (the viewport height derives from it). */
+const LINE_HEIGHT_EM = 1.9;
+/** How long the caret stays solid after a keystroke before it resumes blinking. */
+const CARET_SOLID_MS = 550;
+
+const BANGLA_RE = /[ঀ-৿]/;
+
+const LETTER_CLASS: Record<LetterState, string> = {
+  untyped: "text-slate-400",
+  correct: "text-slate-800",
+  wrong: "text-red-500",
+  extra: "text-red-400",
+};
+
+interface WordProps {
+  target: string;
+  typed: string | undefined;
+  /** True once the typist has moved past this word. */
+  done: boolean;
+}
 
 /**
- * Monkeytype-style single-line-focus typing renderer. Purely a controlled
- * VIEW over `typedText` (a plain, fully-recomputed string owned by the
- * parent, exactly as before) — this component never owns or diffs typing
- * state itself, so the index-exact, no-cascade scoring model in
- * scoring.ts stays intact. All character classification goes through
- * `classifyLineChars`/`currentLineIndex` from lineWrap.ts, which work in
- * the same absolute `examText` index space `scoreAttempt` uses.
+ * One passage word. Memoised on (target, typed, done), so a keystroke only
+ * re-renders the word being typed (and the one just left) — the rest of
+ * the passage is untouched, which is what keeps long passages smooth.
+ */
+const Word = memo(function Word({ target, typed, done }: WordProps) {
+  const letters = classifyWord(target, typed);
+  const wrong = done && typed !== target;
+  return (
+    <span
+      className="inline-block"
+      style={wrong ? { textDecoration: "underline", textDecorationColor: "#ef4444", textDecorationThickness: "2px", textUnderlineOffset: "0.18em" } : undefined}
+    >
+      {letters.map((l, i) => (
+        <span key={i} className={LETTER_CLASS[l.state]}>
+          {l.ch}
+        </span>
+      ))}
+    </span>
+  );
+});
+
+interface CaretPos {
+  x: number;
+  y: number;
+  h: number;
+  /** False when the caret jumps to a new line (no slide across the screen). */
+  animate: boolean;
+}
+
+/**
+ * Monkeytype-style typing view: every line is the same size, three lines
+ * are visible, and the line being typed always sits at the top — when it
+ * wraps, the text scrolls up smoothly by one line instead of the focus
+ * jumping around. A single caret slides between characters.
+ *
+ * It is a controlled VIEW over `typedText` (owned by the engine through the
+ * parent); it never owns typing state, so the scoring model is untouched.
+ * Words wrap with the browser's own layout (no character-count guessing),
+ * so it adapts to any width, zoom and font.
  */
 export default function TypingField({ examText, typedText, onChange, disabled }: TypingFieldProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  // Measured against the INNER content wrapper (no horizontal padding of
-  // its own), not the outer padded panel — clientWidth on the outer box
-  // would include its p-6 padding, overestimating available text width by
-  // ~48px (a handful of monospace characters) and causing lines to render
-  // wider than the visible area, clipped by overflow-hidden.
-  const innerRef = useRef<HTMLDivElement>(null);
-  const probeRef = useRef<HTMLSpanElement>(null);
-  const hiddenInputRef = useRef<HTMLInputElement>(null);
-  const reduceMotion = useReducedMotion();
-  const [charsPerLine, setCharsPerLine] = useState(50);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const wordsRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [focused, setFocused] = useState(false);
+  const [scrollY, setScrollY] = useState(0);
+  const [caret, setCaret] = useState<CaretPos | null>(null);
+  const [typing, setTyping] = useState(false);
+  const [layoutTick, setLayoutTick] = useState(0);
+  const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevCaretY = useRef<number | null>(null);
 
-  const measure = useCallback(() => {
-    const inner = innerRef.current;
-    const probe = probeRef.current;
-    if (!inner || !probe) return;
-    const charWidth = probe.getBoundingClientRect().width / PROBE_CHAR_COUNT;
-    if (!charWidth) return;
-    const width = inner.clientWidth;
-    if (!width) return; // transient 0-width mid-layout (e.g. fullscreen transition) — ResizeObserver will fire again once it settles
-    const next = Math.max(MIN_CHARS_PER_LINE, Math.floor(width / charWidth));
-    setCharsPerLine(next);
-  }, []);
+  const words = useMemo(() => passageWords(examText), [examText]);
+  const typedWords = useMemo(() => typedText.split(" "), [typedText]);
+  const { wordIndex: curWord, pos: curPos } = useMemo(() => cursorOf(typedText), [typedText]);
+  const useSans = useMemo(() => BANGLA_RE.test(examText), [examText]);
 
+  // Position the caret on the character about to be typed and keep the
+  // active line pinned at the top of the viewport.
   useLayoutEffect(() => {
-    measure();
-  }, [measure]);
+    const container = wordsRef.current;
+    if (!container) return;
+    const wordEl = container.children[Math.min(curWord, container.children.length - 1)] as HTMLElement | undefined;
+    if (!wordEl) return;
+    const letters = wordEl.children;
+    let x: number;
+    let y: number;
+    let h: number;
+    // Offsets are relative to the (positioned) scroller, which is the
+    // nearest offsetParent of the words and their letters alike.
+    if (letters.length === 0) {
+      x = wordEl.offsetLeft;
+      y = wordEl.offsetTop;
+      h = wordEl.offsetHeight;
+    } else if (curPos < letters.length && curPos < (words[curWord]?.length ?? 0)) {
+      const el = letters[curPos] as HTMLElement;
+      x = el.offsetLeft;
+      y = el.offsetTop;
+      h = el.offsetHeight;
+    } else {
+      // Word typed to (or past) full length: caret sits after its last letter.
+      const el = letters[letters.length - 1] as HTMLElement;
+      x = el.offsetLeft + el.offsetWidth;
+      y = el.offsetTop;
+      h = el.offsetHeight;
+    }
+    const animate = prevCaretY.current === null || Math.abs(prevCaretY.current - y) < 1;
+    prevCaretY.current = y;
+    setCaret((c) => (c && c.x === x && c.y === y && c.h === h && c.animate === animate ? c : { x, y, h, animate }));
+    const top = wordEl.offsetTop;
+    setScrollY((s) => (s === top ? s : top));
+  }, [curWord, curPos, typedText, words, layoutTick]);
 
-  // ResizeObserver tracks the actual rendered box, so it recalculates for
-  // ANY cause of a size change — window resize, sidebar toggle, and
-  // crucially the fullscreen transition, which doesn't reliably fire a
-  // plain `window resize` event at the right moment in every browser.
+  // Wrapping depends on the width: re-measure whenever the box resizes
+  // (window resize, fullscreen, zoom, sidebar toggle).
   useEffect(() => {
-    const el = innerRef.current;
+    const el = rootRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
-    let timeout: ReturnType<typeof setTimeout> | null = null;
+    let raf = 0;
     const ro = new ResizeObserver(() => {
-      if (timeout) clearTimeout(timeout);
-      timeout = setTimeout(measure, RESIZE_DEBOUNCE_MS);
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => setLayoutTick((t) => t + 1));
     });
     ro.observe(el);
     return () => {
       ro.disconnect();
-      if (timeout) clearTimeout(timeout);
+      cancelAnimationFrame(raf);
     };
-  }, [measure]);
+  }, []);
 
-  // Autofocus the hidden input whenever this field becomes interactive
-  // (mirrors the old textarea's post-start focus() call).
+  // Fonts can finish loading after the first measurement.
   useEffect(() => {
-    if (!disabled) hiddenInputRef.current?.focus();
+    if (typeof document === "undefined" || !document.fonts?.ready) return;
+    let alive = true;
+    document.fonts.ready.then(() => alive && setLayoutTick((t) => t + 1)).catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Keep the caret solid while typing; blink once idle.
+  useEffect(() => {
+    if (typedText.length === 0) return;
+    setTyping(true);
+    if (typingTimer.current) clearTimeout(typingTimer.current);
+    typingTimer.current = setTimeout(() => setTyping(false), CARET_SOLID_MS);
+  }, [typedText]);
+  useEffect(
+    () => () => {
+      if (typingTimer.current) clearTimeout(typingTimer.current);
+    },
+    []
+  );
+
+  // Focus the hidden input whenever the field becomes interactive.
+  useEffect(() => {
+    if (!disabled) inputRef.current?.focus();
   }, [disabled]);
 
-  // If focus wanders off the hidden input (a click on the timer, the
-  // fullscreen banner, the page background), the next keystroke would be
-  // silently lost while the clock keeps running. Pull focus back on any key
-  // press — moving focus inside keydown routes that same key to the input.
+  // If focus wanders off (a click elsewhere), the next key press pulls it
+  // back; moving focus inside keydown routes that same key to the input.
   useEffect(() => {
     if (disabled) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      const input = hiddenInputRef.current;
+      const input = inputRef.current;
       if (input && document.activeElement !== input && !e.ctrlKey && !e.metaKey && !e.altKey) input.focus();
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [disabled]);
 
-  const lines = useMemo(() => wrapIntoLines(examText, charsPerLine), [examText, charsPerLine]);
-  const curIndex = useMemo(
-    () => currentLineIndex(lines, caretIndex(examText, typedText)),
-    [lines, examText, typedText]
-  );
+  const focusInput = useCallback(() => inputRef.current?.focus(), []);
 
-  // 4-line window, current line pinned at the 3rd visible slot (2 lines of
-  // completed context above, 1 line of upcoming text below) once there's
-  // enough typed history to fill it — matches a fixed reading position
-  // instead of continuously re-centering, so the window only shifts (by
-  // exactly one line) each time the line in that 3rd slot is finished.
-  const visibleLines = useMemo(() => {
-    const start = Math.max(0, curIndex - 2);
-    const end = Math.min(lines.length, start + 4);
-    return lines.slice(start, end).map((line, i) => ({ line, position: start + i }));
-  }, [lines, curIndex]);
-
-  const focusHiddenInput = () => hiddenInputRef.current?.focus();
-
-  // Typing only ever happens at the end of the text, as on Monkeytype. A
-  // caret moved left (arrow keys, Home, a click) would insert characters in
-  // the middle and shift everything after them; undo/redo and select-all
-  // would rewrite the text in bulk. All of those are blocked here.
+  // Typing only ever happens at the end of the text, as on Monkeytype.
+  // Moving the caret, undo/redo, select-all and Tab/Enter (which would take
+  // focus away or submit a form) are blocked.
   const keepCaretAtEnd = () => {
-    const input = hiddenInputRef.current;
+    const input = inputRef.current;
     if (!input) return;
     const end = input.value.length;
     if (input.selectionStart !== end || input.selectionEnd !== end) input.setSelectionRange(end, end);
   };
   const blockEditingKeys = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    const nav = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown", "Delete"];
+    const nav = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown", "Delete", "Tab", "Enter"];
     const mod = e.ctrlKey || e.metaKey;
-    if (nav.includes(e.key) || (mod && ["a", "z", "y"].includes(e.key.toLowerCase()))) {
-      e.preventDefault();
-    }
+    if (nav.includes(e.key) || (mod && ["a", "z", "y"].includes(e.key.toLowerCase()))) e.preventDefault();
   };
+
+  const showFocusHint = !disabled && !focused;
+  const lineHeight = `${LINE_HEIGHT_EM}em`;
 
   return (
     <div
-      ref={containerRef}
-      onClick={focusHiddenInput}
-      className="relative cursor-text select-none overflow-hidden px-4 py-8 font-mono sm:px-8"
+      ref={rootRef}
+      onClick={focusInput}
+      className="relative mx-auto w-full max-w-5xl cursor-text select-none px-1 sm:px-4"
     >
-      {/* Off-flow width probe used to derive a deterministic charsPerLine
-          from the container's rendered width — monospace only, on purpose,
-          so containerWidth / charWidth is exact. Font size must match
-          CURRENT_LINE_TEXT_CLASS exactly (see note above). */}
-      <span
-        ref={probeRef}
-        aria-hidden="true"
-        className={`pointer-events-none absolute left-0 top-0 whitespace-pre font-mono ${CURRENT_LINE_TEXT_CLASS}`}
-        style={{ visibility: "hidden" }}
-      >
-        {"M".repeat(PROBE_CHAR_COUNT)}
-      </span>
-
       {/* Visually-hidden-but-focusable input captures all keystrokes.
           Deliberately NOT display:none/visibility:hidden — those break
           focus/keyboard capture. */}
       <input
-        ref={hiddenInputRef}
+        ref={inputRef}
         value={typedText}
         onChange={(e) => onChange(e.target.value)}
         onPaste={(e) => e.preventDefault()}
@@ -168,6 +224,8 @@ export default function TypingField({ examText, typedText, onChange, disabled }:
         onDrop={(e) => e.preventDefault()}
         onKeyDown={blockEditingKeys}
         onSelect={keepCaretAtEnd}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         disabled={disabled}
         spellCheck={false}
         autoCorrect="off"
@@ -175,73 +233,64 @@ export default function TypingField({ examText, typedText, onChange, disabled }:
         autoComplete="off"
         aria-label="টাইপিং ইনপুট"
         tabIndex={disabled ? -1 : 0}
-        className="absolute h-0 w-0 overflow-hidden opacity-0"
+        className="absolute left-0 top-0 h-0 w-0 overflow-hidden opacity-0"
       />
 
-      <div ref={innerRef} className="relative flex min-h-[16rem] w-full flex-col items-center justify-center gap-4 py-2">
-        <AnimatePresence mode="popLayout" initial={false}>
-          {visibleLines.map(({ line, position }) => {
-            const isCurrent = position === curIndex;
-            return (
-              <motion.div
-                key={position}
-                layout={!reduceMotion}
-                initial={reduceMotion ? undefined : { opacity: 0, y: position < curIndex ? -14 : 14 }}
-                animate={{ opacity: isCurrent ? 1 : 0.35, y: 0, scale: isCurrent ? 1 : 0.9 }}
-                exit={reduceMotion ? undefined : { opacity: 0, y: -14 }}
-                transition={{ duration: reduceMotion ? 0.1 : 0.28, ease: "easeOut" }}
-                className={`whitespace-pre text-center leading-relaxed ${isCurrent ? `${CURRENT_LINE_TEXT_CLASS} text-slate-800` : `${OTHER_LINE_TEXT_CLASS} text-slate-400`}`}
-              >
-                {isCurrent ? (
-                  <LineChars line={line} examText={examText} typedText={typedText} />
-                ) : (
-                  <span>{line.text}</span>
-                )}
-              </motion.div>
-            );
-          })}
-        </AnimatePresence>
+      <div
+        className={`relative overflow-hidden ${useSans ? "" : "font-mono"} transition-[filter,opacity] duration-200 ${
+          showFocusHint ? "opacity-40 blur-[3px]" : ""
+        }`}
+        style={{
+          fontSize: "clamp(1.2rem, 0.9rem + 1.1vw, 1.9rem)",
+          lineHeight,
+          height: `calc(${VISIBLE_LINES} * ${lineHeight})`,
+        }}
+      >
+        <div
+          className="relative"
+          style={{
+            transform: `translate3d(0, ${-scrollY}px, 0)`,
+            transition: "transform 160ms cubic-bezier(0.22, 0.61, 0.36, 1)",
+            willChange: "transform",
+          }}
+        >
+          <div ref={wordsRef} className="whitespace-normal break-words">
+            {words.map((w, i) => (
+              <WordWithSpace key={i} target={w} typed={typedWords[i]} done={i < curWord} last={i === words.length - 1} />
+            ))}
+          </div>
+
+          {caret && (
+            <span
+              aria-hidden="true"
+              className={`exam-caret ${typing ? "exam-caret--solid" : ""}`}
+              style={{
+                transform: `translate3d(${caret.x}px, ${caret.y}px, 0)`,
+                height: caret.h,
+                transition: caret.animate ? "transform 90ms linear" : "none",
+              }}
+            />
+          )}
+        </div>
       </div>
+
+      {showFocusHint && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <span className="rounded-full bg-white/90 px-4 py-2 text-sm font-medium text-slate-600 shadow-sm">
+            টাইপ করতে এখানে ক্লিক করুন অথবা যেকোনো কী চাপুন
+          </span>
+        </div>
+      )}
     </div>
   );
 }
 
-/** Renders the current line's characters with correctness + caret styling. */
-function LineChars({
-  line,
-  examText,
-  typedText,
-}: {
-  line: WrappedLine;
-  examText: string;
-  typedText: string;
-}) {
-  const chars = renderLineChars(line, examText, typedText);
+/** A word followed by the space that separates it from the next one (the break point for wrapping). */
+const WordWithSpace = memo(function WordWithSpace({ target, typed, done, last }: WordProps & { last: boolean }) {
   return (
     <>
-      {chars.map(({ ch, state }, j) => {
-        if (state === "caret") {
-          return (
-            <span key={j} className="relative inline-block">
-              <span aria-hidden="true" className="exam-caret" />
-              <span className="text-slate-300">{ch}</span>
-            </span>
-          );
-        }
-        const cls =
-          state === "correct"
-            ? "text-emerald-600"
-            : state === "incorrect"
-              ? "rounded-[3px] bg-yellow-300 text-slate-900"
-              : state === "missed"
-                ? "rounded-[3px] bg-yellow-100 text-slate-500"
-                : "text-slate-300";
-        return (
-          <span key={j} className={cls}>
-            {ch}
-          </span>
-        );
-      })}
+      <Word target={target} typed={typed} done={done} />
+      {last ? null : " "}
     </>
   );
-}
+});

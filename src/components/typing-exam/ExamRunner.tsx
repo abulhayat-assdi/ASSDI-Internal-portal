@@ -2,16 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Timer, Zap, Target, Percent } from "lucide-react";
 import { scoreAttempt } from "@/lib/typing-exam/scoring";
 import { TypingExamEngine } from "@/lib/typing-exam/engine";
 import { toWirePayload, type ExamWirePayload } from "@/lib/typing-exam/client";
-import { GLASS_PANEL, StatPill } from "@/components/typing-exam/ui";
+import { GLASS_PANEL } from "@/components/typing-exam/ui";
 import ExamReadyScreen from "@/components/typing-exam/ExamReadyScreen";
 import ExamCountdown from "@/components/typing-exam/ExamCountdown";
 import ExamFullscreenBanner from "@/components/typing-exam/ExamFullscreenBanner";
 import TypingField from "@/components/typing-exam/TypingField";
-import { caretIndex } from "@/lib/typing-exam/lineWrap";
+import { caretIndex } from "@/lib/typing-exam/words";
 
 type Phase = "ready" | "countdown" | "running" | "finished";
 
@@ -264,20 +263,38 @@ export default function ExamRunner({
               initial={reduceMotion ? undefined : { opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, ease: "easeOut" }}
-              className="space-y-8"
+              className="space-y-6"
             >
-              <div className="flex flex-wrap items-center justify-center gap-2.5">
-                <StatPill icon={Timer} value={`${minutes}:${seconds}`} tone={timeUrgent ? "urgent" : "neutral"} big pulse={timeUrgent} />
-                <StatPill icon={Zap} label="WPM" value={Math.round(live.wpm)} tone="blue" />
-                <StatPill icon={Target} label="Accuracy" value={`${live.accuracy}%`} tone="emerald" />
-                <StatPill icon={Percent} label="সম্পন্ন" value={`${charProgress}%`} tone="violet" />
+              {/* Quiet, fixed-height stats row: nothing here changes size while
+                  typing, so the passage below never shifts. */}
+              <div className="mx-auto flex w-full max-w-5xl items-end gap-6 px-1 sm:px-4">
+                <span
+                  className={`text-4xl font-semibold tabular-nums leading-none sm:text-5xl ${
+                    timeUrgent ? "text-red-500" : "text-brand-600"
+                  }`}
+                >
+                  {minutes}:{seconds}
+                </span>
+                <div className="flex items-end gap-5 pb-0.5 text-sm text-slate-500">
+                  <span>
+                    <span className="mr-1 text-xs uppercase tracking-wide text-slate-400">wpm</span>
+                    <span className="font-semibold tabular-nums text-slate-700">{Math.round(live.wpm)}</span>
+                  </span>
+                  <span>
+                    <span className="mr-1 text-xs uppercase tracking-wide text-slate-400">acc</span>
+                    <span className="font-semibold tabular-nums text-slate-700">{Math.round(live.accuracy)}%</span>
+                  </span>
+                  <span>
+                    <span className="mr-1 text-xs tracking-wide text-slate-400">সম্পন্ন</span>
+                    <span className="font-semibold tabular-nums text-slate-700">{charProgress}%</span>
+                  </span>
+                </div>
               </div>
 
-              <div className="mx-auto h-1.5 w-full max-w-xl overflow-hidden rounded-full bg-slate-100">
-                <motion.div
+              <div className="mx-auto h-1 w-full max-w-5xl overflow-hidden rounded-full bg-slate-100">
+                <div
                   className={`h-full rounded-full ${timeUrgent ? "bg-red-500" : "bg-brand-500"}`}
-                  animate={{ width: `${timeProgress}%` }}
-                  transition={{ duration: 0.5, ease: "linear" }}
+                  style={{ width: `${timeProgress}%`, transition: "width 0.4s linear" }}
                 />
               </div>
 
@@ -285,9 +302,9 @@ export default function ExamRunner({
                 {phase === "running" && !isFullscreen && <ExamFullscreenBanner onReenter={requestFullscreen} />}
               </AnimatePresence>
 
-              {waitingForFirstKey && (
-                <p className="text-center text-sm text-slate-500">প্রথম অক্ষর টাইপ করলেই সময় চালু হবে</p>
-              )}
+              <p className={`h-5 text-center text-sm text-slate-500 ${waitingForFirstKey ? "" : "invisible"}`}>
+                প্রথম অক্ষর টাইপ করলেই সময় চালু হবে
+              </p>
 
               <TypingField
                 examText={examText}
