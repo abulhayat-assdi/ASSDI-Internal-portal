@@ -319,6 +319,63 @@ export function notifyStudentOfLeaveDecision(decision: {
     });
 }
 
+export function notifyStudentOfAttendanceCorrection(decision: {
+    courseId: string;
+    batchName: string;
+    roll: string;
+    studentName: string;
+    approved: boolean;
+    date: string;
+    requestedLabel: string;
+    reviewNote?: string | null;
+}): void {
+    const { approved } = decision;
+
+    dispatchInBackground(
+        `attendance correction ${approved ? 'approved' : 'rejected'} for ${decision.batchName}/${decision.roll}`,
+        async () => {
+            if (!isMailConfigured()) return { skipped: 'not-configured' as const };
+
+            const course = await loadCourse(decision.courseId);
+            if (!course) return { skipped: 'no-course' as const };
+            if (!isFeatureEnabled(course.settings, EMAIL_NOTIFICATIONS_FEATURE)) {
+                return { skipped: 'disabled' as const };
+            }
+
+            const to = await studentEmail(decision.courseId, decision.batchName, decision.roll);
+            if (!to) return { skipped: 'no-recipients' as const };
+
+            const heading = approved
+                ? 'আপনার হাজিরা সংশোধনের আবেদন মঞ্জুর হয়েছে'
+                : 'আপনার হাজিরা সংশোধনের আবেদন মঞ্জুর হয়নি';
+            const ok = await sendMail({
+                courseName: course.name,
+                to: [to],
+                subject: heading,
+                html: renderEmail({
+                    courseName: course.name,
+                    heading,
+                    bodyHtml: paragraphs(
+                        [
+                            `${decision.studentName} (রোল ${decision.roll}),`,
+                            `তারিখ: ${decision.date}`,
+                            approved
+                                ? `এই দিনের হাজিরা এখন "${decision.requestedLabel}" হিসেবে ধরা হয়েছে।`
+                                : 'এই দিনের হাজিরা আগের মতোই আছে।',
+                            decision.reviewNote ? `মন্তব্য: ${decision.reviewNote}` : null,
+                        ]
+                            .filter(Boolean)
+                            .join('\n')
+                    ),
+                    ctaLabel: 'আমার উপস্থিতি দেখুন',
+                    ctaUrl: portalUrl(course.slug, '/student-dashboard/attendance'),
+                }),
+            });
+            return ok ? { sent: 1, failed: 0 } : { sent: 0, failed: 1 };
+        }
+    );
+}
+
 /**
  * Tells a batch their results are up.
  *

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getEffectivePermissions } from '@/lib/permissions';
-import { isInRollCall, tally } from '@/lib/attendance';
+import { correctionOptions, isInRollCall, tally } from '@/lib/attendance';
 
 describe('new permissions reach the right roles', () => {
     it('a fresh admin gets the report screens', () => {
@@ -27,6 +27,13 @@ describe('who is on the roll call', () => {
     it('leaves out Incomplete and Expelled students', () => {
         expect(isInRollCall('Incomplete')).toBe(false);
         expect(isInRollCall('Expelled')).toBe(false);
+    });
+});
+
+describe('what a correction request may ask for', () => {
+    it('offers every status except the one already on the record', () => {
+        expect(correctionOptions('ABSENT')).toEqual(['PRESENT', 'LATE', 'EXCUSED']);
+        expect(correctionOptions('PRESENT')).toEqual(['ABSENT', 'LATE', 'EXCUSED']);
     });
 });
 

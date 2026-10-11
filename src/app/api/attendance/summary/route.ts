@@ -5,7 +5,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser, hasRequiredPermission, isAdmin } from "@/lib/auth";
 import type { AttendanceStatus } from "@prisma/client";
-import { LOW_ATTENDANCE_THRESHOLD, isLowAttendance, tally, type AttendanceTally } from "@/lib/attendance";
+import {
+    LOW_ATTENDANCE_THRESHOLD,
+    ROLL_CALL_EXCLUDED_STATUSES,
+    isLowAttendance,
+    tally,
+    type AttendanceTally,
+} from "@/lib/attendance";
 
 export interface StudentAttendanceSummary {
     studentId: string;
@@ -17,7 +23,11 @@ export interface StudentAttendanceSummary {
 }
 
 /**
- * GET /api/attendance/summary?batchName=&from=&to=&threshold=
+ * GET /api/attendance/summary?batchName=&from=&to=&threshold=&includeArchived=
+ *
+ * Running batches only, unless `includeArchived=1`: a completed batch keeps
+ * all of its attendance, but it is history and stays out of the everyday
+ * numbers until someone asks for it.
  *
  * Per-student totals for the report screen. Rolls the records up in memory
  * rather than in SQL because a course is a few hundred students over a few
@@ -38,6 +48,7 @@ export async function GET(req: NextRequest) {
     const batchName = searchParams.get("batchName");
     const from = searchParams.get("from");
     const to = searchParams.get("to");
+    const includeArchived = searchParams.get("includeArchived") === "1";
     const thresholdRaw = Number(searchParams.get("threshold"));
     const threshold =
         Number.isFinite(thresholdRaw) && thresholdRaw > 0 && thresholdRaw <= 100
@@ -47,9 +58,11 @@ export async function GET(req: NextRequest) {
     const dateFilter =
         from || to ? { date: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {};
 
+    const batchFilter = includeArchived ? {} : { batch: { status: "active" as const } };
+
     return withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
         const sessions = await tx.attendanceSession.findMany({
-            where: { courseId, ...(batchName ? { batchName } : {}), ...dateFilter },
+            where: { courseId, ...(batchName ? { batchName } : {}), ...dateFilter, ...batchFilter },
             select: { id: true, date: true, batchName: true },
         });
         const sessionIds = sessions.map((s) => s.id);
@@ -57,7 +70,14 @@ export async function GET(req: NextRequest) {
         // Students first, so somebody who has never been marked still shows up
         // with an empty row instead of quietly vanishing from the report.
         const students = await tx.batchStudent.findMany({
-            where: { courseId, ...(batchName ? { batchName } : {}), courseStatus: "Running" },
+            // The same students the roll call lists — which also keeps a
+            // completed batch's (now "Completed") students in its report.
+            where: {
+                courseId,
+                ...(batchName ? { batchName } : {}),
+                ...batchFilter,
+                courseStatus: { notIn: [...ROLL_CALL_EXCLUDED_STATUSES] },
+            },
             select: { id: true, roll: true, name: true, batchName: true },
         });
 

@@ -208,6 +208,7 @@ model Course {
   batchStudents            BatchStudent[]
   attendanceSessions       AttendanceSession[]
   attendanceRecords        AttendanceRecord[]
+  attendanceCorrections    AttendanceCorrectionRequest[]
   notices                  Notice[]
   studentNotices           StudentNotice[]
   homeworkSubmissions      HomeworkSubmission[]
@@ -508,9 +509,10 @@ model BatchStudent {
   tShirtSize       String? @map("t_shirt_size")
   courseGoal       String? @map("course_goal")
 
-  course            Course             @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  batch             Batch              @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  attendanceRecords AttendanceRecord[]
+  course                Course                        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  batch                 Batch                         @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  attendanceRecords     AttendanceRecord[]
+  attendanceCorrections AttendanceCorrectionRequest[]
 
   @@unique([courseId, batchName, roll])
   @@index([batchName])
@@ -543,9 +545,10 @@ model AttendanceSession {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  course  Course             @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  batch   Batch              @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  records AttendanceRecord[]
+  course      Course                        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  batch       Batch                         @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  records     AttendanceRecord[]
+  corrections AttendanceCorrectionRequest[]
 
   // One roll call per batch per day, whoever takes it: a second save for the
   // same day updates the first instead of double-counting it.
@@ -577,6 +580,49 @@ model AttendanceRecord {
   @@index([studentId])
   @@index([status])
   @@map("attendance_records")
+}
+
+enum AttendanceCorrectionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// A student asking for one day of their attendance to be changed. Tied to the
+// roll call and the student rather than to the record row: re-saving a roll
+// call rewrites its records, and a request must survive that.
+model AttendanceCorrectionRequest {
+  id              String                     @id @default(uuid())
+  courseId        String                     @map("course_id")
+  sessionId       String                     @map("session_id")
+  studentId       String                     @map("student_id")
+  // Copied from the roll call so the review list reads without joins and
+  // still makes sense if the student is later renamed or moved.
+  date            String
+  batchName       String                     @map("batch_name")
+  roll            String
+  studentName     String                     @map("student_name")
+  // What the record said when the student applied.
+  currentStatus   AttendanceStatus           @map("current_status")
+  requestedStatus AttendanceStatus           @map("requested_status")
+  reason          String
+  status          AttendanceCorrectionStatus @default(PENDING)
+  reviewedByUid   String?                    @map("reviewed_by_uid")
+  reviewedByName  String?                    @map("reviewed_by_name")
+  reviewNote      String?                    @map("review_note")
+  reviewedAt      DateTime?                  @map("reviewed_at")
+  createdAt       DateTime                   @default(now()) @map("created_at")
+  updatedAt       DateTime                   @updatedAt @map("updated_at")
+
+  course  Course            @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  session AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  student BatchStudent      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([courseId])
+  @@index([sessionId])
+  @@index([studentId])
+  @@index([status])
+  @@map("attendance_correction_requests")
 }
 
 // ============================================================

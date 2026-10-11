@@ -85,6 +85,13 @@ export async function GET(req: NextRequest) {
                 });
             }
 
+            // 7. Attendance correction requests waiting on a decision
+            if (isAdmin(user) || hasRequiredPermission(user, "admin_attendance")) {
+                counts["/dashboard/admin/attendance-report/requests"] = await tx.attendanceCorrectionRequest.count({
+                    where: { courseId, status: "PENDING" },
+                });
+            }
+
             return counts;
         });
 
