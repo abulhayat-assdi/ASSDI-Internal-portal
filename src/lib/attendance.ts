@@ -9,6 +9,14 @@ export const ATTENDANCE_LABELS: Record<AttendanceStatus, string> = {
     EXCUSED: 'On Leave',
 };
 
+/** Course statuses that take a student off the roll call: they have left the batch. */
+export const ROLL_CALL_EXCLUDED_STATUSES = ['Incomplete', 'Expelled'] as const;
+
+/** Running and Completed students (and legacy rows with no status) are called; the rest are not. */
+export function isInRollCall(courseStatus?: string | null): boolean {
+    return !(ROLL_CALL_EXCLUDED_STATUSES as readonly string[]).includes(courseStatus ?? '');
+}
+
 /** Below this percentage a student shows up on the admin's follow-up list. */
 export const LOW_ATTENDANCE_THRESHOLD = 75;
 

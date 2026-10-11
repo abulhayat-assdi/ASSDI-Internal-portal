@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { ATTENDANCE_LABELS, today as todayStr } from "@/lib/attendance";
+import { ATTENDANCE_LABELS, isInRollCall, today as todayStr } from "@/lib/attendance";
 import type { AttendanceStatus } from "@prisma/client";
 
 interface Batch {
@@ -114,9 +114,7 @@ export default function AttendancePage() {
             const { session }: { session: SavedSession | null } = await sessionRes.json();
 
             // Incomplete / Expelled students are out of the batch: no roll call for them.
-            const list = (Array.isArray(roster) ? roster : []).filter(
-                (s) => !s.courseStatus || s.courseStatus === "Running" || s.courseStatus === "Completed"
-            );
+            const list = (Array.isArray(roster) ? roster : []).filter((s) => isInRollCall(s.courseStatus));
             setStudents(list);
             setSavedAt(session);
 

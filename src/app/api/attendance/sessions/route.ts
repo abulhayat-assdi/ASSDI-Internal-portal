@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser, hasRequiredPermission, isAdmin } from "@/lib/auth";
-import { ATTENDANCE_STATUSES, isValidDate } from "@/lib/attendance";
+import { ATTENDANCE_STATUSES, ROLL_CALL_EXCLUDED_STATUSES, isValidDate } from "@/lib/attendance";
 import { logActivity } from "@/lib/activityLog";
 import bcrypt from "bcryptjs";
 import { MINUTE, limitFromEnv, rateLimit } from "@/lib/rateLimit";
@@ -146,7 +146,7 @@ export async function POST(req: NextRequest) {
                     batchId: batch.id,
                     id: { in: records.map((r) => r.studentId) },
                     // Incomplete / Expelled students are not in the roll call.
-                    courseStatus: { notIn: ["Incomplete", "Expelled"] },
+                    courseStatus: { notIn: [...ROLL_CALL_EXCLUDED_STATUSES] },
                 },
                 select: { id: true, roll: true, name: true },
             });
@@ -177,7 +177,15 @@ export async function POST(req: NextRequest) {
                       },
                   });
 
-            await tx.attendanceRecord.deleteMany({ where: { sessionId: saved.id } });
+            // Someone who went Incomplete / Expelled after this day was taken is
+            // no longer on the roster being re-saved; correcting the day must
+            // not erase the attendance they already have on record.
+            await tx.attendanceRecord.deleteMany({
+                where: {
+                    sessionId: saved.id,
+                    student: { courseStatus: { notIn: [...ROLL_CALL_EXCLUDED_STATUSES] } },
+                },
+            });
             await tx.attendanceRecord.createMany({
                 data: records
                     .filter((r) => byId.has(r.studentId))
