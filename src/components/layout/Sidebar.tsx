@@ -33,6 +33,7 @@ const teacherAdminTopNavItems: NavItem[] = [
     { href: "/dashboard/homework", label: "Homework", icon: "📝", permission: "homework", feature: "homework" },
     { href: "/dashboard/quiz", label: "Quiz", icon: "❓", permission: "quiz", feature: "quiz" },
     { href: "/dashboard/attendance", label: "Attendance", icon: "🗓️", permission: "attendance", feature: "attendance" },
+    { href: "/dashboard/leave-status", label: "Who's on Leave", icon: "📋", permission: null, feature: "student_leaves" },
     { href: "/dashboard/student-leaves", label: "Student Leaves", icon: "🏖️", permission: "admin_leave", feature: "student_leaves" },
 ];
 

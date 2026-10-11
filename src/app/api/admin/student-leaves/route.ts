@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
-import { getServerSessionUser, isTeacherOrAdmin } from "@/lib/auth";
+import { getServerSessionUser, isTeacherOrAdmin, hasRequiredPermission } from "@/lib/auth";
 import { notifyStudentOfLeaveDecision } from "@/lib/notifications";
 import { createStudentLeaveRequest } from "@/lib/studentLeaveDb";
 import fs from "fs";
@@ -14,6 +14,11 @@ export async function GET() {
         const session = await getServerSessionUser();
         if (!session || !isTeacherOrAdmin(session) || !session.courseId) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+        // Reviewing leave requests is opt-in via Access Management; teachers
+        // get the read-only /api/leave-status view instead.
+        if (!hasRequiredPermission(session, "admin_leave")) {
+            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
         const courseId = session.courseId;
 
@@ -38,6 +43,11 @@ export async function POST(req: Request) {
         const session = await getServerSessionUser();
         if (!session || !isTeacherOrAdmin(session) || !session.courseId) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+        // Reviewing leave requests is opt-in via Access Management; teachers
+        // get the read-only /api/leave-status view instead.
+        if (!hasRequiredPermission(session, "admin_leave")) {
+            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
         const courseId = session.courseId;
 
@@ -116,6 +126,11 @@ export async function PATCH(req: Request) {
         if (!session || !isTeacherOrAdmin(session) || !session.courseId) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
+        // Reviewing leave requests is opt-in via Access Management; teachers
+        // get the read-only /api/leave-status view instead.
+        if (!hasRequiredPermission(session, "admin_leave")) {
+            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        }
         const courseId = session.courseId;
 
         const { id, status, reviewNote } = await req.json();
@@ -171,6 +186,11 @@ export async function DELETE(req: Request) {
         const session = await getServerSessionUser();
         if (!session || !isTeacherOrAdmin(session) || !session.courseId) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+        // Reviewing leave requests is opt-in via Access Management; teachers
+        // get the read-only /api/leave-status view instead.
+        if (!hasRequiredPermission(session, "admin_leave")) {
+            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
         const courseId = session.courseId;
 
