@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isTeacherOrAdmin } from "@/lib/auth";
+import type { GroupMember } from "@/lib/competitions";
 
 export const dynamic = "force-dynamic";
-
-type GroupMember = { roll: string; name: string; isLeader?: boolean };
 
 export async function GET(req: NextRequest) {
     try {
@@ -44,7 +43,7 @@ export async function POST(req: NextRequest) {
         const courseId = user.courseId;
 
         const body = await req.json();
-        const { id, batchName, competitionId, groupName, members, leaderRoll } = body;
+        const { id, batchName, competitionId, groupName, members, leaderRoll, deputyRoll } = body;
 
         if (!batchName || !batchName.trim()) {
             return NextResponse.json({ error: "Batch Name is required" }, { status: 400 });
@@ -53,7 +52,8 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Group Name is required" }, { status: 400 });
         }
 
-        // Normalise members: unique rolls, and at most one leader who must be a member.
+        // Normalise members: unique rolls, and at most one leader and one deputy,
+        // who must be two different members.
         const seenRolls = new Set<string>();
         const cleanMembers: GroupMember[] = [];
         for (const m of Array.isArray(members) ? members : []) {
@@ -64,6 +64,8 @@ export async function POST(req: NextRequest) {
         }
         const leader = cleanMembers.find((m) => m.roll === String(leaderRoll ?? "").trim());
         if (leader) leader.isLeader = true;
+        const deputy = cleanMembers.find((m) => m.roll === String(deputyRoll ?? "").trim());
+        if (deputy && deputy !== leader) deputy.isDeputy = true;
 
         const result = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
             // A student may belong to only one group per batch.
@@ -87,7 +89,27 @@ export async function POST(req: NextRequest) {
             };
             if (id) {
                 // Update existing group
-                return { conflicts: null, group: await tx.competitionGroup.update({ where: { id, courseId }, data }) };
+                const before = await tx.competitionGroup.findFirst({
+                    where: { id, courseId },
+                    select: { groupName: true, batchName: true },
+                });
+                const group = await tx.competitionGroup.update({ where: { id, courseId }, data });
+                // Reports bucket team rows by team name, so a rename has to
+                // carry over to the reports this team already filed.
+                if (before && before.groupName !== data.groupName) {
+                    await tx.competitionSubmission.updateMany({
+                        where: {
+                            courseId,
+                            competition: { batchName: before.batchName },
+                            OR: [
+                                { type: "team", groupId: id },
+                                { groupId: null, teamName: before.groupName },
+                            ],
+                        },
+                        data: { teamName: data.groupName },
+                    });
+                }
+                return { conflicts: null, group };
             }
             // Create new group
             return { conflicts: null, group: await tx.competitionGroup.create({ data: { courseId, ...data } }) };

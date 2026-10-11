@@ -9,11 +9,13 @@ interface Student {
   name: string;
 }
 
+const memberRank = (m: { isLeader?: boolean; isDeputy?: boolean }) => (m.isLeader ? 0 : m.isDeputy ? 1 : 2);
+
 interface Group {
   id: string;
   groupName: string;
   batchName: string;
-  members: { roll: string; name: string; isLeader?: boolean }[];
+  members: { roll: string; name: string; isLeader?: boolean; isDeputy?: boolean }[];
   createdAt: string;
 }
 
@@ -30,6 +32,7 @@ export default function CompetitionGroupsPage() {
   const [groupName, setGroupName] = useState("");
   const [selectedRolls, setSelectedRolls] = useState<string[]>([]);
   const [leaderRoll, setLeaderRoll] = useState<string>("");
+  const [deputyRoll, setDeputyRoll] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
 
   // Custom Delete Confirmation Modal State
@@ -100,6 +103,7 @@ export default function CompetitionGroupsPage() {
     setGroupName("");
     setSelectedRolls([]);
     setLeaderRoll("");
+    setDeputyRoll("");
     setShowModal(true);
   };
 
@@ -108,6 +112,7 @@ export default function CompetitionGroupsPage() {
     setGroupName(group.groupName);
     setSelectedRolls(group.members.map(m => m.roll));
     setLeaderRoll(group.members.find(m => m.isLeader)?.roll || "");
+    setDeputyRoll(group.members.find(m => m.isDeputy)?.roll || "");
     setShowModal(true);
   };
 
@@ -127,6 +132,7 @@ export default function CompetitionGroupsPage() {
 
   const toggleRollSelect = (roll: string) => {
     if (selectedRolls.includes(roll) && roll === leaderRoll) setLeaderRoll("");
+    if (selectedRolls.includes(roll) && roll === deputyRoll) setDeputyRoll("");
     setSelectedRolls(prev =>
       prev.includes(roll) ? prev.filter(r => r !== roll) : [...prev, roll]
     );
@@ -136,6 +142,7 @@ export default function CompetitionGroupsPage() {
     if (allSelected) {
       setSelectedRolls([]);
       setLeaderRoll("");
+      setDeputyRoll("");
     } else {
       setSelectedRolls(availableStudents.map(s => s.roll));
     }
@@ -166,6 +173,7 @@ export default function CompetitionGroupsPage() {
           groupName: groupName.trim(),
           members,
           leaderRoll,
+          deputyRoll,
         }),
       });
 
@@ -315,13 +323,15 @@ export default function CompetitionGroupsPage() {
                     </td>
                     <td className="px-6 py-4 max-w-md">
                       <div className="flex flex-wrap gap-1.5">
-                        {[...group.members].sort((a, b) => Number(!!b.isLeader) - Number(!!a.isLeader)).map((m) => (
+                        {[...group.members].sort((a, b) => memberRank(a) - memberRank(b)).map((m) => (
                           <span
                             key={m.roll}
                             className={`px-2 py-0.5 rounded text-xs border font-medium inline-flex items-center gap-1.5 ${
                               m.isLeader
                                 ? "bg-amber-50 text-amber-900 border-amber-300"
-                                : "bg-slate-100 text-slate-700 border-slate-200"
+                                : m.isDeputy
+                                  ? "bg-sky-50 text-sky-900 border-sky-300"
+                                  : "bg-slate-100 text-slate-700 border-slate-200"
                             }`}
                           >
                             <span><strong className="text-slate-900">{m.roll}</strong>: {m.name}</span>
@@ -330,8 +340,18 @@ export default function CompetitionGroupsPage() {
                                 Leader
                               </span>
                             )}
+                            {m.isDeputy && (
+                              <span className="bg-sky-600 text-white text-[10px] font-bold uppercase tracking-wide px-1.5 py-px rounded">
+                                Deputy
+                              </span>
+                            )}
                           </span>
                         ))}
+                        {group.members.length > 0 && !group.members.some(m => m.isLeader) && (
+                          <span className="px-2 py-0.5 rounded text-xs border font-semibold bg-red-50 text-red-700 border-red-200">
+                            ⚠ No leader — this team cannot submit team reports
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right space-x-3">
@@ -411,6 +431,7 @@ export default function CompetitionGroupsPage() {
                   {availableStudents.map((student) => {
                     const isSelected = selectedRolls.includes(student.roll);
                     const isLeader = leaderRoll === student.roll;
+                    const isDeputy = deputyRoll === student.roll;
                     const otherGroup = takenRolls.get(student.roll);
                     return (
                       <label
@@ -435,28 +456,47 @@ export default function CompetitionGroupsPage() {
                           )}
                         </span>
                         {isSelected && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              setLeaderRoll(isLeader ? "" : student.roll);
-                            }}
-                            title={isLeader ? "Remove as leader" : "Make team leader"}
-                            className={`flex-shrink-0 text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded border transition ${
-                              isLeader
-                                ? "bg-amber-500 text-white border-amber-500"
-                                : "bg-white text-slate-500 border-slate-300 hover:border-amber-400 hover:text-amber-600"
-                            }`}
-                          >
-                            {isLeader ? "★ Leader" : "Set Leader"}
-                          </button>
+                          <span className="flex-shrink-0 flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setLeaderRoll(isLeader ? "" : student.roll);
+                                if (isDeputy) setDeputyRoll("");
+                              }}
+                              title={isLeader ? "Remove as leader" : "Make team leader"}
+                              className={`text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded border transition ${
+                                isLeader
+                                  ? "bg-amber-500 text-white border-amber-500"
+                                  : "bg-white text-slate-500 border-slate-300 hover:border-amber-400 hover:text-amber-600"
+                              }`}
+                            >
+                              {isLeader ? "★ Leader" : "Leader"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setDeputyRoll(isDeputy ? "" : student.roll);
+                                if (isLeader) setLeaderRoll("");
+                              }}
+                              title={isDeputy ? "Remove as deputy leader" : "Make deputy leader"}
+                              className={`text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded border transition ${
+                                isDeputy
+                                  ? "bg-sky-600 text-white border-sky-600"
+                                  : "bg-white text-slate-500 border-slate-300 hover:border-sky-400 hover:text-sky-600"
+                              }`}
+                            >
+                              {isDeputy ? "★ Deputy" : "Deputy"}
+                            </button>
+                          </span>
                         )}
                       </label>
                     );
                   })}
                 </div>
                 <p className="text-xs text-slate-500 mt-2">
-                  Students already in another group are hidden. Click "Set Leader" on a selected member to make them the team leader.
+                  Students already in another group are hidden. Mark one selected member as Leader and one as Deputy — only they can submit the team report.
                 </p>
               </div>
 

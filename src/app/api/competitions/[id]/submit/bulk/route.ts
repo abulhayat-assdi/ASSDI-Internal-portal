@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getServerSessionUser, isTeacherOrAdmin } from "@/lib/auth";
+import { getDateFieldId, isValidReportDate } from "@/lib/competitions";
 
 export async function POST(
   req: Request,
@@ -23,6 +24,14 @@ export async function POST(
     const result = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
       const competition = await tx.competition.findUnique({ where: { id: compId, courseId } });
       if (!competition) return { error: "Competition not found" as const };
+
+      // The form's date answer is the day a row counts for, so an edit to it
+      // here has to move the row's report date too.
+      const dateField = getDateFieldId(competition.schema);
+      const reportDateOf = (data: any) => {
+        const answered = dateField ? data?.[dateField] : null;
+        return isValidReportDate(answered) ? { reportDate: answered } : {};
+      };
 
       // Handle deletion of requested submission IDs
       if (Array.isArray(deletedIds) && deletedIds.length > 0) {
@@ -47,7 +56,8 @@ export async function POST(
                 teamName: sub.teamName || null,
                 rollNumber: sub.rollNumber,
                 studentName: sub.studentName || "N/A",
-                data: sub.data
+                data: sub.data,
+                ...reportDateOf(sub.data)
               }
             }).catch(console.error);
           } else {
@@ -60,7 +70,8 @@ export async function POST(
                 teamName: sub.teamName || null,
                 rollNumber: sub.rollNumber,
                 studentName: sub.studentName || "N/A",
-                data: sub.data
+                data: sub.data,
+                ...reportDateOf(sub.data)
               }
             }).catch(console.error);
           }

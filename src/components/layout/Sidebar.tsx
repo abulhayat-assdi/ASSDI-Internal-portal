@@ -115,6 +115,7 @@ const studentNavItems: NavItem[] = [
     { href: "/student-dashboard/course-outline", label: "Course Outline", icon: "📋", permission: null, feature: "course_modules" },
     { href: "/student-dashboard/homework", label: "Homework", icon: "📝", permission: null, feature: "homework" },
     { href: "/student-dashboard/quiz", label: "Quiz", icon: "❓", permission: null, feature: "quiz" },
+    { href: "/student-dashboard/competitions", label: "Competitions", icon: "🏆", permission: null, feature: "competitions" },
     { href: "/student-dashboard/results", label: "Results", icon: "🎓", permission: null, feature: "exam_results" },
     { href: "/student-dashboard/attendance", label: "My Attendance", icon: "🗓️", permission: null, feature: "attendance" },
     { href: "/student-dashboard/deployments", label: "My Deployments", icon: "🚀", permission: null, feature: "deployments" },
