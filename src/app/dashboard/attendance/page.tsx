@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { ATTENDANCE_LABELS, today as todayStr } from "@/lib/attendance";
+import { ATTENDANCE_LABELS, isInRollCall, today as todayStr } from "@/lib/attendance";
 import type { AttendanceStatus } from "@prisma/client";
 
 interface Batch {
@@ -16,6 +16,7 @@ interface Student {
     roll: string;
     name: string;
     photo?: string | null;
+    courseStatus?: string | null;
 }
 
 interface Teacher {
@@ -52,6 +53,7 @@ export default function AttendancePage() {
     const [batches, setBatches] = useState<Batch[]>([]);
     const [batchName, setBatchName] = useState("");
     const [date, setDate] = useState(todayStr());
+    const [onLeave, setOnLeave] = useState<Set<string>>(new Set());
     const [subject, setSubject] = useState("");
     const [note, setNote] = useState("");
 
@@ -94,16 +96,25 @@ export default function AttendancePage() {
         if (!batchName) return;
         setLoadingRoster(true);
         try {
-            const [rosterRes, sessionRes] = await Promise.all([
+            const [rosterRes, sessionRes, leaveRes] = await Promise.all([
                 fetch(`/api/batch-info?batchName=${encodeURIComponent(batchName)}`),
                 fetch(
                     `/api/attendance/sessions?batchName=${encodeURIComponent(batchName)}&date=${date}`
                 ),
+                fetch(
+                    `/api/attendance/leaves?batchName=${encodeURIComponent(batchName)}&date=${date}`
+                ),
             ]);
+            const leaveData: { studentIds?: string[] } = leaveRes.ok
+                ? await leaveRes.json().catch(() => ({}))
+                : {};
+            const leaveIds = new Set(leaveData.studentIds ?? []);
+            setOnLeave(leaveIds);
             const roster: Student[] = await rosterRes.json();
             const { session }: { session: SavedSession | null } = await sessionRes.json();
 
-            const list = Array.isArray(roster) ? roster : [];
+            // Incomplete / Expelled students are out of the batch: no roll call for them.
+            const list = (Array.isArray(roster) ? roster : []).filter((s) => isInRollCall(s.courseStatus));
             setStudents(list);
             setSavedAt(session);
 
@@ -112,12 +123,21 @@ export default function AttendancePage() {
                 for (const r of session.records) restored[r.studentId] = r.status;
                 // Anyone who joined the batch after the roll call was taken
                 // starts as present rather than silently unmarked.
-                for (const s of list) if (!(s.id in restored)) restored[s.id] = "PRESENT";
+                // (or on leave, when they have an approved leave that day).
+                for (const s of list)
+                    if (!(s.id in restored)) restored[s.id] = leaveIds.has(s.id) ? "EXCUSED" : "PRESENT";
                 setMarks(restored);
                 setSubject(session.subject);
                 setNote(session.note);
             } else {
-                setMarks(Object.fromEntries(list.map((s) => [s.id, "PRESENT" as AttendanceStatus])));
+                setMarks(
+                    Object.fromEntries(
+                        list.map((s) => [
+                            s.id,
+                            (leaveIds.has(s.id) ? "EXCUSED" : "PRESENT") as AttendanceStatus,
+                        ])
+                    )
+                );
                 setNote("");
             }
         } catch {
@@ -252,13 +272,13 @@ export default function AttendancePage() {
                         onClick={() => setAll("PRESENT")}
                         className="text-xs px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
                     >
-                        সবাই উপস্থিত
+                        All Present
                     </button>
                     <button
                         onClick={() => setAll("ABSENT")}
                         className="text-xs px-3 py-1.5 rounded-lg bg-red-50 text-red-700 hover:bg-red-100"
                     >
-                        সবাই অনুপস্থিত
+                        All Absent
                     </button>
                 </div>
             )}
@@ -287,6 +307,11 @@ export default function AttendancePage() {
                                         <span className="truncate text-sm font-medium text-slate-700">
                                             {s.name}
                                         </span>
+                                        {onLeave.has(s.id) && (
+                                            <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
+                                                Approved leave
+                                            </span>
+                                        )}
                                     </div>
                                     <div className="flex rounded-lg border border-slate-200 overflow-hidden shrink-0">
                                         {STATUS_ORDER.map((status) => {

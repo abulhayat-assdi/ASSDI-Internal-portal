@@ -3,11 +3,19 @@ import type { AttendanceStatus } from '@prisma/client';
 export const ATTENDANCE_STATUSES = ['PRESENT', 'ABSENT', 'LATE', 'EXCUSED'] as const;
 
 export const ATTENDANCE_LABELS: Record<AttendanceStatus, string> = {
-    PRESENT: 'উপস্থিত',
-    ABSENT: 'অনুপস্থিত',
-    LATE: 'দেরিতে',
-    EXCUSED: 'ছুটি মঞ্জুর',
+    PRESENT: 'Present',
+    ABSENT: 'Absent',
+    LATE: 'Late',
+    EXCUSED: 'On Leave',
 };
+
+/** Course statuses that take a student off the roll call: they have left the batch. */
+export const ROLL_CALL_EXCLUDED_STATUSES = ['Incomplete', 'Expelled'] as const;
+
+/** Running and Completed students (and legacy rows with no status) are called; the rest are not. */
+export function isInRollCall(courseStatus?: string | null): boolean {
+    return !(ROLL_CALL_EXCLUDED_STATUSES as readonly string[]).includes(courseStatus ?? '');
+}
 
 /** Below this percentage a student shows up on the admin's follow-up list. */
 export const LOW_ATTENDANCE_THRESHOLD = 75;
@@ -17,7 +25,7 @@ export interface AttendanceTally {
     absent: number;
     late: number;
     excused: number;
-    /** Classes that count towards the percentage (everything but EXCUSED). */
+    /** Classes that count towards the percentage (everything but EXCUSED / on leave). */
     counted: number;
     /** PRESENT + LATE — a late student was still in the room. */
     attended: number;
@@ -33,7 +41,7 @@ export function emptyTally(): AttendanceTally {
  * Turns a list of statuses into a percentage.
  *
  * LATE counts as attended — the student was in the class, and lateness is
- * tracked separately so it can still be acted on. EXCUSED (approved leave) is
+ * tracked separately so it can still be acted on. EXCUSED (shown as "On Leave", pre-filled from approved leave requests) is
  * left out of both sides, so approved leave neither rewards nor punishes:
  * it simply isn't one of the classes the student is measured against.
  */

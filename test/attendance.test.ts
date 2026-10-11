@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getEffectivePermissions } from '@/lib/permissions';
-import { tally } from '@/lib/attendance';
+import { isInRollCall, tally } from '@/lib/attendance';
 
 describe('new permissions reach the right roles', () => {
     it('a fresh admin gets the report screens', () => {
@@ -14,6 +14,19 @@ describe('new permissions reach the right roles', () => {
     it('an existing user with saved permissions does NOT get them automatically', () => {
         const p = getEffectivePermissions('admin', ['admin_panel']);
         expect(p).not.toContain('reports');
+    });
+});
+
+describe('who is on the roll call', () => {
+    it('calls Running and Completed students, and rows with no status', () => {
+        expect(isInRollCall('Running')).toBe(true);
+        expect(isInRollCall('Completed')).toBe(true);
+        expect(isInRollCall(null)).toBe(true);
+        expect(isInRollCall(undefined)).toBe(true);
+    });
+    it('leaves out Incomplete and Expelled students', () => {
+        expect(isInRollCall('Incomplete')).toBe(false);
+        expect(isInRollCall('Expelled')).toBe(false);
     });
 });
 
