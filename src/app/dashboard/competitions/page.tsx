@@ -21,8 +21,14 @@ export default function CompetitionsPage() {
   const [deleteTargetComp, setDeleteTargetComp] = useState<{ id: string; title: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const [pendingCorrections, setPendingCorrections] = useState(0);
+
   useEffect(() => {
     fetchCompetitions();
+    fetch("/api/competitions/corrections?count=pending")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((d) => setPendingCorrections(d?.pending || 0))
+      .catch(() => {});
   }, []);
 
   const fetchCompetitions = async () => {
@@ -66,9 +72,18 @@ export default function CompetitionsPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Competitions (Battle of Cups)</h1>
-          <p className="text-sm text-slate-500 mt-1">Manage competitions, view live leaderboards, or edit competition forms.</p>
+          <p className="text-sm text-slate-500 mt-1">Manage competitions, view live leaderboards, or edit competition forms. Students submit from the Competitions menu of their own portal.</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href="/dashboard/competitions/corrections"
+            className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-md shadow transition text-sm font-semibold flex items-center gap-1.5"
+          >
+            <span>🛠</span> Correction Requests
+            {pendingCorrections > 0 && (
+              <span className="bg-white text-amber-700 text-xs font-bold px-1.5 py-0.5 rounded-full">{pendingCorrections}</span>
+            )}
+          </Link>
           <Link
             href="/dashboard/competitions/groups"
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md shadow transition text-sm font-semibold flex items-center gap-1.5"
@@ -136,13 +151,6 @@ export default function CompetitionsPage() {
                       className="bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-lg shadow-sm text-xs font-semibold transition inline-flex items-center gap-1"
                     >
                       <span>🌐</span> Public Report
-                    </Link>
-                    <Link 
-                      href={`/competitions/${comp.id}/submit`} 
-                      target="_blank"
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg shadow-sm text-xs font-semibold transition inline-flex items-center gap-1"
-                    >
-                      <span>📝</span> Form Link
                     </Link>
                     <button
                       type="button"

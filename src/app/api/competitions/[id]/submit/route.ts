@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
-import { getSessionUser } from "@/lib/auth";
+import { getSessionUser, isTeacherOrAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +13,12 @@ export async function POST(
         const user = await getSessionUser(req);
         if (!user || !user.courseId) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+        // Students report through /api/student/competitions/[id]/submit, which
+        // takes their roll and team from the session. This staff-only route
+        // still trusts the body, so it must not be reachable by students.
+        if (!isTeacherOrAdmin(user)) {
+            return NextResponse.json({ error: "Please submit from your student portal." }, { status: 403 });
         }
         const courseId = user.courseId;
 

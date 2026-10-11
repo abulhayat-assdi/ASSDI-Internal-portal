@@ -240,6 +240,7 @@ model Course {
   competitions             Competition[]
   competitionSubmissions   CompetitionSubmission[]
   competitionGroups        CompetitionGroup[]
+  competitionCorrections   CompetitionCorrectionRequest[]
   typingExams              TypingExam[]
   typingExamAttempts       TypingExamAttempt[]
   typingExamSessions       TypingExamSession[]
@@ -1397,8 +1398,9 @@ model Competition {
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  course      Course                  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course      Course                         @relation(fields: [courseId], references: [id], onDelete: Cascade)
   submissions CompetitionSubmission[]
+  corrections CompetitionCorrectionRequest[]
 
   @@index([batchName])
   @@index([courseId])
@@ -1414,15 +1416,48 @@ model CompetitionSubmission {
   rollNumber    String   @map("roll_number")
   studentName   String   @map("student_name")
   data          Json // The answers provided (e.g., cups sold, profit, etc.)
+  // Set by the student-portal form. Legacy/bulk rows leave both null and fall
+  // back to teamName matching and the submittedAt day (see lib/competitions).
+  groupId       String?  @map("group_id")
+  reportDate    String?  @map("report_date") // YYYY-MM-DD the report is for
   submittedAt   DateTime @default(now()) @map("submitted_at")
 
-  course      Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  competition Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  course      Course                         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  competition Competition                    @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  corrections CompetitionCorrectionRequest[]
 
   @@index([competitionId])
   @@index([type])
   @@index([courseId])
   @@map("competition_submissions")
+}
+
+// A student asks for an already-submitted day to be changed; the submission is
+// only rewritten once staff approve.
+model CompetitionCorrectionRequest {
+  id            String    @id @default(uuid())
+  courseId      String    @map("course_id")
+  competitionId String    @map("competition_id")
+  submissionId  String    @map("submission_id")
+  requesterRoll String    @map("requester_roll")
+  requesterName String    @map("requester_name")
+  reason        String    @default("")
+  newData       Json      @map("new_data")
+  oldData       Json?     @map("old_data") // snapshot taken at approval
+  status        String    @default("pending") // pending | approved | rejected
+  reviewNote    String?   @map("review_note")
+  reviewedBy    String?   @map("reviewed_by")
+  reviewedAt    DateTime? @map("reviewed_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  course      Course                @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  competition Competition           @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  submission  CompetitionSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([courseId, status])
+  @@index([competitionId])
+  @@index([submissionId])
+  @@map("competition_correction_requests")
 }
 
 model CompetitionGroup {
@@ -1578,11 +1613,11 @@ model TypingExamSession {
   status        TypingExamSessionStatus @default(OPEN)
 
   // Last autosaved progress (all elapsed values already clamped to server time).
-  typedText          String                  @default("") @map("typed_text")
-  keystrokesTotal    Int                     @default(0) @map("keystrokes_total")
-  keystrokesCorrect  Int                     @default(0) @map("keystrokes_correct")
-  elapsedMs          Int                     @default(0) @map("elapsed_ms")
-  finishReason       TypingExamFinishReason? @map("finish_reason")
+  typedText         String                  @default("") @map("typed_text")
+  keystrokesTotal   Int                     @default(0) @map("keystrokes_total")
+  keystrokesCorrect Int                     @default(0) @map("keystrokes_correct")
+  elapsedMs         Int                     @default(0) @map("elapsed_ms")
+  finishReason      TypingExamFinishReason? @map("finish_reason")
 
   attemptId String? @unique @map("attempt_id")
 

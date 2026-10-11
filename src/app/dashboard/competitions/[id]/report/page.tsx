@@ -5,6 +5,13 @@ import { useParams } from "next/navigation";
 import { toast } from "react-hot-toast";
 import dynamic from "next/dynamic";
 import BulkDataGrid from "@/components/competitions/BulkDataGrid";
+import SubmissionExplorer from "@/components/competitions/SubmissionExplorer";
+import { findGroupForRoll, type GroupLike } from "@/lib/competitions";
+
+// The day a row counts for (server-computed; differs from submittedAt for late reports).
+const subDay = (s: any) => new Date(`${s.effectiveDate || String(s.submittedAt).slice(0, 10)}T00:00:00`);
+// Individual rows never carry a team name, so they must not create or feed a team bucket.
+const isTeamRow = (s: any) => s.type === "team" || Boolean(s.teamName && s.teamName.trim() !== "");
 
 // recharts (~370KB) loads only once these mount, and never during SSR.
 const LeaderboardBarCharts = dynamic(() => import("@/components/competitions/LeaderboardBarCharts"), {
@@ -58,17 +65,18 @@ export default function CompetitionReportPage() {
     });
 
     let submissions = competition.submissions || [];
+    const groups: GroupLike[] = competition.groups || [];
     
     // Calculate "Yesterday"
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayStr = yesterday.toDateString();
 
-    const allDates: string[] = Array.from(new Set<string>(submissions.map((s: any) => new Date(s.submittedAt).toDateString()))).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+    const allDates: string[] = Array.from(new Set<string>(submissions.map((s: any) => subDay(s).toDateString()))).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
     if (viewType === "current") {
       // Filter for strictly yesterday's data
-      submissions = submissions.filter((s: any) => new Date(s.submittedAt).toDateString() === yesterdayStr);
+      submissions = submissions.filter((s: any) => subDay(s).toDateString() === yesterdayStr);
     }
 
     // Aggregations
@@ -80,7 +88,7 @@ export default function CompetitionReportPage() {
     const allSubmissions = competition.submissions || [];
     allSubmissions.forEach((sub: any) => {
       const tName = sub.teamName || "Unknown Team";
-      if (!teamMap[tName]) {
+      if (isTeamRow(sub) && !teamMap[tName]) {
         teamMap[tName] = { 
           name: tName, 
           sales: 0, 
@@ -94,18 +102,20 @@ export default function CompetitionReportPage() {
           absentMembers: new Set()
         };
       }
-      teamMap[tName].submittedDates.add(new Date(sub.submittedAt).toDateString());
+      if (isTeamRow(sub)) {
+        teamMap[tName].submittedDates.add(subDay(sub).toDateString());
 
-      if (Array.isArray(sub.data?.absentRolls)) {
-        sub.data.absentRolls.forEach((roll: string) => teamMap[tName].absentMembers.add(roll));
+        if (Array.isArray(sub.data?.absentRolls)) {
+          sub.data.absentRolls.forEach((roll: string) => teamMap[tName].absentMembers.add(roll));
+        }
       }
 
       if (sub.type === "individual") {
         const indName = sub.studentName || sub.rollNumber;
         if (!individualMap[indName]) {
-          individualMap[indName] = { name: indName, roll: sub.rollNumber, team: tName, sales: 0, profit: 0, cups: 0, packets: 0, score: 0, submittedDates: new Set() };
+          individualMap[indName] = { name: indName, roll: sub.rollNumber, team: findGroupForRoll(groups, sub.rollNumber)?.groupName || "—", sales: 0, profit: 0, cups: 0, packets: 0, score: 0, submittedDates: new Set() };
         }
-        individualMap[indName].submittedDates.add(new Date(sub.submittedAt).toDateString());
+        individualMap[indName].submittedDates.add(subDay(sub).toDateString());
       }
     });
 
@@ -132,7 +142,7 @@ export default function CompetitionReportPage() {
       totalProfit += profit;
 
       const tName = sub.teamName || "Unknown Team";
-      if (teamMap[tName]) {
+      if (isTeamRow(sub) && teamMap[tName]) {
         teamMap[tName].sales += sales;
         teamMap[tName].profit += profit;
         teamMap[tName].cups += cups;
@@ -166,7 +176,7 @@ export default function CompetitionReportPage() {
     // Daily Sales Chart Data
     const dateMap: Record<string, { date: string, dailySales: number }> = {};
     allSubmissions.forEach((sub: any) => {
-      const d = new Date(sub.submittedAt).toLocaleDateString();
+      const d = subDay(sub).toLocaleDateString();
       if (!dateMap[d]) dateMap[d] = { date: d, dailySales: 0 };
       dateMap[d].dailySales += Number(sub.data[salesField] || 0);
     });
@@ -494,6 +504,8 @@ export default function CompetitionReportPage() {
       </div>
 
       {/* Charts Section - Responsive Grid */}
+      <SubmissionExplorer competition={competition} />
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <LeaderboardBarCharts
           teamLeaderboard={reportData.teamLeaderboard}
