@@ -71,6 +71,13 @@ export async function GET(req: NextRequest) {
                 });
             }
 
+            // 5. Leave status — leaves approved since the teacher last looked
+            if (isTeacherOrAdmin(user)) {
+                counts["/dashboard/leave-status"] = await tx.studentLeaveRequest.count({
+                    where: { courseId, status: "APPROVED", updatedAt: { gt: getTs("/dashboard/leave-status") } },
+                });
+            }
+
             return counts;
         });
 

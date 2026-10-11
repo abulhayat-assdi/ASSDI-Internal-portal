@@ -7,6 +7,14 @@ export const runtime = "nodejs";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+/** Inclusive day count between two ISO dates (UTC math, so no DST drift). */
+function inclusiveDays(start: string, end: string): number {
+    const s = Date.parse(`${start}T00:00:00Z`);
+    const e = Date.parse(`${end}T00:00:00Z`);
+    if (Number.isNaN(s) || Number.isNaN(e) || e < s) return 1;
+    return Math.round((e - s) / 86400000) + 1;
+}
+
 /**
  * GET /api/leave-status?batch=<name>&from=YYYY-MM-DD&to=YYYY-MM-DD
  *
@@ -39,8 +47,8 @@ export async function GET(req: NextRequest) {
     // Dates are stored as ISO strings, so lexicographic comparison is
     // chronological. A leave overlaps [from, to] when it starts on/before
     // `to` and ends on/after `from`.
-    const leaves = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
-        tx.studentLeaveRequest.findMany({
+    const { leaves, history } = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+        const leaves = await tx.studentLeaveRequest.findMany({
             where: {
                 courseId,
                 status: "APPROVED",
@@ -59,8 +67,31 @@ export async function GET(req: NextRequest) {
                 endDate: true,
                 reason: true,
             },
-        })
-    );
+        });
+
+        // Counts only — how often each of these students has taken approved
+        // leave in total (no reasons), so a teacher can spot a pattern.
+        const history = new Map<string, { count: number; days: number }>();
+        if (leaves.length > 0) {
+            const past = await tx.studentLeaveRequest.findMany({
+                where: {
+                    courseId,
+                    status: "APPROVED",
+                    studentBatchName: { in: [...new Set(leaves.map((l) => l.studentBatchName))] },
+                    studentRoll: { in: [...new Set(leaves.map((l) => l.studentRoll))] },
+                },
+                select: { studentBatchName: true, studentRoll: true, startDate: true, endDate: true },
+            });
+            for (const p of past) {
+                const key = `${p.studentBatchName}::${p.studentRoll}`;
+                const h = history.get(key) ?? { count: 0, days: 0 };
+                h.count += 1;
+                h.days += inclusiveDays(p.startDate, p.endDate);
+                history.set(key, h);
+            }
+        }
+        return { leaves, history };
+    });
 
     leaves.sort(
         (a, b) =>
@@ -68,5 +99,10 @@ export async function GET(req: NextRequest) {
             a.studentRoll.localeCompare(b.studentRoll, undefined, { numeric: true, sensitivity: "base" })
     );
 
-    return NextResponse.json({ leaves });
+    return NextResponse.json({
+        leaves: leaves.map((l) => {
+            const h = history.get(`${l.studentBatchName}::${l.studentRoll}`);
+            return { ...l, totalLeaves: h?.count ?? 1, totalLeaveDays: h?.days ?? inclusiveDays(l.startDate, l.endDate) };
+        }),
+    });
 }
