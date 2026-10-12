@@ -10,6 +10,7 @@ import {
     DEFAULT_TEACHER_PERMISSIONS,
     DEFAULT_ADMIN_PERMISSIONS,
     TEACHER_FEATURE_PERMISSIONS,
+    ADMIN_TEACHER_MARKER,
 } from "@/lib/permissions";
 
 const createTeacherSchema = z.object({
@@ -74,7 +75,7 @@ export async function POST(req: NextRequest) {
         let defaultPermissions: string[];
         if (grantAdmin) {
             defaultPermissions = includeTeacherFeatures
-                ? [...DEFAULT_ADMIN_PERMISSIONS, ...TEACHER_FEATURE_PERMISSIONS]
+                ? [...DEFAULT_ADMIN_PERMISSIONS, ...TEACHER_FEATURE_PERMISSIONS, ADMIN_TEACHER_MARKER]
                 : [...DEFAULT_ADMIN_PERMISSIONS];
         } else {
             defaultPermissions = [...DEFAULT_TEACHER_PERMISSIONS];

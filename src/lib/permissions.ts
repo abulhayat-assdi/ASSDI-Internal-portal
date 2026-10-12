@@ -158,6 +158,15 @@ export function getDisplayRoleLabel(role: string, storedPermissions: string[] | 
 }
 
 /**
+ * True when the account holds the teacher role — a plain Teacher or an
+ * "Admin + Teacher". An admin without ADMIN_TEACHER_MARKER is admin-only.
+ */
+export function hasTeacherRole(role: string, storedPermissions: string[] | null | undefined): boolean {
+    if (role === "teacher") return true;
+    return role === "admin" && Boolean(storedPermissions?.includes(ADMIN_TEACHER_MARKER));
+}
+
+/**
  * Check if a user has a specific permission.
  * Super admins always pass.
  */
