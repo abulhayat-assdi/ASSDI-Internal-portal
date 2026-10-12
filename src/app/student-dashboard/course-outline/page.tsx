@@ -48,12 +48,12 @@ export default function CourseOutlinePage() {
     }, []);
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500 max-w-5xl mx-auto pb-12">
+        <div className="space-y-5 sm:space-y-8 animate-in fade-in duration-500 max-w-5xl mx-auto pb-4 sm:pb-12">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                     <div className="w-1 h-10 bg-[#059669] rounded-full"></div>
                     <div>
-                        <h1 className="text-3xl font-bold text-[#1f2937]">Course Outline</h1>
+                        <h1 className="text-2xl sm:text-3xl font-bold text-[#1f2937]">Course Outline</h1>
                         <p className="text-[#6b7280] mt-1">
                             A dynamic overview of the curriculum and modules published by your instructors.
                         </p>
@@ -68,7 +68,7 @@ export default function CourseOutlinePage() {
                     </svg>
                 </div>
 
-                <div className="p-8 grid gap-8 relative z-10 w-full">
+                <div className="p-4 sm:p-8 grid gap-6 sm:gap-8 relative z-10 w-full">
                     {loading ? (
                         <div className="text-center py-16">
                             <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-2 border-[#059669]"></div>
@@ -78,7 +78,7 @@ export default function CourseOutlinePage() {
                         <div className="text-center py-16 text-gray-400 text-sm">No modules available.</div>
                     ) : (
                         modules.map((module, idx) => (
-                            <div key={module.slug} className="flex gap-6 relative">
+                            <div key={module.slug} className="flex gap-3 sm:gap-6 relative">
                                 {idx !== modules.length - 1 && (
                                     <div className="absolute left-[1.15rem] top-10 bottom-[-2rem] w-0.5 bg-gray-100"></div>
                                 )}
@@ -89,7 +89,7 @@ export default function CourseOutlinePage() {
                                     </div>
                                 </div>
 
-                                <div className="flex-1 bg-gray-50 rounded-2xl p-6 border border-gray-100 hover:border-[#059669]/30 hover:shadow-md transition-all group">
+                                <div className="flex-1 min-w-0 bg-gray-50 rounded-2xl p-4 sm:p-6 border border-gray-100 hover:border-[#059669]/30 hover:shadow-md transition-all group">
                                     <h3 className="text-xl font-bold text-gray-900 group-hover:text-[#059669] transition-colors">{module.title}</h3>
 
                                     <p className="text-gray-600 mt-2 text-sm leading-relaxed">
@@ -110,7 +110,7 @@ export default function CourseOutlinePage() {
 
                                         <Link
                                             href={`/student-dashboard/course-outline/${module.slug}`}
-                                            className="w-full sm:w-auto text-center px-6 py-2 bg-[#059669] text-white rounded-lg hover:bg-[#047857] transition-all font-semibold shadow-sm hover:shadow-md active:scale-[0.98] text-sm flex items-center justify-center gap-2 whitespace-nowrap"
+                                            className="w-full sm:w-auto text-center px-6 py-3 sm:py-2 bg-[#059669] text-white rounded-lg hover:bg-[#047857] transition-all font-semibold shadow-sm hover:shadow-md active:scale-[0.98] text-sm flex items-center justify-center gap-2 whitespace-nowrap"
                                         >
                                             <DocumentTextIcon className="w-4 h-4" />
                                             View

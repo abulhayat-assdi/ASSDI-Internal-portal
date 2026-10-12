@@ -42,7 +42,7 @@ export function StudentNav({ locale }: { locale: Locale }) {
   return (
     <nav
       aria-label={t("dashboard")}
-      className="sticky top-0 z-40 border-b"
+      className="sticky top-16 z-20 border-b"
       style={{
         borderColor: "var(--tap-border)",
         background: "var(--tap-surface-strong)",
@@ -50,7 +50,7 @@ export function StudentNav({ locale }: { locale: Locale }) {
         WebkitBackdropFilter: "var(--tap-blur)",
       }}
     >
-      <div className="mx-auto flex w-full max-w-5xl gap-1 overflow-x-auto px-3 py-2">
+      <div className="mx-auto flex w-full max-w-5xl gap-1 overflow-x-auto px-2 sm:px-3 py-2 [scrollbar-width:none]">
         {items.map((item) => {
           const active =
             pathname === item.href || pathname.startsWith(`${item.href}/`);

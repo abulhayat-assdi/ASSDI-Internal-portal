@@ -283,22 +283,22 @@ export default function HomeworkSubmissionPage() {
     }
 
     return (
-        <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-500">
+        <div className="max-w-5xl mx-auto space-y-5 sm:space-y-8 animate-in fade-in duration-500">
             {/* Page Header */}
             <div className="flex items-center gap-3">
                 <div className="w-1 h-10 bg-[#059669] rounded-full"></div>
                 <div>
-                    <h1 className="text-3xl font-bold text-[#1f2937]">Homework Submission</h1>
+                    <h1 className="text-2xl sm:text-3xl font-bold text-[#1f2937]">Homework Submission</h1>
                     <p className="text-[#6b7280] mt-1">Submit your assignments here</p>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-5 lg:gap-8">
                 {/* ===== LEFT: Submission Form ===== */}
                 <div className="lg:col-span-3">
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                         {/* Form Header with auto-filled student info */}
-                        <div className="bg-gradient-to-r from-[#059669] to-[#10b981] p-5 text-white">
+                        <div className="bg-gradient-to-r from-[#059669] to-[#10b981] p-4 sm:p-5 text-white">
                             <h2 className="text-xl font-bold no-gradient text-white">Submit Homework</h2>
                             <p className="text-emerald-100 text-sm mt-0.5 no-gradient">আপনার হোমওয়ার্ক সাবমিট করুন</p>
                             <div className="mt-3 bg-white/20 rounded-xl px-4 py-2.5 text-sm space-y-0.5">
@@ -315,7 +315,7 @@ export default function HomeworkSubmissionPage() {
 
                         {/* Success State */}
                         {submitSuccess && (
-                            <div className="mx-6 mt-6 p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3">
+                            <div className="mx-4 mt-4 sm:mx-6 sm:mt-6 p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3">
                                 <span className="text-2xl">✅</span>
                                 <div>
                                     <p className="font-bold text-emerald-800 text-sm">Homework Submitted Successfully!</p>
@@ -325,7 +325,7 @@ export default function HomeworkSubmissionPage() {
                         )}
 
                         {/* Form */}
-                        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+                        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-5">
                             {/* Teacher Select */}
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">
@@ -383,7 +383,7 @@ export default function HomeworkSubmissionPage() {
 
                             {/* ===== Multi-File Upload Area ===== */}
                             <div>
-                                <div className="flex items-center justify-between mb-1.5">
+                                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mb-1.5">
                                     <label className="block text-sm font-semibold text-gray-700">
                                         Upload Files{" "}
                                         <span className="text-gray-400 font-normal">(Optional — Max {MAX_TOTAL_SIZE_MB}MB total)</span>
@@ -451,7 +451,7 @@ export default function HomeworkSubmissionPage() {
                                                 <svg className="w-4 h-4 shrink-0 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                                                 </svg>
-                                                <span className="font-medium text-gray-700 flex-1 truncate">{file.name}</span>
+                                                <span className="font-medium text-gray-700 flex-1 min-w-0 truncate">{file.name}</span>
                                                 <span className="text-gray-400 shrink-0">
                                                     {(file.size / 1024 / 1024).toFixed(2)} MB
                                                 </span>
@@ -459,10 +459,10 @@ export default function HomeworkSubmissionPage() {
                                                     type="button"
                                                     onClick={() => removeFile(index)}
                                                     disabled={isSubmitting}
-                                                    className="shrink-0 text-gray-400 hover:text-red-500 transition-colors p-0.5 rounded disabled:opacity-50"
+                                                    className="shrink-0 text-gray-400 hover:text-red-500 transition-colors p-2 -m-1.5 rounded disabled:opacity-50"
                                                     title="Remove file"
                                                 >
-                                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
                                                     </svg>
                                                 </button>
@@ -526,7 +526,7 @@ export default function HomeworkSubmissionPage() {
                             <button
                                 type="submit"
                                 disabled={isSubmitting || !selectedAssignmentId || !selectedTeacher || isOverLimit}
-                                className="w-full py-3 bg-[#059669] text-white font-bold rounded-xl hover:bg-[#047857] transition-all disabled:opacity-60 disabled:cursor-not-allowed text-sm shadow-sm"
+                                className="w-full py-3 min-h-12 bg-[#059669] text-white font-bold rounded-xl hover:bg-[#047857] transition-all disabled:opacity-60 disabled:cursor-not-allowed text-sm shadow-sm"
                             >
                                 {isSubmitting ? (
                                     <span className="flex items-center justify-center gap-2">
@@ -558,7 +558,7 @@ export default function HomeworkSubmissionPage() {
                             </h3>
                         </div>
 
-                        <div className="p-4 space-y-3 max-h-[600px] overflow-y-auto">
+                        <div className="p-4 space-y-3 lg:max-h-[600px] lg:overflow-y-auto">
                             {loadingHistory ? (
                                 <div className="flex items-center justify-center py-8">
                                     <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-[#059669]"></div>

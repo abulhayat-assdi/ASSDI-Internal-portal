@@ -189,7 +189,7 @@ export default function StudentProfilePage() {
     const Field = ({ label, value }: { label: string; value?: React.ReactNode }) => (
         <div>
             <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">{label}</p>
-            <p className="text-sm font-semibold text-gray-800">{value || <span className="text-gray-300 font-normal italic">Not set</span>}</p>
+            <p className="text-sm font-semibold text-gray-800 break-words">{value || <span className="text-gray-300 font-normal italic">Not set</span>}</p>
         </div>
     );
 
@@ -203,12 +203,12 @@ export default function StudentProfilePage() {
     const labelCls = "block text-sm font-semibold text-gray-700 mb-1.5";
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500 max-w-3xl mx-auto pb-12">
+        <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-500 max-w-3xl mx-auto pb-4 sm:pb-12">
             {/* Header */}
             <div className="flex items-center gap-3">
                 <div className="w-1 h-10 bg-[#059669] rounded-full" />
                 <div>
-                    <h1 className="text-3xl font-bold text-[#1f2937]">My Profile</h1>
+                    <h1 className="text-2xl sm:text-3xl font-bold text-[#1f2937]">My Profile</h1>
                     <p className="text-[#6b7280] mt-1">View your batch information and submit update requests.</p>
                 </div>
             </div>
@@ -216,21 +216,25 @@ export default function StudentProfilePage() {
             {/* Profile Card */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                 {/* Header banner */}
-                <div className="bg-gradient-to-r from-[#1e3a5f] to-[#2d5278] p-6 text-white flex items-center justify-between">
-                    <div className="flex items-center gap-5">
-                        <div className="w-16 h-16 rounded-full bg-white/20 border-2 border-white/40 flex items-center justify-center text-3xl font-black shadow-inner overflow-hidden relative">
+                <div className="bg-gradient-to-r from-[#1e3a5f] to-[#2d5278] p-4 sm:p-6 text-white flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 sm:gap-5 min-w-0">
+                        <div className="w-14 h-14 sm:w-16 sm:h-16 shrink-0 rounded-full bg-white/20 border-2 border-white/40 flex items-center justify-center text-3xl font-black shadow-inner overflow-hidden relative">
                             {userProfile?.profileImageUrl ? (
                                 <Image src={toDriveImg(userProfile.profileImageUrl)} alt={userProfile.displayName || ""} fill sizes="64px" className="object-cover" />
                             ) : (
                                 userProfile?.displayName?.charAt(0).toUpperCase() || "?"
                             )}
                         </div>
-                        <div>
-                            <h2 className="text-2xl font-bold no-gradient text-white">{userProfile?.displayName}</h2>
-                            <p className="text-blue-200 text-sm mt-0.5 no-gradient">{userProfile?.email}</p>
+                        <div className="min-w-0">
+                            <h2 className="text-xl sm:text-2xl font-bold no-gradient text-white break-words">{userProfile?.displayName}</h2>
+                            <p className="text-blue-200 text-sm mt-0.5 no-gradient break-all">{userProfile?.email}</p>
+                            {/* The batch block on the right is hidden on phones; keep the same facts here. */}
+                            <p className="sm:hidden text-blue-100 text-xs font-semibold mt-1 no-gradient">
+                                Batch {userProfile?.studentBatchName} · Roll {userProfile?.studentRoll}
+                            </p>
                         </div>
                     </div>
-                    <div className="text-right hidden sm:block">
+                    <div className="text-right hidden sm:block shrink-0">
                         <p className="text-xs font-semibold text-blue-300 uppercase tracking-widest">Batch</p>
                         <p className="text-xl font-bold text-white mt-0.5">{userProfile?.studentBatchName}</p>
                         <p className="text-blue-200 text-sm">Roll: {userProfile?.studentRoll}</p>
@@ -238,7 +242,7 @@ export default function StudentProfilePage() {
                 </div>
 
                 {/* Fields grid */}
-                <div className="p-6 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5">
+                <div className="p-4 sm:p-6 grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-4 sm:gap-y-5">
                     <SectionTitle title="Basic Information" />
                     <Field label="Phone" value={studentData?.phone} />
                     <Field label="Date of Birth" value={studentData?.dob} />
@@ -298,7 +302,7 @@ export default function StudentProfilePage() {
             {/* Edit request section */}
             {!submitted && (
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+                    <div className="p-4 sm:p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div>
                             <h3 className="text-lg font-bold text-gray-900">Request Profile Update</h3>
                             <p className="text-sm text-gray-500 mt-1">Changes require admin approval before being reflected in your batch data.</p>
@@ -306,7 +310,7 @@ export default function StudentProfilePage() {
                         {!isEditing && (
                             <button
                                 onClick={() => setIsEditing(true)}
-                                className="flex items-center gap-2 px-4 py-2.5 bg-[#059669] text-white text-sm font-bold rounded-xl hover:bg-[#047857] transition-colors shadow-sm"
+                                className="flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 bg-[#059669] text-white text-sm font-bold rounded-xl hover:bg-[#047857] transition-colors shadow-sm shrink-0"
                             >
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -317,7 +321,7 @@ export default function StudentProfilePage() {
                     </div>
 
                     {isEditing && (
-                        <form onSubmit={handleSubmitRequest} className="p-6 space-y-8">
+                        <form onSubmit={handleSubmitRequest} className="p-4 sm:p-6 space-y-6 sm:space-y-8">
                             {error && (
                                 <div className="p-4 bg-red-50 text-red-700 rounded-xl border border-red-100 text-sm font-medium">
                                     {error}
@@ -327,7 +331,7 @@ export default function StudentProfilePage() {
                             {/* ── Basic Info ── */}
                             <div>
                                 <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest mb-4 pb-2 border-b border-gray-100">Basic Information</p>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
                                     <div>
                                         <label className={labelCls}>Phone Number</label>
                                         <input type="tel" value={form.phone} onChange={e => handleChange("phone", e.target.value)} className={inputCls} placeholder="01XXXXXXXXX" />
@@ -365,7 +369,7 @@ export default function StudentProfilePage() {
                             {/* ── Personal & Family ── */}
                             <div>
                                 <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest mb-4 pb-2 border-b border-gray-100">Personal & Family</p>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
                                     <div>
                                         <label className={labelCls}>Email</label>
                                         <input type="email" value={form.email} onChange={e => handleChange("email", e.target.value)} className={inputCls} placeholder="your@email.com" />
@@ -400,7 +404,7 @@ export default function StudentProfilePage() {
                             {/* ── Education ── */}
                             <div>
                                 <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest mb-4 pb-2 border-b border-gray-100">Education</p>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
                                     <div>
                                         <label className={labelCls}>Last Institute</label>
                                         <input type="text" value={form.lastInstitute} onChange={e => handleChange("lastInstitute", e.target.value)} className={inputCls} placeholder="School / College / University name" />
@@ -419,7 +423,7 @@ export default function StudentProfilePage() {
                             {/* ── Location ── */}
                             <div>
                                 <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest mb-4 pb-2 border-b border-gray-100">Location</p>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
                                     <div>
                                         <label className={labelCls}>Current District</label>
                                         <input type="text" value={form.currentDistrict} onChange={e => handleChange("currentDistrict", e.target.value)} className={inputCls} placeholder="District you currently live in" />
@@ -434,7 +438,7 @@ export default function StudentProfilePage() {
                             {/* ── Course & Work ── */}
                             <div>
                                 <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest mb-4 pb-2 border-b border-gray-100">Course & Work</p>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
                                     <div>
                                         <label className={labelCls}>Course Status</label>
                                         <select value={form.courseStatus} onChange={e => handleChange("courseStatus", e.target.value)} className={inputCls}>
@@ -486,7 +490,7 @@ export default function StudentProfilePage() {
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-3 pt-2">
+                            <div className="flex flex-col-reverse sm:flex-row sm:items-center gap-3 pt-2">
                                 <button
                                     type="submit"
                                     disabled={submitting}

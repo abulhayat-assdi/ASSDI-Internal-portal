@@ -148,14 +148,14 @@ export default function StudentAttendancePage() {
 
             {/* Headline percentage */}
             <div
-                className={`rounded-2xl p-6 text-white shadow-md ${
+                className={`rounded-2xl p-5 sm:p-6 text-white shadow-md ${
                     below
                         ? "bg-gradient-to-r from-red-500 to-red-600"
                         : "bg-gradient-to-r from-[#059669] to-[#10b981]"
                 }`}
             >
                 <p className="text-sm opacity-90">সর্বমোট উপস্থিতির হার</p>
-                <p className="text-5xl font-bold mt-1">
+                <p className="text-4xl sm:text-5xl font-bold mt-1">
                     {tally.percentage === null ? "—" : `${tally.percentage}%`}
                 </p>
                 <p className="text-sm opacity-90 mt-2">
@@ -171,7 +171,7 @@ export default function StudentAttendancePage() {
             </div>
 
             {/* Breakdown */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 <Stat label={ATTENDANCE_LABELS.PRESENT} value={tally.present} />
                 <Stat label={ATTENDANCE_LABELS.LATE} value={tally.late} />
                 <Stat label={ATTENDANCE_LABELS.ABSENT} value={tally.absent} />
@@ -201,12 +201,12 @@ export default function StudentAttendancePage() {
                                         type="button"
                                         onClick={() => selectDay(e)}
                                         aria-expanded={canApply ? isSelected : undefined}
-                                        className={`w-full flex items-center gap-3 px-4 py-3 text-left ${
+                                        className={`w-full flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-3 min-h-12 text-left ${
                                             canApply ? "hover:bg-slate-50 cursor-pointer" : "cursor-default"
                                         } ${isSelected ? "bg-slate-50" : ""}`}
                                     >
-                                        <span className="text-sm font-mono text-slate-500 w-28 shrink-0">{e.date}</span>
-                                        <span className="flex-1 truncate text-sm text-slate-600">
+                                        <span className="text-xs sm:text-sm font-mono text-slate-500 w-[5.5rem] sm:w-28 shrink-0">{e.date}</span>
+                                        <span className="flex-1 min-w-0 truncate text-sm text-slate-600">
                                             {e.subject || "ক্লাস"}
                                         </span>
                                         {hasPending && (
@@ -231,7 +231,7 @@ export default function StudentAttendancePage() {
                                                 <button
                                                     type="button"
                                                     onClick={() => openForm(e)}
-                                                    className="text-sm px-4 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 font-medium"
+                                                    className="text-sm px-4 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 font-medium"
                                                 >
                                                     ✏️ এই দিনের সংশোধনের আবেদন
                                                 </button>
@@ -273,7 +273,7 @@ export default function StudentAttendancePage() {
                                                             className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                                                         />
                                                     </div>
-                                                    <div className="flex gap-2">
+                                                    <div className="flex gap-2 [&>button]:flex-1 sm:[&>button]:flex-none [&>button]:min-h-11">
                                                         <button
                                                             type="button"
                                                             onClick={() => submit(e)}

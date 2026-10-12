@@ -168,8 +168,8 @@ export default function QuizRunner({
   const isLast = index === questions.length - 1;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-4 pb-16">
-      <div className={`${GLASS_PANEL} sticky top-2 z-10 rounded-2xl px-4 py-3 flex items-center justify-between gap-3`}>
+    <div className="max-w-3xl mx-auto space-y-4 pb-4 sm:pb-16">
+      <div className={`${GLASS_PANEL} sticky top-[4.5rem] z-10 rounded-2xl px-3 sm:px-4 py-3 flex items-center justify-between gap-3`}>
         <h2 className="truncate text-sm font-bold text-slate-700">
           {quiz.title}
           {data.isPractice ? " (প্র্যাকটিস)" : ""}
@@ -298,7 +298,7 @@ export default function QuizRunner({
 
       {confirming && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/50 p-4" role="dialog" aria-modal="true">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 space-y-4 shadow-xl">
+          <div className="w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-2xl bg-white p-5 sm:p-6 space-y-4 shadow-xl">
             <h3 className="text-lg font-bold text-slate-800">কুইজ জমা দেবেন?</h3>
             {unanswered > 0 ? (
               <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">

@@ -39,7 +39,7 @@ export default function StudentRoutinePage() {
 
     if (!userProfile?.studentBatchName) {
         return (
-            <div className="p-8 max-w-lg mx-auto text-center mt-16">
+            <div className="px-4 py-8 max-w-lg mx-auto text-center mt-6 sm:mt-16">
                 <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-5 text-4xl">🎓</div>
                 <h1 className="no-gradient text-2xl font-bold text-gray-800 mb-2">No Batch Assigned</h1>
                 <p className="text-gray-500 text-sm">Please contact the admin to assign you to a batch.</p>
@@ -49,7 +49,7 @@ export default function StudentRoutinePage() {
 
     if (!routine) {
         return (
-            <div className="p-8 max-w-lg mx-auto text-center mt-16">
+            <div className="px-4 py-8 max-w-lg mx-auto text-center mt-6 sm:mt-16">
                 <div className="text-5xl mb-4">📅</div>
                 <h1 className="no-gradient text-2xl font-bold text-gray-800 mb-2">No Routine Yet</h1>
                 <p className="text-gray-500 text-sm">Your batch routine hasn&apos;t been posted yet.</p>
@@ -58,7 +58,7 @@ export default function StudentRoutinePage() {
     }
 
     return (
-        <div className="min-h-screen bg-slate-100 p-3 md:p-6">
+        <div>
             <div className="max-w-[1100px] mx-auto">
                 <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
                     <div style={{ backgroundColor: "#0D1B4A", textAlign: "center", padding: "12px 24px" }}>
@@ -66,7 +66,7 @@ export default function StudentRoutinePage() {
                             Class Routine — {userProfile.studentBatchName}
                         </div>
                     </div>
-                    <div className="p-3 md:p-5">
+                    <div className="p-2 sm:p-3 md:p-5">
                         <button 
                             onClick={() => setLightboxOpen(true)}
                             className="w-full text-left focus:outline-none block" 

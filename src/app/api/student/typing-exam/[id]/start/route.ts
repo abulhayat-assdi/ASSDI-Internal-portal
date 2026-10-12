@@ -6,6 +6,7 @@ import { retryPasswordMatches, STUDENT_PASSWORD_FAILURES_PER_HOUR, studentPasswo
 import { HOUR, isOverLimit, recordAttempt } from "@/lib/rateLimit";
 import { readJsonBody } from "@/lib/typing-exam/session";
 import { startSession } from "@/lib/typing-exam/sessionStore";
+import { isMobileRequest, MOBILE_BLOCKED_MESSAGE } from "@/lib/typing-exam/device";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -21,6 +22,10 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const user = await getSessionUser(req);
     if (!user || user.role !== "student" || !user.courseId) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    // Students take typing exams on a physical keyboard only.
+    if (isMobileRequest(req.headers)) {
+        return NextResponse.json({ error: MOBILE_BLOCKED_MESSAGE, mobileBlocked: true }, { status: 403 });
     }
     const courseId = user.courseId;
     const studentBatchName = user.studentBatchName || "";

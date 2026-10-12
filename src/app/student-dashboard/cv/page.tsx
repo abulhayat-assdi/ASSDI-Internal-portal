@@ -113,13 +113,13 @@ export default function CvListPage() {
     }
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500 max-w-5xl mx-auto pb-12">
+        <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-500 max-w-5xl mx-auto pb-4 sm:pb-12">
             {/* Header */}
             <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div className="flex items-center gap-3">
                     <div className="w-1 h-10 bg-[#059669] rounded-full" />
                     <div>
-                        <h1 className="text-3xl font-bold text-[#1f2937]">My CVs</h1>
+                        <h1 className="text-2xl sm:text-3xl font-bold text-[#1f2937]">My CVs</h1>
                         <p className="text-[#6b7280] mt-1">Build and manage your professional CVs</p>
                     </div>
                 </div>
@@ -136,7 +136,7 @@ export default function CvListPage() {
 
             {/* Empty state */}
             {drafts.length === 0 && (
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-10 sm:p-12 text-center">
                     <div className="text-6xl mb-4">📄</div>
                     <h2 className="text-xl font-bold text-gray-800 mb-2">No CVs yet</h2>
                     <p className="text-gray-500 mb-6">Create your first professional CV in minutes.</p>
@@ -151,7 +151,7 @@ export default function CvListPage() {
 
             {/* CV Cards Grid */}
             {drafts.length > 0 && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                     {drafts.map((draft) => (
                         <div key={draft.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-all">
                             {/* Card header */}
@@ -184,14 +184,14 @@ export default function CvListPage() {
                                 <div className="grid grid-cols-2 gap-2">
                                     <button
                                         onClick={() => handleDownloadPdfDirectly(draft.id)}
-                                        className="flex items-center justify-center gap-1.5 py-2 px-3 border border-gray-200 text-gray-700 hover:text-white hover:bg-[#1e3a5f] hover:border-[#1e3a5f] rounded-xl text-xs font-bold transition-all cursor-pointer"
+                                        className="flex items-center justify-center gap-1.5 py-2 px-3 border border-gray-200 text-gray-700 hover:text-white hover:bg-[#1e3a5f] hover:border-[#1e3a5f] rounded-xl text-xs font-bold min-h-10 transition-all cursor-pointer"
                                     >
                                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                                         PDF
                                     </button>
                                     <button
                                         onClick={() => handleDownloadDocxDirectly(draft.id, draft.title)}
-                                        className="flex items-center justify-center gap-1.5 py-2 px-3 border border-gray-200 text-gray-700 hover:text-white hover:bg-[#059669] hover:border-[#059669] rounded-xl text-xs font-bold transition-all cursor-pointer"
+                                        className="flex items-center justify-center gap-1.5 py-2 px-3 border border-gray-200 text-gray-700 hover:text-white hover:bg-[#059669] hover:border-[#059669] rounded-xl text-xs font-bold min-h-10 transition-all cursor-pointer"
                                     >
                                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                                         Word
@@ -215,14 +215,14 @@ export default function CvListPage() {
                                 <div className="flex items-center gap-2">
                                     <button
                                         onClick={() => router.push(`/student-dashboard/cv/${draft.id}/edit`)}
-                                        className="flex-1 px-3 py-2 bg-[#059669] text-white text-sm font-bold rounded-xl hover:bg-[#047857] transition-all text-center"
+                                        className="flex-1 px-3 py-2.5 bg-[#059669] text-white text-sm font-bold rounded-xl hover:bg-[#047857] transition-all text-center"
                                     >
                                         Edit
                                     </button>
                                     <button
                                         onClick={() => handleShareToggle(draft)}
                                         disabled={sharingId === draft.id}
-                                        className={`px-3 py-2 text-sm font-bold rounded-xl transition-all ${
+                                        className={`px-3 py-2.5 text-sm font-bold rounded-xl transition-all ${
                                             draft.isPublic
                                                 ? "bg-orange-50 text-orange-600 hover:bg-orange-100"
                                                 : "bg-blue-50 text-blue-600 hover:bg-blue-100"
@@ -232,7 +232,7 @@ export default function CvListPage() {
                                     </button>
                                     <button
                                         onClick={() => setDeleteId(draft.id)}
-                                        className="px-3 py-2 bg-red-50 text-red-600 text-sm font-bold rounded-xl hover:bg-red-100 transition-all"
+                                        className="px-3 py-2.5 bg-red-50 text-red-600 text-sm font-bold rounded-xl hover:bg-red-100 transition-all"
                                     >
                                         Delete
                                     </button>
