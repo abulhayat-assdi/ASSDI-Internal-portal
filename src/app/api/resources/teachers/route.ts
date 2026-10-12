@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
+import { hasTeacherRole } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -15,8 +16,10 @@ export interface ResourceTeacher {
 
 /**
  * GET /api/resources/teachers
- * Returns all teachers in this course joined with their User ID (for resource
+ * Returns the teachers in this course joined with their User ID (for resource
  * library linking) by matching teachers.loginEmail to users.email.
+ * Only accounts holding the teacher role (Teacher or Admin + Teacher) are
+ * returned — admin-only accounts are not listed as resource teachers.
  */
 export async function GET(req: NextRequest) {
     const user = await getSessionUser(req);
@@ -35,9 +38,13 @@ export async function GET(req: NextRequest) {
 
         const users = await tx.user.findMany({
             where: { courseId },
-            select: { id: true, email: true },
+            select: { id: true, email: true, role: true, permissions: true },
         });
-        const userIdByEmail = new Map(users.map((u) => [u.email.trim().toLowerCase(), u.id]));
+        const userIdByEmail = new Map(
+            users
+                .filter((u) => hasTeacherRole(u.role, u.permissions as string[] | null))
+                .map((u) => [u.email.trim().toLowerCase(), u.id])
+        );
 
         const out: ResourceTeacher[] = [];
         for (const t of teachers) {
