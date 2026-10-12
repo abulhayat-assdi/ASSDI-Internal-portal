@@ -139,6 +139,12 @@ export default function CompetitionsPage() {
                     >
                       <span>📊</span> Report
                     </Link>
+                    <Link
+                      href={`/dashboard/competitions/${comp.id}/procurement`}
+                      className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg shadow-sm text-xs font-semibold transition inline-flex items-center gap-1"
+                    >
+                      <span>🛒</span> Procurement
+                    </Link>
                     <Link 
                       href={`/dashboard/competitions/${comp.id}/edit`} 
                       className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg shadow-sm text-xs font-semibold transition inline-flex items-center gap-1"

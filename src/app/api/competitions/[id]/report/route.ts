@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isTeacherOrAdmin } from "@/lib/auth";
 import { effectiveReportDate } from "@/lib/competitions";
+import { loadProcurement } from "@/lib/competitionServer";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,10 @@ export async function GET(
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const { competition, groups } = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+        // Money owed by teams is for staff only; the public report never gets it.
+        const isStaff = Boolean(user && isTeacherOrAdmin(user));
+
+        const { competition, groups, procurement } = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
             const competition = await tx.competition.findUnique({
                 where: { id, courseId },
                 include: {
@@ -40,7 +44,8 @@ export async function GET(
                       select: { id: true, groupName: true, members: true },
                   })
                 : [];
-            return { competition, groups };
+            const procurement = competition && isStaff ? (await loadProcurement(tx, courseId, competition)).entries : null;
+            return { competition, groups, procurement };
         });
 
         if (!competition) {
@@ -62,6 +67,7 @@ export async function GET(
                 effectiveDate: effectiveReportDate(s, competition.schema),
             })),
             groups,
+            ...(procurement ? { procurement } : {}),
         });
     } catch (error) {
         console.error("Failed to fetch competition report:", error);

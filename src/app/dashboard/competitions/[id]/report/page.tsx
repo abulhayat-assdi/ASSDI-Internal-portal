@@ -6,6 +6,7 @@ import { toast } from "react-hot-toast";
 import dynamic from "next/dynamic";
 import BulkDataGrid from "@/components/competitions/BulkDataGrid";
 import SubmissionExplorer from "@/components/competitions/SubmissionExplorer";
+import ProcurementSummary from "@/components/competitions/ProcurementSummary";
 import { findGroupForRoll, type GroupLike } from "@/lib/competitions";
 
 // The day a row counts for (server-computed; differs from submittedAt for late reports).
@@ -504,6 +505,8 @@ export default function CompetitionReportPage() {
       </div>
 
       {/* Charts Section - Responsive Grid */}
+      <ProcurementSummary competitionId={competition.id} entries={competition.procurement || []} />
+
       <SubmissionExplorer competition={competition} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
