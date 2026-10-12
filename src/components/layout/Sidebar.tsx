@@ -9,6 +9,7 @@ import BrandLogo from "@/components/ui/BrandLogo";
 import { useBranding } from "@/contexts/BrandingContext";
 import { useSidebarNotifications } from "@/hooks/useSidebarNotifications";
 import { PermissionKey } from "@/lib/permissions";
+import StudentBottomNav from "@/components/layout/StudentBottomNav";
 
 interface NavItem {
     href: string;
@@ -128,7 +129,17 @@ const studentNavItems: NavItem[] = [
     { href: "/student-dashboard/typing-exam", label: "Typing Exam", icon: "📝", permission: null, feature: "typing_exam" },
 ];
 
-export default function Sidebar() {
+interface SidebarProps {
+    /**
+     * "student" swaps the floating hamburger for the bottom tab bar, whose
+     * "More" button opens this same drawer. The student layout passes it
+     * explicitly rather than waiting on the profile to load, so the phone
+     * chrome is right on first paint.
+     */
+    variant?: "student";
+}
+
+export default function Sidebar({ variant }: SidebarProps = {}) {
     const pathname = usePathname();
     const router = useRouter();
     const { userProfile, logout, loading, hasPermission } = useAuth();
@@ -174,7 +185,24 @@ export default function Sidebar() {
         }
     }, [pathname, loading, markPageAsVisited]);
 
-    const isStudent = userProfile?.role === "student";
+    const isStudent = variant === "student" || userProfile?.role === "student";
+    const useBottomNav = variant === "student";
+
+    // While the drawer is open on a phone: the page behind must not scroll,
+    // and Escape closes it.
+    useEffect(() => {
+        if (!isMobileMenuOpen) return;
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "Escape") setIsMobileMenuOpen(false);
+        };
+        window.addEventListener("keydown", onKeyDown);
+        return () => {
+            document.body.style.overflow = previousOverflow;
+            window.removeEventListener("keydown", onKeyDown);
+        };
+    }, [isMobileMenuOpen]);
 
     const toggleSection = (id: string) => {
         setOpenSections(prev => ({ ...prev, [id]: !prev[id] }));
@@ -227,39 +255,53 @@ export default function Sidebar() {
 
     return (
         <>
-            {/* Mobile Menu Button */}
-            <button
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white rounded-lg shadow-md border border-[#e5e7eb]"
-                aria-label="Toggle menu"
-            >
-                <svg className="w-6 h-6 text-[#1f2937]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    {isMobileMenuOpen ? (
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    ) : (
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                    )}
-                </svg>
-            </button>
+            {/* Mobile Menu Button — the student portal uses the bottom tab bar instead */}
+            {!useBottomNav && (
+                <button
+                    onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                    className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white rounded-lg shadow-md border border-[#e5e7eb]"
+                    aria-label="Toggle menu"
+                >
+                    <svg className="w-6 h-6 text-[#1f2937]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        {isMobileMenuOpen ? (
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        ) : (
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                        )}
+                    </svg>
+                </button>
+            )}
 
             {/* Overlay for mobile */}
             {isMobileMenuOpen && (
                 <div
-                    className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-40"
+                    className="lg:hidden fixed inset-0 bg-black/50 z-40"
                     onClick={() => setIsMobileMenuOpen(false)}
                 />
             )}
 
             {/* Sidebar */}
             <aside className={cn(
-                "w-64 bg-white border-r border-[#e5e7eb] text-[#1f2937] h-[100dvh] fixed left-0 top-0 flex flex-col z-40 transition-transform duration-300",
+                "w-64 max-w-[85vw] bg-white border-r border-[#e5e7eb] text-[#1f2937] h-[100dvh] fixed left-0 top-0 flex flex-col z-40 transition-transform duration-300 pb-[env(safe-area-inset-bottom)]",
                 // Mobile: slide in/out
                 isMobileMenuOpen ? "translate-x-0" : "-translate-x-full",
                 // Desktop: always visible
                 "lg:translate-x-0"
             )}>
                 {/* Logo/Brand — compact row, same height as the top navbar (h-16) so the two borders line up */}
-                <div className="h-16 flex-shrink-0 px-4 border-b border-[#e5e7eb] flex items-center justify-center">
+                <div className="relative h-16 flex-shrink-0 px-4 border-b border-[#e5e7eb] flex items-center justify-center">
+                    {useBottomNav && (
+                        <button
+                            type="button"
+                            onClick={() => setIsMobileMenuOpen(false)}
+                            className="lg:hidden absolute right-2 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center rounded-full text-[#4b5563] hover:bg-[#f3f4f6] cursor-pointer"
+                            aria-label="Close menu"
+                        >
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    )}
                     <Link
                         href={isStudent ? "/student-dashboard" : "/dashboard"}
                         prefetch={true}
@@ -437,6 +479,19 @@ export default function Sidebar() {
                     </button>
                 </div>
             </aside>
+
+            {useBottomNav && (
+                <StudentBottomNav
+                    pathname={pathname}
+                    features={features}
+                    isMoreOpen={isMobileMenuOpen}
+                    onMore={() => setIsMobileMenuOpen((open) => !open)}
+                    onNavigate={(href) => {
+                        setIsMobileMenuOpen(false);
+                        markPageAsVisited(href);
+                    }}
+                />
+            )}
         </>
     );
 }

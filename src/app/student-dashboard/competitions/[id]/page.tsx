@@ -548,8 +548,8 @@ export default function StudentCompetitionPage() {
 
       {/* Correction modal */}
       {correcting && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90dvh] flex flex-col overflow-hidden border border-slate-200">
             <div className="bg-slate-900 text-white px-6 py-4 flex justify-between items-center">
               <h3 className="text-lg font-bold" style={{ color: "#fff", WebkitTextFillColor: "#fff", backgroundImage: "none" }}>
                 Request Correction — {formatReportDate(correcting.reportDate)} ({correcting.type === "team" ? "Team" : "Individual"})

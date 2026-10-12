@@ -76,12 +76,12 @@ export default function StudentResultsPage() {
     const hasAnyData = hasExamData || hasPresentationData;
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500 max-w-6xl mx-auto pb-12">
+        <div className="space-y-5 sm:space-y-8 animate-in fade-in duration-500 max-w-6xl mx-auto pb-4 sm:pb-12">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                     <div className="w-1 h-10 bg-[#059669] rounded-full"></div>
                     <div>
-                        <h1 className="text-3xl font-bold text-[#1f2937]">Academic Result</h1>
+                        <h1 className="text-2xl sm:text-3xl font-bold text-[#1f2937]">Academic Result</h1>
                         <p className="text-[#6b7280] mt-1">
                             Your performance evaluation across all modules and exams.
                         </p>
@@ -90,21 +90,21 @@ export default function StudentResultsPage() {
             </div>
 
             {!hasAnyData ? (
-                <div className="bg-white rounded-2xl p-16 text-center shadow-sm border border-gray-100 flex flex-col items-center justify-center relative overflow-hidden">
+                <div className="bg-white rounded-2xl px-5 py-12 sm:p-16 text-center shadow-sm border border-gray-100 flex flex-col items-center justify-center relative overflow-hidden">
                      <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mb-6 relative z-10">
                         <DocumentTextIcon className="w-10 h-10 text-emerald-500" />
                      </div>
-                     <h2 className="text-2xl font-bold text-gray-900 mb-2 relative z-10">Results Unavailable</h2>
+                     <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2 relative z-10">Results Unavailable</h2>
                      <p className="text-gray-500 max-w-md mx-auto relative z-10">
                          Your exam results for Batch {userProfile?.studentBatchName} have not been published yet. Please check back later or contact your administration.
                      </p>
                 </div>
             ) : (
-                <div className="space-y-8">
+                <div className="space-y-5 sm:space-y-8">
                     {/* Profile Header Card */}
-                    <div className="bg-white rounded-2xl p-8 shadow-sm border border-emerald-100 relative overflow-hidden flex items-center gap-8">
+                    <div className="bg-white rounded-2xl p-4 sm:p-8 shadow-sm border border-emerald-100 relative overflow-hidden flex items-center gap-4 sm:gap-8">
                         <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-50 rounded-full opacity-50 -translate-y-1/2 translate-x-1/3"></div>
-                        <div className="w-24 h-24 bg-emerald-50 rounded-full flex items-center justify-center shrink-0 border-4 border-white shadow-sm relative z-10 overflow-hidden">
+                        <div className="w-16 h-16 sm:w-24 sm:h-24 bg-emerald-50 rounded-full flex items-center justify-center shrink-0 border-4 border-white shadow-sm relative z-10 overflow-hidden">
                             {userProfile?.profileImageUrl ? (
                                 <Image
                                     src={toDriveImg(userProfile.profileImageUrl)}
@@ -114,20 +114,20 @@ export default function StudentResultsPage() {
                                     className="object-cover"
                                 />
                             ) : (
-                                <UserCircleIcon className="w-16 h-16 text-[#059669]" />
+                                <UserCircleIcon className="w-11 h-11 sm:w-16 sm:h-16 text-[#059669]" />
                             )}
                         </div>
-                        <div className="relative z-10 flex-grow">
-                            <h2 className="text-3xl font-black text-gray-900 tracking-tight uppercase">{result!.name}</h2>
-                            <div className="flex flex-wrap gap-x-8 gap-y-2 mt-3">
+                        <div className="relative z-10 flex-grow min-w-0">
+                            <h2 className="text-xl sm:text-3xl font-black text-gray-900 tracking-tight uppercase break-words">{result!.name}</h2>
+                            <div className="flex flex-wrap gap-x-6 sm:gap-x-8 gap-y-2 mt-2 sm:mt-3">
                                 <div>
                                     <p className="text-xs text-emerald-600 font-bold uppercase tracking-wider">Roll Number</p>
-                                    <p className="text-xl font-bold text-gray-700">#{result!.roll}</p>
+                                    <p className="text-base sm:text-xl font-bold text-gray-700">#{result!.roll}</p>
                                 </div>
                                 <div className="hidden sm:block w-px h-8 bg-gray-200 mt-1"></div>
                                 <div>
                                     <p className="text-xs text-emerald-600 font-bold uppercase tracking-wider">Batch Name</p>
-                                    <p className="text-xl font-bold text-gray-700">{result!.batchName}</p>
+                                    <p className="text-base sm:text-xl font-bold text-gray-700">{result!.batchName}</p>
                                 </div>
                             </div>
                         </div>
@@ -142,7 +142,7 @@ export default function StudentResultsPage() {
                             </div>
                             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                                 {/* Desktop View */}
-                                <div className="hidden md:block overflow-x-auto w-full">
+                                <div className="hidden xl:block overflow-x-auto w-full">
                                     <table className="w-full text-center border-collapse min-w-[900px]">
                                         <thead>
                                             <tr className="bg-[#8cc63f] text-black">
@@ -185,7 +185,7 @@ export default function StudentResultsPage() {
                                 </div>
 
                                 {/* Mobile View */}
-                                <div className="md:hidden flex flex-col divide-y-4 divide-gray-100 bg-gray-50">
+                                <div className="xl:hidden grid grid-cols-1 md:grid-cols-2 gap-1 bg-gray-100">
                                     {result!.examRecords!.map((record) => {
                                         const allSubjects = [
                                             ...FIXED_SUBJECTS.map(s => ({
@@ -196,17 +196,17 @@ export default function StudentResultsPage() {
                                         ];
                                         return (
                                             <div key={record.id} className="bg-white">
-                                                <div className="bg-[#8cc63f] text-black font-bold px-4 py-3 text-lg border-b border-[#7db037] shadow-sm flex items-center justify-between">
+                                                <div className="bg-[#8cc63f] text-black font-bold px-4 py-3 text-base sm:text-lg border-b border-[#7db037] shadow-sm flex items-center justify-between gap-3">
                                                     <span>{record.examName}</span>
-                                                    <svg className="w-5 h-5 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <svg className="w-5 h-5 opacity-70 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                                     </svg>
                                                 </div>
                                                 <div className="flex flex-col">
                                                     {allSubjects.map((item, idx) => (
-                                                        <div key={idx} className="flex justify-between items-center px-4 py-3 border-b border-gray-100 last:border-0 hover:bg-emerald-50/30 transition-colors">
+                                                        <div key={idx} className="flex justify-between items-center gap-3 px-4 py-3 border-b border-gray-100 last:border-0 hover:bg-emerald-50/30 transition-colors">
                                                             <span className="font-semibold text-gray-600 text-[14px]">{item.label}</span>
-                                                            <span className="font-bold text-gray-900 border border-gray-200 px-3 py-1 bg-gray-50 rounded-md min-w-[3rem] text-center text-[15px]">{item.value || "-"}</span>
+                                                            <span className="font-bold text-gray-900 border border-gray-200 px-3 py-1 bg-gray-50 rounded-md min-w-[3rem] text-center text-[15px] shrink-0">{item.value || "-"}</span>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -227,7 +227,7 @@ export default function StudentResultsPage() {
                             </div>
                             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                                 {/* Desktop View */}
-                                <div className="hidden md:block overflow-x-auto w-full">
+                                <div className="hidden xl:block overflow-x-auto w-full">
                                     <table className="w-full text-center border-collapse" style={{ minWidth: `${400 + result!.presentationColumns!.length * 150}px` }}>
                                         <thead>
                                             <tr className="bg-[#8cc63f] text-black">
@@ -257,20 +257,20 @@ export default function StudentResultsPage() {
                                 </div>
 
                                 {/* Mobile View */}
-                                <div className="md:hidden flex flex-col divide-y-4 divide-gray-100 bg-gray-50">
+                                <div className="xl:hidden grid grid-cols-1 md:grid-cols-2 gap-1 bg-gray-100">
                                     {result!.presentationRecords!.map((record) => (
                                         <div key={record.id} className="bg-white">
-                                            <div className="bg-[#8cc63f] text-black font-bold px-4 py-3 text-lg border-b border-[#7db037] shadow-sm flex items-center justify-between">
+                                            <div className="bg-[#8cc63f] text-black font-bold px-4 py-3 text-base sm:text-lg border-b border-[#7db037] shadow-sm flex items-center justify-between gap-3">
                                                 <span>{record.presentationName}</span>
-                                                <svg className="w-5 h-5 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <svg className="w-5 h-5 opacity-70 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0-1 3m8.5-3 1 3m0 0 .5 1.5m-.5-1.5h-9.5m0 0-.5 1.5M9 11.25v1.5M12 9v3.75m3-6v6" />
                                                 </svg>
                                             </div>
                                             <div className="flex flex-col">
                                                 {result!.presentationColumns!.map((col) => (
-                                                    <div key={col.id} className="flex justify-between items-center px-4 py-3 border-b border-gray-100 last:border-0 hover:bg-purple-50/30 transition-colors">
+                                                    <div key={col.id} className="flex justify-between items-center gap-3 px-4 py-3 border-b border-gray-100 last:border-0 hover:bg-purple-50/30 transition-colors">
                                                         <span className="font-semibold text-gray-600 text-[14px]">{col.label}</span>
-                                                        <span className="font-bold text-gray-900 border border-gray-200 px-3 py-1 bg-gray-50 rounded-md min-w-[3rem] text-center text-[15px]">{record.criteria[col.id] || "-"}</span>
+                                                        <span className="font-bold text-gray-900 border border-gray-200 px-3 py-1 bg-gray-50 rounded-md min-w-[3rem] text-center text-[15px] shrink-0">{record.criteria[col.id] || "-"}</span>
                                                     </div>
                                                 ))}
                                             </div>

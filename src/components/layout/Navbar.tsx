@@ -56,7 +56,12 @@ const getGoogleDriveThumbnailUrl = (url: string) => {
     return url;
 };
 
-export default function Navbar() {
+interface NavbarProps {
+    /** "student": no floating hamburger to make room for (the bottom tab bar replaces it). */
+    variant?: "student";
+}
+
+export default function Navbar({ variant }: NavbarProps = {}) {
     const [currentDateTime, setCurrentDateTime] = useState({ hijri: '', english: '' });
     const { userProfile, user } = useAuth();
 
@@ -97,32 +102,32 @@ export default function Navbar() {
 
     return (
         <nav className="h-16 bg-white border-b border-[#e5e7eb] fixed top-0 left-0 lg:left-64 right-0 z-30">
-            <div className="h-full px-4 md:px-6 flex items-center justify-between">
+            <div className="h-full px-4 md:px-6 flex items-center justify-between gap-3">
                 {/* Page Title / Breadcrumb */}
-                <div className="ml-12 lg:ml-0">
-                    <h2 className="text-lg md:text-xl font-semibold text-[#1f2937]">
-                        {userProfile?.role === "student" ? "Student Portal" : "Internal Portal"}
+                <div className={variant === "student" ? "min-w-0" : "ml-12 lg:ml-0"}>
+                    <h2 className="text-lg md:text-xl font-semibold text-[#1f2937] whitespace-nowrap">
+                        {variant === "student" || userProfile?.role === "student" ? "Student Portal" : "Internal Portal"}
                     </h2>
                 </div>
 
                 {/* Right Section */}
-                <div className="flex items-center gap-6">
+                <div className="flex items-center gap-3 md:gap-6 shrink-0">
                     {/* Date & Time */}
-                    <div className="hidden md:flex items-center gap-3 bg-blue-50/80 border border-blue-200 px-4 py-1.5 rounded-xl shadow-sm backdrop-blur-sm">
-                        <span className="text-[#0284c7] font-bold text-sm tracking-wide">{currentDateTime.hijri}</span>
-                        <div className="w-px h-4 bg-blue-200"></div>
-                        <span className="text-[#1e3a8a] font-bold text-sm tracking-wide">{currentDateTime.english}</span>
+                    <div className="hidden md:flex flex-col xl:flex-row items-end xl:items-center gap-0 xl:gap-3 bg-blue-50/80 border border-blue-200 px-3 xl:px-4 py-1 xl:py-1.5 rounded-xl shadow-sm backdrop-blur-sm leading-tight">
+                        <span className="text-[#0284c7] font-bold text-xs xl:text-sm tracking-wide whitespace-nowrap">{currentDateTime.hijri}</span>
+                        <div className="hidden xl:block w-px h-4 bg-blue-200"></div>
+                        <span className="text-[#1e3a8a] font-bold text-xs xl:text-sm tracking-wide whitespace-nowrap">{currentDateTime.english}</span>
                     </div>
 
                     {/* User Profile */}
                     <div className="flex items-center gap-3">
-                        <div className="text-right hidden sm:block">
-                            <p className="text-sm font-medium text-[#1f2937]">
+                        <div className="text-right hidden sm:block min-w-0">
+                            <p className="text-sm font-medium text-[#1f2937] truncate max-w-[10rem] xl:max-w-[16rem]">
                                 {displayName}
                             </p>
                             <p className="text-xs text-[#6b7280]">{roleCapitalized}</p>
                         </div>
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#059669] to-[#10b981] flex items-center justify-center text-white font-bold text-sm overflow-hidden relative border border-gray-100">
+                        <div className="w-10 h-10 shrink-0 rounded-full bg-gradient-to-br from-[#059669] to-[#10b981] flex items-center justify-center text-white font-bold text-sm overflow-hidden relative border border-gray-100">
                             {profileImage ? (
                                 <Image
                                     src={profileImage}

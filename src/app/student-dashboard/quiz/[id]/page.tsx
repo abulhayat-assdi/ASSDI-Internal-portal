@@ -73,7 +73,7 @@ function QuizTakePage() {
             <AmbientOrbs />
             {phase === "loading" && <Spinner />}
             {phase === "error" && (
-                <div className={`${GLASS_PANEL} rounded-2xl p-10 text-center max-w-lg mx-auto`}>
+                <div className={`${GLASS_PANEL} rounded-2xl px-5 py-8 sm:p-10 text-center max-w-lg mx-auto`}>
                     <AlertTriangle className="h-10 w-10 text-amber-500 mx-auto mb-3" strokeWidth={1.5} />
                     <p className="text-slate-700 font-medium">{error}</p>
                     <Link

@@ -67,14 +67,14 @@ function CollapsibleSection({ title, children, defaultOpen = false }: { title: s
             <button
                 type="button"
                 onClick={() => setOpen((o) => !o)}
-                className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-gray-50 transition-colors"
+                className="w-full flex items-center justify-between gap-3 px-4 sm:px-5 py-4 text-left hover:bg-gray-50 transition-colors"
             >
                 <span className="font-bold text-gray-900">{title}</span>
                 <svg className={`w-5 h-5 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
             </button>
-            {open && <div className="px-5 pb-5 space-y-4">{children}</div>}
+            {open && <div className="px-4 sm:px-5 pb-4 sm:pb-5 space-y-4">{children}</div>}
         </div>
     );
 }
@@ -476,10 +476,10 @@ export default function CvEditorPage() {
     }
 
     return (
-        <div className="max-w-screen-xl mx-auto pb-12">
+        <div className="max-w-screen-xl mx-auto pb-4 sm:pb-12">
             {/* Top toolbar */}
-            <div className="sticky top-16 z-30 bg-white border-b border-gray-100 shadow-sm mb-6 rounded-xl overflow-hidden">
-                <div className="flex items-center gap-3 px-4 py-3 flex-wrap">
+            <div className="sticky top-16 z-30 bg-white border-b border-gray-100 shadow-sm mb-4 sm:mb-6 rounded-xl overflow-hidden">
+                <div className="flex items-center gap-x-3 gap-y-2 px-3 sm:px-4 py-2 sm:py-3 flex-wrap">
                     {/* Editable title */}
                     <input
                         {...form.register("title")}
@@ -496,11 +496,11 @@ export default function CvEditorPage() {
                         {saveStatus === "saved" ? "Saved" : saveStatus === "saving" ? "Saving..." : "Unsaved"}
                     </span>
 
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex items-center gap-2 w-full sm:w-auto sm:flex-shrink-0 overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0 [&>*]:shrink-0 [scrollbar-width:none]">
                         {/* Mobile tab toggle */}
                         <div className="flex lg:hidden bg-gray-100 rounded-lg p-0.5">
-                            <button onClick={() => setActiveTab("form")} className={`px-3 py-1.5 text-xs font-bold rounded-md ${activeTab === "form" ? "bg-white shadow-sm" : "text-gray-500"}`}>Edit</button>
-                            <button onClick={() => setActiveTab("preview")} className={`px-3 py-1.5 text-xs font-bold rounded-md ${activeTab === "preview" ? "bg-white shadow-sm" : "text-gray-500"}`}>Preview</button>
+                            <button onClick={() => setActiveTab("form")} className={`px-3 py-2 sm:py-1.5 text-xs font-bold rounded-md ${activeTab === "form" ? "bg-white shadow-sm" : "text-gray-500"}`}>Edit</button>
+                            <button onClick={() => setActiveTab("preview")} className={`px-3 py-2 sm:py-1.5 text-xs font-bold rounded-md ${activeTab === "preview" ? "bg-white shadow-sm" : "text-gray-500"}`}>Preview</button>
                         </div>
 
                         <button onClick={handleSaveVersion} className="px-3 py-2 bg-gray-100 text-gray-700 text-xs font-bold rounded-xl hover:bg-gray-200">
@@ -550,16 +550,16 @@ export default function CvEditorPage() {
                         </div>
                         <div>
                             <label className={labelCls()}>Profile Photo</label>
-                            <div className="flex items-center gap-3">
+                            <div className="flex flex-wrap items-center gap-3">
                                 {watchedValues.profilePhoto && (
-                                    <div className="relative group w-14 h-14 rounded-full overflow-hidden border-2 border-gray-200 cursor-pointer">
+                                    <div className="relative group w-14 h-14 shrink-0 rounded-full overflow-hidden border-2 border-gray-200 cursor-pointer">
                                         <img src={watchedValues.profilePhoto} alt="Profile" className="w-full h-full object-cover" />
                                         <div 
                                             onClick={() => {
                                                 setRawImageSrc(watchedValues.profilePhoto || "");
                                                 setShowAdjustModal(true);
                                             }}
-                                            className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-all text-white text-[9px] font-bold"
+                                            className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 flex flex-col items-center justify-center transition-all text-white text-[9px] font-bold"
                                         >
                                             <svg className="w-3.5 h-3.5 mb-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
@@ -568,7 +568,7 @@ export default function CvEditorPage() {
                                         </div>
                                     </div>
                                 )}
-                                <input type="file" accept="image/*" onChange={handlePhotoUpload} className="text-sm text-gray-500 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-[#d1fae5] file:text-[#065f46] file:font-bold hover:file:bg-[#a7f3d0]" />
+                                <input type="file" accept="image/*" onChange={handlePhotoUpload} className="min-w-0 max-w-full text-sm text-gray-500 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-[#d1fae5] file:text-[#065f46] file:font-bold hover:file:bg-[#a7f3d0]" />
                                 {watchedValues.profilePhoto && (
                                     <button type="button" onClick={() => form.setValue("profilePhoto", "")} className="text-xs text-red-500 hover:underline">Remove</button>
                                 )}
@@ -600,7 +600,7 @@ export default function CvEditorPage() {
 
                     {/* Contact */}
                     <CollapsibleSection title="Contact Information">
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4">
                             <div>
                                 <label className={labelCls()}>Phone (BD)</label>
                                 <input {...form.register("phone")} className={inputCls()} placeholder="01XXXXXXXXX" />
@@ -633,7 +633,7 @@ export default function CvEditorPage() {
                             />
                             <label htmlFor="toggle-personalInfo" className="text-xs font-bold text-gray-700 cursor-pointer select-none">Include this section in CV</label>
                         </div>
-                        <div className={`grid grid-cols-2 gap-4 ${!(watchedValues.visibleSections?.includes('personalInfo') ?? true) ? "opacity-50 pointer-events-none" : ""}`}>
+                        <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4 ${!(watchedValues.visibleSections?.includes('personalInfo') ?? true) ? "opacity-50 pointer-events-none" : ""}`}>
                             <div>
                                 <label className={labelCls()}>Date of Birth</label>
                                 <input type="date" {...form.register("dateOfBirth")} className={inputCls()} disabled={!(watchedValues.visibleSections?.includes('personalInfo') ?? true)} />
@@ -659,7 +659,7 @@ export default function CvEditorPage() {
                                     {RELIGIONS.map((r) => <option key={r}>{r}</option>)}
                                 </select>
                             </div>
-                            <div className="col-span-2">
+                            <div className="col-span-full">
                                 <label className={labelCls()}>Nationality</label>
                                 <select {...form.register("nationality")} className={inputCls()} disabled={!(watchedValues.visibleSections?.includes('personalInfo') ?? true)}>
                                     <option value="">Select</option>
@@ -706,7 +706,7 @@ export default function CvEditorPage() {
                         </div>
                         <div className={!(watchedValues.visibleSections?.includes('languages') ?? true) ? "opacity-50 pointer-events-none" : ""}>
                             {langFields.map((field, index) => (
-                                <div key={field.id} className="grid grid-cols-2 gap-3 p-3 bg-gray-50 rounded-xl mb-3">
+                                <div key={field.id} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-3 p-3 bg-gray-50 rounded-xl mb-3">
                                     <div>
                                         <label className={labelCls()}>Language</label>
                                         <input {...form.register(`languages.${index}.name`)} maxLength={30} className={inputCls()} placeholder="e.g. English" disabled={!(watchedValues.visibleSections?.includes('languages') ?? true)} />
@@ -718,7 +718,7 @@ export default function CvEditorPage() {
                                             {LANGUAGE_PROFICIENCY_LEVELS.map((l) => <option key={l}>{l}</option>)}
                                         </select>
                                     </div>
-                                    <button type="button" onClick={() => removeLang(index)} className="col-span-2 text-xs text-red-500 hover:underline text-right" disabled={!(watchedValues.visibleSections?.includes('languages') ?? true)}>Remove</button>
+                                    <button type="button" onClick={() => removeLang(index)} className="col-span-full text-xs text-red-500 hover:underline text-right" disabled={!(watchedValues.visibleSections?.includes('languages') ?? true)}>Remove</button>
                                 </div>
                             ))}
                             {langFields.length < LIM.maxLanguages ? (
@@ -771,7 +771,7 @@ export default function CvEditorPage() {
                                         <span className="text-xs font-bold text-gray-500">Entry {index + 1}</span>
                                         <button type="button" onClick={() => removeWe(index)} className="text-xs text-red-500 hover:underline" disabled={!(watchedValues.visibleSections?.includes('workExperience') ?? true)}>Remove</button>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-3">
                                         <div>
                                             <FieldLabel label="Job Title" cur={watchedValues.workExperience?.[index]?.jobTitle?.length ?? 0} max={LIM.jobTitle} />
                                             <input {...form.register(`workExperience.${index}.jobTitle`)} maxLength={LIM.jobTitle} className={inputCls()} placeholder="Sales Manager" disabled={!(watchedValues.visibleSections?.includes('workExperience') ?? true)} />
@@ -848,7 +848,7 @@ export default function CvEditorPage() {
                                         <span className="text-xs font-bold text-gray-500">Entry {index + 1}</span>
                                         <button type="button" onClick={() => removeTraining(index)} className="text-xs text-red-500 hover:underline" disabled={!(watchedValues.visibleSections?.includes('training') ?? true)}>Remove</button>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-3">
                                         <div>
                                             <FieldLabel label="Training Name" cur={watchedValues.training?.[index]?.trainingName?.length ?? 0} max={LIM.trainingName} />
                                             <input {...form.register(`training.${index}.trainingName`)} maxLength={LIM.trainingName} className={inputCls()} placeholder="Digital Marketing" disabled={!(watchedValues.visibleSections?.includes('training') ?? true)} />
@@ -917,7 +917,7 @@ export default function CvEditorPage() {
                                         <span className="text-xs font-bold text-gray-500">Entry {index + 1}</span>
                                         <button type="button" onClick={() => removeEdu(index)} className="text-xs text-red-500 hover:underline" disabled={!(watchedValues.visibleSections?.includes('education') ?? true)}>Remove</button>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-3">
                                         <div>
                                             <FieldLabel label="Degree" cur={watchedValues.education?.[index]?.degree?.length ?? 0} max={LIM.degree} />
                                             <input {...form.register(`education.${index}.degree`)} maxLength={LIM.degree} className={inputCls()} placeholder="BBA, BSc in CS" disabled={!(watchedValues.visibleSections?.includes('education') ?? true)} />
@@ -926,7 +926,7 @@ export default function CvEditorPage() {
                                             <FieldLabel label="Department" cur={watchedValues.education?.[index]?.department?.length ?? 0} max={LIM.department} />
                                             <input {...form.register(`education.${index}.department`)} maxLength={LIM.department} className={inputCls()} placeholder="Marketing" disabled={!(watchedValues.visibleSections?.includes('education') ?? true)} />
                                         </div>
-                                        <div className="col-span-2">
+                                        <div className="col-span-full">
                                             <FieldLabel label="Institution" cur={watchedValues.education?.[index]?.institution?.length ?? 0} max={LIM.institution} />
                                             <input {...form.register(`education.${index}.institution`)} maxLength={LIM.institution} className={inputCls()} placeholder="University Name" disabled={!(watchedValues.visibleSections?.includes('education') ?? true)} />
                                         </div>
@@ -968,7 +968,7 @@ export default function CvEditorPage() {
                                         <span className="text-xs font-bold text-gray-500">Ref {index + 1}</span>
                                         <button type="button" onClick={() => removeRef(index)} className="text-xs text-red-500 hover:underline" disabled={!(watchedValues.visibleSections?.includes('references') ?? true)}>Remove</button>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-3">
                                         <div>
                                             <FieldLabel label="Name" cur={watchedValues.references?.[index]?.name?.length ?? 0} max={LIM.refName} />
                                             <input {...form.register(`references.${index}.name`)} maxLength={LIM.refName} className={inputCls()} placeholder="Dr. John Doe" disabled={!(watchedValues.visibleSections?.includes('references') ?? true)} />
@@ -1204,12 +1204,12 @@ function AdjustModal({ imageSrc, shape, onClose, onSave }: AdjustModalProps) {
     };
 
     return (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-2 sm:p-4">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm max-h-[100dvh] overflow-y-auto flex flex-col">
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
                     <h3 className="font-bold text-gray-900 text-sm">প্রোফাইল ছবি এডজাস্ট করুন</h3>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+                    <button onClick={onClose} aria-label="Close" className="p-2 -m-2 text-gray-400 hover:text-gray-600 transition-colors">
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
                         </svg>
@@ -1217,10 +1217,10 @@ function AdjustModal({ imageSrc, shape, onClose, onSave }: AdjustModalProps) {
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 p-6 flex flex-col items-center gap-6">
+                <div className="flex-1 p-3 sm:p-6 flex flex-col items-center gap-4 sm:gap-6">
                     {/* View Box Container */}
                     <div 
-                        className="relative w-[280px] h-[280px] bg-gray-100 border border-gray-200 rounded-2xl overflow-hidden cursor-move select-none touch-none shadow-inner"
+                        className="relative shrink-0 w-[280px] h-[280px] bg-gray-100 border border-gray-200 rounded-2xl overflow-hidden cursor-move select-none touch-none shadow-inner"
                         onMouseDown={handleMouseDown}
                         onMouseMove={handleMouseMove}
                         onMouseUp={handleDragEnd}
@@ -1280,13 +1280,13 @@ function AdjustModal({ imageSrc, shape, onClose, onSave }: AdjustModalProps) {
                 <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-3">
                     <button 
                         onClick={onClose}
-                        className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-700 transition-colors"
+                        className="px-4 py-3 sm:py-2 text-xs font-bold text-gray-500 hover:text-gray-700 transition-colors"
                     >
                         বাতিল
                     </button>
                     <button 
                         onClick={handleApply}
-                        className="px-5 py-2 bg-[#059669] text-white text-xs font-bold rounded-xl hover:bg-[#047857] shadow-sm shadow-green-200 transition-colors"
+                        className="px-5 py-3 sm:py-2 bg-[#059669] text-white text-xs font-bold rounded-xl hover:bg-[#047857] shadow-sm shadow-green-200 transition-colors"
                     >
                         সম্পন্ন করুন
                     </button>

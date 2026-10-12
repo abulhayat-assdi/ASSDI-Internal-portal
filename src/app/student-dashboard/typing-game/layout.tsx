@@ -60,7 +60,7 @@ export default async function StudentLayout({
         <span />
       </div>
       <StudentNav locale={locale} />
-      <div className="mx-auto w-full max-w-5xl px-4 py-6">{children}</div>
+      <div className="mx-auto w-full max-w-5xl px-3 sm:px-4 py-4 sm:py-6">{children}</div>
     </div>
   );
 }

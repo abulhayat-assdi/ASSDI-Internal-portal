@@ -69,37 +69,37 @@ export default function StudentDashboardOverview() {
     const { displayName, studentBatchName, studentRoll } = userProfile || {};
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500">
+        <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-500">
             {/* Header Banner */}
-            <div className="bg-gradient-to-r from-[#059669] to-[#10b981] rounded-2xl p-8 text-white shadow-md relative overflow-hidden">
+            <div className="bg-gradient-to-r from-[#059669] to-[#10b981] rounded-2xl p-5 sm:p-8 text-white shadow-md relative overflow-hidden">
                 <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full border-4 border-white/10 opacity-50"></div>
                 <div className="absolute bottom-0 left-1/2 -ml-32 -mb-24 w-80 h-80 rounded-full border-4 border-white/10 opacity-30"></div>
                 
-                <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
-                    <div>
-                        <h1 className="no-gradient text-white text-3xl font-bold mb-2">Welcome back, {displayName}!</h1>
-                        <p className="no-gradient text-emerald-50 text-lg opacity-90">
+                <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-4 md:gap-6">
+                    <div className="min-w-0">
+                        <h1 className="no-gradient text-white text-2xl sm:text-3xl font-bold mb-2 break-words">Welcome back, {displayName}!</h1>
+                        <p className="no-gradient text-emerald-50 text-base sm:text-lg opacity-90">
                             {`Your dedicated student portal for ${courseName}`}
                         </p>
                         <p className="no-gradient text-emerald-100 text-sm mt-1.5 opacity-80">📌 আপনার প্রোফাইল সবসময় আপডেট রাখুন।</p>
                     </div>
-                    <div className="bg-white/20 backdrop-blur-sm rounded-xl py-3 px-6 border border-white/30 text-right shrink-0">
-                        <p className="text-sm font-semibold text-emerald-100 uppercase tracking-widest">Enrollment Details</p>
-                        <p className="text-xl font-bold mt-1">Batch {studentBatchName} <span className="text-emerald-200 mx-2">|</span> Roll: {studentRoll}</p>
+                    <div className="bg-white/20 backdrop-blur-sm rounded-xl py-3 px-4 sm:px-6 border border-white/30 text-left md:text-right w-full md:w-auto md:shrink-0">
+                        <p className="text-xs sm:text-sm font-semibold text-emerald-100 uppercase tracking-widest">Enrollment Details</p>
+                        <p className="text-lg sm:text-xl font-bold mt-1">Batch {studentBatchName} <span className="text-emerald-200 mx-2">|</span> Roll: {studentRoll}</p>
                     </div>
                 </div>
             </div>
 
             {/* Quick Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100/50 hover:shadow-md transition-shadow">
-                    <div className="flex items-center gap-4">
-                        <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
-                            <AcademicCapIcon className="w-8 h-8" />
+            <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-6">
+                <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100/50 hover:shadow-md transition-shadow min-w-0">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+                        <div className="p-2 sm:p-3 bg-indigo-50 text-indigo-600 rounded-xl shrink-0">
+                            <AcademicCapIcon className="w-6 h-6 sm:w-8 sm:h-8" />
                         </div>
-                        <div>
-                            <p className="text-sm text-gray-500 font-medium font-semibold uppercase tracking-wider">Course Status</p>
-                            <h3 className={`text-xl font-bold mt-1 ${
+                        <div className="min-w-0 max-w-full">
+                            <p className="text-[11px] sm:text-sm text-gray-500 font-semibold uppercase tracking-wider">Course Status</p>
+                            <h3 className={`text-base sm:text-xl font-bold mt-1 break-words ${
                                 studentData?.courseStatus === 'Completed' ? 'text-emerald-600' :
                                 studentData?.courseStatus === 'Incomplete' ? 'text-orange-600' :
                                 studentData?.courseStatus === 'Expelled' ? 'text-red-600' : 'text-gray-900'
@@ -110,42 +110,42 @@ export default function StudentDashboardOverview() {
                     </div>
                 </div>
 
-                <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100/50 hover:shadow-md transition-shadow">
-                    <div className="flex items-center gap-4">
-                        <div className="p-3 bg-cyan-50 text-cyan-600 rounded-xl">
-                            <BriefcaseIcon className="w-8 h-8" />
+                <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100/50 hover:shadow-md transition-shadow min-w-0">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+                        <div className="p-2 sm:p-3 bg-cyan-50 text-cyan-600 rounded-xl shrink-0">
+                            <BriefcaseIcon className="w-6 h-6 sm:w-8 sm:h-8" />
                         </div>
-                        <div>
-                            <p className="text-sm text-gray-500 font-medium font-semibold uppercase tracking-wider">Currently Doing</p>
-                            <h3 className="text-xl font-bold text-gray-900 mt-1 truncate">
+                        <div className="min-w-0 max-w-full">
+                            <p className="text-[11px] sm:text-sm text-gray-500 font-semibold uppercase tracking-wider">Currently Doing</p>
+                            <h3 className="text-base sm:text-xl font-bold text-gray-900 mt-1 break-words">
                                 {currentlyDoingLabel(studentData?.currentlyDoing) || "N/A"}
                             </h3>
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100/50 hover:shadow-md transition-shadow">
-                    <div className="flex items-center gap-4">
-                        <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
-                            <CurrencyDollarIcon className="w-8 h-8" />
+                <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100/50 hover:shadow-md transition-shadow min-w-0">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+                        <div className="p-2 sm:p-3 bg-emerald-50 text-emerald-600 rounded-xl shrink-0">
+                            <CurrencyDollarIcon className="w-6 h-6 sm:w-8 sm:h-8" />
                         </div>
-                        <div>
-                            <p className="text-sm text-gray-500 font-medium font-semibold uppercase tracking-wider">Present Salary</p>
-                            <h3 className="text-xl font-bold text-gray-900 mt-1">
+                        <div className="min-w-0 max-w-full">
+                            <p className="text-[11px] sm:text-sm text-gray-500 font-semibold uppercase tracking-wider">Present Salary</p>
+                            <h3 className="text-base sm:text-xl font-bold text-gray-900 mt-1 break-words">
                                 {studentData?.salary ? `৳ ${studentData.salary.toLocaleString()}` : "N/A"}
                             </h3>
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100/50 hover:shadow-md transition-shadow">
-                    <div className="flex items-center gap-4">
-                        <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
-                            <MapPinIcon className="w-8 h-8" />
+                <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100/50 hover:shadow-md transition-shadow min-w-0">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+                        <div className="p-2 sm:p-3 bg-amber-50 text-amber-600 rounded-xl shrink-0">
+                            <MapPinIcon className="w-6 h-6 sm:w-8 sm:h-8" />
                         </div>
-                        <div>
-                            <p className="text-sm text-gray-500 font-medium font-semibold uppercase tracking-wider">Location</p>
-                            <h3 className="text-base font-bold text-gray-900 mt-1 leading-snug">
+                        <div className="min-w-0 max-w-full">
+                            <p className="text-[11px] sm:text-sm text-gray-500 font-semibold uppercase tracking-wider">Location</p>
+                            <h3 className="text-sm sm:text-base font-bold text-gray-900 mt-1 leading-snug break-words">
                                 {studentData?.address || "N/A"}
                             </h3>
                         </div>
@@ -154,9 +154,9 @@ export default function StudentDashboardOverview() {
             </div>
 
             {/* Quick Actions & Info */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
                 
-                <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6">
                     <h2 className="text-lg font-bold text-gray-900 mb-4 border-b pb-3 border-gray-100 flex items-center gap-2">
                         📢 Notice Board
                         {studentNotices.length > 0 && (
@@ -170,10 +170,10 @@ export default function StudentDashboardOverview() {
                             </div>
                         ) : (
                             studentNotices.map(notice => (
-                                <div key={notice.id} className={`p-4 rounded-xl border flex items-start gap-4 ${
+                                <div key={notice.id} className={`p-3 sm:p-4 rounded-xl border flex items-start gap-3 sm:gap-4 ${
                                     notice.priority === 'urgent' ? 'bg-red-50 border-red-100' : 'bg-gray-50 border-gray-100'
                                 }`}>
-                                    <div className={`p-2 rounded-lg text-center min-w-[60px] ${
+                                    <div className={`p-2 rounded-lg text-center min-w-[52px] sm:min-w-[60px] shrink-0 ${
                                         notice.priority === 'urgent' ? 'bg-red-500 text-white' : 'bg-[#059669] text-white'
                                     }`}>
                                         <p className="text-xs font-semibold uppercase">{notice.date?.split('-')[1] ? new Date(notice.date + 'T00:00:00').toLocaleString('en', { month: 'short' }) : 'New'}</p>
@@ -184,7 +184,7 @@ export default function StudentDashboardOverview() {
                                             <span className="text-xs font-bold text-red-600 uppercase">🔴 Urgent — </span>
                                         )}
                                         <h4 className="font-bold text-gray-900 inline">{notice.title}</h4>
-                                        <p className="text-gray-600 text-sm mt-1">{notice.description}</p>
+                                        <p className="text-gray-600 text-sm mt-1 break-words">{notice.description}</p>
                                         <p className="text-xs text-gray-400 mt-1">By: {notice.createdByName}</p>
                                     </div>
                                 </div>
@@ -193,7 +193,7 @@ export default function StudentDashboardOverview() {
                     </div>
                 </div>
 
-                <div className="bg-[#1e3a5f] rounded-2xl p-6 text-white shadow-md relative overflow-hidden flex flex-col justify-between">
+                <div className="bg-[#1e3a5f] rounded-2xl p-5 sm:p-6 text-white shadow-md relative overflow-hidden flex flex-col justify-between">
                      {/* Floating subtle overlay element */}
                      <svg className="absolute top-0 right-0 opacity-10 blur-xl w-64 h-64 -translate-y-12 translate-x-12" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L2 22h20L12 2z" /></svg>
                      

@@ -170,22 +170,22 @@ export default function StudentLeavePage() {
     }
 
     return (
-        <div className="min-h-screen bg-slate-50 p-4 md:p-8">
-            <div className="max-w-4xl mx-auto space-y-8">
+        <div>
+            <div className="max-w-4xl mx-auto space-y-5 md:space-y-8">
                 
                 {/* Header Section */}
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 md:p-8">
-                    <h1 className="text-2xl font-bold text-slate-800 mb-2">Leave Request</h1>
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-6 md:p-8">
+                    <h1 className="text-2xl font-bold text-slate-800 mb-1 sm:mb-2">Leave Request</h1>
                     <p className="text-slate-500">Submit a new leave request or view your past requests.</p>
                 </div>
 
                 {/* Main Content Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 md:gap-8">
                     
                     {/* Form Section */}
-                    <div className="md:col-span-1">
-                        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 sticky top-6">
-                            <h2 className="text-lg font-semibold text-slate-800 mb-6">New Request</h2>
+                    <div className="xl:col-span-1">
+                        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-6 xl:sticky xl:top-22">
+                            <h2 className="text-lg font-semibold text-slate-800 mb-4 sm:mb-6">New Request</h2>
                             
                             {!canApply ? (
                                 <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 text-amber-800">
@@ -208,7 +208,7 @@ export default function StudentLeavePage() {
                                                 type="date"
                                                 value={startDate}
                                                 onChange={(e) => setStartDate(e.target.value)}
-                                                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors text-sm"
+                                                className="w-full min-w-0 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors text-sm"
                                                 required
                                             />
                                         </div>
@@ -218,7 +218,7 @@ export default function StudentLeavePage() {
                                                 type="date"
                                                 value={endDate}
                                                 onChange={(e) => setEndDate(e.target.value)}
-                                                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors text-sm"
+                                                className="w-full min-w-0 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors text-sm"
                                                 required
                                             />
                                         </div>
@@ -254,7 +254,7 @@ export default function StudentLeavePage() {
                                         <button
                                             type="submit"
                                             disabled={submitting}
-                                            className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-70 disabled:cursor-not-allowed text-sm"
+                                            className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-70 disabled:cursor-not-allowed text-sm"
                                         >
                                             {submitting ? "Submitting..." : "Submit Request"}
                                         </button>
@@ -265,9 +265,9 @@ export default function StudentLeavePage() {
                     </div>
 
                     {/* History Section */}
-                    <div className="md:col-span-2">
-                        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-                            <h2 className="text-lg font-semibold text-slate-800 mb-6">Request History</h2>
+                    <div className="xl:col-span-2">
+                        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-6">
+                            <h2 className="text-lg font-semibold text-slate-800 mb-4 sm:mb-6">Request History</h2>
                             
                             {loading ? (
                                 <div className="flex justify-center py-12">
@@ -283,8 +283,8 @@ export default function StudentLeavePage() {
                                 <div className="space-y-4">
                                     {requests.map((req) => (
                                         <div key={req.id} className="p-4 rounded-xl border border-slate-100 bg-slate-50 hover:bg-slate-100/50 transition-colors">
-                                            <div className="flex justify-between items-start mb-3">
-                                                <div>
+                                            <div className="flex justify-between items-start gap-3 mb-3">
+                                                <div className="min-w-0">
                                                     <div className="text-sm text-slate-500 mb-1">
                                                         {new Date(req.createdAt).toLocaleDateString()}
                                                     </div>
@@ -292,7 +292,7 @@ export default function StudentLeavePage() {
                                                         {formatDateSafe(req.startDate)} to {formatDateSafe(req.endDate)}
                                                     </div>
                                                 </div>
-                                                <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
+                                                <span className={`shrink-0 px-3 py-1 text-xs font-semibold rounded-full ${
                                                     req.status === 'APPROVED' ? 'bg-green-100 text-green-700' :
                                                     req.status === 'REJECTED' ? 'bg-red-100 text-red-700' :
                                                     'bg-yellow-100 text-yellow-700'
@@ -300,7 +300,7 @@ export default function StudentLeavePage() {
                                                     {req.status}
                                                 </span>
                                             </div>
-                                            <p className="text-slate-600 text-sm mb-3 bg-white p-3 rounded-lg border border-slate-100 whitespace-pre-wrap">{req.reason}</p>
+                                            <p className="text-slate-600 text-sm mb-3 bg-white p-3 rounded-lg border border-slate-100 whitespace-pre-wrap break-words">{req.reason}</p>
                                             {req.attachmentUrl && (
                                                 <div className="mb-3">
                                                     <a
@@ -310,7 +310,7 @@ export default function StudentLeavePage() {
                                                         className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 bg-white p-2 rounded-lg border border-slate-200 font-medium transition-colors break-all"
                                                     >
                                                         <span>📎</span>
-                                                        <span className="truncate max-w-[250px]">{req.attachmentName || "View Attachment"}</span>
+                                                        <span className="truncate max-w-[60vw] sm:max-w-[250px]">{req.attachmentName || "View Attachment"}</span>
                                                     </a>
                                                 </div>
                                             )}

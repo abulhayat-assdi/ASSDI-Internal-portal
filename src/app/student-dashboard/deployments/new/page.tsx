@@ -139,7 +139,7 @@ export default function NewDeploymentPage() {
                 </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-slate-200 p-6 space-y-6">
+            <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 space-y-5 sm:space-y-6">
                 <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1.5">
                         Project Name <span className="text-slate-400 font-normal">(optional)</span>
@@ -200,7 +200,7 @@ export default function NewDeploymentPage() {
                         onDragLeave={() => setDragOver(false)}
                         onDrop={handleDrop}
                         onClick={() => fileInputRef.current?.click()}
-                        className={`relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all
+                        className={`relative border-2 border-dashed rounded-xl p-5 sm:p-8 text-center cursor-pointer transition-all
                             ${dragOver ? "border-blue-400 bg-blue-50" : "border-slate-200 hover:border-blue-300 hover:bg-slate-50"}
                             ${file ? "border-green-400 bg-green-50" : ""}`}
                     >

@@ -53,7 +53,7 @@ export default function StudentQuizListPage() {
     }, []);
 
     return (
-        <div className="space-y-6 max-w-5xl mx-auto pb-12">
+        <div className="space-y-5 sm:space-y-6 max-w-5xl mx-auto pb-4 sm:pb-12">
             <AmbientOrbs />
 
             <div className="flex items-center gap-3">
@@ -69,7 +69,7 @@ export default function StudentQuizListPage() {
             {loading && <Spinner />}
 
             {!loading && error && (
-                <div className={`${GLASS_PANEL} rounded-2xl p-12 text-center`}>
+                <div className={`${GLASS_PANEL} rounded-2xl px-5 py-10 sm:p-12 text-center`}>
                     <AlertTriangle className="h-10 w-10 text-amber-500 mx-auto mb-3" strokeWidth={1.5} />
                     <h3 className="text-lg font-bold text-slate-800">লোড হয়নি</h3>
                     <p className="text-slate-500 mt-1 text-sm">কুইজের তথ্য লোড করতে সমস্যা হয়েছে। পেজ রিফ্রেশ করুন।</p>
@@ -77,7 +77,7 @@ export default function StudentQuizListPage() {
             )}
 
             {!loading && !error && quizzes.length === 0 && (
-                <div className={`${GLASS_PANEL} rounded-2xl p-12 text-center`}>
+                <div className={`${GLASS_PANEL} rounded-2xl px-5 py-10 sm:p-12 text-center`}>
                     <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
                         <HelpCircle className="h-8 w-8" strokeWidth={1.5} />
                     </div>

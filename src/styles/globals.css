@@ -65,6 +65,18 @@ body {
   }
 }
 
+/* Student portal on a touch device: iOS Safari zooms the whole page in when a
+   focused field's text is under 16px, and never zooms back out. Most fields
+   here are text-sm, so lift them to 16px wherever the primary pointer is a
+   finger. Unlayered on purpose, so it wins over the utility classes. */
+@media (hover: none) and (pointer: coarse) {
+  .student-portal input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  .student-portal select,
+  .student-portal textarea {
+    font-size: 16px;
+  }
+}
+
 /* Typing-exam text cursor: a thin bar in the portal's brand green. It is one
    element that slides between characters (position set inline), solid while
    the taker is typing and blinking once idle — like Monkeytype's. Plain CSS

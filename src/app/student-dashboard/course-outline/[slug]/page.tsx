@@ -26,11 +26,11 @@ export default async function StudentModuleOutlinePage({ params }: Props) {
   }
 
   return (
-             <div className="bg-[#f1f3f5] min-h-[calc(100vh-4rem)] rounded-2xl relative overflow-hidden border border-gray-200" style={{ backgroundImage: "linear-gradient(#e9ecef 1px, transparent 1px), linear-gradient(90deg, #e9ecef 1px, transparent 1px)", backgroundSize: "40px 40px" }}>
-               <div className="w-full px-6 lg:px-8 pt-6">
+             <div className="bg-[#f1f3f5] min-h-[calc(100dvh-12rem)] lg:min-h-[calc(100dvh-7rem)] rounded-2xl relative overflow-hidden border border-gray-200" style={{ backgroundImage: "linear-gradient(#e9ecef 1px, transparent 1px), linear-gradient(90deg, #e9ecef 1px, transparent 1px)", backgroundSize: "40px 40px" }}>
+               <div className="w-full px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6">
                  <BackButton />
                </div>
-               <div className="w-full py-10 px-6 lg:px-8 relative z-10 text-center flex flex-col items-center">
+               <div className="w-full py-6 sm:py-10 px-4 sm:px-6 lg:px-8 relative z-10 text-center flex flex-col items-center">
                  <span className="inline-block py-1 px-3 rounded-full bg-white shadow-sm border border-gray-200 text-gray-500 text-xs font-bold tracking-widest uppercase mb-3">
                    Course Curriculum Guide
                  </span>

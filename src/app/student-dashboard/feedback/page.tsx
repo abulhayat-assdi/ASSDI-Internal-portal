@@ -42,7 +42,7 @@ export default function StudentFeedbackPage() {
     };
 
     return (
-        <div className="max-w-2xl mx-auto space-y-6">
+        <div className="max-w-2xl mx-auto space-y-4 sm:space-y-6">
             <div className="flex items-center gap-3">
                 <div className="w-1 h-10 bg-[#059669] rounded-full"></div>
                 <div>
@@ -53,7 +53,7 @@ export default function StudentFeedbackPage() {
                 </div>
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6">
                 {submitted ? (
                     <div className="text-center py-10">
                         <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -101,7 +101,7 @@ export default function StudentFeedbackPage() {
                                         type="button"
                                         onClick={() => setRating(star)}
                                         aria-label={`${star} star`}
-                                        className="p-1"
+                                        className="p-1.5"
                                     >
                                         <svg
                                             className={`w-8 h-8 ${star <= rating ? "text-yellow-400" : "text-gray-200"}`}

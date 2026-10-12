@@ -140,7 +140,7 @@ export default function EditDeploymentPage() {
                 <strong>Note:</strong> Changing the subdomain will immediately deactivate the old URL. No redirect is created. Make sure to update any shared links.
             </div>
 
-            <form onSubmit={handleSave} className="bg-white rounded-2xl border border-slate-200 p-6 space-y-6">
+            <form onSubmit={handleSave} className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 space-y-5 sm:space-y-6">
                 <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1.5">Project Name</label>
                     <input

@@ -38,9 +38,10 @@ export default function AnnouncementBanner() {
     return (
         <div className={`${LEVEL_STYLE[ann.level]} text-white text-sm`}>
             <div className="px-4 md:px-6 py-2 flex items-center justify-between gap-3">
-                <p className="flex items-center gap-2 min-w-0">
-                    <Icon className="w-4 h-4 shrink-0" />
-                    <span className="truncate">
+                <p className="flex items-start sm:items-center gap-2 min-w-0">
+                    <Icon className="w-4 h-4 shrink-0 mt-0.5 sm:mt-0" />
+                    {/* A phone has no hover to reveal a truncated notice — let it wrap to three lines. */}
+                    <span className="line-clamp-3 sm:line-clamp-none sm:truncate">
                         <strong>{ann.title}</strong>
                         <span className="opacity-90"> — {ann.body}</span>
                     </span>

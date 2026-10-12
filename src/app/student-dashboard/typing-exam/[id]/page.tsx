@@ -8,6 +8,8 @@ import ExamRunner, { ExamRunnerSubmitPayload } from "@/components/typing-exam/Ex
 import ExamResultPanel, { ExamResultPanelData } from "@/components/typing-exam/ExamResultPanel";
 import { AmbientOrbs, GLASS_PANEL } from "@/components/typing-exam/ui";
 import { ExamTransport } from "@/lib/typing-exam/client";
+import ExamDeviceBlock from "@/components/typing-exam/ExamDeviceBlock";
+import { useExamDeviceBlocked } from "@/hooks/useTouchOnlyDevice";
 
 interface ExamDetail {
     id: string;
@@ -18,6 +20,22 @@ interface ExamDetail {
 }
 
 export default function StudentTypingExamDetailPage() {
+    const deviceBlocked = useExamDeviceBlocked();
+
+    // Not known until it has run in the browser; render neither branch until
+    // then, so the exam is never fetched (or flashed) on a phone.
+    if (deviceBlocked === null) {
+        return (
+            <div className="text-center py-16">
+                <div className="animate-spin rounded-full h-8 w-8 border-2 border-brand-600 border-t-transparent mx-auto" />
+            </div>
+        );
+    }
+    if (deviceBlocked) return <ExamDeviceBlock />;
+    return <ExamDetail />;
+}
+
+function ExamDetail() {
     const params = useParams();
     const id = params.id as string;
     const router = useRouter();
@@ -137,7 +155,7 @@ export default function StudentTypingExamDetailPage() {
         return (
             <div className="max-w-2xl mx-auto pb-12">
                 <AmbientOrbs />
-                <div className={`${GLASS_PANEL} rounded-2xl p-12 text-center`}>
+                <div className={`${GLASS_PANEL} rounded-2xl px-5 py-10 sm:p-12 text-center`}>
                     <AlertTriangle className="h-10 w-10 text-amber-500 mx-auto mb-3" strokeWidth={1.5} />
                     <h3 className="text-lg font-bold text-slate-800">পরীক্ষাটি খোলা যায়নি</h3>
                     <p className="text-slate-500 mt-1 text-sm">{loadError || "এই পরীক্ষাটি এখন আপনার জন্য উপলব্ধ নয়।"}</p>

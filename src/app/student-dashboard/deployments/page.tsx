@@ -91,7 +91,7 @@ function DeleteModal({
                     <span className="font-semibold text-slate-800">{deployment.displayName}</span>?
                     The live site at <span className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded">{deployment.subdomain}.*</span> will be taken down immediately.
                 </p>
-                <div className="flex gap-3 justify-end">
+                <div className="flex gap-3 justify-end [&>button]:flex-1 sm:[&>button]:flex-none [&>button]:justify-center [&>button]:min-h-11">
                     <button onClick={onCancel} disabled={loading}
                         className="px-4 py-2 text-sm text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors">
                         Cancel
@@ -133,7 +133,7 @@ function DeploymentCard({
                     {!isFrozen && (
                         <Link
                             href={`/student-dashboard/deployments/${deployment.id}/edit`}
-                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            className="p-3 sm:p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                             title="Edit"
                         >
                             <PencilIcon className="w-4 h-4" />
@@ -142,7 +142,7 @@ function DeploymentCard({
                     {!isFrozen && (
                         <button
                             onClick={() => onDelete(deployment)}
-                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            className="p-3 sm:p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                             title="Delete"
                         >
                             <TrashIcon className="w-4 h-4" />
@@ -236,7 +236,7 @@ export default function StudentDeploymentsPage() {
                 {!isFrozen && usedSlots < limit && (
                     <Link
                         href="/student-dashboard/deployments/new"
-                        className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 active:scale-95 transition-all shadow-sm"
+                        className="inline-flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 active:scale-95 transition-all shadow-sm"
                     >
                         <PlusIcon className="w-4 h-4" />
                         Deploy New Site
@@ -286,7 +286,7 @@ export default function StudentDeploymentsPage() {
                     )}
                 </div>
             ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                     {deployments.map((d) => (
                         <DeploymentCard
                             key={d.id}

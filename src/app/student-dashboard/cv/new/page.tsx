@@ -275,7 +275,7 @@ export default function NewCvPage() {
                 <div className="flex items-center gap-3">
                     <div className="w-1 h-10 bg-[#059669] rounded-full" />
                     <div>
-                        <h1 className="text-3xl font-bold text-[#1f2937]">Create New CV</h1>
+                        <h1 className="text-2xl sm:text-3xl font-bold text-[#1f2937]">Create New CV</h1>
                         <p className="text-[#6b7280] mt-1">Choose a template to get started</p>
                     </div>
                 </div>

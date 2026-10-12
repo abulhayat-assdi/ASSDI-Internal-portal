@@ -137,7 +137,7 @@ export default function StudentResourcePage() {
 
     // ── File card ─────────────────────────────────────────────────────────
     const renderFileCard = (res: ModuleResource) => (
-        <div key={res.id} className="border border-gray-100 hover:border-emerald-200 rounded-xl p-5 hover:shadow-md transition-all flex flex-col bg-white group">
+        <div key={res.id} className="border border-gray-100 hover:border-emerald-200 rounded-xl p-4 sm:p-5 hover:shadow-md transition-all flex flex-col bg-white group">
             <div className="flex items-start gap-3 mb-3">
                 <span className="text-2xl flex-shrink-0">{fileTypeIcon(res.fileType)}</span>
                 <div className="flex-1 min-w-0">
@@ -151,11 +151,11 @@ export default function StudentResourcePage() {
             <p className="text-xs text-gray-400 mb-4">{res.fileSize}</p>
             <div className="pt-3 border-t border-gray-50 flex gap-2 mt-auto">
                 <a href={res.fileUrl} target="_blank" rel="noopener noreferrer"
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2 text-sm font-semibold text-[#059669] bg-emerald-50 hover:bg-[#059669] hover:text-white rounded-lg transition-colors">
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-semibold text-[#059669] bg-emerald-50 hover:bg-[#059669] hover:text-white rounded-lg transition-colors">
                     <EyeIcon /> View
                 </a>
                 <a href={res.fileUrl} download target="_blank" rel="noopener noreferrer"
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2 text-sm font-semibold text-gray-600 bg-gray-50 hover:bg-gray-200 rounded-lg transition-colors">
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-semibold text-gray-600 bg-gray-50 hover:bg-gray-200 rounded-lg transition-colors">
                     <DownloadIcon /> Download
                 </a>
             </div>
@@ -166,7 +166,7 @@ export default function StudentResourcePage() {
     const renderFolderCard = (folder: ModuleFolder, teacher: ResourceTeacher, breadcrumb: ModuleFolder[]) => (
         <div key={folder.id}
             onClick={() => openFolder(folder, teacher, breadcrumb)}
-            className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm hover:shadow-md hover:border-emerald-200 transition-all cursor-pointer group flex items-center gap-4">
+            className="bg-white rounded-xl p-4 sm:p-5 border border-gray-100 shadow-sm hover:shadow-md hover:border-emerald-200 transition-all cursor-pointer group flex items-center gap-3 sm:gap-4">
             <div className="p-2.5 bg-amber-50 text-amber-500 rounded-xl group-hover:scale-110 transition-transform shrink-0">
                 <FolderIcon />
             </div>
@@ -232,12 +232,12 @@ export default function StudentResourcePage() {
                 : `Back to ${view.teacher.teacherName}`;
 
         return (
-            <div className="flex items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-100">
                 <button onClick={goBack} className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-600 flex items-center gap-2 font-medium text-sm">
                     <BackIcon /> {backLabel}
                 </button>
                 <div className="h-6 w-px bg-gray-200" />
-                <h2 className="text-lg font-bold text-[#059669] flex items-center gap-2">
+                <h2 className="text-base sm:text-lg font-bold text-[#059669] flex items-center gap-2 min-w-0 break-words">
                     <FolderOpenIcon />
                     {view.level === "folders" ? view.teacher.teacherName : view.folder.title}
                 </h2>
@@ -263,13 +263,13 @@ export default function StudentResourcePage() {
 
     // ════════════════════════════════════════════════════════════════════════
     return (
-        <div className="space-y-6 max-w-7xl mx-auto pb-12">
+        <div className="space-y-4 sm:space-y-6 max-w-7xl mx-auto pb-4 sm:pb-12">
             {/* Page header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                     <div className="w-1 h-10 bg-[#059669] rounded-full" />
                     <div>
-                        <h1 className="text-3xl font-bold text-[#1f2937]">Course Resources</h1>
+                        <h1 className="text-2xl sm:text-3xl font-bold text-[#1f2937]">Course Resources</h1>
                         <p className="text-[#6b7280] mt-1 text-sm">টিচারের আপলোড করা লেকচার, প্রেজেন্টেশন ও অ্যাসাইনমেন্ট ডাউনলোড করুন।</p>
                     </div>
                 </div>
@@ -285,15 +285,15 @@ export default function StudentResourcePage() {
                     : teachers.length === 0
                         ? renderEmpty("👨‍🏫", "No resources yet", "Teachers haven't uploaded any materials yet. Check back later.")
                         : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
                                 {teachers.map(t => (
                                     <div key={t.teacherUid} onClick={() => openTeacher(t)}
-                                        className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md hover:border-emerald-200 transition-all cursor-pointer group flex items-center gap-5">
+                                        className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100 hover:shadow-md hover:border-emerald-200 transition-all cursor-pointer group flex items-center gap-4 sm:gap-5">
                                         {t.profileImageUrl
                                             ? <img src={t.profileImageUrl} alt={t.teacherName}
                                                 className="w-14 h-14 rounded-full object-cover shrink-0 border-2 border-gray-100 group-hover:border-[#059669] transition-colors" />
                                             : (
-                                                <div className="w-14 h-14 rounded-full bg-[#1e3a5f]/10 text-[#1e3a5f] flex items-center justify-center text-xl font-bold shrink-0">
+                                                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#1e3a5f]/10 text-[#1e3a5f] flex items-center justify-center text-xl font-bold shrink-0">
                                                     {t.teacherName.charAt(0)}
                                                 </div>
                                             )
@@ -322,7 +322,7 @@ export default function StudentResourcePage() {
                                 {rootFolders.length > 0 && (
                                     <div className="space-y-3">
                                         <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider px-1">Folders</h3>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                                             {rootFolders.map(f => renderFolderCard(f, view.teacher, []))}
                                         </div>
                                     </div>
@@ -330,7 +330,7 @@ export default function StudentResourcePage() {
                                 {rootFiles.length > 0 && (
                                     <div className="space-y-4">
                                         <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider px-1">Files</h3>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
                                             {rootFiles.map(renderFileCard)}
                                         </div>
                                     </div>
@@ -350,7 +350,7 @@ export default function StudentResourcePage() {
                                 {subFolders.length > 0 && (
                                     <div className="space-y-3">
                                         <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider px-1">Sub-folders</h3>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                                             {subFolders.map(f => renderFolderCard(f, view.teacher, view.breadcrumb))}
                                         </div>
                                     </div>
@@ -358,7 +358,7 @@ export default function StudentResourcePage() {
                                 {folderFiles.length > 0 && (
                                     <div className="space-y-4">
                                         <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider px-1">Files</h3>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
                                             {folderFiles.map(renderFileCard)}
                                         </div>
                                     </div>

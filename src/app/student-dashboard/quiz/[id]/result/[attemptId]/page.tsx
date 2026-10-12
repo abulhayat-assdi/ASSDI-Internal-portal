@@ -60,12 +60,12 @@ export default function QuizResultPage() {
     );
 
     return (
-        <div className="max-w-3xl mx-auto space-y-5 pb-12">
+        <div className="max-w-3xl mx-auto space-y-5 pb-4 sm:pb-12">
             <AmbientOrbs />
             {!data && !error && <Spinner />}
 
             {error && (
-                <div className={`${GLASS_PANEL} rounded-2xl p-10 text-center space-y-4`}>
+                <div className={`${GLASS_PANEL} rounded-2xl px-5 py-8 sm:p-10 text-center space-y-4`}>
                     <AlertTriangle className="h-10 w-10 text-amber-500 mx-auto" strokeWidth={1.5} />
                     <p className="text-slate-700">{error}</p>
                     {back}
@@ -73,7 +73,7 @@ export default function QuizResultPage() {
             )}
 
             {data && !data.released && (
-                <div className={`${GLASS_PANEL} rounded-2xl p-10 text-center space-y-4`}>
+                <div className={`${GLASS_PANEL} rounded-2xl px-5 py-8 sm:p-10 text-center space-y-4`}>
                     <Hourglass className="h-10 w-10 text-brand-600 mx-auto" strokeWidth={1.5} />
                     <h1 className="no-gradient text-xl font-bold text-slate-800">আপনার কুইজ জমা হয়েছে</h1>
                     <p className="text-slate-500 text-sm">ফলাফল শীঘ্রই প্রকাশ করা হবে। প্রকাশের পর এখানে এসে দেখতে পারবেন।</p>
@@ -94,7 +94,7 @@ export default function QuizResultPage() {
                                 <XCircle className="h-4 w-4" /> ফেইল
                             </span>
                         )}
-                        <p className="text-5xl font-extrabold text-slate-800 tabular-nums">
+                        <p className="text-4xl sm:text-5xl font-extrabold text-slate-800 tabular-nums">
                             {round1(data.score)}
                             <span className="text-2xl text-slate-400"> / {round1(data.totalMarks)}</span>
                         </p>
