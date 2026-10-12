@@ -138,3 +138,57 @@ export function formatAnswer(field: any, value: any): string {
 
 export const isNumericField = (field: any) =>
     field.type === "short_text" && field.validation === "number";
+
+// ── Procurement ──────────────────────────────────────────────────────────
+
+export type PaymentStatus = "paid" | "due" | "partial";
+
+export interface ProcurementLike {
+    groupId: string;
+    groupName: string;
+    quantity: number;
+    totalAmount: number;
+    paidAmount: number;
+}
+
+export const roundMoney = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
+
+/** What is still owed on a procurement; never negative. */
+export const procurementDue = (totalAmount: number, paidAmount: number) =>
+    roundMoney(Math.max(0, roundMoney(totalAmount) - roundMoney(paidAmount)));
+
+export function paymentStatusOf(totalAmount: number, paidAmount: number): PaymentStatus {
+    if (procurementDue(totalAmount, paidAmount) === 0) return "paid";
+    return roundMoney(paidAmount) <= 0 ? "due" : "partial";
+}
+
+export interface ProcurementTotals {
+    quantity: number;
+    total: number;
+    paid: number;
+    due: number;
+}
+
+export function procurementTotals(entries: ProcurementLike[]): ProcurementTotals {
+    const t = entries.reduce(
+        (acc, e) => ({
+            quantity: acc.quantity + e.quantity,
+            total: acc.total + e.totalAmount,
+            paid: acc.paid + e.paidAmount,
+            due: acc.due + procurementDue(e.totalAmount, e.paidAmount),
+        }),
+        { quantity: 0, total: 0, paid: 0, due: 0 }
+    );
+    return { quantity: t.quantity, total: roundMoney(t.total), paid: roundMoney(t.paid), due: roundMoney(t.due) };
+}
+
+/** Per-team totals, in team-name order. */
+export function procurementByTeam(entries: ProcurementLike[]): (ProcurementTotals & { groupId: string; groupName: string })[] {
+    const byTeam = new Map<string, ProcurementLike[]>();
+    entries.forEach((e) => byTeam.set(e.groupId, [...(byTeam.get(e.groupId) || []), e]));
+    return Array.from(byTeam.entries())
+        .map(([groupId, rows]) => ({ groupId, groupName: rows[0].groupName, ...procurementTotals(rows) }))
+        .sort((a, b) => a.groupName.localeCompare(b.groupName, undefined, { numeric: true }));
+}
+
+export const formatTaka = (n: number) => `৳${roundMoney(n).toLocaleString("en-US")}`;

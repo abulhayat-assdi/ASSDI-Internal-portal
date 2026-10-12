@@ -5,7 +5,11 @@ import {
     findGroupForRoll,
     isTeamSubmissionOf,
     isValidReportDate,
+    paymentStatusOf,
     pickSchemaData,
+    procurementByTeam,
+    procurementDue,
+    procurementTotals,
     teamRoleOf,
     toReportDate,
     validateFormData,
@@ -79,5 +83,33 @@ describe("form answers", () => {
         expect(validateFormData(schema, { field_date: "2026-10-11", field_sales: "50" })).toBeNull();
         expect(validateFormData(schema, { field_date: "2026-10-11" })).toBe("Total Sales is required.");
         expect(validateFormData(schema, { field_date: "2026-10-11", field_sales: "abc" })).toBe("Total Sales must be a number.");
+    });
+});
+
+describe("procurement money", () => {
+    const entries = [
+        { groupId: "g2", groupName: "Beta", quantity: 10, totalAmount: 120, paidAmount: 120 },
+        { groupId: "g1", groupName: "Alpha", quantity: 5, totalAmount: 60, paidAmount: 20 },
+        { groupId: "g1", groupName: "Alpha", quantity: 3, totalAmount: 36.3, paidAmount: 0 },
+    ];
+
+    it("derives what is due and never goes negative", () => {
+        expect(procurementDue(100, 40)).toBe(60);
+        expect(procurementDue(0.3, 0.1)).toBe(0.2);
+        expect(procurementDue(50, 80)).toBe(0);
+    });
+
+    it("labels a payment paid, due or partial", () => {
+        expect(paymentStatusOf(100, 100)).toBe("paid");
+        expect(paymentStatusOf(100, 0)).toBe("due");
+        expect(paymentStatusOf(100, 40)).toBe("partial");
+    });
+
+    it("totals per team and overall", () => {
+        expect(procurementTotals(entries)).toEqual({ quantity: 18, total: 216.3, paid: 140, due: 76.3 });
+        expect(procurementByTeam(entries)).toEqual([
+            { groupId: "g1", groupName: "Alpha", quantity: 8, total: 96.3, paid: 20, due: 76.3 },
+            { groupId: "g2", groupName: "Beta", quantity: 10, total: 120, paid: 120, due: 0 },
+        ]);
     });
 });

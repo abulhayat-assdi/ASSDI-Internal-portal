@@ -242,6 +242,8 @@ model Course {
   competitionSubmissions   CompetitionSubmission[]
   competitionGroups        CompetitionGroup[]
   competitionCorrections   CompetitionCorrectionRequest[]
+  competitionProducts      CompetitionProduct[]
+  competitionProcurements  CompetitionProcurement[]
   typingExams              TypingExam[]
   typingExamAttempts       TypingExamAttempt[]
   typingExamSessions       TypingExamSession[]
@@ -1444,13 +1446,65 @@ model Competition {
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  course      Course                         @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  submissions CompetitionSubmission[]
-  corrections CompetitionCorrectionRequest[]
+  course       Course                         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  submissions  CompetitionSubmission[]
+  corrections  CompetitionCorrectionRequest[]
+  products     CompetitionProduct[]
+  procurements CompetitionProcurement[]
 
   @@index([batchName])
   @@index([courseId])
   @@map("competitions")
+}
+
+// A product teams can take from staff during a competition, with its price per piece.
+model CompetitionProduct {
+  id            String   @id @default(uuid())
+  courseId      String   @map("course_id")
+  competitionId String   @map("competition_id")
+  name          String
+  unitPrice     Float    @default(0) @map("unit_price")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  course       Course                   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  competition  Competition              @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  procurements CompetitionProcurement[]
+
+  @@index([competitionId])
+  @@index([courseId])
+  @@map("competition_products")
+}
+
+// One handover of a product to a team member. What is still due is always
+// totalAmount - paidAmount; it is never stored.
+model CompetitionProcurement {
+  id            String   @id @default(uuid())
+  courseId      String   @map("course_id")
+  competitionId String   @map("competition_id")
+  productId     String   @map("product_id")
+  groupId       String   @map("group_id")
+  groupName     String   @map("group_name") // as it was when recorded; lists show the team's current name
+  memberRoll    String   @map("member_roll")
+  memberName    String   @map("member_name")
+  quantity      Int
+  unitPrice     Float    @map("unit_price") // the product's price at the time
+  totalAmount   Float    @map("total_amount")
+  paidAmount    Float    @default(0) @map("paid_amount")
+  procuredOn    String   @map("procured_on") // YYYY-MM-DD
+  note          String?
+  recordedBy    String   @map("recorded_by")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  course      Course             @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  competition Competition        @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  product     CompetitionProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([competitionId])
+  @@index([courseId])
+  @@index([productId])
+  @@map("competition_procurements")
 }
 
 model CompetitionSubmission {
