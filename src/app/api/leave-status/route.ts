@@ -23,7 +23,7 @@ function inclusiveDays(start: string, end: string): number {
  * reason, dates) — no review status, notes or attachments. Reviewing leave
  * requests stays behind the `admin_leave` permission.
  *
- * `batch` is optional (omit for all batches). `from`/`to` default to today.
+ * `batch` is optional and may repeat (omit for all batches). `from`/`to` default to today.
  */
 export async function GET(req: NextRequest) {
     const user = await getSessionUser(req);
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
     const courseId = user.courseId;
 
     const { searchParams } = new URL(req.url);
-    const batch = searchParams.get("batch")?.trim() || null;
+    const batchNames = searchParams.getAll("batch").map((b) => b.trim()).filter(Boolean);
     const from = searchParams.get("from")?.trim() || "";
     const to = searchParams.get("to")?.trim() || from;
 
@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
             where: {
                 courseId,
                 status: "APPROVED",
-                ...(batch ? { studentBatchName: batch } : {}),
+                ...(batchNames.length ? { studentBatchName: { in: batchNames } } : {}),
                 startDate: { lte: to },
                 endDate: { gte: from },
             },

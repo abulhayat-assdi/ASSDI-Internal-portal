@@ -15,7 +15,7 @@ type Leave = {
     totalLeaveDays: number;
 };
 
-type Batch = { id: string; name: string };
+type Batch = { id: string; name: string; status?: string };
 
 /** Local-time YYYY-MM-DD (toISOString would shift the day for UTC+6). */
 function todayISO() {
@@ -40,6 +40,7 @@ function dayCount(start: string, end: string) {
 
 export default function LeaveStatusPage() {
     const [batches, setBatches] = useState<Batch[]>([]);
+    const [batchesLoaded, setBatchesLoaded] = useState(false);
     const [batch, setBatch] = useState("ALL");
     const [from, setFrom] = useState(todayISO);
     const [to, setTo] = useState(todayISO);
@@ -51,12 +52,14 @@ export default function LeaveStatusPage() {
     useEffect(() => {
         fetch("/api/schedule/batches")
             .then((r) => (r.ok ? r.json() : []))
-            .then((data) => Array.isArray(data) && setBatches(data))
-            .catch(() => {});
+            // Only running batches — completed ones are archived.
+            .then((data: Batch[]) => Array.isArray(data) && setBatches(data.filter((b) => b.status !== "archived")))
+            .catch(() => {})
+            .finally(() => setBatchesLoaded(true));
     }, []);
 
     useEffect(() => {
-        if (!from || !to) return;
+        if (!from || !to || !batchesLoaded) return;
         if (from > to) {
             setError("From date cannot be after To date.");
             return;
@@ -65,7 +68,9 @@ export default function LeaveStatusPage() {
         setLoading(true);
         setError("");
         const qs = new URLSearchParams({ from, to });
-        if (batch !== "ALL") qs.set("batch", batch);
+        // "All batches" means all *running* batches; a chosen batch narrows to that one.
+        if (batch !== "ALL") qs.append("batch", batch);
+        else batches.forEach((b) => qs.append("batch", b.name));
         fetch(`/api/leave-status?${qs}`, { signal: ctrl.signal })
             .then(async (r) => {
                 const data = await r.json();
@@ -77,7 +82,7 @@ export default function LeaveStatusPage() {
             })
             .finally(() => !ctrl.signal.aborted && setLoading(false));
         return () => ctrl.abort();
-    }, [batch, from, to]);
+    }, [batch, from, to, batches, batchesLoaded]);
 
     const visible = useMemo(() => {
         const q = search.trim().toLowerCase();
@@ -110,7 +115,7 @@ export default function LeaveStatusPage() {
                         onChange={(e) => setBatch(e.target.value)}
                         className="w-full border border-slate-300 rounded-lg px-3 py-2 bg-white"
                     >
-                        <option value="ALL">All batches</option>
+                        <option value="ALL">All running batches</option>
                         {batches.map((b) => (
                             <option key={b.id} value={b.name}>
                                 {b.name}
