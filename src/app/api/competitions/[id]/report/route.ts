@@ -67,6 +67,9 @@ export async function GET(
                 effectiveDate: effectiveReportDate(s, competition.schema),
             })),
             groups,
+            // Lets the public report page hide staff-only tools (Data Explorer)
+            // from anonymous visitors.
+            isStaff,
             ...(procurement ? { procurement } : {}),
         });
     } catch (error) {
