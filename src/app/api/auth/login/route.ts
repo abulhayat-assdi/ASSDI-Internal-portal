@@ -142,7 +142,7 @@ export async function POST(req: NextRequest) {
             const shadowPasswordHash = await hashPassword(randomBytes(32).toString('hex'));
             user = await withCourseContext(ctx, (tx) =>
                 tx.user.upsert({
-                    where: { email: shadowAdminEmail(courseId) },
+                    where: { courseId_email: { courseId, email: shadowAdminEmail(courseId) } },
                     update: {},
                     create: {
                         email: shadowAdminEmail(courseId),

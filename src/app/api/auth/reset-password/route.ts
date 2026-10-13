@@ -52,11 +52,24 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ success: true });
         }
 
-        // Email is globally unique across the platform — this lookup bypasses
-        // course-scoped RLS since the requester isn't necessarily on that
-        // user's course subdomain.
+        // Email is unique per course, so the same address can have an account
+        // in several courses. The host being visited says which one is meant:
+        // a course subdomain resets that course's account, the admin host the
+        // super-admin's. Only a request from neither (the root domain) falls
+        // back to the oldest account with that email.
+        const courseId = req.headers.get('x-course-id');
+        const isSuperAdminHost = req.headers.get('x-is-super-admin-host') === '1';
+        const scope = courseId
+            ? { courseId, isSuperAdminShadow: false }
+            : isSuperAdminHost
+                ? { role: 'super_admin' as const }
+                : {};
+
         const user = await withCourseContext({ courseId: null, isSuperAdmin: true }, (tx) =>
-            tx.user.findUnique({ where: { email: normalizedEmail, deletedAt: null } })
+            tx.user.findFirst({
+                where: { email: normalizedEmail, deletedAt: null, ...scope },
+                orderBy: { createdAt: 'asc' },
+            })
         );
 
         if (!user) {

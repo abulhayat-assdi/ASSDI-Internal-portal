@@ -626,6 +626,11 @@ export default function TeachersPage() {
                                         placeholder="e.g., teacher.login@gmail.com"
                                         className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
                                     />
+                                    {!isEditMode && (
+                                        <p className="mt-1 text-xs text-gray-500">
+                                            An email already used in another course can be added here too. This course gets its own password and permissions.
+                                        </p>
+                                    )}
                                 </div>
 
                                 <div>

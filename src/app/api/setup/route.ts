@@ -60,10 +60,18 @@ export async function POST(req: NextRequest) {
         // under the super-admin RLS bypass.
         const user = await withCourseContext({ courseId: null, isSuperAdmin: true }, async (tx) => {
             const passwordHash = await hashPassword(password);
-            return tx.user.upsert({
-                where: { email },
-                update: { passwordHash, role: 'super_admin', courseId: null, permissions: [] },
-                create: { email, passwordHash, role: 'super_admin', displayName, permissions: [] },
+            // Email is only unique per course, and the database does not
+            // enforce it for course-less rows, so find-then-write rather than
+            // upsert. A course account with the same email is left alone.
+            const existing = await tx.user.findFirst({ where: { email, courseId: null }, select: { id: true } });
+            if (existing) {
+                return tx.user.update({
+                    where: { id: existing.id },
+                    data: { passwordHash, role: 'super_admin', permissions: [] },
+                });
+            }
+            return tx.user.create({
+                data: { email, passwordHash, role: 'super_admin', displayName, permissions: [] },
             });
         });
 

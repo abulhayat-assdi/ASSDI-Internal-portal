@@ -60,8 +60,7 @@ export type RegistrationCheck =
  * Decides whether this batch/roll may be registered right now.
  *
  * `alreadyRegistered` is whether some user account already carries this batch
- * and roll — the caller looks that up, since it needs an RLS-bypassing read
- * (email is unique platform-wide).
+ * and roll — the caller looks that up, since it needs an RLS-bypassing read.
  */
 export function checkRegistration(
     student: StudentAccessRow | null,
