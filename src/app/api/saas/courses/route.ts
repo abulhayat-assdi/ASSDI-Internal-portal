@@ -76,11 +76,8 @@ export async function POST(req: NextRequest) {
             const existingSlug = await tx.course.findUnique({ where: { slug } });
             if (existingSlug) return { error: "This subdomain is already taken." as const, status: 409 };
 
-            if (adminEmail) {
-                // Email is globally unique across the platform.
-                const existingEmail = await tx.user.findUnique({ where: { email: adminEmail.toLowerCase().trim() } });
-                if (existingEmail) return { error: "An account with this admin email already exists." as const, status: 409 };
-            }
+            // No admin-email check: email is unique per course, and this course
+            // is brand new, so its first admin cannot collide with anyone.
 
             const course = await tx.course.create({
                 data: {

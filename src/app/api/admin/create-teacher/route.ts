@@ -58,13 +58,27 @@ export async function POST(req: NextRequest) {
 
         const normalizedLoginEmail = loginEmail.toLowerCase().trim();
 
-        // 3. Check for existing user — email is globally unique across the
-        // platform, so this bypasses course-scoped RLS.
-        const existing = await withCourseContext({ courseId: null, isSuperAdmin: true }, (tx) =>
-            tx.user.findUnique({ where: { email: normalizedLoginEmail } })
-        );
-        if (existing) {
-            return NextResponse.json({ error: "An account with this email already exists." }, { status: 409 });
+        // 3. Check for existing user and teacher ID — both are unique per
+        // course, not platform-wide: someone who already has an account in
+        // another course (as a teacher, admin or student) gets a separate one
+        // here, with its own password, role and permissions.
+        const conflict = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+            const existingUser = await tx.user.findUnique({
+                where: { courseId_email: { courseId, email: normalizedLoginEmail } },
+                select: { id: true },
+            });
+            if (existingUser) return "An account with this email already exists in this course.";
+
+            const existingTeacher = await tx.teacher.findUnique({
+                where: { courseId_teacherId: { courseId, teacherId } },
+                select: { id: true },
+            });
+            if (existingTeacher) return "This Teacher ID is already in use in this course.";
+
+            return null;
+        });
+        if (conflict) {
+            return NextResponse.json({ error: conflict }, { status: 409 });
         }
 
         // 4. Hash password

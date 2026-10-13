@@ -50,10 +50,11 @@ export async function POST(req: NextRequest) {
         const { email, password, name, batchName, roll } = parsed.data;
         const normalizedEmail = email.toLowerCase().trim();
 
-        // Email is globally unique across the whole platform, not just this
-        // course, so the existence check must bypass course-scoped RLS too.
+        // Self-registration still refuses an email that has an account in any
+        // course, not just this one — only staff are added to a second course,
+        // and only by an admin — so the check bypasses course-scoped RLS.
         const existing = await withCourseContext({ courseId: null, isSuperAdmin: true }, (tx) =>
-            tx.user.findUnique({ where: { email: normalizedEmail } })
+            tx.user.findFirst({ where: { email: normalizedEmail }, select: { id: true } })
         );
         if (existing) {
             return NextResponse.json(
@@ -80,8 +81,8 @@ export async function POST(req: NextRequest) {
             })
         );
 
-        // Email is unique platform-wide, and so is the check for an existing
-        // claim on this roll — both bypass course-scoped RLS deliberately.
+        // Like the email check above, the lookup for an existing claim on this
+        // roll bypasses course-scoped RLS deliberately.
         const rollHolder = await withCourseContext({ courseId: null, isSuperAdmin: true }, (tx) =>
             tx.user.findFirst({
                 where: { courseId, role: AUTH_ROLES.STUDENT, studentBatchName: batchName, studentRoll: roll, deletedAt: null },

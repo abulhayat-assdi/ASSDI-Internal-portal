@@ -60,9 +60,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             const course = await tx.course.findUnique({ where: { id: courseId } });
             if (!course) return { error: "Course not found" as const, status: 404 };
 
-            // Email is globally unique across the platform.
-            const existing = await tx.user.findUnique({ where: { email: normalizedEmail } });
-            if (existing) return { error: "An account with this email already exists." as const, status: 409 };
+            // Email is unique per course: the same person may administer
+            // several courses, with a separate account in each.
+            const existing = await tx.user.findUnique({
+                where: { courseId_email: { courseId, email: normalizedEmail } },
+            });
+            if (existing) return { error: "An account with this email already exists in this course." as const, status: 409 };
 
             const passwordHash = await hashPassword(password);
 

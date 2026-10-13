@@ -267,7 +267,11 @@ model Course {
 model User {
   id               String    @id @default(uuid())
   courseId         String?   @map("course_id")
-  email            String    @unique
+  // Unique per course, not platform-wide (see @@unique below): the same person
+  // can hold a separate account — own password, role and permissions — in
+  // each course they work in. Every login is already scoped to one course by
+  // its domain, so the pair is what identifies an account.
+  email            String
   passwordHash     String    @map("password_hash")
   displayName      String    @map("display_name")
   role             UserRole  @default(student)
@@ -301,6 +305,7 @@ model User {
   deployments         Deployment[]
   loginEvents         LoginEvent[]
 
+  @@unique([courseId, email])
   @@index([email])
   @@index([role])
   @@index([courseId])
@@ -365,7 +370,7 @@ model PasswordResetToken {
 model Teacher {
   id                  String   @id @default(uuid())
   courseId            String   @map("course_id")
-  teacherId           String   @unique @map("teacher_id")
+  teacherId           String   @map("teacher_id")
   name                String
   designation         String   @default("")
   about               String   @default("")
@@ -381,6 +386,7 @@ model Teacher {
 
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
+  @@unique([courseId, teacherId])
   @@index([teacherId])
   @@index([order])
   @@index([courseId])
