@@ -138,8 +138,12 @@ export default function PublicCompetitionReportPage() {
       const packets = Number(sub.data[packetsField] || 0);
       const revenue = Number(sub.data[revenueField] || 0);
       
-      totalSales += sales;
-      totalProfit += profit;
+      // Only team submissions feed the headline totals. Individual rows are a
+      // per-person breakdown of the team's day and would double-count.
+      if (isTeamRow(sub)) {
+        totalSales += sales;
+        totalProfit += profit;
+      }
 
       const tName = sub.teamName || "Unknown Team";
       if (isTeamRow(sub) && teamMap[tName]) {
@@ -173,7 +177,7 @@ export default function PublicCompetitionReportPage() {
     const totalStudents = new Set(allSubmissions.map((s:any) => s.rollNumber)).size;
 
     const dateMap: Record<string, { date: string, dailySales: number }> = {};
-    allSubmissions.forEach((sub: any) => {
+    allSubmissions.filter(isTeamRow).forEach((sub: any) => {
       const d = subDay(sub).toLocaleDateString();
       if (!dateMap[d]) dateMap[d] = { date: d, dailySales: 0 };
       dateMap[d].dailySales += Number(sub.data[salesField] || 0);
