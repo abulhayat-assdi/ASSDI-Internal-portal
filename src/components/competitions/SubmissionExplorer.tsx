@@ -69,11 +69,19 @@ export default function SubmissionExplorer({ competition }: Props) {
       .sort((a: any, b: any) => b.day.localeCompare(a.day) || a.teamLabel.localeCompare(b.teamLabel, undefined, { numeric: true }));
   }, [rows, type, team, search, from, to]);
 
+  // Totals follow the report's rule: team submissions are the source of truth,
+  // individual rows are a per-person breakdown and would double-count. They are
+  // summed only when explicitly viewed (Individual filter / grouped by student).
+  const sumsIndividuals = type === "individual" || (type === "all" && groupBy === "student");
+  const countsInSums = (r: any) => (sumsIndividuals ? r.kind === "individual" : r.kind === "team");
+
   const totals = useMemo(() => {
     const t: Record<string, number> = {};
-    sumFields.forEach((f) => (t[f.id] = filtered.reduce((acc: number, r: any) => acc + Number(r.data?.[f.id] || 0), 0)));
+    const counted = filtered.filter(countsInSums);
+    sumFields.forEach((f) => (t[f.id] = counted.reduce((acc: number, r: any) => acc + Number(r.data?.[f.id] || 0), 0)));
     return t;
-  }, [filtered, sumFields]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered, sumFields, sumsIndividuals]);
 
   const grouped = useMemo(() => {
     if (groupBy === "none") return [];
@@ -84,13 +92,14 @@ export default function SubmissionExplorer({ competition }: Props) {
       if (!map.has(key)) map.set(key, { key, label, count: 0, sums: {} });
       const g = map.get(key)!;
       g.count += 1;
-      sumFields.forEach((f) => (g.sums[f.id] = (g.sums[f.id] || 0) + Number(r.data?.[f.id] || 0)));
+      if (countsInSums(r)) sumFields.forEach((f) => (g.sums[f.id] = (g.sums[f.id] || 0) + Number(r.data?.[f.id] || 0)));
     });
     const list = Array.from(map.values());
     return groupBy === "date"
       ? list.sort((a, b) => b.key.localeCompare(a.key))
       : list.sort((a, b) => a.key.localeCompare(b.key, undefined, { numeric: true }));
-  }, [filtered, groupBy, sumFields]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered, groupBy, sumFields, sumsIndividuals]);
 
   const hasFilters = type !== "all" || team !== "all" || search || from || to;
   const reset = () => {
@@ -279,7 +288,7 @@ export default function SubmissionExplorer({ competition }: Props) {
             {sumFields.length > 0 && (
               <tfoot className="sticky bottom-0 bg-emerald-50 border-t-2 border-emerald-200 font-black text-emerald-900">
                 <tr>
-                  <td className="px-5 py-3" colSpan={4}>Total ({filtered.length} reports)</td>
+                  <td className="px-5 py-3" colSpan={4}>Total ({filtered.length} reports{!sumsIndividuals && type === "all" ? " · sums count team submissions only" : ""})</td>
                   {columns.map((f) => (
                     <td key={f.id} className="px-5 py-3 text-right">{isSummable(f) ? (totals[f.id] || 0).toLocaleString() : ""}</td>
                   ))}
