@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
-import { getSessionUser, isTeacherOrAdmin } from "@/lib/auth";
+import { getSessionUser, canManageCompetitions } from "@/lib/auth";
 import { roundMoney } from "@/lib/competitions";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +13,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     try {
         const { id } = await params;
         const user = await getSessionUser(req);
-        if (!user || !isTeacherOrAdmin(user) || !user.courseId) {
+        if (!user || !canManageCompetitions(user) || !user.courseId) {
             return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
         const courseId = user.courseId;
@@ -64,7 +64,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     try {
         const { id } = await params;
         const user = await getSessionUser(req);
-        if (!user || !isTeacherOrAdmin(user) || !user.courseId) {
+        if (!user || !canManageCompetitions(user) || !user.courseId) {
             return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
         const courseId = user.courseId;

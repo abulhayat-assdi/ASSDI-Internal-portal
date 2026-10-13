@@ -3,11 +3,11 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
-import { getSessionUser, isAdmin } from "@/lib/auth";
+import { getSessionUser, isAdmin, hasRequiredPermission } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
     const user = await getSessionUser(req);
-    if (!user || !isAdmin(user) || !user.courseId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!user || !(isAdmin(user) || hasRequiredPermission(user, "admin_cv")) || !user.courseId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     const courseId = user.courseId;
 
     const { searchParams } = new URL(req.url);

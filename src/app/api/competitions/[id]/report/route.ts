@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
-import { getSessionUser, isTeacherOrAdmin } from "@/lib/auth";
+import { getSessionUser, canManageCompetitions } from "@/lib/auth";
 import { effectiveReportDate } from "@/lib/competitions";
 import { loadProcurement } from "@/lib/competitionServer";
 
@@ -16,7 +16,7 @@ export async function GET(
         const isPublic = searchParams.get("public") === "true" || req.headers.get("referer")?.includes("/competitions/");
         const user = await getSessionUser(req);
 
-        if (!isPublic && (!user || !isTeacherOrAdmin(user))) {
+        if (!isPublic && (!user || !canManageCompetitions(user))) {
             return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
 
@@ -26,7 +26,7 @@ export async function GET(
         }
 
         // Money owed by teams is for staff only; the public report never gets it.
-        const isStaff = Boolean(user && isTeacherOrAdmin(user));
+        const isStaff = Boolean(user && canManageCompetitions(user));
 
         const { competition, groups, procurement } = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
             const competition = await tx.competition.findUnique({

@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
             }
 
             // 6. Competitions — correction requests still waiting for a decision
-            if (isTeacherOrAdmin(user) && hasRequiredPermission(user, "admin_panel")) {
+            if (isTeacherOrAdmin(user) && hasRequiredPermission(user, "admin_competitions")) {
                 counts["/dashboard/competitions"] = await tx.competitionCorrectionRequest.count({
                     where: { courseId, status: "pending" },
                 });

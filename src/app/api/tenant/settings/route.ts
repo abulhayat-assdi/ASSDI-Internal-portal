@@ -22,10 +22,10 @@ const updateSchema = z.object({
     aiKnowledge: z.string().max(8000).optional(),
 });
 
-// Matches the sidebar's own gate on the Branding page (permission: admin_panel)
+// Matches the sidebar's own gate on the Branding page (permission: admin_branding)
 // so the link never leads to a 403.
 const canEditBranding = (caller: Parameters<typeof isAdmin>[0]) =>
-    isAdmin(caller) || hasRequiredPermission(caller, "admin_panel");
+    isAdmin(caller) || hasRequiredPermission(caller, "admin_branding");
 
 function serialize(course: {
     id: string;

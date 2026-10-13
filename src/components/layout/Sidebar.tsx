@@ -29,7 +29,7 @@ interface NavSection {
 const teacherAdminTopNavItems: NavItem[] = [
     { href: "/dashboard", label: "Dashboard", icon: "🏠", permission: null },
     { href: "/dashboard/all-batch-info", label: "All Batch Info", icon: "📊", permission: "batch_info", feature: "batch_info" },
-    { href: "/dashboard/admin/contact-messages", label: "Messages", icon: "💬", permission: null },
+    { href: "/dashboard/admin/contact-messages", label: "Messages", icon: "💬", permission: "admin_contact" },
     { href: "/dashboard/course-modules", label: "Course Modules", icon: "📚", permission: "course_modules", feature: "course_modules" },
     { href: "/dashboard/homework", label: "Homework", icon: "📝", permission: "homework", feature: "homework" },
     { href: "/dashboard/quiz", label: "Quiz", icon: "❓", permission: "quiz", feature: "quiz" },
@@ -60,7 +60,7 @@ const teacherAdminNavSections: NavSection[] = [
         icon: "👨‍🎓",
         items: [
             { href: "/dashboard/admin/deployments", label: "Student Deployments", icon: "🚀", permission: "admin_deployments", feature: "deployments" },
-            { href: "/dashboard/admin/cv-manager", label: "CV Manager", icon: "📄", permission: "admin_panel", feature: "cv_builder" },
+            { href: "/dashboard/admin/cv-manager", label: "CV Manager", icon: "📄", permission: "admin_cv", feature: "cv_builder" },
             { href: "/dashboard/admin/student-updates", label: "Student Updates", icon: "🔔", permission: "admin_notices", feature: "student_updates" },
         ]
     },
@@ -69,7 +69,7 @@ const teacherAdminNavSections: NavSection[] = [
         title: "Resources & Activities",
         icon: "📑",
         items: [
-            { href: "/dashboard/competitions", label: "Competitions (Forms)", icon: "🏆", permission: "admin_panel", feature: "competitions" },
+            { href: "/dashboard/competitions", label: "Competitions (Forms)", icon: "🏆", permission: "admin_competitions", feature: "competitions" },
             { href: "/dashboard/resources", label: "Resource Library", icon: "🗂️", permission: "resources", feature: "resources" },
             { href: "/dashboard/admin/resource-management", label: "Admin: Resources", icon: "🗂️", permission: "admin_resources", feature: "resources" },
             { href: "/dashboard/policies", label: "Policy & Minutes", icon: "📋", permission: "policies", feature: "policies" },
@@ -101,11 +101,11 @@ const teacherAdminNavSections: NavSection[] = [
         items: [
             { href: "/dashboard/admin", label: "Admin Panel", icon: "⚙️", permission: "admin_panel" },
             { href: "/dashboard/admin/access-management", label: "Access Management", icon: "🔑", permission: "access_management" },
-            { href: "/dashboard/admin/batch-forms", label: "Batch Forms", icon: "📝", permission: "admin_panel", feature: "batch_forms" },
+            { href: "/dashboard/admin/batch-forms", label: "Batch Forms", icon: "📝", permission: "admin_batch_forms", feature: "batch_forms" },
             { href: "/dashboard/admin/attendance-report", label: "Attendance Report", icon: "📈", permission: "admin_attendance", feature: "attendance" },
             { href: "/dashboard/admin/attendance-report/requests", label: "Attendance Requests", icon: "✋", permission: "admin_attendance", feature: "attendance" },
             { href: "/dashboard/admin/reports", label: "Reports & Insights", icon: "📊", permission: "reports", feature: "reports" },
-            { href: "/dashboard/settings/branding", label: "Branding & Settings", icon: "🎨", permission: "admin_panel" },
+            { href: "/dashboard/settings/branding", label: "Branding & Settings", icon: "🎨", permission: "admin_branding" },
         ]
     }
 ];

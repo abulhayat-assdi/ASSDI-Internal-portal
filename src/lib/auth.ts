@@ -408,3 +408,7 @@ export const hasRequiredPermission = (user: JWTPayload, permission: PermissionKe
     if (!user.permissions) return false;
     return user.permissions.includes(permission);
 };
+
+/** Staff who may manage competitions (forms, groups, procurement, corrections). */
+export const canManageCompetitions = (user: JWTPayload) =>
+    isTeacherOrAdmin(user) && hasRequiredPermission(user, 'admin_competitions');

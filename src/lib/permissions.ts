@@ -38,7 +38,12 @@ export type PermissionKey =
     | "access_management"
     | "typing_game_teacher"
     | "admin_typing_game"
-    | "typing_exam";
+    | "typing_exam"
+    | "admin_competitions"
+    | "admin_cv"
+    | "admin_batch_forms"
+    | "admin_branding"
+    | "admin_user_management";
 
 export type PermissionGroup = "teacher" | "management" | "admin" | "system";
 
@@ -47,6 +52,10 @@ export interface PermissionMeta {
     path: string;
     group: PermissionGroup;
     icon: string;
+    /** Match this exact path only, not its sub-paths. Needed for the Admin
+     *  Panel landing page (/dashboard/admin), whose path is a prefix of every
+     *  other admin page — each of those must carry its own permission. */
+    exact?: boolean;
 }
 
 export const PERMISSION_META: Record<PermissionKey, PermissionMeta> = {
@@ -61,7 +70,7 @@ export const PERMISSION_META: Record<PermissionKey, PermissionMeta> = {
     quiz: { label: "Quiz", path: "/dashboard/quiz", group: "teacher", icon: "❓" },
     attendance: { label: "Attendance", path: "/dashboard/attendance", group: "teacher", icon: "🗓️" },
     teachers: { label: "Teacher Directory", path: "/dashboard/teachers", group: "management", icon: "👥" },
-    admin_panel: { label: "Admin Panel", path: "/dashboard/admin", group: "admin", icon: "⚙️" },
+    admin_panel: { label: "Admin Panel", path: "/dashboard/admin", group: "admin", icon: "⚙️", exact: true },
     admin_homework: { label: "Manage Homework", path: "/dashboard/admin/manage-homework", group: "admin", icon: "📁" },
     admin_quiz: { label: "Manage Quiz", path: "/dashboard/admin/manage-quiz", group: "admin", icon: "❓" },
     admin_results: { label: "Manage Results", path: "/dashboard/admin/manage-results", group: "admin", icon: "📝" },
@@ -78,7 +87,54 @@ export const PERMISSION_META: Record<PermissionKey, PermissionMeta> = {
     typing_game_teacher: { label: "Typing Adventure (Teacher)", path: "/dashboard/typing-game/teacher", group: "teacher", icon: "⌨️" },
     admin_typing_game: { label: "Typing Adventure (Admin)", path: "/dashboard/typing-game/admin", group: "admin", icon: "⌨️" },
     typing_exam: { label: "Typing Test Exam", path: "/dashboard/typing-exam", group: "teacher", icon: "📝" },
+    admin_competitions: { label: "Competitions", path: "/dashboard/competitions", group: "admin", icon: "🏆" },
+    admin_cv: { label: "CV Manager", path: "/dashboard/admin/cv-manager", group: "admin", icon: "📄" },
+    admin_batch_forms: { label: "Batch Forms", path: "/dashboard/admin/batch-forms", group: "admin", icon: "🧾" },
+    admin_branding: { label: "Branding & Settings", path: "/dashboard/settings/branding", group: "admin", icon: "🎨" },
+    admin_user_management: { label: "User Management", path: "/dashboard/admin/user-management", group: "admin", icon: "🧑‍💼" },
 };
+
+// ------------------------------------------------------------
+// Route → permission resolution (shared by every page guard)
+// ------------------------------------------------------------
+//
+// DEFAULT-DENY: every page under /dashboard needs a PERMISSION_META entry
+// (that is what makes it show up in Access Management as its own checkbox).
+// A page that is not registered here — and not in the allowlist below — is
+// reachable by Super Admin only. So a newly added page can never be silently
+// open to, or piggy-back on the permission of, some other page.
+
+/** Pages that intentionally need no page permission. */
+const OPEN_DASHBOARD_PATHS: { path: string; exact?: boolean }[] = [
+    { path: "/dashboard", exact: true },           // landing page
+    { path: "/dashboard/leave-status" },           // "Who's on Leave" — everyone on staff
+    { path: "/dashboard/typing-game/super-admin" }, // has its own super-admin guard (layout)
+];
+
+/** Returned for a /dashboard page that is registered nowhere (Super Admin only). */
+export const UNREGISTERED_PAGE = "__unregistered__" as const;
+
+const matchesPath = (pathname: string, path: string, exact?: boolean) =>
+    pathname === path || (!exact && pathname.startsWith(path + "/"));
+
+/**
+ * The permission required to open `pathname`:
+ *  - a PermissionKey when the page is registered in PERMISSION_META,
+ *  - null when it is open (allowlisted, or not under /dashboard),
+ *  - UNREGISTERED_PAGE when it is a dashboard page nobody registered.
+ * The most specific (longest) registered path wins.
+ */
+export function getRequiredPermission(pathname: string): PermissionKey | typeof UNREGISTERED_PAGE | null {
+    if (pathname !== "/dashboard" && !pathname.startsWith("/dashboard/")) return null;
+
+    const entries = (Object.entries(PERMISSION_META) as [PermissionKey, PermissionMeta][])
+        .sort((a, b) => b[1].path.length - a[1].path.length);
+    for (const [key, meta] of entries) {
+        if (matchesPath(pathname, meta.path, meta.exact)) return key;
+    }
+    if (OPEN_DASHBOARD_PATHS.some((o) => matchesPath(pathname, o.path, o.exact))) return null;
+    return UNREGISTERED_PAGE;
+}
 
 export const PERMISSION_GROUPS: { key: PermissionGroup; label: string }[] = [
     { key: "teacher", label: "Teacher Features" },
@@ -114,6 +170,8 @@ export const DEFAULT_ADMIN_PERMISSIONS: PermissionKey[] = [
     "admin_notices", "admin_contact", "admin_resources", "admin_course_modules",
     "admin_deployments", "admin_typing_game", "typing_exam",
     "admin_attendance", "admin_routine", "reports", "access_management",
+    "admin_competitions", "admin_cv", "admin_batch_forms", "admin_branding",
+    "admin_user_management",
 ];
 
 // Teacher-feature permissions added to admin when "Include teacher features" is checked

@@ -3,7 +3,7 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
-import { getSessionUser, isAdmin } from "@/lib/auth";
+import { getSessionUser, isAdmin, hasRequiredPermission } from "@/lib/auth";
 import { generateDocxBuffer } from "@/lib/cv/docx/generateDocx";
 import type { CvDraftFull } from "@/lib/cv/schemas";
 import type { TemplateConfig } from "@/lib/cv/constants";
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         });
 
         if (!draft) return NextResponse.json({ error: "Not found" }, { status: 404 });
-        if (draft.userId !== user.id && !isAdmin(user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        if (draft.userId !== user.id && !isAdmin(user) && !hasRequiredPermission(user, "admin_cv")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
         const defaultConfig: TemplateConfig = {
             primaryColor: "#1e3a5f",

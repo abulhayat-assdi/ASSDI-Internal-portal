@@ -3,19 +3,7 @@
 import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { PERMISSION_META, PermissionKey } from "@/lib/permissions";
-
-// Map the current URL to its required permission key (most-specific path wins)
-function getRequiredPermission(pathname: string): PermissionKey | null {
-    const entries = Object.entries(PERMISSION_META) as [PermissionKey, typeof PERMISSION_META[PermissionKey]][];
-    const sorted = entries.sort((a, b) => b[1].path.length - a[1].path.length);
-    for (const [key, meta] of sorted) {
-        if (pathname === meta.path || pathname.startsWith(meta.path + "/")) {
-            return key;
-        }
-    }
-    return null;
-}
+import { getRequiredPermission, UNREGISTERED_PAGE } from "@/lib/permissions";
 
 export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const { user, userProfile, loading, hasPermission } = useAuth();
@@ -80,7 +68,11 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
 
     // Check page-level permission
     const requiredPermission = getRequiredPermission(pathname || "");
-    if (requiredPermission && !hasPermission(requiredPermission)) {
+    // Unregistered dashboard pages are Super Admin only (see getRequiredPermission).
+    const denied = requiredPermission === UNREGISTERED_PAGE
+        ? userProfile.role !== "super_admin"
+        : requiredPermission !== null && !hasPermission(requiredPermission);
+    if (denied) {
         return (
             <div className="flex items-center justify-center min-h-[60vh]">
                 <div className="text-center max-w-sm mx-auto p-8 bg-white rounded-2xl shadow-sm border border-gray-100">

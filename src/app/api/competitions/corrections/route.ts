@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
-import { getSessionUser, hasRequiredPermission, isTeacherOrAdmin } from "@/lib/auth";
+import { getSessionUser, canManageCompetitions } from "@/lib/auth";
 import { effectiveReportDate } from "@/lib/competitions";
 
 // Correction requests for staff review. `?count=pending` returns just the
@@ -10,7 +10,7 @@ import { effectiveReportDate } from "@/lib/competitions";
 export async function GET(req: NextRequest) {
     try {
         const user = await getSessionUser(req);
-        if (!user || !isTeacherOrAdmin(user) || !user.courseId || !hasRequiredPermission(user, "admin_panel")) {
+        if (!user || !canManageCompetitions(user) || !user.courseId) {
             return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
         const courseId = user.courseId;
