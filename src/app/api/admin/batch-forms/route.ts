@@ -24,7 +24,7 @@ function makeSlug(batchName: string): string {
 // GET /api/admin/batch-forms
 export async function GET(req: NextRequest) {
   const user = await getSessionUser(req);
-  if (!user || !user.courseId || !(isAdmin(user) || hasRequiredPermission(user, "admin_panel"))) {
+  if (!user || !user.courseId || !(isAdmin(user) || hasRequiredPermission(user, "admin_batch_forms"))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const courseId = user.courseId;
@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
 // PATCH /api/admin/batch-forms — toggle isActive
 export async function PATCH(req: NextRequest) {
   const user = await getSessionUser(req);
-  if (!user || !user.courseId || !(isAdmin(user) || hasRequiredPermission(user, "admin_panel"))) {
+  if (!user || !user.courseId || !(isAdmin(user) || hasRequiredPermission(user, "admin_batch_forms"))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const courseId = user.courseId;

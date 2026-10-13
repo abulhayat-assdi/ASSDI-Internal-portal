@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
-import { getServerSessionUser, isTeacherOrAdmin } from "@/lib/auth";
+import { getServerSessionUser, canManageCompetitions } from "@/lib/auth";
 import { getDateFieldId, isValidReportDate } from "@/lib/competitions";
 
 export async function POST(
@@ -11,7 +11,7 @@ export async function POST(
     const { id } = await params;
     const decoded = await getServerSessionUser();
 
-    if (!decoded || !isTeacherOrAdmin(decoded) || !decoded.courseId) {
+    if (!decoded || !canManageCompetitions(decoded) || !decoded.courseId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
     const courseId = decoded.courseId;
@@ -100,7 +100,7 @@ export async function DELETE(
     const { id: compId } = await params;
     const decoded = await getServerSessionUser();
 
-    if (!decoded || !isTeacherOrAdmin(decoded) || !decoded.courseId) {
+    if (!decoded || !canManageCompetitions(decoded) || !decoded.courseId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
     const courseId = decoded.courseId;

@@ -7,7 +7,7 @@ import dynamic from "next/dynamic";
 import BulkDataGrid from "@/components/competitions/BulkDataGrid";
 import SubmissionExplorer from "@/components/competitions/SubmissionExplorer";
 import ProcurementSummary from "@/components/competitions/ProcurementSummary";
-import { findGroupForRoll, type GroupLike } from "@/lib/competitions";
+import { findGroupForRoll, toReportDate, type GroupLike } from "@/lib/competitions";
 
 // The day a row counts for (server-computed; differs from submittedAt for late reports).
 const subDay = (s: any) => new Date(`${s.effectiveDate || String(s.submittedAt).slice(0, 10)}T00:00:00`);
@@ -73,7 +73,15 @@ export default function CompetitionReportPage() {
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayStr = yesterday.toDateString();
 
-    const allDates: string[] = Array.from(new Set<string>(submissions.map((s: any) => subDay(s).toDateString()))).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+    // A day only counts as "missing" once it is over: today (Dhaka time) is still
+    // in progress, so only dates before today are checked. At 12 AM the previous
+    // day rolls into the check automatically.
+    const todayStr = toReportDate();
+    const allDates: string[] = Array.from(new Set<string>(
+      submissions
+        .filter((s: any) => (s.effectiveDate || String(s.submittedAt).slice(0, 10)) < todayStr)
+        .map((s: any) => subDay(s).toDateString())
+    )).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
     if (viewType === "current") {
       // Filter for strictly yesterday's data

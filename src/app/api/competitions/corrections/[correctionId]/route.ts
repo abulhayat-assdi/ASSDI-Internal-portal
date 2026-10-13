@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
-import { getSessionUser, hasRequiredPermission, isTeacherOrAdmin } from "@/lib/auth";
+import { getSessionUser, canManageCompetitions } from "@/lib/auth";
 
 // Approve or reject one correction request. Approving overwrites the
 // submission's answers with the requested ones and keeps the old answers on
@@ -11,7 +11,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ correc
     try {
         const { correctionId } = await context.params;
         const user = await getSessionUser(req);
-        if (!user || !isTeacherOrAdmin(user) || !user.courseId || !hasRequiredPermission(user, "admin_panel")) {
+        if (!user || !canManageCompetitions(user) || !user.courseId) {
             return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
         const courseId = user.courseId;

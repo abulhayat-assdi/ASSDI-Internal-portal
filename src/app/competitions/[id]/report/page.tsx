@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { toast } from "react-hot-toast";
 import dynamic from "next/dynamic";
 import SubmissionExplorer from "@/components/competitions/SubmissionExplorer";
-import { findGroupForRoll, type GroupLike } from "@/lib/competitions";
+import { findGroupForRoll, toReportDate, type GroupLike } from "@/lib/competitions";
 
 // The day a row counts for (server-computed; differs from submittedAt for late reports).
 const subDay = (s: any) => new Date(`${s.effectiveDate || String(s.submittedAt).slice(0, 10)}T00:00:00`);
@@ -68,7 +68,15 @@ export default function PublicCompetitionReportPage() {
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayStr = yesterday.toDateString();
 
-    const allDates: string[] = Array.from(new Set<string>(submissions.map((s: any) => subDay(s).toDateString()))).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+    // A day only counts as "missing" once it is over: today (Dhaka time) is still
+    // in progress, so only dates before today are checked. At 12 AM the previous
+    // day rolls into the check automatically.
+    const todayStr = toReportDate();
+    const allDates: string[] = Array.from(new Set<string>(
+      submissions
+        .filter((s: any) => (s.effectiveDate || String(s.submittedAt).slice(0, 10)) < todayStr)
+        .map((s: any) => subDay(s).toDateString())
+    )).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
     if (viewType === "current") {
       submissions = submissions.filter((s: any) => subDay(s).toDateString() === yesterdayStr);
@@ -486,8 +494,8 @@ export default function PublicCompetitionReportPage() {
         </div>
       </div>
 
-      {/* Charts Section */}
-      <SubmissionExplorer competition={competition} />
+      {/* Data Explorer — only for staff logged in to the portal, never the public */}
+      {competition.isStaff && <SubmissionExplorer competition={competition} />}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <LeaderboardBarCharts
