@@ -22,6 +22,8 @@ export type PermissionKey =
     | "quiz"
     | "teachers"
     | "attendance"
+    | "teacher_attendance"
+    | "admin_teacher_class_report"
     | "admin_attendance"
     | "admin_routine"
     | "reports"
@@ -69,6 +71,7 @@ export const PERMISSION_META: Record<PermissionKey, PermissionMeta> = {
     homework: { label: "Homework", path: "/dashboard/homework", group: "teacher", icon: "📝" },
     quiz: { label: "Quiz", path: "/dashboard/quiz", group: "teacher", icon: "❓" },
     attendance: { label: "Attendance", path: "/dashboard/attendance", group: "teacher", icon: "🗓️" },
+    teacher_attendance: { label: "Teacher Class Attendance", path: "/dashboard/teacher-attendance", group: "teacher", icon: "🧑‍🏫" },
     teachers: { label: "Teacher Directory", path: "/dashboard/teachers", group: "management", icon: "👥" },
     admin_panel: { label: "Admin Panel", path: "/dashboard/admin", group: "admin", icon: "⚙️", exact: true },
     admin_homework: { label: "Manage Homework", path: "/dashboard/admin/manage-homework", group: "admin", icon: "📁" },
@@ -76,6 +79,7 @@ export const PERMISSION_META: Record<PermissionKey, PermissionMeta> = {
     admin_results: { label: "Manage Results", path: "/dashboard/admin/manage-results", group: "admin", icon: "📝" },
     admin_leave: { label: "Student Leaves", path: "/dashboard/student-leaves", group: "admin", icon: "🏖️" },
     admin_attendance: { label: "Attendance Report", path: "/dashboard/admin/attendance-report", group: "admin", icon: "📈" },
+    admin_teacher_class_report: { label: "Teacher Class Report", path: "/dashboard/admin/teacher-class-report", group: "admin", icon: "🧑‍🏫" },
     admin_routine: { label: "Update Routine", path: "/dashboard/manage-routine", group: "admin", icon: "📆" },
     reports: { label: "Reports & Insights", path: "/dashboard/admin/reports", group: "admin", icon: "📊" },
     admin_notices: { label: "Student Notices", path: "/dashboard/admin/student-updates", group: "admin", icon: "🔔" },
@@ -155,7 +159,7 @@ export const ADMIN_TEACHER_MARKER = "__role:admin_teacher";
 // explicitly via Access Management, it is not granted by default.
 export const DEFAULT_TEACHER_PERMISSIONS: PermissionKey[] = [
     "schedule", "routine", "batch_info", "resources", "course_modules",
-    "policies", "feedback", "homework", "quiz", "attendance",
+    "policies", "feedback", "homework", "quiz", "attendance", "teacher_attendance",
     "teachers", "admin_results", "typing_exam",
 ];
 
@@ -169,7 +173,8 @@ export const DEFAULT_ADMIN_PERMISSIONS: PermissionKey[] = [
     "admin_panel", "admin_homework", "admin_quiz", "admin_results", "admin_leave",
     "admin_notices", "admin_contact", "admin_resources", "admin_course_modules",
     "admin_deployments", "admin_typing_game", "typing_exam",
-    "admin_attendance", "admin_routine", "reports", "access_management",
+    "admin_attendance", "admin_teacher_class_report", "teacher_attendance",
+    "admin_routine", "reports", "access_management",
     "admin_competitions", "admin_cv", "admin_batch_forms", "admin_branding",
     "admin_user_management",
 ];
@@ -177,7 +182,7 @@ export const DEFAULT_ADMIN_PERMISSIONS: PermissionKey[] = [
 // Teacher-feature permissions added to admin when "Include teacher features" is checked
 export const TEACHER_FEATURE_PERMISSIONS: PermissionKey[] = [
     "schedule", "routine", "resources", "course_modules",
-    "policies", "feedback", "homework", "quiz", "attendance",
+    "policies", "feedback", "homework", "quiz", "attendance", "teacher_attendance",
     "typing_game_teacher", "typing_exam",
 ];
 

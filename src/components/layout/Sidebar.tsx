@@ -34,6 +34,7 @@ const teacherAdminTopNavItems: NavItem[] = [
     { href: "/dashboard/homework", label: "Homework", icon: "📝", permission: "homework", feature: "homework" },
     { href: "/dashboard/quiz", label: "Quiz", icon: "❓", permission: "quiz", feature: "quiz" },
     { href: "/dashboard/attendance", label: "Attendance", icon: "🗓️", permission: "attendance", feature: "attendance" },
+    { href: "/dashboard/teacher-attendance", label: "Teacher Attendance", icon: "🧑‍🏫", permission: "teacher_attendance", feature: "attendance" },
     { href: "/dashboard/leave-status", label: "Who's on Leave", icon: "📋", permission: null, feature: "student_leaves" },
     { href: "/dashboard/student-leaves", label: "Student Leaves", icon: "🏖️", permission: "admin_leave", feature: "student_leaves" },
 ];
@@ -104,6 +105,7 @@ const teacherAdminNavSections: NavSection[] = [
             { href: "/dashboard/admin/batch-forms", label: "Batch Forms", icon: "📝", permission: "admin_batch_forms", feature: "batch_forms" },
             { href: "/dashboard/admin/attendance-report", label: "Attendance Report", icon: "📈", permission: "admin_attendance", feature: "attendance" },
             { href: "/dashboard/admin/attendance-report/requests", label: "Attendance Requests", icon: "✋", permission: "admin_attendance", feature: "attendance" },
+            { href: "/dashboard/admin/teacher-class-report", label: "Teacher Class Report", icon: "🧑‍🏫", permission: "admin_teacher_class_report", feature: "attendance" },
             { href: "/dashboard/admin/reports", label: "Reports & Insights", icon: "📊", permission: "reports", feature: "reports" },
             { href: "/dashboard/settings/branding", label: "Branding & Settings", icon: "🎨", permission: "admin_branding" },
         ]

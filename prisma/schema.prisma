@@ -207,6 +207,8 @@ model Course {
   batches                  Batch[]
   batchStudents            BatchStudent[]
   attendanceSessions       AttendanceSession[]
+  teachingSubjects         TeachingSubject[]
+  teacherClassLogs         TeacherClassLog[]
   attendanceRecords        AttendanceRecord[]
   attendanceCorrections    AttendanceCorrectionRequest[]
   notices                  Notice[]
@@ -462,6 +464,7 @@ model Batch {
   course             Course              @relation(fields: [courseId], references: [id], onDelete: Cascade)
   students           BatchStudent[]
   attendanceSessions AttendanceSession[]
+  teacherClassLogs   TeacherClassLog[]
   feedback           Feedback[]
 
   @@unique([courseId, name])
@@ -1970,4 +1973,81 @@ model PlatformSettings {
   updatedBy  String?  @map("updated_by")
 
   @@map("platform_settings")
+}
+
+// ============================================================
+// TEACHER CLASS ATTENDANCE
+// ============================================================
+//
+// What a teacher actually taught: batch, date, subject, topic and the clock
+// time of the class. Separate from AttendanceSession (the student roll call):
+// that one is one-per-batch-per-day, this one is one row per class a teacher
+// took, so two teachers can each log their own class in the same batch.
+
+// A subject an admin has set up for teachers to pick from (e.g. "Career
+// Planning & Branding"). Which teachers may pick it is the assignment table.
+model TeachingSubject {
+  id        String   @id @default(uuid())
+  courseId  String   @map("course_id")
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  course      Course                      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  assignments TeachingSubjectAssignment[]
+  logs        TeacherClassLog[]
+
+  @@unique([courseId, name])
+  @@index([courseId])
+  @@map("teaching_subjects")
+}
+
+// teacherUid is User.id — unique per course since accounts became per-course.
+model TeachingSubjectAssignment {
+  id         String   @id @default(uuid())
+  courseId   String   @map("course_id")
+  subjectId  String   @map("subject_id")
+  teacherUid String   @map("teacher_uid")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  subject TeachingSubject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([subjectId, teacherUid])
+  @@index([courseId])
+  @@index([teacherUid])
+  @@map("teaching_subject_assignments")
+}
+
+model TeacherClassLog {
+  id             String   @id @default(uuid())
+  courseId       String   @map("course_id")
+  // The teacher the class belongs to (User.id) and their name as it was then.
+  teacherUid     String   @map("teacher_uid")
+  teacherName    String   @map("teacher_name")
+  batchId        String   @map("batch_id")
+  batchName      String   @map("batch_name")
+  subjectId      String?  @map("subject_id")
+  // Snapshot, so renaming or deleting a subject later does not rewrite history.
+  subjectName    String   @map("subject_name")
+  // "YYYY-MM-DD", the same convention classes and schedules use.
+  date           String
+  topic          String
+  // "HH:mm" 24-hour wall-clock (Asia/Dhaka) as entered.
+  startTime      String   @map("start_time")
+  endTime        String   @map("end_time")
+  durationMin    Int      @map("duration_min")
+  // Who pressed Save; differs from teacherUid when an admin filled it in.
+  enteredByUid   String   @map("entered_by_uid")
+  enteredByName  String   @map("entered_by_name")
+  enteredByAdmin Boolean  @default(false) @map("entered_by_admin")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  course  Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  batch   Batch            @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  subject TeachingSubject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+
+  @@index([courseId, teacherUid, date])
+  @@index([courseId, date])
+  @@map("teacher_class_logs")
 }

@@ -7,6 +7,7 @@ import Button from "@/components/ui/Button";
 import { getAllTeachers, getTeachersPaginated, updateTeacher, deleteTeacher, Teacher } from "@/services/teacherService";
 import { useAuth } from "@/contexts/AuthContext";
 import { getImageUrl } from "@/lib/getImageUrl";
+import SubjectManagementModal from "@/components/teachers/SubjectManagementModal";
 
 export default function TeachersPage() {
     const { user, userProfile } = useAuth();
@@ -25,6 +26,7 @@ export default function TeachersPage() {
     const isPortalOwner = userProfile?.role === "super_admin";
 
     // Modal states
+    const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isEditMode, setIsEditMode] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -380,6 +382,14 @@ export default function TeachersPage() {
                     </Badge>
                     {isAdminUser && (
                         <button
+                            onClick={() => setIsSubjectModalOpen(true)}
+                            className="px-4 py-2 bg-white text-[#059669] border border-[#059669] font-semibold rounded-lg hover:bg-emerald-50 transition-colors"
+                        >
+                            Subject Management
+                        </button>
+                    )}
+                    {isAdminUser && (
+                        <button
                             onClick={openAddModal}
                             className="px-4 py-2 bg-[#059669] text-white font-semibold rounded-lg hover:bg-[#10b981] transition-colors inline-flex items-center gap-2"
                         >
@@ -516,6 +526,8 @@ export default function TeachersPage() {
                     </button>
                 </div>
             )}
+
+            {isSubjectModalOpen && <SubjectManagementModal onClose={() => setIsSubjectModalOpen(false)} />}
 
             {/* Add/Edit Teacher Modal */}
             {isModalOpen && (
