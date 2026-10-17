@@ -41,11 +41,12 @@ export interface CourseContext {
 
 export async function withCourseContext<T>(
   ctx: CourseContext,
-  fn: (tx: Prisma.TransactionClient) => Promise<T>
+  fn: (tx: Prisma.TransactionClient) => Promise<T>,
+  options?: { timeout?: number; maxWait?: number }
 ): Promise<T> {
   return prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT set_config('app.is_super_admin', ${ctx.isSuperAdmin ? 'true' : 'false'}, true)`;
     await tx.$executeRaw`SELECT set_config('app.current_course_id', ${ctx.courseId ?? ''}, true)`;
     return fn(tx);
-  });
+  }, options);
 }

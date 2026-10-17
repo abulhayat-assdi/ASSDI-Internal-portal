@@ -525,7 +525,8 @@ export default function AllBatchInfoPage() {
             setIsEditingExisting(false);
         } catch (error) {
             console.error(error);
-            alert("Failed to save batch data. Please check console for details.");
+            const reason = error instanceof Error ? error.message : "";
+            alert(`Failed to save batch data.${reason ? `\n\n${reason}` : ""}`);
         } finally {
             setIsAdding(false);
         }

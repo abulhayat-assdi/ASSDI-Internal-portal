@@ -193,7 +193,7 @@ export async function POST(req: NextRequest) {
                     roll: { notIn: providedRolls },
                 },
             });
-        });
+        }, { timeout: 60_000, maxWait: 10_000 });
 
         // Rows are committed; now the uploaded files themselves.
         const purge = homeworkPurge as HomeworkPurgeResult | null;
@@ -208,6 +208,7 @@ export async function POST(req: NextRequest) {
         });
     } catch (error) {
         console.error("[batch-info/bulk POST]", error);
-        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+        const message = error instanceof Error ? error.message : "Internal Server Error";
+        return NextResponse.json({ error: message }, { status: 500 });
     }
 }
