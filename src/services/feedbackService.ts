@@ -29,10 +29,35 @@ export interface FeedbackFilters {
     isRead?: boolean;
     /** Include archived/completed batches too — defaults to running-only. */
     allBatches?: boolean;
+    /** A feedback form's id; omitted = the general (form-less) feedback. */
+    formId?: string;
+}
+
+export interface FeedbackForm {
+    id: string;
+    title: string;
+    description: string | null;
+    isOpen: boolean;
+    createdAt: string;
+    closedAt: string | null;
+    total: number;
+    unread: number;
+}
+
+export interface OpenFeedbackForm {
+    id: string;
+    title: string;
+    description: string | null;
+    createdAt: string;
+}
+
+export interface FeedbackFolder extends Omit<FeedbackForm, "unread"> {
+    course?: { id: string; slug: string; name: string };
 }
 
 const buildQuery = (filters: FeedbackFilters = {}): string => {
     const params = new URLSearchParams();
+    if (filters.formId) params.set("formId", filters.formId);
     if (filters.category) params.set("category", filters.category);
     if (filters.isRead !== undefined) params.set("isRead", String(filters.isRead));
     if (filters.allBatches) params.set("allBatches", "true");
@@ -71,12 +96,13 @@ export const deleteFeedback = async (id: string): Promise<void> => {
 export const submitFeedback = async (
     category: FeedbackCategory,
     message: string,
-    rating: number
+    rating: number,
+    formId?: string
 ): Promise<void> => {
     const res = await fetch("/api/student/feedback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category, message, rating }),
+        body: JSON.stringify({ category, message, rating, formId }),
     });
     if (!res.ok) {
         const data = await res.json().catch(() => null);
@@ -127,11 +153,70 @@ export const getFeedbackWithIdentity = async (
     filters: FeedbackFilters & { courseId?: string } = {}
 ): Promise<FeedbackWithIdentity[]> => {
     const params = new URLSearchParams();
+    // On the super-admin side an omitted formId would mean "every form", so
+    // callers pass "general" explicitly for the form-less folder.
+    if (filters.formId) params.set("formId", filters.formId);
     if (filters.courseId) params.set("courseId", filters.courseId);
     if (filters.category) params.set("category", filters.category);
     if (filters.isRead !== undefined) params.set("isRead", String(filters.isRead));
     const qs = params.toString();
     const res = await fetch(`/api/saas/feedback${qs ? `?${qs}` : ""}`, { cache: "no-store" });
     if (!res.ok) return [];
+    return res.json();
+};
+
+/** Teacher/admin: this course's topic-specific feedback forms. */
+export const getFeedbackForms = async (): Promise<FeedbackForm[]> => {
+    const res = await fetch("/api/feedback/forms", { cache: "no-store" });
+    if (!res.ok) return [];
+    return res.json();
+};
+
+export const createFeedbackForm = async (title: string, description?: string): Promise<FeedbackForm> => {
+    const res = await fetch("/api/feedback/forms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, description }),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(data?.error || "Failed to create form.");
+    return data;
+};
+
+export const setFeedbackFormOpen = async (id: string, isOpen: boolean): Promise<void> => {
+    const res = await fetch("/api/feedback/forms", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, isOpen }),
+    });
+    if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Failed to update form.");
+    }
+};
+
+export const deleteFeedbackForm = async (id: string): Promise<void> => {
+    const res = await fetch(`/api/feedback/forms?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+    if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Failed to delete form.");
+    }
+};
+
+/** Student: forms currently open for feedback. */
+export const getOpenFeedbackForms = async (): Promise<OpenFeedbackForm[]> => {
+    const res = await fetch("/api/student/feedback/forms", { cache: "no-store" });
+    if (!res.ok) return [];
+    return res.json();
+};
+
+/** Super admin only: one folder per form, plus the count of general feedback. */
+export const getFeedbackFolders = async (
+    courseId?: string
+): Promise<{ generalCount: number; forms: FeedbackFolder[] }> => {
+    const res = await fetch(`/api/saas/feedback/forms${courseId ? `?courseId=${encodeURIComponent(courseId)}` : ""}`, {
+        cache: "no-store",
+    });
+    if (!res.ok) return { generalCount: 0, forms: [] };
     return res.json();
 };

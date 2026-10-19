@@ -22,11 +22,14 @@ export async function GET(req: NextRequest) {
     const courseId = searchParams.get("courseId");
     const category = searchParams.get("category");
     const readParam = searchParams.get("isRead");
+    // "general" = feedback with no form; an id = that form's folder.
+    const formParam = searchParams.get("formId");
 
     const items = await withCourseContext({ courseId: null, isSuperAdmin: true }, (tx) =>
         tx.feedback.findMany({
             where: {
                 ...(courseId ? { courseId } : {}),
+                ...(formParam === "general" ? { formId: null } : formParam ? { formId: formParam } : {}),
                 ...(category && CATEGORIES.includes(category as any) ? { category: category as any } : {}),
                 ...(readParam === "true" ? { isRead: true } : readParam === "false" ? { isRead: false } : {}),
             },
