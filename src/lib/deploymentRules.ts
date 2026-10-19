@@ -2,12 +2,15 @@
 // deploymentRules.ts — rules shared by the student deploy form and the
 // deployment API, so both sides reject the same things with the same words.
 // Pure functions only: this file is imported from client components.
+// Student-facing messages are in Bengali.
 // ============================================================
 
 export const MAX_DEPLOY_SIZE_MB = 50;
 export const MAX_ZIP_ENTRIES = 500;
-/** Uncompressed total — a guard against zip bombs. */
-export const MAX_ZIP_UNCOMPRESSED_MB = 200;
+/** Uncompressed size of one site — a guard against zip bombs and disk hogs. */
+export const MAX_SITE_UNCOMPRESSED_MB = 100;
+/** Default total disk space one student's sites may use (overridable via DEPLOY_STUDENT_QUOTA_MB). */
+export const DEFAULT_STUDENT_QUOTA_MB = 150;
 
 export const RESERVED_SUBDOMAINS = new Set([
     "www", "api", "admin", "mail", "portal", "app", "cdn", "ftp",
@@ -17,6 +20,24 @@ export const RESERVED_SUBDOMAINS = new Set([
 
 export const SUBDOMAIN_REGEX = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/;
 
+/**
+ * File types a deployed site may not contain. SVG and XML documents can carry
+ * script that runs under the portal's own domain when opened directly, and a
+ * landing page doesn't need them (use PNG/WebP for logos and icons).
+ */
+const BLOCKED_SITE_EXTENSIONS = [".svg", ".svgz", ".xml", ".xhtml", ".xht", ".xsl", ".xslt"];
+
+export function isBlockedSiteFile(p: string): boolean {
+    const lower = p.toLowerCase();
+    return BLOCKED_SITE_EXTENSIONS.some((ext) => lower.endsWith(ext));
+}
+
+export function formatBytes(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
 /** Turns whatever the student typed into a candidate subdomain. */
 export function normalizeSubdomain(raw: string): string {
     return raw.toLowerCase().trim();
@@ -25,13 +46,13 @@ export function normalizeSubdomain(raw: string): string {
 /** Returns a human-readable reason the subdomain is unusable, or null if it's fine. */
 export function subdomainProblem(subdomain: string): string | null {
     const s = normalizeSubdomain(subdomain);
-    if (!s) return "Subdomain is required.";
-    if (s.length < 3) return "Subdomain must be at least 3 characters long.";
-    if (s.length > 63) return "Subdomain can be at most 63 characters long.";
-    if (/[^a-z0-9-]/.test(s)) return "Only lowercase English letters (a-z), numbers (0-9) and hyphens (-) are allowed — no spaces, dots or other symbols.";
-    if (s.startsWith("-") || s.endsWith("-")) return "Subdomain cannot start or end with a hyphen (-).";
-    if (!SUBDOMAIN_REGEX.test(s)) return "Invalid subdomain.";
-    if (RESERVED_SUBDOMAINS.has(s)) return `"${s}" is reserved by the system. Please choose another name.`;
+    if (!s) return "সাবডোমেইন লিখুন।";
+    if (s.length < 3) return "সাবডোমেইন কমপক্ষে ৩ অক্ষরের হতে হবে।";
+    if (s.length > 63) return "সাবডোমেইন সর্বোচ্চ ৬৩ অক্ষরের হতে পারবে।";
+    if (/[^a-z0-9-]/.test(s)) return "শুধু ছোট হাতের ইংরেজি অক্ষর (a-z), সংখ্যা (0-9) আর হাইফেন (-) দেওয়া যাবে — স্পেস, ডট (.) বা অন্য কোনো চিহ্ন নয়।";
+    if (s.startsWith("-") || s.endsWith("-")) return "সাবডোমেইনের শুরুতে বা শেষে হাইফেন (-) দেওয়া যাবে না।";
+    if (!SUBDOMAIN_REGEX.test(s)) return "সাবডোমেইনটি সঠিক নয়।";
+    if (RESERVED_SUBDOMAINS.has(s)) return `"${s}" নামটি সিস্টেমের জন্য সংরক্ষিত। অন্য নাম দিন।`;
     return null;
 }
 
@@ -54,16 +75,15 @@ export function fileTypeProblem(fileName: string): string | null {
     if (uploadKind(fileName)) return null;
     const ext = fileName.includes(".") ? fileName.slice(fileName.lastIndexOf(".")).toLowerCase() : "";
     if (ext === ".rar" || ext === ".7z" || ext === ".tar" || ext === ".gz") {
-        return `"${fileName}" is a ${ext} archive. Only .zip archives are supported — please re-compress the folder as a .zip file.`;
+        return `"${fileName}" একটি ${ext} ফাইল। শুধু .zip সাপোর্ট করে — ফোল্ডারটি আবার .zip করে আপলোড করুন।`;
     }
-    return `"${fileName}" is not supported. Upload a single .html file, or a .zip file of your project folder.`;
+    return `"${fileName}" ফাইলটি সাপোর্ট করে না। একটি .html ফাইল অথবা প্রজেক্ট ফোল্ডারের .zip ফাইল আপলোড করুন।`;
 }
 
 export function fileSizeProblem(sizeBytes: number): string | null {
-    if (sizeBytes === 0) return "The selected file is empty (0 bytes).";
+    if (sizeBytes === 0) return "ফাইলটি খালি (0 bytes)।";
     if (sizeBytes > MAX_DEPLOY_SIZE_MB * 1024 * 1024) {
-        const mb = (sizeBytes / 1024 / 1024).toFixed(1);
-        return `File is ${mb}MB — the maximum is ${MAX_DEPLOY_SIZE_MB}MB. Compress your images/videos or remove unused files and try again.`;
+        return `ফাইলের সাইজ ${formatBytes(sizeBytes)} — সর্বোচ্চ ${MAX_DEPLOY_SIZE_MB}MB দেওয়া যাবে। ছবি/ভিডিও কমপ্রেস করুন বা অপ্রয়োজনীয় ফাইল বাদ দিয়ে আবার চেষ্টা করুন।`;
     }
     return null;
 }
@@ -89,18 +109,18 @@ function hasUtf16Bom(bytes: Uint8Array): boolean {
  */
 export function htmlContentProblem(bytes: Uint8Array): string | null {
     if (bytes.length >= 2 && bytes[0] === 0x50 && bytes[1] === 0x4b) {
-        return "This file is named .html but is actually a ZIP archive. Rename it to .zip and upload again.";
+        return "ফাইলের নাম .html হলেও এটা আসলে একটা ZIP ফাইল। নাম বদলে .zip করে আবার আপলোড করুন।";
     }
     if (!hasUtf16Bom(bytes) && bytes.subarray(0, 4096).includes(0)) {
-        return "This file is not a text HTML file (it contains binary data). Make sure you're uploading the .html file itself, not a shortcut or a document.";
+        return "এটা টেক্সট HTML ফাইল নয় (ভেতরে বাইনারি ডেটা আছে)। শর্টকাট বা ডকুমেন্ট নয়, আসল .html ফাইলটি আপলোড করুন।";
     }
     const trimmed = decodeHtmlBytes(bytes).trim();
-    if (!trimmed) return "The HTML file is empty.";
+    if (!trimmed) return "HTML ফাইলটি খালি।";
     if (!/<[a-z!][^>]*>/i.test(trimmed)) {
-        return "This file doesn't contain any HTML tags. Make sure it's a real HTML page (it should contain <html>, <head>, <body> etc.).";
+        return "এই ফাইলে কোনো HTML ট্যাগ নেই। নিশ্চিত হোন এটা আসল HTML পেজ (এতে <html>, <head>, <body> ইত্যাদি থাকে)।";
     }
     if (/^<\?php/i.test(trimmed)) {
-        return "PHP files can't be hosted here — only static HTML/CSS/JS sites.";
+        return "PHP ফাইল এখানে চলবে না — শুধু HTML/CSS/JS দিয়ে বানানো স্ট্যাটিক সাইট ডিপ্লয় করা যায়।";
     }
     return null;
 }
@@ -118,6 +138,8 @@ export interface ZipLayout {
     rootPrefix: string;
     /** Path of the page to serve as index.html, relative to rootPrefix. */
     indexPath: string;
+    /** SVG/XML files inside the site that will be left out. */
+    blockedFiles: string[];
 }
 
 /** OS junk that zip tools add and that should never be deployed. */
@@ -144,17 +166,18 @@ export function resolveZipLayout(entries: ZipEntryInfo[]): { layout: ZipLayout }
         .filter((p) => p && !isJunkZipPath(p) && !isUnsafeZipPath(p));
 
     if (files.length === 0) {
-        return { error: "The ZIP file is empty — it has no files inside." };
+        return { error: "ZIP ফাইলটি খালি — ভেতরে কোনো ফাইল নেই।" };
     }
 
     const htmlFiles = files.filter((p) => /\.html?$/i.test(p));
     if (htmlFiles.length === 0) {
-        return { error: "The ZIP has no .html file. Your project needs an index.html page." };
+        return { error: "ZIP-এর ভেতরে কোনো .html ফাইল নেই। আপনার প্রজেক্টে একটা index.html পেজ থাকতে হবে।" };
     }
 
     const depth = (p: string) => p.split("/").length;
     const dirOf = (p: string) => (p.includes("/") ? p.slice(0, p.lastIndexOf("/") + 1) : "");
     const baseOf = (p: string) => p.slice(p.lastIndexOf("/") + 1);
+    const blockedUnder = (prefix: string) => files.filter((p) => p.startsWith(prefix) && isBlockedSiteFile(p));
 
     // 1. The shallowest index.html / index.htm (any letter case).
     const indexes = htmlFiles
@@ -165,11 +188,11 @@ export function resolveZipLayout(entries: ZipEntryInfo[]): { layout: ZipLayout }
         const sameDepth = indexes.filter((p) => depth(p) === depth(best) && dirOf(p) !== dirOf(best));
         if (sameDepth.length > 0) {
             return {
-                error: `The ZIP contains more than one site (${[best, ...sameDepth].slice(0, 3).join(", ")}). Zip only one project folder at a time.`,
+                error: `ZIP-এর ভেতরে একাধিক সাইট আছে (${[best, ...sameDepth].slice(0, 3).join(", ")})। একবারে শুধু একটা প্রজেক্ট ফোল্ডার zip করুন।`,
             };
         }
         const rootPrefix = dirOf(best);
-        return { layout: { rootPrefix, indexPath: baseOf(best) } };
+        return { layout: { rootPrefix, indexPath: baseOf(best), blockedFiles: blockedUnder(rootPrefix) } };
     }
 
     // 2. No index page, but exactly one HTML page at the shallowest level — serve it as the index.
@@ -177,10 +200,43 @@ export function resolveZipLayout(entries: ZipEntryInfo[]): { layout: ZipLayout }
     const shallowest = htmlFiles.filter((p) => depth(p) === minDepth);
     if (shallowest.length === 1) {
         const page = shallowest[0];
-        return { layout: { rootPrefix: dirOf(page), indexPath: baseOf(page) } };
+        const rootPrefix = dirOf(page);
+        return { layout: { rootPrefix, indexPath: baseOf(page), blockedFiles: blockedUnder(rootPrefix) } };
     }
 
     return {
-        error: `The ZIP has no index.html. Found ${shallowest.slice(0, 4).map(baseOf).join(", ")}${shallowest.length > 4 ? " …" : ""} — rename your main page to index.html and zip again.`,
+        error: `ZIP-এ index.html নেই। পাওয়া গেছে: ${shallowest.slice(0, 4).map(baseOf).join(", ")}${shallowest.length > 4 ? " …" : ""} — আপনার মূল পেজের নাম index.html করে আবার zip করুন।`,
     };
+}
+
+/** Student-facing note about SVG/XML files that were left out. */
+export function blockedFilesNote(blocked: string[]): string | null {
+    if (blocked.length === 0) return null;
+    const names = blocked.slice(0, 3).map((p) => p.slice(p.lastIndexOf("/") + 1)).join(", ");
+    return `নিরাপত্তার কারণে SVG/XML ফাইল ডিপ্লয় করা হয় না, তাই ${blocked.length}টি ফাইল বাদ যাবে (${names}${blocked.length > 3 ? " …" : ""})। লোগো/আইকনের জন্য PNG বা WebP ব্যবহার করুন।`;
+}
+
+// ─── Risk scan ────────────────────────────────────────────────────────────────
+
+/**
+ * Looks for patterns typical of phishing pages. Nothing is blocked — matches
+ * are stored on the deployment so an admin can review it.
+ */
+export function scanHtmlForRisks(html: string, siteHost: string): string[] {
+    const flags = new Set<string>();
+    if (/<input[^>]+type\s*=\s*["']?password/i.test(html)) flags.add("password-field");
+
+    const actionRe = /<form[^>]+action\s*=\s*["']?\s*(https?:)?\/\/([^/"'\s>]+)/gi;
+    for (const m of html.matchAll(actionRe)) {
+        const host = m[2].toLowerCase();
+        if (host !== siteHost.toLowerCase()) { flags.add(`external-form:${host}`); }
+    }
+
+    const text = html.toLowerCase();
+    const brands = ["bkash", "nagad", "rocket", "dutch-bangla", "facebook login", "gmail", "paypal", "binance"];
+    const asksSecret = flags.has("password-field") || /\b(otp|pin\s*(code|number)?|cvv)\b/.test(text);
+    if (asksSecret) {
+        for (const b of brands) if (text.includes(b)) flags.add(`brand:${b}`);
+    }
+    return [...flags];
 }

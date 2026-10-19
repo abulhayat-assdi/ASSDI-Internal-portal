@@ -3,28 +3,48 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import { mkdir, rm, rename } from "fs/promises";
-import path from "path";
 import * as fs from "fs";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin } from "@/lib/auth";
 import { normalizeSubdomain, subdomainProblem } from "@/lib/deploymentRules";
 import {
+    DeploymentError,
     buildLiveUrl,
-    injectTrackingPixel,
+    buildSite,
+    getDeploymentAccess,
+    makeStagingDir,
+    quotaProblem,
     removeDir,
+    removeSiteFolder,
     safeChildDir,
     studentSitesDir,
+    swapIntoPlace,
     withLiveUrl,
 } from "@/lib/deploymentSite";
+import {
+    RATE_LIMITED,
+    SERVER_ERROR,
+    UPLOAD_INCOMPLETE,
+    deployRateLimited,
+    readDeployUpload,
+    readFormData,
+} from "@/lib/deploymentUpload";
 
-// ─── PATCH /api/deployments/[id] ─────────────────────────────────────────────
+function errorJson(error: string, status: number) {
+    return NextResponse.json({ error }, { status });
+}
+
+const SESSION_EXPIRED = "আপনার সেশনের মেয়াদ শেষ। আবার লগইন করুন।";
+const NOT_FOUND = "সাইটটি পাওয়া যায়নি। পেজটি রিফ্রেশ করুন।";
+
+// ─── PATCH /api/deployments/[id] — rename (subdomain / project name) ──────────
 
 export async function PATCH(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
     const user = await getSessionUser(req);
-    if (!user || !user.courseId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!user || !user.courseId) return errorJson(SESSION_EXPIRED, 401);
     const courseId = user.courseId;
 
     const { id } = await params;
@@ -32,21 +52,13 @@ export async function PATCH(
     try {
         return await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
             const deployment = await tx.deployment.findUnique({ where: { id, courseId } });
-            if (!deployment) return NextResponse.json({ error: "Deployment not found" }, { status: 404 });
+            if (!deployment) return errorJson(NOT_FOUND, 404);
+            if (deployment.userId !== user.id) return errorJson("এই সাইটটি আপনার নয়।", 403);
 
-            if (deployment.userId !== user.id) {
-                return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-            }
+            const access = await getDeploymentAccess(tx, courseId, user.id);
+            if (access.blockedReason) return errorJson(access.blockedReason, 403);
 
-            const dbUser = await tx.user.findUnique({
-                where: { id: user.id },
-                select: { isDeploymentFrozen: true },
-            });
-            if (dbUser?.isDeploymentFrozen) {
-                return NextResponse.json({ error: "Your deployment access has been frozen." }, { status: 403 });
-            }
-
-            const body = await req.json();
+            const body = await req.json().catch(() => ({}));
             const newSubdomain = normalizeSubdomain((body.subdomain as string | undefined) ?? "");
             const newDisplayName = (body.displayName as string | undefined)?.trim().slice(0, 60) || undefined;
 
@@ -59,25 +71,21 @@ export async function PATCH(
             }
 
             const subdomainError = subdomainProblem(newSubdomain);
-            if (subdomainError) {
-                return NextResponse.json({ error: subdomainError }, { status: 400 });
-            }
+            if (subdomainError) return errorJson(subdomainError, 400);
 
             // Deployment subdomains are a platform-wide namespace — check
             // across ALL courses, not just the caller's.
             const conflict = await withCourseContext({ courseId: null, isSuperAdmin: true }, (tx2) =>
                 tx2.deployment.findUnique({ where: { subdomain: newSubdomain } })
             );
-            if (conflict) {
-                return NextResponse.json({ error: `The subdomain "${newSubdomain}" is already taken. Please choose another one.` }, { status: 409 });
-            }
+            if (conflict) return errorJson(`"${newSubdomain}" সাবডোমেইনটি আগেই অন্য কেউ নিয়ে নিয়েছে। অন্য একটা নাম দিন।`, 409);
 
             const studentSitesBase = await studentSitesDir();
             const oldDir = deployment.folderPath;
             const newDir = safeChildDir(studentSitesBase, newSubdomain);
 
             if (!fs.existsSync(oldDir)) {
-                return NextResponse.json({ error: "This site's files are missing on the server. Delete it and deploy again." }, { status: 409 });
+                return errorJson("এই সাইটের ফাইল সার্ভারে পাওয়া যাচ্ছে না। \"Update files\" দিয়ে আবার ফাইল আপলোড করুন।", 409);
             }
             // No deployment owns newSubdomain (checked above), so a folder
             // there is a leftover from an earlier failed upload.
@@ -91,29 +99,82 @@ export async function PATCH(
                 await rm(oldDir, { recursive: true, force: true });
             }
 
-            const newLiveUrl = buildLiveUrl(newSubdomain);
-
             const updated = await tx.deployment.update({
                 where: { id, courseId },
                 data: {
                     subdomain: newSubdomain,
                     folderPath: newDir,
-                    liveUrl: newLiveUrl,
+                    liveUrl: buildLiveUrl(newSubdomain),
                     displayName: newDisplayName ?? deployment.displayName,
                 },
             });
 
-            const newIndexPath = path.join(newDir, "index.html");
-            if (fs.existsSync(newIndexPath)) {
-                await injectTrackingPixel(newIndexPath, id);
-            }
-
             return NextResponse.json({ deployment: withLiveUrl(updated) });
         });
     } catch (error) {
+        if (error instanceof DeploymentError) return errorJson(error.message, error.status);
         console.error("[Deployments PATCH]", error);
-        const msg = error instanceof Error ? error.message : "Internal server error";
-        return NextResponse.json({ error: msg }, { status: 500 });
+        return errorJson(SERVER_ERROR, 500);
+    }
+}
+
+// ─── PUT /api/deployments/[id] — replace the site's files, same URL ───────────
+
+export async function PUT(
+    req: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    const user = await getSessionUser(req);
+    if (!user || user.role !== "student" || !user.courseId) return errorJson(SESSION_EXPIRED, 401);
+    const courseId = user.courseId;
+    const { id } = await params;
+
+    let stagingDir: string | null = null;
+    try {
+        const { deployment, access } = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+            // Access first: it backfills sizeBytes, which the quota check below reads.
+            const access = await getDeploymentAccess(tx, courseId, user.id);
+            return { access, deployment: await tx.deployment.findUnique({ where: { id, courseId } }) };
+        });
+        if (!deployment) return errorJson(NOT_FOUND, 404);
+        if (deployment.userId !== user.id) return errorJson("এই সাইটটি আপনার নয়।", 403);
+        if (access.blockedReason) return errorJson(access.blockedReason, 403);
+        if (deployRateLimited(user.id)) return errorJson(RATE_LIMITED, 429);
+
+        const formData = await readFormData(req);
+        if (!formData) return errorJson(UPLOAD_INCOMPLETE, 400);
+        const upload = await readDeployUpload(formData);
+        if ("error" in upload) return errorJson(upload.error, upload.status);
+
+        const sitesDir = await studentSitesDir();
+        const targetDir = safeChildDir(sitesDir, deployment.subdomain);
+        stagingDir = await makeStagingDir(sitesDir);
+        const built = await buildSite(upload.kind, upload.buffer, stagingDir);
+
+        const overQuota = quotaProblem(access, built.sizeBytes, deployment.sizeBytes);
+        if (overQuota) {
+            await removeDir(stagingDir);
+            stagingDir = null;
+            return errorJson(overQuota, 413);
+        }
+
+        await swapIntoPlace(stagingDir, targetDir);
+        stagingDir = null;
+        if (deployment.folderPath && deployment.folderPath !== targetDir) await removeSiteFolder(deployment.folderPath);
+
+        const updated = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
+            tx.deployment.update({
+                where: { id, courseId },
+                data: { folderPath: targetDir, sizeBytes: built.sizeBytes, riskFlags: built.riskFlags },
+            })
+        );
+
+        return NextResponse.json({ deployment: withLiveUrl(updated), skippedFiles: built.skippedFiles });
+    } catch (error) {
+        if (stagingDir) await removeDir(stagingDir);
+        if (error instanceof DeploymentError) return errorJson(error.message, error.status);
+        console.error("[Deployments PUT]", error);
+        return errorJson(SERVER_ERROR, 500);
     }
 }
 
@@ -124,45 +185,39 @@ export async function DELETE(
     { params }: { params: Promise<{ id: string }> }
 ) {
     const user = await getSessionUser(req);
-    if (!user || !user.courseId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!user || !user.courseId) return errorJson(SESSION_EXPIRED, 401);
     const courseId = user.courseId;
 
     const { id } = await params;
 
     try {
-        return await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+        const result = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
             const deployment = await tx.deployment.findUnique({ where: { id, courseId } });
-            if (!deployment) return NextResponse.json({ error: "Deployment not found" }, { status: 404 });
+            if (!deployment) return { error: NOT_FOUND, status: 404 };
 
             const adminCaller = isAdmin(user);
             const isOwner = deployment.userId === user.id;
+            if (!adminCaller && !isOwner) return { error: "এই সাইটটি আপনার নয়।", status: 403 };
 
-            if (!adminCaller && !isOwner) {
-                return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-            }
-
-            if (!adminCaller && isOwner) {
-                const dbUser = await tx.user.findUnique({
-                    where: { id: user.id },
-                    select: { isDeploymentFrozen: true },
-                });
+            // A completed batch still lets students delete (it frees space);
+            // only an explicit admin freeze stops it.
+            if (!adminCaller) {
+                const dbUser = await tx.user.findUnique({ where: { id: user.id }, select: { isDeploymentFrozen: true } });
                 if (dbUser?.isDeploymentFrozen) {
-                    return NextResponse.json({ error: "Your deployment access has been frozen." }, { status: 403 });
+                    return { error: "অ্যাডমিন আপনার ডিপ্লয়মেন্ট অ্যাক্সেস বন্ধ করে রেখেছেন।", status: 403 };
                 }
             }
 
-            const folderPath = deployment.folderPath;
-            if (fs.existsSync(folderPath)) {
-                await rm(folderPath, { recursive: true, force: true });
-            }
-
             await tx.deployment.delete({ where: { id, courseId } });
-
-            return NextResponse.json({ success: true });
+            return { folderPath: deployment.folderPath };
         });
+
+        if ("error" in result) return errorJson(result.error!, result.status!);
+        // Files go only after the row is gone for good.
+        await removeSiteFolder(result.folderPath);
+        return NextResponse.json({ success: true });
     } catch (error) {
         console.error("[Deployments DELETE]", error);
-        const msg = error instanceof Error ? error.message : "Internal server error";
-        return NextResponse.json({ error: msg }, { status: 500 });
+        return errorJson("সাইটটি ডিলিট করা যায়নি। আবার চেষ্টা করুন।", 500);
     }
 }

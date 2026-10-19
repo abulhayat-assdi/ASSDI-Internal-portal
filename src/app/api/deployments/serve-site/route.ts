@@ -6,6 +6,7 @@ import { readFile, stat } from "fs/promises";
 import path from "path";
 import { createHash } from "crypto";
 import { withCourseContext } from "@/lib/db";
+import { isBlockedSiteFile } from "@/lib/deploymentRules";
 
 function getStorageBase(): string {
     const configured = process.env.LOCAL_STORAGE_PATH || process.env.UPLOAD_DIR || "./storage";
@@ -23,7 +24,6 @@ const MIME_TYPES: Record<string, string> = {
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
     ".gif": "image/gif",
-    ".svg": "image/svg+xml",
     ".webp": "image/webp",
     ".ico": "image/x-icon",
     ".ttf": "font/ttf",
@@ -35,7 +35,6 @@ const MIME_TYPES: Record<string, string> = {
     ".wav": "audio/wav",
     ".pdf": "application/pdf",
     ".txt": "text/plain; charset=utf-8",
-    ".xml": "application/xml; charset=utf-8",
 };
 
 function getTodayDate(): string {
@@ -45,6 +44,9 @@ function getTodayDate(): string {
 function hashIp(ip: string): string {
     return createHash("sha256").update(ip + (process.env.JWT_SECRET ?? "asm-pixel-salt")).digest("hex");
 }
+
+// Crawlers, link previews and uptime checkers — not people visiting the site.
+const BOT_UA = /bot|crawl|spider|slurp|preview|facebookexternalhit|whatsapp|telegram|discord|curl|wget|python|headless|monitor|lighthouse/i;
 
 function getClientIp(req: NextRequest): string {
     return (
@@ -77,6 +79,12 @@ export async function GET(req: NextRequest) {
 
         // Clean requested path
         if (reqPath === "/" || !reqPath) reqPath = "/index.html";
+
+        // SVG/XML can run script under the portal's domain when opened
+        // directly; new uploads drop them, and older sites stop serving them.
+        if (isBlockedSiteFile(reqPath)) {
+            return new NextResponse("404 Not Found", { status: 404 });
+        }
 
         let targetPath = path.resolve(siteDir, reqPath.startsWith("/") ? reqPath.slice(1) : reqPath);
 
@@ -115,10 +123,10 @@ export async function GET(req: NextRequest) {
 
         const fileBuffer = await readFile(targetPath);
 
-        // If serving HTML, track visit in background
-        if (ext === ".html" || ext === ".htm") {
+        // A page view (not CSS/JS/images): count each visitor once per day.
+        const userAgent = req.headers.get("user-agent") ?? "";
+        if ((ext === ".html" || ext === ".htm") && !BOT_UA.test(userAgent)) {
             const clientIp = getClientIp(req);
-            const userAgent = req.headers.get("user-agent") ?? undefined;
             const today = getTodayDate();
             const hashedIp = hashIp(clientIp);
 
@@ -127,6 +135,11 @@ export async function GET(req: NextRequest) {
             withCourseContext({ courseId: null, isSuperAdmin: true }, async (tx) => {
                 const deployment = await tx.deployment.findUnique({ where: { subdomain }, select: { id: true, courseId: true } });
                 if (deployment) {
+                    const seenToday = await tx.visitorLog.findFirst({
+                        where: { deploymentId: deployment.id, visitorIp: hashedIp, date: today },
+                        select: { id: true },
+                    });
+                    if (seenToday) return;
                     await Promise.all([
                         tx.deployment.update({
                             where: { id: deployment.id },
@@ -137,7 +150,7 @@ export async function GET(req: NextRequest) {
                                 courseId: deployment.courseId,
                                 deploymentId: deployment.id,
                                 visitorIp: hashedIp,
-                                userAgent,
+                                userAgent: userAgent || undefined,
                                 date: today,
                             },
                         }),
@@ -157,10 +170,10 @@ export async function GET(req: NextRequest) {
             "Cache-Control": ext === ".html" ? "no-cache" : "public, max-age=86400",
             "X-Content-Type-Options": "nosniff",
         };
-        if (ext === ".html" || ext === ".htm") {
-            headers["Content-Security-Policy"] =
-                "sandbox allow-scripts allow-forms allow-popups allow-modals allow-downloads";
-        }
+        // Every response, not just HTML: any document type a browser might
+        // render on its own gets the same opaque-origin sandbox.
+        headers["Content-Security-Policy"] =
+            "sandbox allow-scripts allow-forms allow-popups allow-modals allow-downloads";
 
         return new NextResponse(fileBuffer, { headers });
     } catch (error) {

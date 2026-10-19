@@ -2,8 +2,8 @@
  * Server start-up hook.
  *
  * The portal has no scheduler of its own and runs as a single container, so
- * the daily attendance sweep is driven from here rather than requiring a
- * crontab on the host.
+ * the daily jobs (attendance sweep, deployment folder cleanup) are driven
+ * from here rather than requiring a crontab on the host.
  *
  * It calls its own /api/cron/attendance-alerts over localhost instead of
  * importing the job. That keeps this file — which Next also compiles for the
@@ -32,6 +32,7 @@ export async function register() {
 
     const port = process.env.PORT || '3000';
     const url = `http://127.0.0.1:${port}/api/cron/attendance-alerts`;
+    const cleanupUrl = `http://127.0.0.1:${port}/api/cron/deployment-cleanup`;
 
     let lastRunDate: string | null = null;
 
@@ -46,14 +47,23 @@ export async function register() {
             const res = await fetch(url, { method: 'POST', headers: { 'x-cron-secret': secret } });
             if (!res.ok) {
                 console.error(`[cron] attendance alerts returned ${res.status}`);
-                return;
+            } else {
+                const body = (await res.json()) as { ran: number; warned: number; digests: number };
+                console.info(
+                    `[cron] attendance alerts: ${body.ran} course(s), ${body.warned} warned, ${body.digests} digest(s)`
+                );
             }
-            const body = (await res.json()) as { ran: number; warned: number; digests: number };
-            console.info(
-                `[cron] attendance alerts: ${body.ran} course(s), ${body.warned} warned, ${body.digests} digest(s)`
-            );
         } catch (error) {
             console.error('[cron] attendance alerts failed:', error instanceof Error ? error.message : error);
+        }
+
+        try {
+            const res = await fetch(cleanupUrl, { method: 'POST', headers: { 'x-cron-secret': secret } });
+            const body = res.ok ? ((await res.json()) as { removed: number }) : null;
+            if (body) console.info(`[cron] deployment cleanup: ${body.removed} orphan folder(s) removed`);
+            else console.error(`[cron] deployment cleanup returned ${res.status}`);
+        } catch (error) {
+            console.error('[cron] deployment cleanup failed:', error instanceof Error ? error.message : error);
         }
     };
 
@@ -61,5 +71,5 @@ export async function register() {
     // Never hold the process open just for this.
     timer.unref?.();
 
-    console.info('[cron] internal scheduler started (attendance alerts)');
+    console.info('[cron] internal scheduler started (attendance alerts, deployment cleanup)');
 }

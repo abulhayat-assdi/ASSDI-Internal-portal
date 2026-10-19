@@ -297,6 +297,8 @@ model User {
   // ── Deployment (Mini-Netlify) fields ──────────────────────
   deploymentLimit    Int     @default(5) @map("deployment_limit")
   isDeploymentFrozen Boolean @default(false) @map("is_deployment_frozen")
+  /// Lets this student keep deploying after their batch is marked completed.
+  deployAfterBatchEnd Boolean @default(false) @map("deploy_after_batch_end")
 
   course              Course?              @relation(fields: [courseId], references: [id], onDelete: Cascade)
   passwordResetTokens PasswordResetToken[]
@@ -1393,6 +1395,9 @@ model Deployment {
   folderPath    String   @map("folder_path")
   liveUrl       String   @map("live_url")
   totalVisitors Int      @default(0) @map("total_visitors")
+  sizeBytes     Int      @default(0) @map("size_bytes")
+  /// Phishing-style patterns found at deploy time, for admin review.
+  riskFlags     String[] @default([]) @map("risk_flags")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
@@ -1418,6 +1423,7 @@ model VisitorLog {
   course     Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
   deployment Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
 
+  @@index([deploymentId, visitorIp, date])
   @@index([deploymentId])
   @@index([date])
   @@index([courseId])

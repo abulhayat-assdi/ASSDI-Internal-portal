@@ -10,6 +10,8 @@ export interface Deployment {
     folderPath: string;
     liveUrl: string;
     totalVisitors: number;
+    sizeBytes: number;
+    riskFlags: string[];
     createdAt: string;
     updatedAt: string;
 }
@@ -22,13 +24,19 @@ export interface DeploymentWithUser extends Deployment {
         studentRoll: string | null;
         deploymentLimit: number;
         isDeploymentFrozen: boolean;
+        deployAfterBatchEnd: boolean;
     };
+    batchCompleted: boolean;
 }
 
 export interface StudentDeploymentData {
     deployments: Deployment[];
     deploymentLimit: number;
     isDeploymentFrozen: boolean;
+    /** Why new deploys/updates are blocked (frozen, batch completed), or null. */
+    blockedReason: string | null;
+    usedBytes: number;
+    quotaBytes: number;
     /** "https://<main domain>/site" — a deployment lives at <siteBaseUrl>/<subdomain>. */
     siteBaseUrl: string;
 }
@@ -42,14 +50,14 @@ export interface StudentDeploymentData {
  * "Unexpected token '<', "<!DOCTYPE "... is not valid JSON" error.
  */
 function messageForStatus(status: number, fallback: string): string {
-    if (status === 401) return "Your session has expired. Please log in again.";
-    if (status === 403) return "You don't have permission to do this.";
-    if (status === 404) return "Not found. Please refresh the page.";
-    if (status === 413) return "The file is too large for the server to accept. Make it smaller (max 50MB) and try again.";
-    if (status === 429) return "Too many requests. Please wait a moment and try again.";
-    if (status === 502 || status === 503) return "The server is restarting or temporarily unavailable. Please wait a minute and try again.";
-    if (status === 504 || status === 408) return "The server took too long to respond (timeout). Try again; if your file is large, make it smaller or use a faster connection.";
-    if (status >= 500) return "Server error. Please try again in a minute.";
+    if (status === 401) return "আপনার সেশনের মেয়াদ শেষ। আবার লগইন করুন।";
+    if (status === 403) return "এই কাজটি করার অনুমতি আপনার নেই।";
+    if (status === 404) return "পাওয়া যায়নি। পেজটি রিফ্রেশ করুন।";
+    if (status === 413) return "ফাইলটি সার্ভারের জন্য অনেক বড়। ছোট করে (সর্বোচ্চ 50MB) আবার চেষ্টা করুন।";
+    if (status === 429) return "অনেকবার চেষ্টা করা হয়েছে। একটু পর আবার চেষ্টা করুন।";
+    if (status === 502 || status === 503) return "সার্ভার রিস্টার্ট হচ্ছে বা সাময়িকভাবে বন্ধ। এক মিনিট পর আবার চেষ্টা করুন।";
+    if (status === 504 || status === 408) return "সার্ভার সময়মতো সাড়া দেয়নি (timeout)। আবার চেষ্টা করুন; ফাইল বড় হলে ছোট করুন বা দ্রুত ইন্টারনেট ব্যবহার করুন।";
+    if (status >= 500) return "সার্ভারে সমস্যা হয়েছে। এক মিনিট পর আবার চেষ্টা করুন।";
     return fallback;
 }
 
@@ -69,7 +77,7 @@ async function request<T>(input: string, init: RequestInit | undefined, fallback
     try {
         res = await fetch(input, init);
     } catch {
-        throw new Error("Could not reach the server. Check your internet connection and try again.");
+        throw new Error("সার্ভারের সাথে সংযোগ করা যাচ্ছে না। ইন্টারনেট চেক করে আবার চেষ্টা করুন।");
     }
     const data = parseBody(await res.text().catch(() => ""));
     if (!res.ok || !data) {
@@ -82,7 +90,7 @@ async function request<T>(input: string, init: RequestInit | undefined, fallback
 // ─── Student ──────────────────────────────────────────────────────────────────
 
 export async function getMyDeployments(): Promise<StudentDeploymentData> {
-    return request("/api/deployments", { cache: "no-store" }, "Failed to load deployments.");
+    return request("/api/deployments", { cache: "no-store" }, "ডিপ্লয়মেন্টগুলো লোড করা যায়নি।");
 }
 
 export interface SubdomainCheck {
@@ -98,28 +106,36 @@ export async function validateSubdomain(subdomain: string, excludeId?: string): 
         return await request<SubdomainCheck>(
             `/api/deployments/validate-subdomain?${params.toString()}`,
             { cache: "no-store" },
-            "Could not check availability."
+            "চেক করা যায়নি।"
         );
     } catch (err) {
-        return { available: false, reason: "error", error: err instanceof Error ? err.message : "Could not check availability." };
+        return { available: false, reason: "error", error: err instanceof Error ? err.message : "চেক করা যায়নি।" };
     }
 }
 
 /** The upload never got a response — the deployment may or may not have been created. */
 export class DeployNetworkError extends Error {}
 
+export interface UploadResult {
+    deployment: Deployment;
+    /** SVG/XML files the server left out. */
+    skippedFiles?: string[];
+}
+
 /**
  * Uploads with XMLHttpRequest rather than fetch so the form can show real
  * upload progress — on a slow connection a 20MB ZIP used to sit on
  * "Deploying..." for minutes with no sign of life.
  */
-export function deployProject(
+function uploadWithProgress(
+    method: "POST" | "PUT",
+    url: string,
     formData: FormData,
     onProgress?: (fraction: number) => void
-): Promise<{ deployment: Deployment; liveUrl: string }> {
+): Promise<UploadResult> {
     return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.open("POST", "/api/deployments");
+        xhr.open(method, url);
         xhr.timeout = 10 * 60 * 1000;
         xhr.upload.onprogress = (e) => {
             if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total);
@@ -127,20 +143,40 @@ export function deployProject(
         xhr.onload = () => {
             const data = parseBody(xhr.responseText);
             if (xhr.status >= 200 && xhr.status < 300 && data?.deployment) {
-                resolve(data as unknown as { deployment: Deployment; liveUrl: string });
+                resolve(data as unknown as UploadResult);
                 return;
             }
             const serverMsg = typeof data?.error === "string" ? data.error : null;
-            reject(new Error(serverMsg ?? messageForStatus(xhr.status, "Deployment failed. Please try again.")));
+            reject(new Error(serverMsg ?? messageForStatus(xhr.status, "ডিপ্লয় হয়নি। আবার চেষ্টা করুন।")));
         };
         xhr.onerror = () => reject(new DeployNetworkError(
-            "The connection was interrupted during upload. Check your internet connection and try again."
+            "আপলোডের সময় ইন্টারনেট সংযোগ কেটে গেছে। ইন্টারনেট চেক করে আবার চেষ্টা করুন।"
         ));
         xhr.ontimeout = () => reject(new DeployNetworkError(
-            "The upload took too long and timed out. Make the file smaller or use a faster connection, then try again."
+            "আপলোড অনেক সময় নিয়েছে (timeout)। ফাইল ছোট করুন বা দ্রুত ইন্টারনেট ব্যবহার করে আবার চেষ্টা করুন।"
         ));
         xhr.send(formData);
     });
+}
+
+export function deployProject(formData: FormData, onProgress?: (fraction: number) => void): Promise<UploadResult> {
+    return uploadWithProgress("POST", "/api/deployments", formData, onProgress);
+}
+
+/** Replaces a site's files; the URL and visitor count stay the same. */
+export function updateDeploymentFiles(id: string, file: File, onProgress?: (fraction: number) => void): Promise<UploadResult> {
+    const fd = new FormData();
+    fd.append("file", file);
+    return uploadWithProgress("PUT", `/api/deployments/${id}`, fd, onProgress);
+}
+
+export interface DeploymentStats {
+    totalVisitors: number;
+    days: { date: string; visitors: number }[];
+}
+
+export async function getDeploymentStats(id: string): Promise<DeploymentStats> {
+    return request(`/api/deployments/${id}/stats`, { cache: "no-store" }, "পরিসংখ্যান লোড করা যায়নি।");
 }
 
 export async function updateDeployment(
@@ -151,31 +187,38 @@ export async function updateDeployment(
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-    }, "Update failed.");
+    }, "সেভ করা যায়নি।");
 }
 
 export async function deleteDeployment(id: string): Promise<void> {
-    await request(`/api/deployments/${id}`, { method: "DELETE" }, "Delete failed.");
+    await request(`/api/deployments/${id}`, { method: "DELETE" }, "ডিলিট করা যায়নি।");
 }
 
 // ─── Admin ────────────────────────────────────────────────────────────────────
 
 export async function getAllDeployments(
     search?: string
-): Promise<{ deployments: DeploymentWithUser[]; stats: { total: number; totalVisitors: number } }> {
+): Promise<{ deployments: DeploymentWithUser[]; stats: { total: number; totalVisitors: number; totalBytes: number; flagged: number } }> {
     const params = search ? `?search=${encodeURIComponent(search)}` : "";
     return request(`/api/deployments/admin${params}`, { cache: "no-store" }, "Failed to fetch deployments.");
 }
 
 export async function getStudentDeploymentData(
     userId: string
-): Promise<{ user: DeploymentWithUser["user"]; deployments: Deployment[] }> {
+): Promise<{
+    user: DeploymentWithUser["user"];
+    deployments: Deployment[];
+    batchCompleted: boolean;
+    blockedReason: string | null;
+    usedBytes: number;
+    quotaBytes: number;
+}> {
     return request(`/api/deployments/admin/student/${userId}`, { cache: "no-store" }, "Failed to fetch student deployments.");
 }
 
 export async function updateStudentDeploymentSettings(
     userId: string,
-    payload: { deploymentLimit?: number; isDeploymentFrozen?: boolean }
+    payload: { deploymentLimit?: number; isDeploymentFrozen?: boolean; deployAfterBatchEnd?: boolean }
 ): Promise<void> {
     await request(`/api/deployments/admin/student/${userId}`, {
         method: "PATCH",

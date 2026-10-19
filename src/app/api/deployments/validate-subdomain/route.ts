@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     const user = await getSessionUser(req);
     if (!user || user.role !== "student") {
         return NextResponse.json(
-            { available: false, reason: "error", error: "Your session has expired. Please log in again." },
+            { available: false, reason: "error", error: "আপনার সেশনের মেয়াদ শেষ। আবার লগইন করুন।" },
             { status: 401 }
         );
     }
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({
                 available: false,
                 reason: "taken",
-                error: `"${subdomain}" is already taken by another site. Please choose a different name.`,
+                error: `"${subdomain}" নামটি আগেই অন্য একটি সাইট নিয়ে নিয়েছে। অন্য নাম দিন।`,
             });
         }
 
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
     } catch (error) {
         console.error("[validate-subdomain]", error);
         return NextResponse.json(
-            { available: false, reason: "error", error: "Could not check availability right now. Please try again." },
+            { available: false, reason: "error", error: "এই মুহূর্তে চেক করা যাচ্ছে না। আবার চেষ্টা করুন।" },
             { status: 500 }
         );
     }

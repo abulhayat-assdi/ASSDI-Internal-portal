@@ -8,6 +8,9 @@ import {
     deleteDeployment,
     Deployment,
 } from "@/services/deploymentService";
+import { formatBytes } from "@/lib/deploymentRules";
+import { ShareModal, StatsModal, copyText } from "@/components/deployments/DeploymentModals";
+import DeployGuide from "@/components/deployments/DeployGuide";
 
 const RocketIcon = ({ className }: { className?: string }) => (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -55,12 +58,12 @@ const PlusIcon = ({ className }: { className?: string }) => (
 function timeAgo(dateStr: string): string {
     const diff = Date.now() - new Date(dateStr).getTime();
     const mins = Math.floor(diff / 60000);
-    if (mins < 1) return "just now";
-    if (mins < 60) return `${mins}m ago`;
+    if (mins < 1) return "এইমাত্র";
+    if (mins < 60) return `${mins} মিনিট আগে`;
     const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h ago`;
+    if (hrs < 24) return `${hrs} ঘণ্টা আগে`;
     const days = Math.floor(hrs / 24);
-    return `${days}d ago`;
+    return `${days} দিন আগে`;
 }
 
 function DeleteModal({
@@ -82,24 +85,24 @@ function DeleteModal({
                         <TrashIcon className="w-5 h-5 text-red-600" />
                     </div>
                     <div>
-                        <h3 className="font-semibold text-slate-800">Delete Deployment</h3>
-                        <p className="text-sm text-slate-500">This action cannot be undone.</p>
+                        <h3 className="font-semibold text-slate-800">সাইট ডিলিট করবেন?</h3>
+                        <p className="text-sm text-slate-500">এটা আর ফেরত আনা যাবে না।</p>
                     </div>
                 </div>
-                <p className="text-sm text-slate-600 mb-6">
-                    Are you sure you want to permanently delete{" "}
-                    <span className="font-semibold text-slate-800">{deployment.displayName}</span>?
-                    The live site at <span className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded break-all">{deployment.liveUrl}</span> will be taken down immediately.
+                <p className="text-sm text-slate-600 mb-2">
+                    <span className="font-semibold text-slate-800">{deployment.displayName}</span> স্থায়ীভাবে ডিলিট হবে, আর{" "}
+                    <span className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded break-all">{deployment.liveUrl}</span> লিংকটি সাথে সাথে বন্ধ হয়ে যাবে।
                 </p>
+                <p className="text-xs text-slate-500 mb-6">শুধু কিছু বদলাতে চাইলে ডিলিট না করে ✏️ থেকে &quot;Update files&quot; দিন — লিংক আর ভিজিটর সংখ্যা থেকে যাবে।</p>
                 <div className="flex gap-3 justify-end [&>button]:flex-1 sm:[&>button]:flex-none [&>button]:justify-center [&>button]:min-h-11">
                     <button onClick={onCancel} disabled={loading}
                         className="px-4 py-2 text-sm text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors">
-                        Cancel
+                        বাতিল
                     </button>
                     <button onClick={onConfirm} disabled={loading}
                         className="px-4 py-2 text-sm text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
                         {loading && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-                        Delete
+                        ডিলিট করুন
                     </button>
                 </div>
             </div>
@@ -109,12 +112,18 @@ function DeleteModal({
 
 function DeploymentCard({
     deployment,
-    isFrozen,
+    canChange,
+    canDelete,
     onDelete,
+    onShare,
+    onStats,
 }: {
     deployment: Deployment;
-    isFrozen: boolean;
+    canChange: boolean;
+    canDelete: boolean;
     onDelete: (d: Deployment) => void;
+    onShare: (d: Deployment) => void;
+    onStats: (d: Deployment) => void;
 }) {
     return (
         <div className="bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-md transition-shadow">
@@ -125,26 +134,29 @@ function DeploymentCard({
                             <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
                             Live
                         </span>
+                        <span className="text-xs text-slate-400">{formatBytes(deployment.sizeBytes)}</span>
                     </div>
                     <h3 className="font-semibold text-slate-800 truncate">{deployment.displayName}</h3>
-                    <a href={deployment.liveUrl} target="_blank" rel="noopener noreferrer" title={deployment.liveUrl}
-                        className="block text-xs text-slate-400 hover:text-blue-600 font-mono truncate">{deployment.liveUrl.replace(/^https?:\/\//, "")}</a>
+                    <button onClick={() => copyText(deployment.liveUrl)} title="লিংক কপি করুন"
+                        className="block max-w-full text-left text-xs text-slate-400 hover:text-blue-600 font-mono truncate">
+                        {deployment.liveUrl.replace(/^https?:\/\//, "")} 📋
+                    </button>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
-                    {!isFrozen && (
+                    {canChange && (
                         <Link
                             href={`/student-dashboard/deployments/${deployment.id}/edit`}
                             className="p-3 sm:p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                            title="Edit"
+                            title="Update files / নাম বদলান"
                         >
                             <PencilIcon className="w-4 h-4" />
                         </Link>
                     )}
-                    {!isFrozen && (
+                    {canDelete && (
                         <button
                             onClick={() => onDelete(deployment)}
                             className="p-3 sm:p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Delete"
+                            title="ডিলিট"
                         >
                             <TrashIcon className="w-4 h-4" />
                         </button>
@@ -152,14 +164,18 @@ function DeploymentCard({
                 </div>
             </div>
 
-            <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-                <div className="flex items-center gap-1 text-slate-500">
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-100">
+                <button onClick={() => onStats(deployment)} className="flex items-center gap-1 text-slate-500 hover:text-blue-600" title="ভিজিটর চার্ট">
                     <EyeIcon className="w-4 h-4" />
                     <span className="text-sm font-medium">{deployment.totalVisitors.toLocaleString()}</span>
-                    <span className="text-xs text-slate-400">visitors</span>
-                </div>
-                <div className="flex items-center gap-3">
-                    <span className="text-xs text-slate-400">{timeAgo(deployment.createdAt)}</span>
+                    <span className="text-xs text-slate-400">ভিজিটর 📊</span>
+                </button>
+                <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-400 hidden sm:inline">{timeAgo(deployment.updatedAt)}</span>
+                    <button onClick={() => onShare(deployment)}
+                        className="text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition-colors">
+                        QR / শেয়ার
+                    </button>
                     <a
                         href={deployment.liveUrl}
                         target="_blank"
@@ -167,7 +183,7 @@ function DeploymentCard({
                         className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
                     >
                         <LinkIcon className="w-3.5 h-3.5" />
-                        Visit
+                        দেখুন
                     </a>
                 </div>
             </div>
@@ -179,8 +195,12 @@ export default function StudentDeploymentsPage() {
     const [deployments, setDeployments] = useState<Deployment[]>([]);
     const [limit, setLimit] = useState(5);
     const [isFrozen, setIsFrozen] = useState(false);
+    const [blockedReason, setBlockedReason] = useState<string | null>(null);
+    const [storage, setStorage] = useState({ used: 0, quota: 0 });
     const [loading, setLoading] = useState(true);
     const [deleteTarget, setDeleteTarget] = useState<Deployment | null>(null);
+    const [shareTarget, setShareTarget] = useState<Deployment | null>(null);
+    const [statsTarget, setStatsTarget] = useState<Deployment | null>(null);
     const [deleting, setDeleting] = useState(false);
 
     const fetchData = useCallback(async () => {
@@ -189,8 +209,10 @@ export default function StudentDeploymentsPage() {
             setDeployments(data.deployments);
             setLimit(data.deploymentLimit);
             setIsFrozen(data.isDeploymentFrozen);
+            setBlockedReason(data.blockedReason);
+            setStorage({ used: data.usedBytes, quota: data.quotaBytes });
         } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Failed to load deployments.");
+            toast.error(err instanceof Error ? err.message : "ডিপ্লয়মেন্টগুলো লোড করা যায়নি।");
         } finally {
             setLoading(false);
         }
@@ -203,11 +225,11 @@ export default function StudentDeploymentsPage() {
         setDeleting(true);
         try {
             await deleteDeployment(deleteTarget.id);
-            toast.success("Deployment deleted.");
+            toast.success("সাইট ডিলিট হয়েছে।");
             setDeleteTarget(null);
             fetchData();
         } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Delete failed.");
+            toast.error(err instanceof Error ? err.message : "ডিলিট করা যায়নি।");
         } finally {
             setDeleting(false);
         }
@@ -215,6 +237,8 @@ export default function StudentDeploymentsPage() {
 
     const usedSlots = deployments.length;
     const limitPct = limit > 0 ? Math.min((usedSlots / limit) * 100, 100) : 100;
+    const storagePct = storage.quota > 0 ? Math.min((storage.used / storage.quota) * 100, 100) : 0;
+    const canDeployNew = !blockedReason && usedSlots < limit;
 
     if (loading) {
         return (
@@ -232,59 +256,76 @@ export default function StudentDeploymentsPage() {
                         <RocketIcon className="w-7 h-7 text-blue-600" />
                         My Deployments
                     </h1>
-                    <p className="text-sm text-slate-500 mt-0.5">Host your HTML projects with a live subdomain</p>
+                    <p className="text-sm text-slate-500 mt-0.5">আপনার HTML প্রজেক্ট লাইভ লিংকে হোস্ট করুন</p>
                 </div>
-                {!isFrozen && usedSlots < limit && (
+                {canDeployNew && (
                     <Link
                         href="/student-dashboard/deployments/new"
                         className="inline-flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 active:scale-95 transition-all shadow-sm"
                     >
                         <PlusIcon className="w-4 h-4" />
-                        Deploy New Site
+                        নতুন সাইট ডিপ্লয়
                     </Link>
                 )}
             </div>
 
-            {isFrozen && (
+            {blockedReason && (
                 <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-4">
                     <LockClosedIcon className="w-5 h-5 mt-0.5 flex-shrink-0 text-amber-600" />
                     <div>
-                        <p className="font-semibold text-sm">Deployment Access Frozen</p>
-                        <p className="text-sm mt-0.5">An administrator has temporarily disabled your deployment access. Your existing sites remain live. Please contact your administrator for more information.</p>
+                        <p className="font-semibold text-sm">{isFrozen ? "ডিপ্লয়মেন্ট অ্যাক্সেস বন্ধ" : "নতুন ডিপ্লয় বন্ধ"}</p>
+                        <p className="text-sm mt-0.5">{blockedReason}</p>
                     </div>
                 </div>
             )}
 
-            <div className="bg-white rounded-2xl border border-slate-200 p-5">
-                <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-slate-600">Deployment Slots Used</span>
-                    <span className="text-sm font-bold text-slate-800">{usedSlots} / {limit}</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="bg-white rounded-2xl border border-slate-200 p-5">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-slate-600">সাইট স্লট</span>
+                        <span className="text-sm font-bold text-slate-800">{usedSlots} / {limit}</span>
+                    </div>
+                    <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                            className={`h-full rounded-full transition-all duration-500 ${limitPct >= 100 ? "bg-red-500" : limitPct >= 80 ? "bg-amber-500" : "bg-blue-600"}`}
+                            style={{ width: `${limitPct}%` }}
+                        />
+                    </div>
+                    {usedSlots >= limit && !blockedReason && (
+                        <p className="text-xs text-red-600 mt-2">সব স্লট ব্যবহার হয়ে গেছে। নতুন সাইটের জন্য পুরোনো একটা ডিলিট করুন, অথবা আগের সাইটে &quot;Update files&quot; দিন।</p>
+                    )}
                 </div>
-                <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                        className={`h-full rounded-full transition-all duration-500 ${limitPct >= 100 ? "bg-red-500" : limitPct >= 80 ? "bg-amber-500" : "bg-blue-600"}`}
-                        style={{ width: `${limitPct}%` }}
-                    />
+                <div className="bg-white rounded-2xl border border-slate-200 p-5">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-slate-600">জায়গা ব্যবহার</span>
+                        <span className="text-sm font-bold text-slate-800">{formatBytes(storage.used)} / {formatBytes(storage.quota)}</span>
+                    </div>
+                    <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                            className={`h-full rounded-full transition-all duration-500 ${storagePct >= 100 ? "bg-red-500" : storagePct >= 80 ? "bg-amber-500" : "bg-blue-600"}`}
+                            style={{ width: `${storagePct}%` }}
+                        />
+                    </div>
                 </div>
-                {usedSlots >= limit && !isFrozen && (
-                    <p className="text-xs text-red-600 mt-2">You have reached your deployment limit. Delete an existing site to deploy a new one.</p>
-                )}
             </div>
 
             {deployments.length === 0 ? (
-                <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-slate-300">
-                    <RocketIcon className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                    <h3 className="font-semibold text-slate-500">No deployments yet</h3>
-                    <p className="text-sm text-slate-400 mt-1 mb-4">Upload an HTML file or ZIP to get your first live site.</p>
-                    {!isFrozen && (
-                        <Link
-                            href="/student-dashboard/deployments/new"
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition-colors"
-                        >
-                            <PlusIcon className="w-4 h-4" />
-                            Deploy First Site
-                        </Link>
-                    )}
+                <div className="space-y-4">
+                    <div className="text-center py-14 bg-white rounded-2xl border border-dashed border-slate-300">
+                        <RocketIcon className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                        <h3 className="font-semibold text-slate-500">এখনো কোনো সাইট নেই</h3>
+                        <p className="text-sm text-slate-400 mt-1 mb-4">একটা HTML ফাইল, ZIP বা প্রজেক্ট ফোল্ডার দিয়ে প্রথম সাইটটি লাইভ করুন।</p>
+                        {canDeployNew && (
+                            <Link
+                                href="/student-dashboard/deployments/new"
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition-colors"
+                            >
+                                <PlusIcon className="w-4 h-4" />
+                                প্রথম সাইট ডিপ্লয় করুন
+                            </Link>
+                        )}
+                    </div>
+                    <DeployGuide defaultOpen />
                 </div>
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -292,8 +333,11 @@ export default function StudentDeploymentsPage() {
                         <DeploymentCard
                             key={d.id}
                             deployment={d}
-                            isFrozen={isFrozen}
+                            canChange={!blockedReason}
+                            canDelete={!isFrozen}
                             onDelete={setDeleteTarget}
+                            onShare={setShareTarget}
+                            onStats={setStatsTarget}
                         />
                     ))}
                 </div>
@@ -307,6 +351,8 @@ export default function StudentDeploymentsPage() {
                     loading={deleting}
                 />
             )}
+            {shareTarget && <ShareModal deployment={shareTarget} onClose={() => setShareTarget(null)} />}
+            {statsTarget && <StatsModal deployment={statsTarget} onClose={() => setStatsTarget(null)} />}
         </div>
     );
 }
