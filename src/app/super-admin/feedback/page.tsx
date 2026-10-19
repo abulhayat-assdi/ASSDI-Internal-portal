@@ -22,6 +22,14 @@ export default function SuperAdminFeedbackPage() {
     const [courseId, setCourseId] = useState<string>("all");
     const [category, setCategory] = useState<FeedbackCategory | "all">("all");
     const [loading, setLoading] = useState(true);
+    // null = the folder overview; "general" = form-less feedback; otherwise a form id.
+    const [folder, setFolder] = useState<string | null>(null);
+    const [folders, setFolders] = useState<{ generalCount: number; forms: feedbackService.FeedbackFolder[] }>({ generalCount: 0, forms: [] });
+    const activeForm = folders.forms.find((f) => f.id === folder);
+
+    const loadFolders = useCallback(async () => {
+        setFolders(await feedbackService.getFeedbackFolders(courseId === "all" ? undefined : courseId));
+    }, [courseId]);
 
     const loadCourses = useCallback(async () => {
         const res = await fetch("/api/saas/courses");
@@ -30,31 +38,42 @@ export default function SuperAdminFeedbackPage() {
     }, []);
 
     const loadFeedback = useCallback(async () => {
+        if (!folder) return;
         setLoading(true);
         try {
             const data = await feedbackService.getFeedbackWithIdentity({
                 courseId: courseId === "all" ? undefined : courseId,
                 category: category === "all" ? undefined : category,
+                formId: folder,
             });
             setList(data);
         } finally {
             setLoading(false);
         }
-    }, [courseId, category]);
+    }, [courseId, category, folder]);
 
     useEffect(() => { loadCourses(); }, [loadCourses]);
+    useEffect(() => { loadFolders(); }, [loadFolders]);
     useEffect(() => { loadFeedback(); }, [loadFeedback]);
 
     return (
         <div className="max-w-5xl mx-auto px-6 py-8 space-y-6">
-            <Link href="/super-admin" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800">
-                <ArrowLeft className="w-4 h-4" /> Back
-            </Link>
+            {folder ? (
+                <button onClick={() => setFolder(null)} className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800">
+                    <ArrowLeft className="w-4 h-4" /> All folders
+                </button>
+            ) : (
+                <Link href="/super-admin" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800">
+                    <ArrowLeft className="w-4 h-4" /> Back
+                </Link>
+            )}
 
             <div className="flex items-center gap-3">
                 <MessageSquare className="w-6 h-6 text-indigo-600" />
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900">Student Feedback</h1>
+                    <h1 className="text-2xl font-bold text-slate-900">
+                        Student Feedback{folder ? ` — ${activeForm?.title ?? "General"}` : ""}
+                    </h1>
                     <p className="text-sm text-slate-500 mt-1">
                         Every course's feedback, with the submitting student's identity — visible only here.
                     </p>
@@ -72,20 +91,44 @@ export default function SuperAdminFeedbackPage() {
                         <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
                 </select>
-                <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value as FeedbackCategory | "all")}
-                    className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
-                >
-                    <option value="all">All Categories</option>
-                    {(Object.keys(CATEGORY_LABELS) as FeedbackCategory[]).map((c) => (
-                        <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>
-                    ))}
-                </select>
-                <span className="ml-auto self-center text-sm text-slate-500">{list.length} item{list.length !== 1 ? "s" : ""}</span>
+                {folder && (
+                    <select
+                        value={category}
+                        onChange={(e) => setCategory(e.target.value as FeedbackCategory | "all")}
+                        className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
+                    >
+                        <option value="all">All Categories</option>
+                        {(Object.keys(CATEGORY_LABELS) as FeedbackCategory[]).map((c) => (
+                            <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>
+                        ))}
+                    </select>
+                )}
+                {folder && <span className="ml-auto self-center text-sm text-slate-500">{list.length} item{list.length !== 1 ? "s" : ""}</span>}
             </div>
 
-            {loading ? (
+            {!folder ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    <button
+                        onClick={() => setFolder("general")}
+                        className="text-left bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:border-indigo-300"
+                    >
+                        <p className="font-semibold text-slate-900">📁 General feedback</p>
+                        <p className="text-xs text-slate-500 mt-1">{folders.generalCount} response{folders.generalCount !== 1 ? "s" : ""}</p>
+                    </button>
+                    {folders.forms.map((f) => (
+                        <button
+                            key={f.id}
+                            onClick={() => setFolder(f.id)}
+                            className="text-left bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:border-indigo-300"
+                        >
+                            <p className="font-semibold text-slate-900">📁 {f.title}</p>
+                            <p className="text-xs text-slate-500 mt-1">
+                                {f.course?.name} · {f.total} response{f.total !== 1 ? "s" : ""} · {f.isOpen ? "Open" : "Closed"}
+                            </p>
+                        </button>
+                    ))}
+                </div>
+            ) : loading ? (
                 <div className="flex items-center justify-center py-16 text-slate-400">
                     <Loader2 className="w-6 h-6 animate-spin" />
                 </div>

@@ -217,6 +217,7 @@ model Course {
   homeworkAssignments      HomeworkAssignment[]
   homeworkAssignmentShares HomeworkAssignmentShare[]
   feedback                 Feedback[]
+  feedbackForms            FeedbackForm[]
   contactMessages          ContactMessage[]
   chatThreads              ChatThread[]
   chatMessages             ChatMessage[]
@@ -771,6 +772,7 @@ model Feedback {
   studentRoll String           @map("student_roll")
   batchId     String?          @map("batch_id")
   batchName   String           @map("batch_name")
+  formId      String?          @map("form_id")
   category    FeedbackCategory @default(Other)
   message     String
   rating      Int              @default(5)
@@ -781,13 +783,36 @@ model Feedback {
 
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
   batch  Batch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  form   FeedbackForm? @relation(fields: [formId], references: [id], onDelete: Cascade)
 
+  @@index([formId])
   @@index([courseId])
   @@index([isRead])
   @@index([category])
   @@index([batchId])
   @@index([createdAt])
   @@map("feedback")
+}
+
+// A topic-specific feedback form an admin opens (a teacher, a topic, a
+// facility...). Feedback submitted through it carries its id, so the report
+// only ever shows answers to that one question. Feedback with no form is the
+// regular general feedback.
+model FeedbackForm {
+  id           String    @id @default(uuid())
+  courseId     String    @map("course_id")
+  title        String
+  description  String?
+  isOpen       Boolean   @default(true) @map("is_open")
+  createdByUid String    @map("created_by_uid")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  closedAt     DateTime? @map("closed_at")
+
+  course   Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  feedback Feedback[]
+
+  @@index([courseId, isOpen])
+  @@map("feedback_forms")
 }
 
 // ============================================================

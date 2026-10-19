@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import * as feedbackService from "@/services/feedbackService";
 import type { FeedbackCategory } from "@/services/feedbackService";
 
@@ -19,6 +19,14 @@ export default function StudentFeedbackPage() {
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState("");
     const [submitted, setSubmitted] = useState(false);
+    const [openForms, setOpenForms] = useState<feedbackService.OpenFeedbackForm[]>([]);
+    const [formId, setFormId] = useState<string | null>(null);
+
+    useEffect(() => {
+        feedbackService.getOpenFeedbackForms().then(setOpenForms);
+    }, []);
+
+    const activeForm = openForms.find((f) => f.id === formId) ?? null;
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -29,7 +37,7 @@ export default function StudentFeedbackPage() {
         setError("");
         setSubmitting(true);
         try {
-            await feedbackService.submitFeedback(category, message.trim(), rating);
+            await feedbackService.submitFeedback(category, message.trim(), rating, activeForm?.id);
             setSubmitted(true);
             setMessage("");
             setRating(5);
@@ -53,7 +61,39 @@ export default function StudentFeedbackPage() {
                 </div>
             </div>
 
+            {openForms.length > 0 && !submitted && (
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6 space-y-3">
+                    <h2 className="text-sm font-semibold text-gray-700">খোলা ফিডব্যাক ফর্ম</h2>
+                    <div className="space-y-2">
+                        {openForms.map((f) => (
+                            <button
+                                key={f.id}
+                                type="button"
+                                onClick={() => setFormId(formId === f.id ? null : f.id)}
+                                className={`w-full text-left px-4 py-3 rounded-xl border transition-colors ${
+                                    formId === f.id
+                                        ? "bg-emerald-50 border-[#059669]"
+                                        : "bg-gray-50 border-gray-200 hover:border-[#059669]"
+                                }`}
+                            >
+                                <p className="text-sm font-bold text-gray-900">{f.title}</p>
+                                {f.description && <p className="text-xs text-gray-500 mt-0.5">{f.description}</p>}
+                            </button>
+                        ))}
+                    </div>
+                    <p className="text-xs text-gray-400">
+                        {activeForm ? "এই ফর্মের জন্য ফিডব্যাক দিচ্ছেন। সাধারণ ফিডব্যাক দিতে ফর্মটিতে আবার চাপ দিন।" : "নির্দিষ্ট কোনো ফর্মে ফিডব্যাক দিতে সেটি বেছে নিন, অথবা নিচে সাধারণ ফিডব্যাক দিন।"}
+                    </p>
+                </div>
+            )}
+
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6">
+                {activeForm && !submitted && (
+                    <div className="mb-5 p-3 bg-emerald-50 border border-emerald-100 rounded-xl">
+                        <p className="text-xs font-semibold text-emerald-700">প্রশ্ন</p>
+                        <p className="text-sm font-bold text-gray-900">{activeForm.title}</p>
+                    </div>
+                )}
                 {submitted ? (
                     <div className="text-center py-10">
                         <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -64,7 +104,7 @@ export default function StudentFeedbackPage() {
                         <h3 className="text-lg font-bold text-gray-900">ধন্যবাদ!</h3>
                         <p className="text-gray-500 text-sm mt-1">আপনার ফিডব্যাক গ্রহণ করা হয়েছে।</p>
                         <button
-                            onClick={() => setSubmitted(false)}
+                            onClick={() => { setSubmitted(false); setFormId(null); }}
                             className="mt-6 px-5 py-2.5 bg-[#059669] text-white text-sm font-bold rounded-xl hover:bg-[#047857] transition-colors"
                         >
                             আরেকটি ফিডব্যাক দিন

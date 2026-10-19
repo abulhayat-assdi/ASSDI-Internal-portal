@@ -31,6 +31,9 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const category = searchParams.get("category");
     const readParam = searchParams.get("isRead");
+    // No formId (or "general") = the regular feedback; an id = one form's answers.
+    const formParam = searchParams.get("formId");
+    const formId = formParam && formParam !== "general" ? formParam : null;
     // Defaults to running batches only, matching the roll-call convention.
     const allBatches = searchParams.get("allBatches") === "true";
 
@@ -38,6 +41,7 @@ export async function GET(req: NextRequest) {
         tx.feedback.findMany({
             where: {
                 courseId,
+                formId,
                 ...(category && CATEGORIES.includes(category as any) ? { category: category as any } : {}),
                 ...(readParam === "true" ? { isRead: true } : readParam === "false" ? { isRead: false } : {}),
                 ...(allBatches ? {} : { batch: { status: "active" } }),

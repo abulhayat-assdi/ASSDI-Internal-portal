@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
 
     try {
         const body = await req.json();
-        const { category, message, rating } = body;
+        const { category, message, rating, formId } = body;
 
         if (!message || typeof message !== "string" || !message.trim()) {
             return NextResponse.json({ error: "Message is required" }, { status: 400 });
@@ -38,6 +38,15 @@ export async function POST(req: NextRequest) {
                 ? await tx.batch.findFirst({ where: { courseId, name: batchName }, select: { id: true } })
                 : null;
 
+            let form: { id: string } | null = null;
+            if (formId) {
+                form = await tx.feedbackForm.findFirst({
+                    where: { id: String(formId), courseId, isOpen: true },
+                    select: { id: true },
+                });
+                if (!form) return null;
+            }
+
             return tx.feedback.create({
                 data: {
                     courseId,
@@ -46,6 +55,7 @@ export async function POST(req: NextRequest) {
                     studentRoll: user.studentRoll || "",
                     batchId: batch?.id || null,
                     batchName,
+                    formId: form?.id ?? null,
                     category: cat,
                     message: message.trim(),
                     rating: safeRating,
@@ -54,6 +64,9 @@ export async function POST(req: NextRequest) {
             });
         });
 
+        if (!item) {
+            return NextResponse.json({ error: "This feedback form is closed." }, { status: 400 });
+        }
         return NextResponse.json({ id: item.id, success: true }, { status: 201 });
     } catch (error) {
         console.error("[Student Feedback POST]", error);
