@@ -65,7 +65,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             const existing = await tx.user.findUnique({
                 where: { courseId_email: { courseId, email: normalizedEmail } },
             });
-            if (existing) return { error: "An account with this email already exists in this course." as const, status: 409 };
+            // A soft-deleted account still holds the (course, email) slot,
+            // so it is revived below rather than reported as a duplicate.
+            if (existing && (!existing.deletedAt || existing.isSuperAdminShadow || existing.role === "super_admin")) {
+                return { error: "An account with this email already exists in this course." as const, status: 409 };
+            }
 
             const passwordHash = await hashPassword(password);
 
@@ -79,16 +83,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                 ...(grantAccessManagement ? ["access_management"] : []),
             ];
 
-            const admin = await tx.user.create({
-                data: {
-                    courseId,
-                    email: normalizedEmail,
-                    passwordHash,
-                    displayName: name,
-                    role: "admin",
-                    permissions,
-                },
-            });
+            const adminData = { passwordHash, displayName: name, role: "admin" as const, permissions };
+            const admin = existing
+                ? await tx.user.update({ where: { id: existing.id }, data: { ...adminData, deletedAt: null } })
+                : await tx.user.create({ data: { courseId, email: normalizedEmail, ...adminData } });
 
             return { admin };
         });

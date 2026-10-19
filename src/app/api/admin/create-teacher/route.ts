@@ -62,12 +62,21 @@ export async function POST(req: NextRequest) {
         // course, not platform-wide: someone who already has an account in
         // another course (as a teacher, admin or student) gets a separate one
         // here, with its own password, role and permissions.
+        // A soft-deleted (removed/disabled) account still holds the
+        // (course, email) unique slot, so it is revived below instead of
+        // being reported as a duplicate.
+        let revivableUserId = null as string | null;
         const conflict = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
             const existingUser = await tx.user.findUnique({
                 where: { courseId_email: { courseId, email: normalizedLoginEmail } },
-                select: { id: true },
+                select: { id: true, deletedAt: true, isSuperAdminShadow: true, role: true },
             });
-            if (existingUser) return "An account with this email already exists in this course.";
+            if (existingUser) {
+                if (!existingUser.deletedAt || existingUser.isSuperAdminShadow || existingUser.role === "super_admin") {
+                    return "An account with this email already exists in this course.";
+                }
+                revivableUserId = existingUser.id;
+            }
 
             const existingTeacher = await tx.teacher.findUnique({
                 where: { courseId_teacherId: { courseId, teacherId } },
@@ -109,17 +118,16 @@ export async function POST(req: NextRequest) {
                 }
             }
 
-            const user = await tx.user.create({
-                data: {
-                    courseId,
-                    email: normalizedLoginEmail,
-                    passwordHash,
-                    displayName: name,
-                    role,
-                    teacherId,
-                    permissions: defaultPermissions,
-                },
-            });
+            const userData = {
+                passwordHash,
+                displayName: name,
+                role,
+                teacherId,
+                permissions: defaultPermissions,
+            };
+            const user = revivableUserId
+                ? await tx.user.update({ where: { id: revivableUserId }, data: { ...userData, deletedAt: null } })
+                : await tx.user.create({ data: { courseId, email: normalizedLoginEmail, ...userData } });
 
             const teacher = await tx.teacher.create({
                 data: {
