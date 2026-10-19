@@ -6,7 +6,14 @@ import Card, { CardBody } from "@/components/ui/Card";
 import { useConfirm } from "@/contexts/ConfirmContext";
 import * as feedbackService from "@/services/feedbackService";
 import type { FeedbackCategory } from "@/services/feedbackService";
-import { formatDateShort } from "@/lib/utils";
+
+const formatDateTime = (value: string | Date): string => {
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return "N/A";
+    const date = d.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" });
+    const time = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true });
+    return `${date}, ${time}`;
+};
 
 const CATEGORY_LABELS: Record<FeedbackCategory, string> = {
     CourseContent: "Course Content",
@@ -28,6 +35,7 @@ export default function FeedbackPage() {
     const [readFilter, setReadFilter] = useState<ReadFilter>("all");
     const [runningOnly, setRunningOnly] = useState(true);
     const [busyId, setBusyId] = useState<string | null>(null);
+    const [exporting, setExporting] = useState(false);
 
     const loadFeedback = useCallback(async () => {
         setLoading(true);
@@ -75,6 +83,46 @@ export default function FeedbackPage() {
         }
     };
 
+    const handleExport = async () => {
+        if (feedbackList.length === 0) {
+            toast.error("No feedback to export.");
+            return;
+        }
+        setExporting(true);
+        try {
+            const XLSX = await import("xlsx");
+            const toRow = (fb: feedbackService.Feedback) => ({
+                "Date & Time": formatDateTime(fb.createdAt),
+                Batch: fb.batchName || "",
+                Category: CATEGORY_LABELS[fb.category],
+                Rating: fb.rating,
+                Status: fb.isRead ? "Read" : "Unread",
+                Message: fb.message,
+            });
+            const wb = XLSX.utils.book_new();
+            const addSheet = (name: string, items: feedbackService.Feedback[]) => {
+                const ws = XLSX.utils.json_to_sheet(items.map(toRow));
+                ws["!cols"] = [{ wch: 24 }, { wch: 18 }, { wch: 16 }, { wch: 8 }, { wch: 10 }, { wch: 80 }];
+                XLSX.utils.book_append_sheet(wb, ws, name);
+            };
+            if (category === "all") {
+                addSheet("All Feedback", feedbackList);
+                for (const c of CATEGORY_OPTIONS) {
+                    const items = feedbackList.filter((f) => f.category === c);
+                    if (items.length > 0) addSheet(CATEGORY_LABELS[c], items);
+                }
+            } else {
+                addSheet(CATEGORY_LABELS[category], feedbackList);
+            }
+            const scope = category === "all" ? "All" : category;
+            XLSX.writeFile(wb, `Feedback_${scope}_${readFilter}_${new Date().toISOString().split("T")[0]}.xlsx`);
+        } catch {
+            toast.error("Failed to export feedback.");
+        } finally {
+            setExporting(false);
+        }
+    };
+
     return (
         <div className="space-y-8">
             {/* Page Header */}
@@ -115,7 +163,15 @@ export default function FeedbackPage() {
                     ))}
                 </div>
 
-                <label className="flex items-center gap-2 text-sm text-gray-600 ml-auto cursor-pointer">
+                <button
+                    onClick={handleExport}
+                    disabled={exporting || loading || feedbackList.length === 0}
+                    className="ml-auto px-4 py-2 bg-[#059669] text-white text-sm font-semibold rounded-lg hover:bg-[#10b981] transition-colors disabled:opacity-60"
+                >
+                    {exporting ? "Exporting..." : "⬇ Export Excel"}
+                </button>
+
+                <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
                     <input
                         type="checkbox"
                         checked={runningOnly}
@@ -167,7 +223,7 @@ export default function FeedbackPage() {
                                                     ))}
                                                 </div>
                                                 <span className="text-sm text-[#6b7280]">
-                                                    📅 {fb.createdAt ? formatDateShort(new Date(fb.createdAt as any).toISOString()) : "N/A"}
+                                                    📅 {fb.createdAt ? formatDateTime(fb.createdAt) : "N/A"}
                                                 </span>
                                                 <span
                                                     className={`px-3 py-1 text-xs font-semibold rounded-full ${
