@@ -2,8 +2,16 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import toast from "react-hot-toast";
-import { deployProject, validateSubdomain } from "@/services/deploymentService";
+import {
+    DeployNetworkError,
+    deployProject,
+    getMyDeployments,
+    validateSubdomain,
+} from "@/services/deploymentService";
+import { MAX_DEPLOY_SIZE_MB, buildSiteUrl, subdomainProblem } from "@/lib/deploymentRules";
+import { preflightDeployFile } from "@/lib/deploymentPreflight";
 
 const UploadCloudIcon = ({ className }: { className?: string }) => (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -29,93 +37,175 @@ const ArrowLeftIcon = ({ className }: { className?: string }) => (
     </svg>
 );
 
-type SubdomainStatus = "idle" | "checking" | "available" | "taken" | "invalid";
+type SubdomainStatus = "idle" | "checking" | "available" | "taken" | "invalid" | "error";
+type FileStatus = "none" | "checking" | "ok" | "error";
+
+/** Suggests a subdomain from the project name, e.g. "My Portfolio!" → "my-portfolio". */
+function slugify(name: string): string {
+    return name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 63);
+}
+
+function fallbackSiteBase(): string {
+    const domain = process.env.NEXT_PUBLIC_BASE_DOMAIN;
+    return domain ? `https://${domain}/site` : "/site";
+}
 
 export default function NewDeploymentPage() {
     const router = useRouter();
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const latestFileRef = useRef<File | null>(null);
 
     const [subdomain, setSubdomain] = useState("");
+    const [subdomainTouched, setSubdomainTouched] = useState(false);
     const [displayName, setDisplayName] = useState("");
     const [file, setFile] = useState<File | null>(null);
+    const [fileStatus, setFileStatus] = useState<FileStatus>("none");
+    const [fileError, setFileError] = useState("");
+    const [fileNote, setFileNote] = useState("");
     const [dragOver, setDragOver] = useState(false);
     const [subdomainStatus, setSubdomainStatus] = useState<SubdomainStatus>("idle");
     const [subdomainError, setSubdomainError] = useState("");
     const [deploying, setDeploying] = useState(false);
-    const [baseDomain, setBaseDomain] = useState("");
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const [submitError, setSubmitError] = useState("");
+    const [siteBase, setSiteBase] = useState(fallbackSiteBase);
+    const [blockedReason, setBlockedReason] = useState("");
 
     useEffect(() => {
-        const d = process.env.NEXT_PUBLIC_BASE_DOMAIN;
-        if (d) setBaseDomain(d);
+        getMyDeployments()
+            .then((data) => {
+                if (data.siteBaseUrl) setSiteBase(data.siteBaseUrl);
+                if (data.isDeploymentFrozen) {
+                    setBlockedReason("Your deployment access has been frozen by an administrator. Please contact your instructor.");
+                } else if (data.deployments.length >= data.deploymentLimit) {
+                    setBlockedReason(
+                        `You already have ${data.deployments.length} of ${data.deploymentLimit} allowed sites. Delete an old site from My Deployments to deploy a new one.`
+                    );
+                }
+            })
+            .catch(() => { /* the form still works; the server re-checks everything */ });
     }, []);
 
     useEffect(() => {
-        if (!subdomain || subdomain.length < 3) {
+        if (!subdomain) {
             setSubdomainStatus("idle");
             setSubdomainError("");
             return;
         }
+        // Format problems are known locally — no need to wait for the server.
+        const problem = subdomainProblem(subdomain);
+        if (problem) {
+            setSubdomainStatus("invalid");
+            setSubdomainError(problem);
+            return;
+        }
         setSubdomainStatus("checking");
+        setSubdomainError("");
+        let cancelled = false;
         const timer = setTimeout(async () => {
             const result = await validateSubdomain(subdomain);
+            if (cancelled) return;
             if (result.available) {
                 setSubdomainStatus("available");
                 setSubdomainError("");
             } else {
-                setSubdomainStatus(result.error?.includes("taken") ? "taken" : "invalid");
+                setSubdomainStatus(result.reason === "taken" ? "taken" : result.reason === "error" ? "error" : "invalid");
                 setSubdomainError(result.error ?? "Invalid subdomain");
             }
-        }, 500);
-        return () => clearTimeout(timer);
+        }, 400);
+        return () => { cancelled = true; clearTimeout(timer); };
     }, [subdomain]);
 
     const handleSubdomainChange = (val: string) => {
-        const cleaned = val.toLowerCase().replace(/[^a-z0-9-]/g, "");
-        setSubdomain(cleaned);
+        setSubdomainTouched(true);
+        setSubdomain(val.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, ""));
     };
 
-    const handleFileSelect = (selected: File | null) => {
+    const handleDisplayNameChange = (val: string) => {
+        setDisplayName(val);
+        if (!subdomainTouched) setSubdomain(slugify(val));
+    };
+
+    const handleFileSelect = async (selected: File | null) => {
         if (!selected) return;
-        const isHtml = selected.name.endsWith(".html") || selected.type === "text/html";
-        const isZip = selected.name.endsWith(".zip") || selected.type === "application/zip";
-        if (!isHtml && !isZip) {
-            toast.error("Only .html or .zip files are accepted.");
-            return;
-        }
-        if (selected.size > 50 * 1024 * 1024) {
-            toast.error("File must be under 50MB.");
-            return;
-        }
         setFile(selected);
+        setSubmitError("");
+        setFileNote("");
+        setFileError("");
+        setFileStatus("checking");
+        latestFileRef.current = selected;
+        const result = await preflightDeployFile(selected);
+        if (latestFileRef.current !== selected) return; // a newer pick replaced this one
+        setFileStatus(result.error ? "error" : "ok");
+        setFileError(result.error ?? "");
+        setFileNote(result.note ?? "");
+        if (fileInputRef.current) fileInputRef.current.value = "";
+    };
+
+    const clearFile = () => {
+        latestFileRef.current = null;
+        setFile(null);
+        setFileStatus("none");
+        setFileError("");
+        setFileNote("");
     };
 
     const handleDrop = (e: React.DragEvent) => {
         e.preventDefault();
         setDragOver(false);
-        handleFileSelect(e.dataTransfer.files[0] ?? null);
+        void handleFileSelect(e.dataTransfer.files[0] ?? null);
+    };
+
+    const onDeployed = (liveUrl: string, toastId: string) => {
+        toast.success("🚀 Deployed! Your site is live.", { id: toastId, duration: 5000 });
+        window.open(liveUrl, "_blank", "noopener,noreferrer");
+        router.push("/student-dashboard/deployments");
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!file) { toast.error("Please select a file."); return; }
-        if (!subdomain) { toast.error("Please enter a subdomain."); return; }
-        if (subdomainStatus !== "available") { toast.error("Please wait for subdomain validation."); return; }
+        if (blockedReason) { setSubmitError(blockedReason); return; }
+        if (!file) { setSubmitError("Please select an .html or .zip file."); return; }
+        if (fileStatus === "checking") { setSubmitError("Please wait — the file is still being checked."); return; }
+        if (fileStatus === "error") { setSubmitError(fileError); return; }
+        if (subdomainStatus !== "available") {
+            setSubmitError(subdomainError || (subdomainStatus === "checking" ? "Please wait — checking subdomain availability." : "Please enter a valid subdomain."));
+            return;
+        }
 
+        setSubmitError("");
         setDeploying(true);
-        const toastId = toast.loading("Deploying your site...");
+        setUploadProgress(0);
+        const toastId = toast.loading("Uploading your site...");
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("subdomain", subdomain);
+        fd.append("displayName", displayName || subdomain);
+
         try {
-            const fd = new FormData();
-            fd.append("file", file);
-            fd.append("subdomain", subdomain);
-            fd.append("displayName", displayName || subdomain);
-            const { liveUrl } = await deployProject(fd);
-            toast.success(`🚀 Deployed! Your site is live.`, { id: toastId, duration: 5000 });
-            setTimeout(() => {
-                router.push("/student-dashboard/deployments");
-            }, 1500);
-            window.open(liveUrl, "_blank", "noopener,noreferrer");
+            const { liveUrl } = await deployProject(fd, (f) => {
+                setUploadProgress(f);
+                if (f >= 1) toast.loading("Upload complete — setting up your site...", { id: toastId });
+            });
+            onDeployed(liveUrl, toastId);
         } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Deployment failed.", { id: toastId });
+            const message = err instanceof Error ? err.message : "Deployment failed.";
+            // The response was lost, but the server may have finished anyway —
+            // check before telling the student it failed (otherwise a retry
+            // would silently use up another slot).
+            if (err instanceof DeployNetworkError) {
+                try {
+                    const data = await getMyDeployments();
+                    const created = data.deployments.find((d) => d.subdomain === subdomain);
+                    if (created) { onDeployed(created.liveUrl, toastId); return; }
+                } catch { /* keep the original message */ }
+            }
+            toast.error(message, { id: toastId, duration: 6000 });
+            setSubmitError(message);
             setDeploying(false);
         }
     };
@@ -123,9 +213,14 @@ export default function NewDeploymentPage() {
     const subdomainIndicator = () => {
         if (subdomainStatus === "checking") return <span className="w-4 h-4 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin inline-block" />;
         if (subdomainStatus === "available") return <CheckCircleIcon className="w-5 h-5 text-green-500" />;
-        if (subdomainStatus === "taken" || subdomainStatus === "invalid") return <XCircleIcon className="w-5 h-5 text-red-500" />;
+        if (subdomainStatus === "taken" || subdomainStatus === "invalid" || subdomainStatus === "error") return <XCircleIcon className="w-5 h-5 text-red-500" />;
         return null;
     };
+
+    const subdomainBad = subdomainStatus === "taken" || subdomainStatus === "invalid" || subdomainStatus === "error";
+    const previewUrl = buildSiteUrl(siteBase, subdomain || "your-subdomain");
+    const canSubmit = !deploying && !blockedReason && !!file && fileStatus === "ok" && subdomainStatus === "available";
+    const progressPct = Math.round(uploadProgress * 100);
 
     return (
         <div className="max-w-xl mx-auto space-y-6">
@@ -139,6 +234,13 @@ export default function NewDeploymentPage() {
                 </div>
             </div>
 
+            {blockedReason && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+                    {blockedReason}{" "}
+                    <Link href="/student-dashboard/deployments" className="font-semibold underline">Go to My Deployments</Link>
+                </div>
+            )}
+
             <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 space-y-5 sm:space-y-6">
                 <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1.5">
@@ -147,7 +249,7 @@ export default function NewDeploymentPage() {
                     <input
                         type="text"
                         value={displayName}
-                        onChange={(e) => setDisplayName(e.target.value)}
+                        onChange={(e) => handleDisplayNameChange(e.target.value)}
                         placeholder="e.g. My Portfolio"
                         maxLength={60}
                         className="w-full px-3.5 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
@@ -164,28 +266,25 @@ export default function NewDeploymentPage() {
                             value={subdomain}
                             onChange={(e) => handleSubdomainChange(e.target.value)}
                             placeholder="myproject"
-                            minLength={3}
                             maxLength={63}
                             required
+                            autoCapitalize="none"
+                            autoCorrect="off"
+                            spellCheck={false}
                             className={`w-full px-3.5 py-2.5 pr-10 text-sm border rounded-xl focus:outline-none focus:ring-2 transition font-mono
                                 ${subdomainStatus === "available" ? "border-green-400 focus:ring-green-400" :
-                                  subdomainStatus === "taken" || subdomainStatus === "invalid" ? "border-red-400 focus:ring-red-400" :
+                                  subdomainBad ? "border-red-400 focus:ring-red-400" :
                                   "border-slate-200 focus:ring-blue-500 focus:border-transparent"}`}
                         />
                         <div className="absolute right-3 top-1/2 -translate-y-1/2">
                             {subdomainIndicator()}
                         </div>
                     </div>
-                    {subdomain.length >= 3 && (
-                        <p className="mt-1.5 text-xs text-slate-500 font-mono">
-                            🌐 {subdomainStatus === "available" ? (
-                                <span className="text-green-700">https://{subdomain}.{baseDomain}</span>
-                            ) : (
-                                <span>https://{subdomain}.{baseDomain}</span>
-                            )}
-                        </p>
-                    )}
-                    {(subdomainStatus === "taken" || subdomainStatus === "invalid") && subdomainError && (
+                    <p className="mt-1.5 text-xs text-slate-500 font-mono break-all">
+                        🌐 Your site will be live at:{" "}
+                        <span className={subdomainStatus === "available" ? "text-green-700" : ""}>{previewUrl}</span>
+                    </p>
+                    {subdomainBad && subdomainError && (
                         <p className="mt-1 text-xs text-red-600">{subdomainError}</p>
                     )}
                     <p className="mt-1 text-xs text-slate-400">Lowercase letters, numbers, and hyphens only. Min 3 characters.</p>
@@ -199,30 +298,36 @@ export default function NewDeploymentPage() {
                         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                         onDragLeave={() => setDragOver(false)}
                         onDrop={handleDrop}
-                        onClick={() => fileInputRef.current?.click()}
+                        onClick={() => !deploying && fileInputRef.current?.click()}
                         className={`relative border-2 border-dashed rounded-xl p-5 sm:p-8 text-center cursor-pointer transition-all
                             ${dragOver ? "border-blue-400 bg-blue-50" : "border-slate-200 hover:border-blue-300 hover:bg-slate-50"}
-                            ${file ? "border-green-400 bg-green-50" : ""}`}
+                            ${fileStatus === "ok" ? "border-green-400 bg-green-50" : ""}
+                            ${fileStatus === "error" ? "border-red-300 bg-red-50" : ""}`}
                     >
                         <input
                             ref={fileInputRef}
                             type="file"
-                            accept=".html,.zip"
+                            accept=".html,.htm,.zip,text/html,application/zip,application/x-zip-compressed"
                             className="hidden"
-                            onChange={(e) => handleFileSelect(e.target.files?.[0] ?? null)}
+                            onChange={(e) => void handleFileSelect(e.target.files?.[0] ?? null)}
                         />
                         {file ? (
                             <div className="flex flex-col items-center gap-2">
-                                <CheckCircleIcon className="w-8 h-8 text-green-500" />
-                                <p className="font-medium text-slate-700 text-sm">{file.name}</p>
+                                {fileStatus === "checking" && <span className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />}
+                                {fileStatus === "ok" && <CheckCircleIcon className="w-8 h-8 text-green-500" />}
+                                {fileStatus === "error" && <XCircleIcon className="w-8 h-8 text-red-500" />}
+                                <p className="font-medium text-slate-700 text-sm break-all">{file.name}</p>
                                 <p className="text-xs text-slate-400">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
-                                <button
-                                    type="button"
-                                    onClick={(e) => { e.stopPropagation(); setFile(null); }}
-                                    className="text-xs text-red-500 hover:underline"
-                                >
-                                    Remove file
-                                </button>
+                                {fileStatus === "checking" && <p className="text-xs text-slate-500">Checking file...</p>}
+                                {!deploying && (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); clearFile(); }}
+                                        className="text-xs text-red-500 hover:underline"
+                                    >
+                                        Remove file
+                                    </button>
+                                )}
                             </div>
                         ) : (
                             <div className="flex flex-col items-center gap-2">
@@ -230,15 +335,43 @@ export default function NewDeploymentPage() {
                                 <p className="text-sm font-medium text-slate-600">
                                     {dragOver ? "Drop it here!" : "Drag & drop or click to browse"}
                                 </p>
-                                <p className="text-xs text-slate-400">.html or .zip — max 50MB</p>
+                                <p className="text-xs text-slate-400">.html or .zip — max {MAX_DEPLOY_SIZE_MB}MB</p>
                             </div>
                         )}
                     </div>
+                    {fileStatus === "error" && fileError && (
+                        <p className="mt-1.5 text-xs text-red-600">{fileError}</p>
+                    )}
+                    {fileStatus === "ok" && fileNote && (
+                        <p className="mt-1.5 text-xs text-slate-500">{fileNote}</p>
+                    )}
+                    <p className="mt-1.5 text-xs text-slate-400">
+                        For a ZIP: put index.html, CSS, JS and images in one folder and zip that folder.
+                    </p>
                 </div>
+
+                {submitError && (
+                    <div className="flex items-start gap-2 bg-red-50 border border-red-200 text-red-700 rounded-xl p-3 text-sm">
+                        <XCircleIcon className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                        <span>{submitError}</span>
+                    </div>
+                )}
+
+                {deploying && (
+                    <div className="space-y-1.5">
+                        <div className="flex justify-between text-xs text-slate-500">
+                            <span>{progressPct < 100 ? "Uploading..." : "Setting up your site..."}</span>
+                            <span>{progressPct}%</span>
+                        </div>
+                        <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-blue-600 rounded-full transition-all duration-300" style={{ width: `${progressPct}%` }} />
+                        </div>
+                    </div>
+                )}
 
                 <button
                     type="submit"
-                    disabled={deploying || !file || subdomainStatus !== "available"}
+                    disabled={!canSubmit}
                     className="w-full py-3 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 active:scale-[0.99] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                     {deploying ? (

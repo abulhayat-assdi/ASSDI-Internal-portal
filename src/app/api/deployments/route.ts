@@ -2,114 +2,39 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
-import { writeFile, mkdir } from "fs/promises";
 import path from "path";
-import * as cheerio from "cheerio";
-import { readFile } from "fs/promises";
+import * as fs from "fs";
+import { rename } from "fs/promises";
+import { Prisma } from "@prisma/client";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { logActivity } from "@/lib/activityLog";
-import unzipper from "unzipper";
-import * as fs from "fs";
+import {
+    fileSizeProblem,
+    fileTypeProblem,
+    htmlContentProblem,
+    normalizeSubdomain,
+    subdomainProblem,
+    uploadKind,
+} from "@/lib/deploymentRules";
+import {
+    DeploymentError,
+    buildLiveUrl,
+    extractZipSite,
+    injectTrackingPixel,
+    makeStagingDir,
+    removeDir,
+    safeChildDir,
+    siteBaseUrl,
+    studentSitesDir,
+    withLiveUrl,
+    writeHtmlSite,
+} from "@/lib/deploymentSite";
 
-function getStorageBase(): string {
-    const configured = process.env.LOCAL_STORAGE_PATH || process.env.UPLOAD_DIR || "./storage";
-    return path.isAbsolute(configured) ? configured : path.resolve(process.cwd(), configured);
-}
+const DEFAULT_DEPLOYMENT_LIMIT = 5;
 
-// Server-side: prefer the runtime BASE_DOMAIN (NEXT_PUBLIC_* is baked in at
-// build time and would ignore the deployed environment). See lib/course.ts.
-const BASE_DOMAIN =
-    process.env.BASE_DOMAIN || process.env.NEXT_PUBLIC_BASE_DOMAIN || "tasm-skill.asf.bd";
-const MAX_FILE_SIZE_BYTES = parseInt(process.env.MAX_DEPLOY_SIZE_MB || "50") * 1024 * 1024;
-const MAX_ZIP_ENTRIES = 500;
-
-const RESERVED_SUBDOMAINS = new Set([
-    "www", "api", "admin", "mail", "portal", "app", "cdn", "ftp",
-    "smtp", "imap", "pop", "dev", "staging", "test", "demo", "static",
-    "assets", "media", "img", "images", "upload", "uploads",
-]);
-
-const SUBDOMAIN_REGEX = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/;
-
-function validateSubdomain(subdomain: string): { ok: boolean; error?: string } {
-    const s = subdomain.toLowerCase().trim();
-    if (!SUBDOMAIN_REGEX.test(s)) {
-        return { ok: false, error: "Subdomain must be 3-63 characters, lowercase alphanumeric and hyphens only." };
-    }
-    if (RESERVED_SUBDOMAINS.has(s)) {
-        return { ok: false, error: `"${s}" is a reserved subdomain name.` };
-    }
-    return { ok: true };
-}
-
-function buildLiveUrl(subdomain: string): string {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || `https://${BASE_DOMAIN}`;
-    return `${appUrl}/site/${subdomain}`;
-}
-
-function safePath(baseDir: string, subdomain: string): string {
-    const resolved = path.resolve(baseDir, subdomain);
-    if (!resolved.startsWith(baseDir + path.sep) && resolved !== baseDir) {
-        throw new Error("Invalid path: directory traversal detected.");
-    }
-    return resolved;
-}
-
-async function injectTrackingPixel(indexHtmlPath: string, deploymentId: string): Promise<void> {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || `https://${BASE_DOMAIN}`;
-    try {
-        const html = await readFile(indexHtmlPath, "utf-8");
-        const $ = cheerio.load(html);
-        $(`img[data-asm-pixel]`).remove();
-        const pixelTag = `<img src="${appUrl}/api/deployments/pixel?id=${deploymentId}" width="1" height="1" style="position:absolute;opacity:0;pointer-events:none" alt="" aria-hidden="true" data-asm-pixel="1">`;
-        if ($("body").length) {
-            $("body").append(pixelTag);
-        } else {
-            $.root().append(pixelTag);
-        }
-        await writeFile(indexHtmlPath, $.html(), "utf-8");
-    } catch {
-        console.warn(`[Deployments] Could not inject tracking pixel into ${indexHtmlPath}`);
-    }
-}
-
-async function extractZip(buffer: Buffer, targetDir: string): Promise<boolean> {
-    return new Promise((resolve, reject) => {
-        let entryCount = 0;
-        const stream = unzipper.Parse();
-        stream.on("entry", (entry: unzipper.Entry) => {
-            entryCount++;
-            if (entryCount > MAX_ZIP_ENTRIES) {
-                entry.autodrain();
-                stream.destroy(new Error("ZIP contains too many files (max 500)."));
-                return;
-            }
-
-            const entryPath = entry.path.replace(/\\/g, "/");
-            if (entryPath.includes("..") || path.isAbsolute(entryPath)) {
-                entry.autodrain();
-                return;
-            }
-
-            const destPath = path.join(targetDir, entryPath);
-            if (!destPath.startsWith(targetDir)) {
-                entry.autodrain();
-                return;
-            }
-
-            if (entry.type === "Directory") {
-                fs.mkdirSync(destPath, { recursive: true });
-                entry.autodrain();
-            } else {
-                fs.mkdirSync(path.dirname(destPath), { recursive: true });
-                entry.pipe(fs.createWriteStream(destPath));
-            }
-        });
-        stream.on("finish", () => resolve(true));
-        stream.on("error", reject);
-        stream.end(buffer);
-    });
+function errorJson(error: string, status: number) {
+    return NextResponse.json({ error }, { status });
 }
 
 // ─── GET /api/deployments ─────────────────────────────────────────────────────
@@ -117,7 +42,7 @@ async function extractZip(buffer: Buffer, targetDir: string): Promise<boolean> {
 export async function GET(req: NextRequest) {
     const user = await getSessionUser(req);
     if (!user || user.role !== "student" || !user.courseId) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        return errorJson("Your session has expired. Please log in again.", 401);
     }
     const courseId = user.courseId;
 
@@ -137,13 +62,14 @@ export async function GET(req: NextRequest) {
         });
 
         return NextResponse.json({
-            deployments,
-            deploymentLimit: dbUser?.deploymentLimit ?? 5,
+            deployments: deployments.map(withLiveUrl),
+            deploymentLimit: dbUser?.deploymentLimit ?? DEFAULT_DEPLOYMENT_LIMIT,
             isDeploymentFrozen: dbUser?.isDeploymentFrozen ?? false,
+            siteBaseUrl: siteBaseUrl(),
         });
     } catch (error) {
         console.error("[Deployments GET]", error);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return errorJson("Could not load your deployments. Please refresh the page.", 500);
     }
 }
 
@@ -152,10 +78,11 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     const user = await getSessionUser(req);
     if (!user || user.role !== "student" || !user.courseId) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        return errorJson("Your session has expired. Please log in again, then deploy.", 401);
     }
     const courseId = user.courseId;
 
+    let stagingDir: string | null = null;
     try {
         const { dbUser, existingCount } = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
             const [dbUser, existingCount] = await Promise.all([
@@ -169,107 +96,122 @@ export async function POST(req: NextRequest) {
         });
 
         if (dbUser?.isDeploymentFrozen) {
-            return NextResponse.json({ error: "Your deployment access has been frozen by an administrator." }, { status: 403 });
+            return errorJson("Your deployment access has been frozen by an administrator. Please contact your instructor.", 403);
         }
 
-        const limit = dbUser?.deploymentLimit ?? 5;
+        const limit = dbUser?.deploymentLimit ?? DEFAULT_DEPLOYMENT_LIMIT;
         if (existingCount >= limit) {
-            return NextResponse.json({ error: `You have reached your deployment limit of ${limit} projects.` }, { status: 429 });
+            return errorJson(
+                `You already have ${existingCount} of ${limit} allowed sites. Delete an old site from My Deployments to deploy a new one.`,
+                429
+            );
         }
 
-        const formData = await req.formData();
-        const file = formData.get("file") as File | null;
-        const rawSubdomain = (formData.get("subdomain") as string | null)?.toLowerCase().trim() ?? "";
-        const displayName = (formData.get("displayName") as string | null)?.trim() ?? "";
-
-        if (!file) return NextResponse.json({ error: "No file uploaded." }, { status: 400 });
-
-        const subdomainValidation = validateSubdomain(rawSubdomain);
-        if (!subdomainValidation.ok) {
-            return NextResponse.json({ error: subdomainValidation.error }, { status: 400 });
+        let formData: FormData;
+        try {
+            formData = await req.formData();
+        } catch (err) {
+            console.error("[Deployments POST] formData", err);
+            return errorJson(
+                "The upload did not reach the server completely (the connection may have dropped). Check your internet connection and try again.",
+                400
+            );
         }
+
+        const fileField = formData.get("file");
+        const file = fileField instanceof File ? fileField : null;
+        const rawSubdomain = normalizeSubdomain((formData.get("subdomain") as string | null) ?? "");
+        const displayName = ((formData.get("displayName") as string | null) ?? "").trim().slice(0, 60);
+
+        if (!file) return errorJson("No file was uploaded. Select an .html or .zip file.", 400);
+
+        const subdomainError = subdomainProblem(rawSubdomain);
+        if (subdomainError) return errorJson(subdomainError, 400);
+
+        const typeError = fileTypeProblem(file.name);
+        if (typeError) return errorJson(typeError, 400);
+        const sizeError = fileSizeProblem(file.size);
+        if (sizeError) return errorJson(sizeError, 413);
+        const kind = uploadKind(file.name)!;
 
         // Deployment subdomains are a platform-wide namespace (separate from
         // course subdomains), so this check intentionally looks across ALL
         // courses, not just the caller's.
         const existing = await withCourseContext({ courseId: null, isSuperAdmin: true }, (tx) =>
-            tx.deployment.findUnique({ where: { subdomain: rawSubdomain } })
+            tx.deployment.findUnique({ where: { subdomain: rawSubdomain }, select: { id: true } })
         );
         if (existing) {
-            return NextResponse.json({ error: "This subdomain is already taken. Please choose another." }, { status: 409 });
+            return errorJson(`The subdomain "${rawSubdomain}" is already taken. Please choose another one.`, 409);
         }
 
-        const isHtml = file.type === "text/html" || file.name.endsWith(".html");
-        const isZip = file.type === "application/zip"
-            || file.type === "application/x-zip-compressed"
-            || file.type === "application/octet-stream"
-            || file.name.endsWith(".zip");
-
-        if (!isHtml && !isZip) {
-            return NextResponse.json({ error: "Only .html and .zip files are accepted." }, { status: 400 });
-        }
-        if (file.size > MAX_FILE_SIZE_BYTES) {
-            return NextResponse.json({ error: `File too large. Maximum size is ${MAX_FILE_SIZE_BYTES / 1024 / 1024}MB.` }, { status: 400 });
+        const buffer = Buffer.from(await file.arrayBuffer());
+        if (kind === "html") {
+            const htmlError = htmlContentProblem(buffer);
+            if (htmlError) return errorJson(htmlError, 422);
         }
 
-        const storageBase = getStorageBase();
-        const studentSitesBase = path.resolve(storageBase, "student-sites");
-        await mkdir(studentSitesBase, { recursive: true });
+        // Build the site in a staging folder and only move it into place once
+        // it's complete — a failed or aborted upload used to leave a folder
+        // behind that blocked the subdomain ("already exists on the server")
+        // even though no deployment existed.
+        const sitesDir = await studentSitesDir();
+        const targetDir = safeChildDir(sitesDir, rawSubdomain);
+        stagingDir = await makeStagingDir(sitesDir);
 
-        const targetDir = safePath(studentSitesBase, rawSubdomain);
-        if (fs.existsSync(targetDir)) {
-            return NextResponse.json({ error: "A site with this subdomain already exists on the server." }, { status: 409 });
-        }
-        await mkdir(targetDir, { recursive: true });
-
-        const bytes = await file.arrayBuffer();
-        const buffer = Buffer.from(bytes);
-
-        if (isHtml) {
-            await writeFile(path.join(targetDir, "index.html"), buffer);
+        if (kind === "html") {
+            await writeHtmlSite(buffer, stagingDir);
         } else {
-            const success = await extractZip(buffer, targetDir);
-            if (!success) {
-                fs.rmSync(targetDir, { recursive: true, force: true });
-                return NextResponse.json({ error: "Failed to extract ZIP file." }, { status: 422 });
-            }
-            const indexPath = path.join(targetDir, "index.html");
-            if (!fs.existsSync(indexPath)) {
-                fs.rmSync(targetDir, { recursive: true, force: true });
-                return NextResponse.json({ error: "ZIP must contain an index.html file at its root." }, { status: 422 });
-            }
+            await extractZipSite(buffer, stagingDir);
         }
+
+        // No DB row owns this subdomain (checked above), so anything on disk
+        // is a leftover from an earlier failed attempt.
+        if (fs.existsSync(targetDir)) await removeDir(targetDir);
+        await rename(stagingDir, targetDir);
+        stagingDir = null;
 
         const liveUrl = buildLiveUrl(rawSubdomain);
-        const deployment = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
-            const created = await tx.deployment.create({
-                data: {
+        let deployment;
+        try {
+            deployment = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+                const created = await tx.deployment.create({
+                    data: {
+                        courseId,
+                        userId: user.id,
+                        subdomain: rawSubdomain,
+                        displayName: displayName || rawSubdomain,
+                        folderPath: targetDir,
+                        liveUrl,
+                    },
+                });
+                await logActivity(tx, {
                     courseId,
-                    userId: user.id,
-                    subdomain: rawSubdomain,
-                    displayName: displayName || rawSubdomain,
-                    folderPath: targetDir,
-                    liveUrl,
-                },
+                    actorUid: user.id,
+                    actorRole: "STUDENT",
+                    actionType: "DEPLOYMENT_CREATED",
+                    targetType: "deployment",
+                    targetId: created.id,
+                    description: `${user.displayName || user.id} "${rawSubdomain}" নামে একটা প্রজেক্ট ডেপ্লয় করেছে`,
+                });
+                return created;
             });
-            await logActivity(tx, {
-                courseId,
-                actorUid: user.id,
-                actorRole: "STUDENT",
-                actionType: "DEPLOYMENT_CREATED",
-                targetType: "deployment",
-                targetId: created.id,
-                description: `${user.displayName || user.id} "${rawSubdomain}" নামে একটা প্রজেক্ট ডেপ্লয় করেছে`,
-            });
-            return created;
-        });
+        } catch (err) {
+            await removeDir(targetDir);
+            if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+                return errorJson(`The subdomain "${rawSubdomain}" was just taken by someone else. Please choose another one.`, 409);
+            }
+            throw err;
+        }
 
         await injectTrackingPixel(path.join(targetDir, "index.html"), deployment.id);
 
         return NextResponse.json({ deployment, liveUrl }, { status: 201 });
     } catch (error) {
+        if (stagingDir) await removeDir(stagingDir);
+        if (error instanceof DeploymentError) {
+            return errorJson(error.message, error.status);
+        }
         console.error("[Deployments POST]", error);
-        const msg = error instanceof Error ? error.message : "Internal server error";
-        return NextResponse.json({ error: msg }, { status: 500 });
+        return errorJson("Something went wrong on the server while deploying. Please try again in a minute; if it keeps failing, contact your instructor.", 500);
     }
 }

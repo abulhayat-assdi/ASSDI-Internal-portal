@@ -4,6 +4,7 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin } from "@/lib/auth";
+import { withLiveUrl } from "@/lib/deploymentSite";
 
 // ─── GET /api/deployments/admin ───────────────────────────────────────────────
 
@@ -51,7 +52,7 @@ export async function GET(req: NextRequest) {
         const totalVisitors = deployments.reduce((sum, d) => sum + d.totalVisitors, 0);
 
         return NextResponse.json({
-            deployments: filtered,
+            deployments: filtered.map(withLiveUrl),
             stats: {
                 total: deployments.length,
                 totalVisitors,

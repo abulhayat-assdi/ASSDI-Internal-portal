@@ -9,6 +9,7 @@ import {
     validateSubdomain,
     Deployment,
 } from "@/services/deploymentService";
+import { buildSiteUrl, subdomainProblem } from "@/lib/deploymentRules";
 
 const CheckCircleIcon = ({ className }: { className?: string }) => (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -28,7 +29,7 @@ const ArrowLeftIcon = ({ className }: { className?: string }) => (
     </svg>
 );
 
-type SubdomainStatus = "idle" | "checking" | "available" | "taken" | "invalid" | "same";
+type SubdomainStatus = "idle" | "checking" | "available" | "taken" | "invalid" | "error" | "same";
 
 export default function EditDeploymentPage() {
     const router = useRouter();
@@ -41,19 +42,23 @@ export default function EditDeploymentPage() {
     const [subdomainStatus, setSubdomainStatus] = useState<SubdomainStatus>("same");
     const [subdomainError, setSubdomainError] = useState("");
     const [saving, setSaving] = useState(false);
-    const [baseDomain] = useState(process.env.NEXT_PUBLIC_BASE_DOMAIN || "");
+    const [siteBase, setSiteBase] = useState(() => {
+        const domain = process.env.NEXT_PUBLIC_BASE_DOMAIN;
+        return domain ? `https://${domain}/site` : "/site";
+    });
 
     useEffect(() => {
         (async () => {
             try {
                 const data = await getMyDeployments();
+                if (data.siteBaseUrl) setSiteBase(data.siteBaseUrl);
                 const found = data.deployments.find((d) => d.id === id);
                 if (!found) { toast.error("Deployment not found."); router.push("/student-dashboard/deployments"); return; }
                 setDeployment(found);
                 setSubdomain(found.subdomain);
                 setDisplayName(found.displayName);
-            } catch {
-                toast.error("Failed to load deployment.");
+            } catch (err) {
+                toast.error(err instanceof Error ? err.message : "Failed to load deployment.");
             } finally {
                 setLoading(false);
             }
@@ -61,24 +66,28 @@ export default function EditDeploymentPage() {
     }, [id, router]);
 
     useEffect(() => {
-        if (!subdomain || subdomain.length < 3) { setSubdomainStatus("idle"); setSubdomainError(""); return; }
         if (deployment && subdomain === deployment.subdomain) { setSubdomainStatus("same"); setSubdomainError(""); return; }
+        const problem = subdomainProblem(subdomain);
+        if (problem) { setSubdomainStatus("invalid"); setSubdomainError(problem); return; }
         setSubdomainStatus("checking");
+        setSubdomainError("");
+        let cancelled = false;
         const timer = setTimeout(async () => {
             const result = await validateSubdomain(subdomain, id);
+            if (cancelled) return;
             if (result.available) {
                 setSubdomainStatus("available");
                 setSubdomainError("");
             } else {
-                setSubdomainStatus(result.error?.includes("taken") ? "taken" : "invalid");
+                setSubdomainStatus(result.reason === "taken" ? "taken" : result.reason === "error" ? "error" : "invalid");
                 setSubdomainError(result.error ?? "Invalid subdomain");
             }
-        }, 500);
-        return () => clearTimeout(timer);
+        }, 400);
+        return () => { cancelled = true; clearTimeout(timer); };
     }, [subdomain, deployment, id]);
 
     const handleSubdomainChange = (val: string) => {
-        const cleaned = val.toLowerCase().replace(/[^a-z0-9-]/g, "");
+        const cleaned = val.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
         setSubdomain(cleaned);
     };
 
@@ -88,7 +97,7 @@ export default function EditDeploymentPage() {
 
         const subdomainChanged = subdomain !== deployment.subdomain;
         if (subdomainChanged && subdomainStatus !== "available") {
-            toast.error("Please wait for subdomain validation.");
+            toast.error(subdomainError || "Please wait for subdomain validation.");
             return;
         }
 
@@ -108,7 +117,7 @@ export default function EditDeploymentPage() {
         if (subdomainStatus === "same") return <CheckCircleIcon className="w-5 h-5 text-slate-300" />;
         if (subdomainStatus === "checking") return <span className="w-4 h-4 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin inline-block" />;
         if (subdomainStatus === "available") return <CheckCircleIcon className="w-5 h-5 text-green-500" />;
-        if (subdomainStatus === "taken" || subdomainStatus === "invalid") return <XCircleIcon className="w-5 h-5 text-red-500" />;
+        if (subdomainStatus === "taken" || subdomainStatus === "invalid" || subdomainStatus === "error") return <XCircleIcon className="w-5 h-5 text-red-500" />;
         return null;
     };
 
@@ -159,24 +168,21 @@ export default function EditDeploymentPage() {
                             type="text"
                             value={subdomain}
                             onChange={(e) => handleSubdomainChange(e.target.value)}
-                            minLength={3}
                             maxLength={63}
                             required
                             className={`w-full px-3.5 py-2.5 pr-10 text-sm border rounded-xl focus:outline-none focus:ring-2 transition font-mono
                                 ${subdomainStatus === "available" ? "border-green-400 focus:ring-green-400" :
-                                  subdomainStatus === "taken" || subdomainStatus === "invalid" ? "border-red-400 focus:ring-red-400" :
+                                  subdomainStatus === "taken" || subdomainStatus === "invalid" || subdomainStatus === "error" ? "border-red-400 focus:ring-red-400" :
                                   "border-slate-200 focus:ring-blue-500 focus:border-transparent"}`}
                         />
                         <div className="absolute right-3 top-1/2 -translate-y-1/2">
                             {subdomainIndicator()}
                         </div>
                     </div>
-                    {subdomain.length >= 3 && (
-                        <p className="mt-1.5 text-xs text-slate-500 font-mono">
-                            🌐 https://{subdomain}.{baseDomain}
-                        </p>
-                    )}
-                    {(subdomainStatus === "taken" || subdomainStatus === "invalid") && subdomainError && (
+                    <p className="mt-1.5 text-xs text-slate-500 font-mono break-all">
+                        🌐 {buildSiteUrl(siteBase, subdomain || "your-subdomain")}
+                    </p>
+                    {(subdomainStatus === "taken" || subdomainStatus === "invalid" || subdomainStatus === "error") && subdomainError && (
                         <p className="mt-1 text-xs text-red-600">{subdomainError}</p>
                     )}
                 </div>

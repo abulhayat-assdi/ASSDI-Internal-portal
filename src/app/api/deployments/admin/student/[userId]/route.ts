@@ -4,6 +4,7 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin } from "@/lib/auth";
+import { withLiveUrl } from "@/lib/deploymentSite";
 
 // ─── GET /api/deployments/admin/student/[userId] ──────────────────────────────
 
@@ -43,7 +44,7 @@ export async function GET(
 
         if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-        return NextResponse.json({ user, deployments });
+        return NextResponse.json({ user, deployments: deployments.map(withLiveUrl) });
     } catch (error) {
         console.error("[Admin Student Deployments GET]", error);
         return NextResponse.json({ error: "Internal server error" }, { status: 500 });

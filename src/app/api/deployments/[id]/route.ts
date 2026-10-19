@@ -2,61 +2,20 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
-import { mkdir, rm, readFile, writeFile, rename } from "fs/promises";
+import { mkdir, rm, rename } from "fs/promises";
 import path from "path";
 import * as fs from "fs";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin } from "@/lib/auth";
-import * as cheerio from "cheerio";
-
-function getStorageBase(): string {
-    const configured = process.env.LOCAL_STORAGE_PATH || process.env.UPLOAD_DIR || "./storage";
-    return path.isAbsolute(configured) ? configured : path.resolve(process.cwd(), configured);
-}
-
-// Server-side: prefer the runtime BASE_DOMAIN (NEXT_PUBLIC_* is baked in at
-// build time and would ignore the deployed environment). See lib/course.ts.
-const BASE_DOMAIN =
-    process.env.BASE_DOMAIN || process.env.NEXT_PUBLIC_BASE_DOMAIN || "tasm-skill.asf.bd";
-
-const RESERVED_SUBDOMAINS = new Set([
-    "www", "api", "admin", "mail", "portal", "app", "cdn", "ftp",
-    "smtp", "imap", "pop", "dev", "staging", "test", "demo", "static",
-    "assets", "media", "img", "images", "upload", "uploads",
-]);
-
-const SUBDOMAIN_REGEX = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/;
-
-function buildLiveUrl(subdomain: string): string {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || `https://${BASE_DOMAIN}`;
-    return `${appUrl}/site/${subdomain}`;
-}
-
-function safePath(baseDir: string, subdomain: string): string {
-    const resolved = path.resolve(baseDir, subdomain);
-    if (!resolved.startsWith(baseDir + path.sep) && resolved !== baseDir) {
-        throw new Error("Invalid path: directory traversal detected.");
-    }
-    return resolved;
-}
-
-async function injectTrackingPixel(indexHtmlPath: string, deploymentId: string): Promise<void> {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || `https://${BASE_DOMAIN}`;
-    try {
-        const html = await readFile(indexHtmlPath, "utf-8");
-        const $ = cheerio.load(html);
-        $(`img[data-asm-pixel]`).remove();
-        const pixelTag = `<img src="${appUrl}/api/deployments/pixel?id=${deploymentId}" width="1" height="1" style="position:absolute;opacity:0;pointer-events:none" alt="" aria-hidden="true" data-asm-pixel="1">`;
-        if ($("body").length) {
-            $("body").append(pixelTag);
-        } else {
-            $.root().append(pixelTag);
-        }
-        await writeFile(indexHtmlPath, $.html(), "utf-8");
-    } catch {
-        console.warn(`[Deployments] Could not inject tracking pixel into ${indexHtmlPath}`);
-    }
-}
+import { normalizeSubdomain, subdomainProblem } from "@/lib/deploymentRules";
+import {
+    buildLiveUrl,
+    injectTrackingPixel,
+    removeDir,
+    safeChildDir,
+    studentSitesDir,
+    withLiveUrl,
+} from "@/lib/deploymentSite";
 
 // ─── PATCH /api/deployments/[id] ─────────────────────────────────────────────
 
@@ -88,26 +47,20 @@ export async function PATCH(
             }
 
             const body = await req.json();
-            const newSubdomain = (body.subdomain as string | undefined)?.toLowerCase().trim();
-            const newDisplayName = (body.displayName as string | undefined)?.trim();
-
-            if (!newSubdomain) {
-                return NextResponse.json({ error: "New subdomain is required." }, { status: 400 });
-            }
-
-            if (!SUBDOMAIN_REGEX.test(newSubdomain)) {
-                return NextResponse.json({ error: "Invalid subdomain format." }, { status: 400 });
-            }
-            if (RESERVED_SUBDOMAINS.has(newSubdomain)) {
-                return NextResponse.json({ error: `"${newSubdomain}" is a reserved subdomain.` }, { status: 400 });
-            }
+            const newSubdomain = normalizeSubdomain((body.subdomain as string | undefined) ?? "");
+            const newDisplayName = (body.displayName as string | undefined)?.trim().slice(0, 60) || undefined;
 
             if (newSubdomain === deployment.subdomain) {
                 const updated = await tx.deployment.update({
                     where: { id, courseId },
                     data: { displayName: newDisplayName ?? deployment.displayName },
                 });
-                return NextResponse.json({ deployment: updated });
+                return NextResponse.json({ deployment: withLiveUrl(updated) });
+            }
+
+            const subdomainError = subdomainProblem(newSubdomain);
+            if (subdomainError) {
+                return NextResponse.json({ error: subdomainError }, { status: 400 });
             }
 
             // Deployment subdomains are a platform-wide namespace — check
@@ -116,17 +69,19 @@ export async function PATCH(
                 tx2.deployment.findUnique({ where: { subdomain: newSubdomain } })
             );
             if (conflict) {
-                return NextResponse.json({ error: "This subdomain is already taken." }, { status: 409 });
+                return NextResponse.json({ error: `The subdomain "${newSubdomain}" is already taken. Please choose another one.` }, { status: 409 });
             }
 
-            const storageBase = getStorageBase();
-            const studentSitesBase = path.resolve(storageBase, "student-sites");
+            const studentSitesBase = await studentSitesDir();
             const oldDir = deployment.folderPath;
-            const newDir = safePath(studentSitesBase, newSubdomain);
+            const newDir = safeChildDir(studentSitesBase, newSubdomain);
 
-            if (fs.existsSync(newDir)) {
-                return NextResponse.json({ error: "A site with this subdomain already exists on the server." }, { status: 409 });
+            if (!fs.existsSync(oldDir)) {
+                return NextResponse.json({ error: "This site's files are missing on the server. Delete it and deploy again." }, { status: 409 });
             }
+            // No deployment owns newSubdomain (checked above), so a folder
+            // there is a leftover from an earlier failed upload.
+            if (fs.existsSync(newDir)) await removeDir(newDir);
 
             try {
                 await rename(oldDir, newDir);
@@ -153,7 +108,7 @@ export async function PATCH(
                 await injectTrackingPixel(newIndexPath, id);
             }
 
-            return NextResponse.json({ deployment: updated });
+            return NextResponse.json({ deployment: withLiveUrl(updated) });
         });
     } catch (error) {
         console.error("[Deployments PATCH]", error);

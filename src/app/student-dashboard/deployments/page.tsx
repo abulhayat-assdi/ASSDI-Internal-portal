@@ -89,7 +89,7 @@ function DeleteModal({
                 <p className="text-sm text-slate-600 mb-6">
                     Are you sure you want to permanently delete{" "}
                     <span className="font-semibold text-slate-800">{deployment.displayName}</span>?
-                    The live site at <span className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded">{deployment.subdomain}.*</span> will be taken down immediately.
+                    The live site at <span className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded break-all">{deployment.liveUrl}</span> will be taken down immediately.
                 </p>
                 <div className="flex gap-3 justify-end [&>button]:flex-1 sm:[&>button]:flex-none [&>button]:justify-center [&>button]:min-h-11">
                     <button onClick={onCancel} disabled={loading}
@@ -127,7 +127,8 @@ function DeploymentCard({
                         </span>
                     </div>
                     <h3 className="font-semibold text-slate-800 truncate">{deployment.displayName}</h3>
-                    <p className="text-xs text-slate-400 font-mono truncate">{deployment.subdomain}.*</p>
+                    <a href={deployment.liveUrl} target="_blank" rel="noopener noreferrer" title={deployment.liveUrl}
+                        className="block text-xs text-slate-400 hover:text-blue-600 font-mono truncate">{deployment.liveUrl.replace(/^https?:\/\//, "")}</a>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
                     {!isFrozen && (
@@ -188,8 +189,8 @@ export default function StudentDeploymentsPage() {
             setDeployments(data.deployments);
             setLimit(data.deploymentLimit);
             setIsFrozen(data.isDeploymentFrozen);
-        } catch {
-            toast.error("Failed to load deployments.");
+        } catch (err) {
+            toast.error(err instanceof Error ? err.message : "Failed to load deployments.");
         } finally {
             setLoading(false);
         }

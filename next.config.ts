@@ -37,6 +37,12 @@ const nextConfig: NextConfig = {
             ],
             bodySizeLimit: '100mb',
         },
+        // Every request passes through the (Node) middleware, and Next only
+        // hands the first 10MB of a body through it by default — anything
+        // past that is silently cut off, so a 10MB+ deployment ZIP reached
+        // /api/deployments truncated and failed to parse. Keep this above
+        // MAX_DEPLOY_SIZE_MB plus multipart overhead.
+        middlewareClientMaxBodySize: '100mb',
     },
     images: {
         minimumCacheTTL: 604800,
