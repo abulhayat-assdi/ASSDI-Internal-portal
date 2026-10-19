@@ -23,6 +23,40 @@ import {
 } from "@/services/homeworkService";
 import { getAllBatchInfo, getPublicUniqueBatches } from "@/services/batchInfoService";
 
+// Open folder lives in the URL (?folder=<assignmentId>|other) so a browser
+// refresh lands back inside the same folder instead of the folder list.
+const FOLDER_PARAM = "folder";
+
+const readFolderParam = (): string | null => {
+    if (typeof window === "undefined") return null;
+    return new URLSearchParams(window.location.search).get(FOLDER_PARAM);
+};
+
+const writeFolderParam = (folderId: string | null) => {
+    const url = new URL(window.location.href);
+    if (folderId) url.searchParams.set(FOLDER_PARAM, folderId);
+    else url.searchParams.delete(FOLDER_PARAM);
+    window.history.pushState(null, "", url.toString());
+};
+
+// "19 Oct 2026, 03:45 pm" in Bangladesh time; falls back to the stored date string.
+const formatSubmittedAt = (hw: HomeworkSubmission): string => {
+    const d = hw.submittedAt ? new Date(hw.submittedAt) : null;
+    if (!d || isNaN(d.getTime())) return hw.submissionDate;
+    return d.toLocaleString("en-GB", {
+        timeZone: "Asia/Dhaka",
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+    });
+};
+
+const getSubmissionFileCount = (hw: HomeworkSubmission): number =>
+    hw.files && hw.files.length > 0 ? hw.files.length : hw.fileName ? 1 : 0;
+
 export default function HomeworkViewPage() {
     const confirm = useConfirm();
     const { userProfile, loading: authLoading } = useAuth();
@@ -41,7 +75,9 @@ export default function HomeworkViewPage() {
     const [isSubmittingAssignment, setIsSubmittingAssignment] = useState(false);
 
     // View States
-    const [selectedFolder, setSelectedFolder] = useState<HomeworkAssignment | "other" | null>(null);
+    const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+    const [refreshing, setRefreshing] = useState(false);
+    const [exporting, setExporting] = useState(false);
     const [viewingSubmission, setViewingSubmission] = useState<HomeworkSubmission | null>(null);
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [cleanupCount, setCleanupCount] = useState(0);
@@ -77,9 +113,11 @@ export default function HomeworkViewPage() {
     const isAdmin = userProfile?.role === "admin" || userProfile?.role === "super_admin";
     const isTeacher = userProfile?.role === "teacher";
 
-    const fetchData = useCallback(async () => {
+    // silent = in-place refresh: keep the current view on screen instead of the full-page spinner
+    const fetchData = useCallback(async (silent = false) => {
         if (!userProfile) return;
-        setLoading(true);
+        if (silent) setRefreshing(true);
+        else setLoading(true);
         try {
             // Load batches for the dropdown
             const batches = await getPublicUniqueBatches();
@@ -140,6 +178,7 @@ export default function HomeworkViewPage() {
             console.error("Error fetching data:", err);
         } finally {
             setLoading(false);
+            setRefreshing(false);
         }
     }, [userProfile, isAdmin, isTeacher]);
 
@@ -149,10 +188,32 @@ export default function HomeworkViewPage() {
         }
     }, [authLoading, userProfile, fetchData]);
 
+    // Restore the open folder from the URL; browser back/forward moves between the folder list and a folder
+    useEffect(() => {
+        setSelectedFolderId(readFolderParam());
+        const onPopState = () => setSelectedFolderId(readFolderParam());
+        window.addEventListener("popstate", onPopState);
+        return () => window.removeEventListener("popstate", onPopState);
+    }, []);
+
+    const setSelectedFolder = (folder: HomeworkAssignment | "other" | null) => {
+        const id = folder === null ? null : folder === "other" ? "other" : folder.id;
+        setSelectedFolderId(id);
+        writeFolderParam(id);
+    };
+
+    // Derived from the latest assignments so a refresh shows fresh folder details too
+    const selectedFolder: HomeworkAssignment | "other" | null =
+        selectedFolderId === "other"
+            ? "other"
+            : selectedFolderId
+                ? assignments.find(a => a.id === selectedFolderId) ?? null
+                : null;
+
     // Reset search when switching folders
     useEffect(() => {
         setSearchQuery("");
-    }, [selectedFolder]);
+    }, [selectedFolderId]);
 
 
     // Handlers
@@ -362,6 +423,45 @@ export default function HomeworkViewPage() {
             hw.studentRoll?.toLowerCase().includes(searchQueryTrimmed)
         )
         : folderSubmissionsList;
+
+    // Excel export of the visible submissions: student info + text/link answers.
+    // Uploaded files are not exported — only how many were attached.
+    const handleExportExcel = async () => {
+        if (!selectedFolder || activeSubmissionsList.length === 0) return;
+        setExporting(true);
+        try {
+            // Loaded on demand — XLSX is a large library and only this button needs it
+            const XLSX = await import("xlsx");
+            const folderTitle = selectedFolder === "other" ? "Other Submissions" : selectedFolder.title;
+            const sheetData: (string | number)[][] = [[
+                "SL", "Student Name", "Roll Number", "Batch Name", "Submitted At", "Text / Link", "Uploaded Files",
+            ]];
+            activeSubmissionsList.forEach((hw, i) => {
+                const fileCount = getSubmissionFileCount(hw);
+                sheetData.push([
+                    i + 1,
+                    hw.studentName,
+                    hw.studentRoll,
+                    hw.studentBatchName,
+                    formatSubmittedAt(hw),
+                    // Excel caps a cell at 32,767 characters
+                    (hw.textContent ?? "").trim().slice(0, 32767),
+                    fileCount > 0 ? `${fileCount} file(s) uploaded` : "-",
+                ]);
+            });
+            const ws = XLSX.utils.aoa_to_sheet(sheetData);
+            ws["!cols"] = [{ wch: 5 }, { wch: 25 }, { wch: 14 }, { wch: 18 }, { wch: 22 }, { wch: 60 }, { wch: 18 }];
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Submissions");
+            const safeTitle = folderTitle.replace(/[^\wঀ-৿-]+/g, "_").replace(/^_+|_+$/g, "") || "homework";
+            XLSX.writeFile(wb, `${safeTitle}_submissions_${new Date().toISOString().split("T")[0]}.xlsx`);
+        } catch (err) {
+            console.error("Export failed:", err);
+            alert("Failed to export Excel file.");
+        } finally {
+            setExporting(false);
+        }
+    };
 
     if (authLoading || loading) {
         return (
@@ -627,12 +727,28 @@ export default function HomeworkViewPage() {
                                     <span>Deadline: <strong className="text-emerald-100">{selectedFolder.deadlineDate}</strong></span>
                                 </div>
                             )}
-                            <div className="mt-4 flex items-center gap-2">
+                            <div className="mt-4 flex flex-wrap items-center gap-2">
                                 <span className="px-3 py-1 bg-white text-emerald-800 font-bold rounded-lg text-sm shadow-sm">
                                     {searchQueryTrimmed
                                         ? `${activeSubmissionsList.length} / ${folderSubmissionsList.length} Submissions`
                                         : `${folderSubmissionsList.length} Submissions`}
                                 </span>
+                                <button
+                                    onClick={() => fetchData(true)}
+                                    disabled={refreshing}
+                                    className="px-3 py-1 bg-white/15 hover:bg-white/25 border border-white/30 text-white font-bold rounded-lg text-sm transition-colors disabled:opacity-60 flex items-center gap-1.5"
+                                >
+                                    <svg className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                                    {refreshing ? "Refreshing..." : "Refresh"}
+                                </button>
+                                <button
+                                    onClick={handleExportExcel}
+                                    disabled={exporting || activeSubmissionsList.length === 0}
+                                    className="px-3 py-1 bg-white/15 hover:bg-white/25 border border-white/30 text-white font-bold rounded-lg text-sm transition-colors disabled:opacity-60 flex items-center gap-1.5"
+                                >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                    {exporting ? "Exporting..." : "Export Excel"}
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -714,7 +830,7 @@ export default function HomeworkViewPage() {
                                     {/* Content Block */}
                                     <div className="p-5 flex-1 flex flex-col min-w-0">
                                         <div className="flex items-start justify-between gap-2 mb-3">
-                                            <p className="text-xs text-gray-400 font-medium">Submitted: {hw.submissionDate}</p>
+                                            <p className="text-xs text-gray-400 font-medium">Submitted: {formatSubmittedAt(hw)}</p>
                                         </div>
 
                                         {/* File attachments (multi-file support) */}
@@ -809,7 +925,7 @@ export default function HomeworkViewPage() {
                             <div className="flex justify-between items-start">
                                 <div className="flex-1 min-w-0">
                                     <h3 className="text-xl font-bold truncate">{viewingSubmission.subject}</h3>
-                                    <p className="text-emerald-100 text-sm mt-1">Submitted {viewingSubmission.submissionDate}</p>
+                                    <p className="text-emerald-100 text-sm mt-1">Submitted {formatSubmittedAt(viewingSubmission)}</p>
                                 </div>
                                 <button
                                     onClick={() => setViewingSubmission(null)}
