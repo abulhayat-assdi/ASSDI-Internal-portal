@@ -106,6 +106,9 @@ export function verifyFileSignature(buffer: Buffer, fileName: string): string | 
 /** Text-based homework formats: no binary signature, so the content is read instead. */
 const TEXT_DOCUMENT_EXTENSIONS = new Set([".html", ".htm", ".svg"]);
 
+/** Pages with inlined images/fonts get big, but they are read whole to be scanned. */
+const MAX_TEXT_DOCUMENT_BYTES = 50 * 1024 * 1024;
+
 interface SqlPattern {
     label: string;
     regex: RegExp;
@@ -156,6 +159,9 @@ export function verifyHomeworkFile(buffer: Buffer, fileName: string): string | n
     if (!TEXT_DOCUMENT_EXTENSIONS.has(ext)) return verifyFileSignature(buffer, fileName);
 
     if (buffer.length === 0) return `${ext} ফাইলটি খালি।`;
+    if (buffer.length > MAX_TEXT_DOCUMENT_BYTES) {
+        return `${ext} ফাইল সর্বোচ্চ ${MAX_TEXT_DOCUMENT_BYTES / (1024 * 1024)}MB হতে পারবে।`;
+    }
     // A NUL byte in the first 8KB means a binary file wearing a text extension.
     if (buffer.subarray(0, 8192).includes(0)) {
         return `File contents do not match its ${ext} extension.`;
