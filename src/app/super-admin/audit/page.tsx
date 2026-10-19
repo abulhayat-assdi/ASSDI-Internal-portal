@@ -7,7 +7,7 @@ import { ArrowLeft, ScrollText } from "lucide-react";
 interface AuditLog {
     id: string;
     courseId: string;
-    actorUid: string;
+    actorUid: string | null;
     actorRole: string;
     actionType: string;
     targetType: string;

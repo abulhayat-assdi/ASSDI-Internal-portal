@@ -864,7 +864,7 @@ model ChatMessage {
 model ActivityLog {
   id          String    @id @default(uuid())
   courseId    String    @map("course_id")
-  actorUid    String    @map("actor_uid")
+  actorUid    String?   @map("actor_uid")
   actorRole   ActorRole @map("actor_role")
   actionType  String    @map("action_type")
   targetType  String    @map("target_type")
