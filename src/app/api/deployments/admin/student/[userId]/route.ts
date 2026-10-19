@@ -4,6 +4,7 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isAdmin } from "@/lib/auth";
+import { getDeploymentAccess, withLiveUrl } from "@/lib/deploymentSite";
 
 // ─── GET /api/deployments/admin/student/[userId] ──────────────────────────────
 
@@ -20,7 +21,7 @@ export async function GET(
     const { userId } = await params;
 
     try {
-        const { user, deployments } = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+        const { user, deployments, access } = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
             const [user, deployments] = await Promise.all([
                 tx.user.findUnique({
                     where: { id: userId, courseId },
@@ -31,6 +32,7 @@ export async function GET(
                         studentRoll: true,
                         deploymentLimit: true,
                         isDeploymentFrozen: true,
+                        deployAfterBatchEnd: true,
                     },
                 }),
                 tx.deployment.findMany({
@@ -38,12 +40,20 @@ export async function GET(
                     orderBy: { createdAt: "desc" },
                 }),
             ]);
-            return { user, deployments };
+            const access = user ? await getDeploymentAccess(tx, courseId, userId) : null;
+            return { user, deployments, access };
         });
 
-        if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+        if (!user || !access) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-        return NextResponse.json({ user, deployments });
+        return NextResponse.json({
+            user,
+            deployments: deployments.map(withLiveUrl),
+            batchCompleted: access.batchCompleted,
+            blockedReason: access.blockedReason,
+            usedBytes: access.usedBytes,
+            quotaBytes: access.quotaBytes,
+        });
     } catch (error) {
         console.error("[Admin Student Deployments GET]", error);
         return NextResponse.json({ error: "Internal server error" }, { status: 500 });
@@ -66,12 +76,13 @@ export async function PATCH(
 
     try {
         const body = await req.json();
-        const { deploymentLimit, isDeploymentFrozen } = body as {
+        const { deploymentLimit, isDeploymentFrozen, deployAfterBatchEnd } = body as {
             deploymentLimit?: number;
             isDeploymentFrozen?: boolean;
+            deployAfterBatchEnd?: boolean;
         };
 
-        const updateData: { deploymentLimit?: number; isDeploymentFrozen?: boolean } = {};
+        const updateData: { deploymentLimit?: number; isDeploymentFrozen?: boolean; deployAfterBatchEnd?: boolean } = {};
 
         if (typeof deploymentLimit === "number") {
             if (deploymentLimit < 0 || deploymentLimit > 100) {
@@ -82,6 +93,10 @@ export async function PATCH(
 
         if (typeof isDeploymentFrozen === "boolean") {
             updateData.isDeploymentFrozen = isDeploymentFrozen;
+        }
+
+        if (typeof deployAfterBatchEnd === "boolean") {
+            updateData.deployAfterBatchEnd = deployAfterBatchEnd;
         }
 
         if (Object.keys(updateData).length === 0) {
@@ -96,6 +111,7 @@ export async function PATCH(
                     id: true,
                     deploymentLimit: true,
                     isDeploymentFrozen: true,
+                    deployAfterBatchEnd: true,
                 },
             })
         );

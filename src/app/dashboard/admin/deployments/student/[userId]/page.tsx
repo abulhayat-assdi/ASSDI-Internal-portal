@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import toast from "react-hot-toast";
+import { formatBytes } from "@/lib/deploymentRules";
 import {
     getStudentDeploymentData,
     updateStudentDeploymentSettings,
@@ -43,6 +44,7 @@ interface StudentInfo {
     studentRoll: string | null;
     deploymentLimit: number;
     isDeploymentFrozen: boolean;
+    deployAfterBatchEnd: boolean;
 }
 
 function DeleteModal({
@@ -85,6 +87,9 @@ export default function AdminStudentDeploymentPage() {
 
     const [limitInput, setLimitInput] = useState("");
     const [isFrozen, setIsFrozen] = useState(false);
+    const [afterBatchEnd, setAfterBatchEnd] = useState(false);
+    const [batchCompleted, setBatchCompleted] = useState(false);
+    const [usage, setUsage] = useState({ used: 0, quota: 0 });
     const [savingSettings, setSavingSettings] = useState(false);
 
     const [deleteTarget, setDeleteTarget] = useState<Deployment | null>(null);
@@ -97,6 +102,9 @@ export default function AdminStudentDeploymentPage() {
             setDeployments(data.deployments);
             setLimitInput(String(data.user.deploymentLimit));
             setIsFrozen(data.user.isDeploymentFrozen);
+            setAfterBatchEnd(data.user.deployAfterBatchEnd);
+            setBatchCompleted(data.batchCompleted);
+            setUsage({ used: data.usedBytes, quota: data.quotaBytes });
         } catch {
             toast.error("Failed to load student data.");
         } finally {
@@ -117,6 +125,7 @@ export default function AdminStudentDeploymentPage() {
             await updateStudentDeploymentSettings(userId, {
                 deploymentLimit: limit,
                 isDeploymentFrozen: isFrozen,
+                deployAfterBatchEnd: afterBatchEnd,
             });
             toast.success("Settings updated.");
             fetchData();
@@ -143,7 +152,7 @@ export default function AdminStudentDeploymentPage() {
     };
 
     const settingsChanged = student
-        ? limitInput !== String(student.deploymentLimit) || isFrozen !== student.isDeploymentFrozen
+        ? limitInput !== String(student.deploymentLimit) || isFrozen !== student.isDeploymentFrozen || afterBatchEnd !== student.deployAfterBatchEnd
         : false;
 
     if (loading) {
@@ -165,7 +174,7 @@ export default function AdminStudentDeploymentPage() {
                 <div>
                     <h1 className="text-xl font-bold text-slate-800">{student.displayName}</h1>
                     <p className="text-sm text-slate-500">
-                        {student.studentBatchName} · Roll {student.studentRoll} · {deployments.length} / {student.deploymentLimit} slots used
+                        {student.studentBatchName} · Roll {student.studentRoll} · {deployments.length} / {student.deploymentLimit} slots · {formatBytes(usage.used)} / {formatBytes(usage.quota)}
                     </p>
                 </div>
             </div>
@@ -205,6 +214,27 @@ export default function AdminStudentDeploymentPage() {
                             {isFrozen ? "🔒 Frozen — Student cannot deploy" : "✅ Active — Student can deploy"}
                         </button>
                         <p className="text-xs text-slate-400 mt-1">Freezing keeps existing sites live but blocks new actions.</p>
+                    </div>
+
+                    <div className="sm:col-span-2">
+                        <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                            After Batch Completion
+                            {batchCompleted && <span className="ml-2 text-xs font-normal text-amber-700">(this batch is completed)</span>}
+                        </label>
+                        <button
+                            type="button"
+                            onClick={() => setAfterBatchEnd(!afterBatchEnd)}
+                            className={`inline-flex h-10 w-full items-center rounded-xl border px-4 text-sm font-medium transition-all ${
+                                afterBatchEnd
+                                    ? "bg-green-50 border-green-300 text-green-700"
+                                    : "bg-slate-50 border-slate-300 text-slate-600"
+                            }`}
+                        >
+                            {afterBatchEnd ? "✅ Allowed — can deploy/update even after the batch is completed" : "⛔ Not allowed — deploying stops when the batch is completed"}
+                        </button>
+                        <p className="text-xs text-slate-400 mt-1">
+                            Completing a batch automatically blocks new deploys and updates for its students (existing sites stay live and can be deleted). Turn this on to make an exception for this student.
+                        </p>
                     </div>
                 </div>
 
@@ -250,7 +280,10 @@ export default function AdminStudentDeploymentPage() {
                                     <tr key={d.id} className="hover:bg-slate-50 transition-colors">
                                         <td className="px-4 py-3">
                                             <p className="font-medium text-slate-800">{d.displayName}</p>
-                                            <p className="text-xs text-slate-400 font-mono">{d.subdomain}</p>
+                                            <p className="text-xs text-slate-400 font-mono">{d.subdomain} · {formatBytes(d.sizeBytes)}</p>
+                                            {d.riskFlags?.length > 0 && (
+                                                <p className="text-xs text-red-600 mt-0.5" title={d.riskFlags.join(", ")}>⚠️ Review: {d.riskFlags.join(", ")}</p>
+                                            )}
                                         </td>
                                         <td className="px-4 py-3">
                                             <a href={d.liveUrl} target="_blank" rel="noopener noreferrer"

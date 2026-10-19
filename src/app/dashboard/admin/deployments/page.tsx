@@ -5,6 +5,7 @@ import Link from "next/link";
 import toast from "react-hot-toast";
 import { getAllDeployments, adminDeleteDeployment, DeploymentWithUser } from "@/services/deploymentService";
 import { useAuth } from "@/contexts/AuthContext";
+import { formatBytes } from "@/lib/deploymentRules";
 
 const RocketIcon = ({ className }: { className?: string }) => (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -82,7 +83,7 @@ function StatCard({ label, value, icon }: { label: string; value: string | numbe
 export default function AdminDeploymentsPage() {
     const { userProfile } = useAuth();
     const [deployments, setDeployments] = useState<DeploymentWithUser[]>([]);
-    const [stats, setStats] = useState({ total: 0, totalVisitors: 0 });
+    const [stats, setStats] = useState({ total: 0, totalVisitors: 0, totalBytes: 0, flagged: 0 });
     const [search, setSearch] = useState("");
     const [loading, setLoading] = useState(true);
     const [deleteTarget, setDeleteTarget] = useState<DeploymentWithUser | null>(null);
@@ -145,9 +146,11 @@ export default function AdminDeploymentsPage() {
                 <p className="text-sm text-slate-500 mt-0.5">Manage all student-hosted sites and access controls</p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard label="Total Deployments" value={stats.total} icon={<RocketIcon className="w-6 h-6 text-blue-600" />} />
                 <StatCard label="Total Visitors" value={stats.totalVisitors} icon={<EyeIcon className="w-6 h-6 text-blue-600" />} />
+                <StatCard label="Disk Used" value={formatBytes(stats.totalBytes)} icon={<RocketIcon className="w-6 h-6 text-blue-600" />} />
+                <StatCard label="Needs Review" value={stats.flagged} icon={<span className="text-xl">⚠️</span>} />
             </div>
 
             <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
@@ -189,7 +192,13 @@ export default function AdminDeploymentsPage() {
                                             <p className="font-medium text-slate-800">{d.user.displayName}</p>
                                             <p className="text-xs text-slate-400">{d.user.studentBatchName} · Roll {d.user.studentRoll}</p>
                                         </td>
-                                        <td className="px-4 py-3 font-mono text-xs text-slate-600">{d.subdomain}</td>
+                                        <td className="px-4 py-3 font-mono text-xs text-slate-600">
+                                            {d.subdomain}
+                                            <p className="text-slate-400">{formatBytes(d.sizeBytes)}</p>
+                                            {d.riskFlags?.length > 0 && (
+                                                <p className="text-red-600 font-sans" title={d.riskFlags.join(", ")}>⚠️ {d.riskFlags.join(", ")}</p>
+                                            )}
+                                        </td>
                                         <td className="px-4 py-3">
                                             <a href={d.liveUrl} target="_blank" rel="noopener noreferrer"
                                                 className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs">
@@ -204,6 +213,9 @@ export default function AdminDeploymentsPage() {
                                             </div>
                                         </td>
                                         <td className="px-4 py-3">
+                                            {d.batchCompleted && !d.user.deployAfterBatchEnd && (
+                                                <span className="mr-1 inline-flex items-center text-xs font-medium px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full">Batch completed</span>
+                                            )}
                                             {d.user.isDeploymentFrozen ? (
                                                 <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full">🔒 Frozen</span>
                                             ) : (

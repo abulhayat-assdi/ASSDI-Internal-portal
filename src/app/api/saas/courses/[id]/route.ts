@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isSuperAdmin } from "@/lib/auth";
 import { invalidateCourseCache } from "@/lib/course";
+import { purgeCourseData, removePurgedFiles } from "@/lib/userPurge";
 import { ALL_FEATURES } from "@/lib/features";
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
@@ -160,16 +161,21 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     const { id } = await params;
 
     try {
-        const course = await withCourseContext({ courseId: null, isSuperAdmin: true }, async (tx) => {
+        const result = await withCourseContext({ courseId: null, isSuperAdmin: true }, async (tx) => {
             const existing = await tx.course.findUnique({ where: { id } });
             if (!existing) return null;
+            // Rows cascade, files don't: collect deployment folders, homework
+            // and leave attachments first.
+            const purged = await purgeCourseData(tx, id);
             // onDelete: Cascade on every course-scoped table removes all of
             // this course's data along with it.
             await tx.course.delete({ where: { id } });
-            return existing;
+            return { course: existing, purged };
         });
 
-        if (!course) return NextResponse.json({ error: "Course not found" }, { status: 404 });
+        if (!result) return NextResponse.json({ error: "Course not found" }, { status: 404 });
+        const { course, purged } = result;
+        await removePurgedFiles(purged);
 
         invalidateCourseCache(course.slug, course.id);
         return NextResponse.json({ success: true });

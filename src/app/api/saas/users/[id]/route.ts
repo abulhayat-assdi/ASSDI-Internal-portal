@@ -4,13 +4,16 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isSuperAdmin, invalidateUserOverrideCache } from "@/lib/auth";
+import { purgeUserData, removePurgedFiles } from "@/lib/userPurge";
 
 /**
  * DELETE /api/saas/users/[id] — permanently delete a user account (super_admin only).
  * Unlike /status (soft-delete via deletedAt, reversible), this hard-deletes the
  * row. Related rows cascade per prisma/schema.prisma (active session, password
  * reset tokens, CV drafts, deployments) or keep their history with the author
- * detached (activity logs, chat messages use onDelete: SetNull).
+ * detached (activity logs, chat messages use onDelete: SetNull). Homework and
+ * leave requests (no FK) are deleted explicitly, and the files behind them and
+ * the student's deployed sites are removed from disk after commit.
  */
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const caller = await getSessionUser(req);
@@ -30,6 +33,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
                 return { error: "You cannot delete your own account." as const, status: 403 };
             }
 
+            const purged = await purgeUserData(tx, id);
             await tx.user.delete({ where: { id } });
 
             if (target.courseId) {
@@ -42,11 +46,12 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
                 }).catch(() => { /* non-blocking */ });
             }
 
-            return { email: target.email };
+            return { email: target.email, purged };
         });
 
         if ("error" in result) return NextResponse.json({ error: result.error }, { status: result.status });
         invalidateUserOverrideCache(id);
+        await removePurgedFiles(result.purged);
         return NextResponse.json({ success: true, email: result.email });
     } catch (error) {
         console.error("[SaaS User DELETE]", error);
