@@ -215,7 +215,14 @@ export const uploadHomeworkFile = (
                     reject(new Error("Failed to parse upload response"));
                 }
             } else {
-                reject(new Error(xhr.responseText || "Upload failed"));
+                // The API answers { error }; show that message, not the raw JSON.
+                let message = "Upload failed";
+                try {
+                    message = JSON.parse(xhr.responseText)?.error || message;
+                } catch {
+                    message = xhr.responseText || message;
+                }
+                reject(new Error(`${file.name}: ${message}`));
             }
         });
 

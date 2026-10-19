@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import path from "path";
 import fs from "fs";
 import { getSessionUserFromRequestOrBearer } from "@/lib/auth";
-import { checkUserQuota, verifyFileSignature } from "@/lib/uploadGuard";
+import { checkUserQuota, verifyFileSignature, verifyHomeworkFile } from "@/lib/uploadGuard";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -43,13 +43,23 @@ export async function POST(request: NextRequest) {
             ".pdf", ".jpg", ".jpeg", ".png", ".gif", ".webp",
             ".doc", ".docx", ".ppt", ".pptx", ".xls", ".xlsx",
             ".csv", ".txt", ".zip", ".mp4", ".mp3",
-            // .html/.htm and .svg are excluded on purpose: both execute
-            // script, and these files are served from the portal's origin.
+            // .html/.htm and .svg execute script, so they are excluded for
+            // general uploads. Homework is the exception (students submit
+            // landing pages): it is content-scanned below and served back from
+            // a sandboxed, script-isolated response (see /api/file).
         ]);
+        const HOMEWORK_ONLY_EXTENSIONS = new Set([".html", ".htm", ".svg"]);
 
         const ext = path.extname(file.name).toLowerCase();
-        if (!ALLOWED_EXTENSIONS.has(ext)) {
-            return NextResponse.json({ error: "Invalid file extension" }, { status: 400 });
+        const allowedHere =
+            ALLOWED_EXTENSIONS.has(ext) || (category === "homework" && HOMEWORK_ONLY_EXTENSIONS.has(ext));
+        if (!allowedHere) {
+            return NextResponse.json(
+                {
+                    error: `এই ফাইল টাইপ গ্রহণযোগ্য নয় (${ext || "no extension"})। অনুমোদিত: ছবি, PDF, Word, Excel, PowerPoint, ZIP${category === "homework" ? ", HTML, SVG" : ""}।`,
+                },
+                { status: 400 }
+            );
         }
 
         if (file.size > 100 * 1024 * 1024) {
@@ -83,7 +93,10 @@ export async function POST(request: NextRequest) {
 
         // The extension and the browser-supplied MIME type are both caller
         // input; the bytes are not. Reject a .png that is really a script.
-        const signatureError = verifyFileSignature(buffer, file.name);
+        const signatureError =
+            category === "homework"
+                ? verifyHomeworkFile(buffer, file.name)
+                : verifyFileSignature(buffer, file.name);
         if (signatureError) {
             return NextResponse.json({ error: signatureError }, { status: 400 });
         }

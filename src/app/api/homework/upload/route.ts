@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
-import { join } from "path";
+import { join, extname } from "path";
 import { existsSync } from "fs";
 import { getSessionUser } from "@/lib/auth";
 import { getStorageBase } from "@/lib/fileAccess";
-import { checkUserQuota, verifyFileSignature } from "@/lib/uploadGuard";
+import { checkUserQuota, verifyHomeworkFile } from "@/lib/uploadGuard";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -23,7 +23,17 @@ const ALLOWED_MIME_TYPES = [
   "application/vnd.openxmlformats-officedocument.presentationml.presentation", // .pptx
   "application/zip",
   "application/x-zip-compressed",
+  "text/html",
+  "image/svg+xml",
 ];
+
+const ALLOWED_EXTENSIONS = new Set([
+  ".jpg", ".jpeg", ".png", ".webp",
+  ".pdf",
+  ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+  ".html", ".htm", ".svg",
+  ".zip",
+]);
 
 // Max file size: 100MB
 const MAX_FILE_SIZE = 100 * 1024 * 1024;
@@ -42,10 +52,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No file received." }, { status: 400 });
     }
 
-    // MIME type validation
-    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+    // The extension decides; the browser-reported MIME is only a hint (it is
+    // often empty or generic for .html/.svg/.docx) and the content is verified
+    // against the extension below.
+    const ext = extname(file.name).toLowerCase();
+    const mimeOk = ALLOWED_MIME_TYPES.includes(file.type) || file.type === "" || file.type === "application/octet-stream";
+    if (!ALLOWED_EXTENSIONS.has(ext) || !mimeOk) {
       return NextResponse.json(
-        { error: `Invalid file type: "${file.type}". Allowed: JPEG, PNG, PDF, WORD, EXCEL, PPT, ZIP.` },
+        { error: `এই ফাইল টাইপ গ্রহণযোগ্য নয় (${ext || file.type || "unknown"})। অনুমোদিত: ছবি (JPG, PNG, WEBP), PDF, Word, Excel, PowerPoint, HTML, SVG, ZIP।` },
         { status: 400 }
       );
     }
@@ -62,7 +76,7 @@ export async function POST(request: NextRequest) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    const signatureError = verifyFileSignature(buffer, file.name);
+    const signatureError = verifyHomeworkFile(buffer, file.name);
     if (signatureError) {
       return NextResponse.json({ error: signatureError }, { status: 400 });
     }

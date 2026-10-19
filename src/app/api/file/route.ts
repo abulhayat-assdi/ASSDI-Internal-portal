@@ -4,10 +4,10 @@ import fs from "fs";
 import { getSessionUser } from "@/lib/auth";
 import {
     authorizeFileRead,
-    contentTypeFor,
     isPublicStoredPath,
     normalizeStoredPath,
     resolveStoredFile,
+    servingHeadersFor,
 } from "@/lib/fileAccess";
 
 export const dynamic = "force-dynamic";
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
 
         return new Response(stream as unknown as ReadableStream, {
             headers: {
-                "Content-Type": contentTypeFor(file.absolutePath),
+                ...servingHeadersFor(file.absolutePath, relPath),
                 "Content-Length": String(file.size),
                 "Content-Disposition": `inline; filename="${encodeURIComponent(fileName)}"`,
                 "Cache-Control": decision.isPublic
