@@ -1,5 +1,6 @@
 import { withCourseContext } from './db';
 import { isFeatureEnabled } from './features';
+import { formatDeadline } from './homeworkDeadline';
 import { isMailConfigured, paragraphs, renderEmail, sendBulkMail, sendMail } from './mailer';
 
 /**
@@ -165,6 +166,7 @@ export function notifyStudentsOfAssignment(assignment: {
     title: string;
     batchName: string | null;
     deadlineDate?: string | null;
+    deadlineTime?: string | null;
     teacherName?: string | null;
 }): void {
     dispatchInBackground(`assignment "${assignment.title}"`, () =>
@@ -176,7 +178,7 @@ export function notifyStudentsOfAssignment(assignment: {
                 bodyHtml: paragraphs(
                     [
                         assignment.teacherName ? `শিক্ষক: ${assignment.teacherName}` : null,
-                        assignment.deadlineDate ? `জমা দেওয়ার শেষ তারিখ: ${assignment.deadlineDate}` : null,
+                        assignment.deadlineDate ? `জমা দেওয়ার শেষ সময়: ${formatDeadline(assignment.deadlineDate, assignment.deadlineTime)}` : null,
                         'পোর্টালে লগইন করে সময়মতো জমা দিন।',
                     ]
                         .filter(Boolean)

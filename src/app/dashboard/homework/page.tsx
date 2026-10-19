@@ -21,6 +21,7 @@ import {
     getSubmissionsByAssignment,
     ShareableTeacher
 } from "@/services/homeworkService";
+import { formatDeadline } from "@/lib/homeworkDeadline";
 import { getAllBatchInfo, getPublicUniqueBatches } from "@/services/batchInfoService";
 
 // Open folder lives in the URL (?folder=<assignmentId>|other) so a browser
@@ -72,6 +73,7 @@ export default function HomeworkViewPage() {
     const [assignmentTitle, setAssignmentTitle] = useState("");
     const [assignmentBatch, setAssignmentBatch] = useState("all");
     const [assignmentDeadline, setAssignmentDeadline] = useState("");
+    const [assignmentDeadlineTime, setAssignmentDeadlineTime] = useState("");
     const [isSubmittingAssignment, setIsSubmittingAssignment] = useState(false);
 
     // View States
@@ -89,6 +91,7 @@ export default function HomeworkViewPage() {
     const [editTitle, setEditTitle] = useState("");
     const [editBatch, setEditBatch] = useState("");
     const [editDeadline, setEditDeadline] = useState("");
+    const [editDeadlineTime, setEditDeadlineTime] = useState("");
     const [isSavingEdit, setIsSavingEdit] = useState(false);
 
     // Search within folder
@@ -228,11 +231,13 @@ export default function HomeworkViewPage() {
                 title: assignmentTitle,
                 batchName: assignmentBatch,
                 deadlineDate: assignmentDeadline,
+                deadlineTime: assignmentDeadlineTime || null,
             });
             setIsCreatingAssignment(false);
             setAssignmentTitle("");
             setAssignmentBatch("all");
             setAssignmentDeadline("");
+            setAssignmentDeadlineTime("");
             fetchData(); // Reload assignments
         } catch (err) {
             console.error(err);
@@ -294,6 +299,7 @@ export default function HomeworkViewPage() {
         setEditTitle(a.title);
         setEditBatch(a.batchName);
         setEditDeadline(a.deadlineDate);
+        setEditDeadlineTime(a.deadlineTime || "");
     };
 
     const handleSaveEdit = async (e: React.FormEvent) => {
@@ -305,6 +311,7 @@ export default function HomeworkViewPage() {
                 title: editTitle,
                 batchName: editBatch,
                 deadlineDate: editDeadline,
+                deadlineTime: editDeadlineTime || null,
             });
             fetchData();
             setAssignmentToEdit(null);
@@ -634,7 +641,7 @@ export default function HomeworkViewPage() {
                                                 </div>
                                                 <div className="flex justify-between w-full">
                                                     <span className="text-gray-500">Deadline:</span>
-                                                    <span className="font-bold text-red-600">{a.deadlineDate}</span>
+                                                    <span className="font-bold text-red-600">{formatDeadline(a.deadlineDate, a.deadlineTime)}</span>
                                                 </div>
                                                 <div className="flex justify-between w-full mt-1.5 pt-1.5 border-t border-gray-100/50">
                                                     <span className="text-gray-600 font-medium">Submissions:</span>
@@ -724,7 +731,7 @@ export default function HomeworkViewPage() {
                                 <div className="flex flex-wrap gap-4 mt-4 text-sm font-medium bg-white/10 inline-flex px-4 py-2 rounded-xl backdrop-blur-sm border border-emerald-400/30">
                                     <span>Target Batch: <strong className="text-emerald-100">{selectedFolder.batchName === "all" ? "All Batches" : selectedFolder.batchName}</strong></span>
                                     <span className="hidden sm:inline opacity-50">|</span>
-                                    <span>Deadline: <strong className="text-emerald-100">{selectedFolder.deadlineDate}</strong></span>
+                                    <span>Deadline: <strong className="text-emerald-100">{formatDeadline(selectedFolder.deadlineDate, selectedFolder.deadlineTime)}</strong></span>
                                 </div>
                             )}
                             <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -1125,6 +1132,21 @@ export default function HomeworkViewPage() {
                                     className="w-full px-4 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                                 />
                             </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">Deadline Time <span className="text-gray-400 font-normal">(optional)</span></label>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="time"
+                                        value={editDeadlineTime}
+                                        onChange={e => setEditDeadlineTime(e.target.value)}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                                    />
+                                    {editDeadlineTime && (
+                                        <button type="button" onClick={() => setEditDeadlineTime("")} className="text-xs text-red-500 hover:underline shrink-0">Clear</button>
+                                    )}
+                                </div>
+                                <p className="text-xs text-gray-400 mt-1">Leave empty to keep submissions open until the end of the deadline date.</p>
+                            </div>
                             <div className="pt-4 flex justify-end gap-3">
                                 <button
                                     type="button"
@@ -1332,6 +1354,21 @@ export default function HomeworkViewPage() {
                                     onChange={e => setAssignmentDeadline(e.target.value)}
                                     className="w-full px-4 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-[#059669] focus:outline-none"
                                 />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">Deadline Time <span className="text-gray-400 font-normal">(optional)</span></label>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="time"
+                                        value={assignmentDeadlineTime}
+                                        onChange={e => setAssignmentDeadlineTime(e.target.value)}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-[#059669] focus:outline-none"
+                                    />
+                                    {assignmentDeadlineTime && (
+                                        <button type="button" onClick={() => setAssignmentDeadlineTime("")} className="text-xs text-red-500 hover:underline shrink-0">Clear</button>
+                                    )}
+                                </div>
+                                <p className="text-xs text-gray-400 mt-1">Leave empty to keep submissions open until the end of the deadline date.</p>
                             </div>
                             <div className="pt-4 flex justify-end gap-3">
                                 <button

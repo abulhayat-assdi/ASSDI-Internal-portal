@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { verifyFileSignature } from "./uploadGuard";
+import { verifyFileSignature, verifyHomeworkFile } from "./uploadGuard";
 
 /** Builds a buffer starting with `bytes`, padded so length checks pass. */
 function bytes(...values: number[]): Buffer {
@@ -57,5 +57,51 @@ describe("verifyFileSignature", () => {
     it("does not read past the end of a short buffer", () => {
         expect(verifyFileSignature(Buffer.alloc(0), "empty.png")).toMatch(/do not match/);
         expect(verifyFileSignature(Buffer.from([0x89]), "truncated.png")).toMatch(/do not match/);
+    });
+});
+
+describe("verifyHomeworkFile", () => {
+    const page = (body: string) => Buffer.from(`<!doctype html><html><body>${body}</body></html>`);
+
+    it("accepts an ordinary landing page, scripts and all", () => {
+        const html = page(`<h1>Hi</h1><script>document.title = "x"; fetch("/a");</script><style>a{color:red}</style>`);
+        expect(verifyHomeworkFile(html, "index.html")).toBeNull();
+        expect(verifyHomeworkFile(html, "INDEX.HTM")).toBeNull();
+    });
+
+    it("accepts pages that merely talk about SQL, and apostrophes in prose", () => {
+        expect(verifyHomeworkFile(page("<p>Learn SELECT and UPDATE in SQL. It's easy, don't worry.</p>"), "a.html")).toBeNull();
+        expect(verifyHomeworkFile(page("<!-- note -->\n<p>Tom's page -- done</p>"), "a.html")).toBeNull();
+    });
+
+    it("accepts a real svg and rejects non-svg content under .svg", () => {
+        expect(verifyHomeworkFile(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>'), "a.svg")).toBeNull();
+        expect(verifyHomeworkFile(Buffer.from("just text"), "a.svg")).toMatch(/do not match/);
+    });
+
+    it("rejects binary data wearing an .html extension, and empty files", () => {
+        expect(verifyHomeworkFile(PNG, "a.html")).toMatch(/do not match/);
+        expect(verifyHomeworkFile(Buffer.alloc(0), "a.html")).toMatch(/খালি/);
+    });
+
+    it("flags SQL injection payloads with the offending line", () => {
+        const cases = [
+            `<a href="/u?id=1' OR '1'='1">x</a>`,
+            `<a href="/u?id=1 UNION SELECT password FROM users">x</a>`,
+            `<input value="x'; DROP TABLE users; --">`,
+            `<a href="/u?q=1; DELETE FROM users">x</a>`,
+            `<a href="/u?q=1 AND SLEEP(5)">x</a>`,
+        ];
+        for (const c of cases) {
+            const err = verifyHomeworkFile(page(`<p>ok</p>\n${c}`), "a.html");
+            expect(err, c).toMatch(/SQL ইনজেকশন/);
+            expect(err, c).toMatch(/লাইন 2/);
+        }
+    });
+
+    it("falls back to the signature check for other formats", () => {
+        expect(verifyHomeworkFile(PNG, "a.png")).toBeNull();
+        expect(verifyHomeworkFile(HTML, "a.png")).toMatch(/do not match/);
+        expect(verifyHomeworkFile(HTML, "a.exe")).toMatch(/not allowed/);
     });
 });

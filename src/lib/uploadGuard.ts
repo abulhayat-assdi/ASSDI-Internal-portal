@@ -103,6 +103,82 @@ export function verifyFileSignature(buffer: Buffer, fileName: string): string | 
     return ok ? null : `File contents do not match its ${ext} extension.`;
 }
 
+/** Text-based homework formats: no binary signature, so the content is read instead. */
+const TEXT_DOCUMENT_EXTENSIONS = new Set([".html", ".htm", ".svg"]);
+
+/** Pages with inlined images/fonts get big, but they are read whole to be scanned. */
+const MAX_TEXT_DOCUMENT_BYTES = 50 * 1024 * 1024;
+
+interface SqlPattern {
+    label: string;
+    regex: RegExp;
+}
+
+/**
+ * Textbook SQL-injection payloads. Deliberately specific (a quote or `;`
+ * followed by a statement, not the bare word "select") so an ordinary page that
+ * merely mentions SQL isn't flagged.
+ */
+const SQL_INJECTION_PATTERNS: SqlPattern[] = [
+    { label: "UNION SELECT", regex: /\bunion\s+(?:all\s+)?select\b/i },
+    { label: "' OR '1'='1 (always-true condition)", regex: /['"]\s*(?:or|and)\s+['"]?\w+['"]?\s*=\s*['"]?\w+/i },
+    { label: "stacked query (; DROP/DELETE/INSERT/UPDATE/ALTER/TRUNCATE)", regex: /;\s*(?:drop|truncate|alter|delete\s+from|insert\s+into|update\s+\w+\s+set)\b/i },
+    { label: "DROP TABLE/DATABASE", regex: /\bdrop\s+(?:table|database)\b/i },
+    { label: "quote followed by SQL comment ('-- / '#)", regex: /['"]\s*(?:--|#|\/\*)/ },
+    { label: "time-based injection (SLEEP/BENCHMARK/WAITFOR)", regex: /\b(?:pg_sleep|sleep|benchmark)\s*\(|\bwaitfor\s+delay\b/i },
+    { label: "xp_cmdshell / information_schema", regex: /\bxp_cmdshell\b|\binformation_schema\b/i },
+];
+
+/** Returns a human-readable finding for the first SQL-injection pattern in `text`, or null. */
+export function findSqlInjection(text: string): string | null {
+    const lines = text.split(/\r?\n/);
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        for (const { label, regex } of SQL_INJECTION_PATTERNS) {
+            const m = regex.exec(line);
+            if (m) {
+                const start = Math.max(0, m.index - 20);
+                const snippet = line.slice(start, m.index + m[0].length + 20).trim().slice(0, 80);
+                return `লাইন ${i + 1}: SQL ইনজেকশনের মতো কোড পাওয়া গেছে (${label}) → "${snippet}"`;
+            }
+        }
+    }
+    return null;
+}
+
+/**
+ * Homework-specific check. Extends verifyFileSignature with the text formats
+ * students legitimately submit (landing pages as .html, artwork as .svg), which
+ * have no magic bytes. Those are checked by content instead: they must really
+ * be text, and must not carry SQL-injection payloads.
+ *
+ * Returns an error string, or null when the file is acceptable.
+ */
+export function verifyHomeworkFile(buffer: Buffer, fileName: string): string | null {
+    const ext = path.extname(fileName).toLowerCase();
+    if (!TEXT_DOCUMENT_EXTENSIONS.has(ext)) return verifyFileSignature(buffer, fileName);
+
+    if (buffer.length === 0) return `${ext} ফাইলটি খালি।`;
+    if (buffer.length > MAX_TEXT_DOCUMENT_BYTES) {
+        return `${ext} ফাইল সর্বোচ্চ ${MAX_TEXT_DOCUMENT_BYTES / (1024 * 1024)}MB হতে পারবে।`;
+    }
+    // A NUL byte in the first 8KB means a binary file wearing a text extension.
+    if (buffer.subarray(0, 8192).includes(0)) {
+        return `File contents do not match its ${ext} extension.`;
+    }
+
+    const text = buffer.toString("utf8");
+    if (ext === ".svg" && !/<svg[\s>]/i.test(text)) {
+        return "File contents do not match its .svg extension.";
+    }
+
+    const finding = findSqlInjection(text);
+    if (finding) {
+        return `ফাইলে SQL ইনজেকশন ভালনারেবিলিটি আছে — ${finding}। কোডটি ঠিক করে আবার আপলোড করুন।`;
+    }
+    return null;
+}
+
 /**
  * Total bytes a single account may hold on disk. Generous for coursework,
  * but finite: without it one student can fill the volume and take the whole

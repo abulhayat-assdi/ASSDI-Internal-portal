@@ -209,3 +209,45 @@ const MIME_TYPES: Record<string, string> = {
 export function contentTypeFor(absolutePath: string): string {
     return MIME_TYPES[path.extname(absolutePath).toLowerCase()] ?? "application/octet-stream";
 }
+
+/**
+ * Homework is the one place .html/.htm/.svg are accepted (students submit
+ * landing pages), and the content type that lets a teacher actually view them.
+ * They are served as real documents only under uploads/homework/, and only
+ * inside a CSP sandbox: without `allow-same-origin` the page gets a unique
+ * opaque origin, so its scripts cannot read the portal's cookies/storage or
+ * call the portal's APIs as the viewer, `connect-src 'none'` blocks exfiltration,
+ * and `form-action`/`frame-ancestors` stop form posts and clickjacking.
+ */
+const HOMEWORK_DOCUMENT_TYPES: Record<string, string> = {
+    ".html": "text/html; charset=utf-8",
+    ".htm": "text/html; charset=utf-8",
+    ".svg": "image/svg+xml",
+};
+
+const HOMEWORK_DOCUMENT_CSP = [
+    "sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox",
+    "default-src 'none'",
+    "script-src 'unsafe-inline' 'unsafe-eval' https:",
+    "style-src 'unsafe-inline' https:",
+    "img-src data: blob: https:",
+    "font-src data: https:",
+    "media-src data: blob: https:",
+    "connect-src 'none'",
+    "form-action 'none'",
+    "frame-ancestors 'none'",
+    "base-uri 'none'",
+].join("; ");
+
+/** Content-Type (and CSP when it is an active document) for a stored file. */
+export function servingHeadersFor(
+    absolutePath: string,
+    normalizedPath: string
+): Record<string, string> {
+    const ext = path.extname(absolutePath).toLowerCase();
+    const documentType = HOMEWORK_DOCUMENT_TYPES[ext];
+    if (documentType && ownerIdFor(normalizedPath)) {
+        return { "Content-Type": documentType, "Content-Security-Policy": HOMEWORK_DOCUMENT_CSP };
+    }
+    return { "Content-Type": contentTypeFor(absolutePath) };
+}

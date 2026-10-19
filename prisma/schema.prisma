@@ -718,6 +718,8 @@ model HomeworkAssignment {
   teacherName  String   @map("teacher_name")
   title        String
   deadlineDate String   @map("deadline_date")
+  // Optional "HH:mm" (Asia/Dhaka). Null = open through the end of deadlineDate.
+  deadlineTime String?  @map("deadline_time")
   batchName    String   @map("batch_name")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")

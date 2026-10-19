@@ -3,6 +3,7 @@ import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isTeacherOrAdmin } from "@/lib/auth";
 import { notifyStudentsOfAssignment } from "@/lib/notifications";
 import { logHomeworkActivity } from "@/lib/homeworkLog";
+import { formatDeadline, isHomeworkClosed, normalizeDeadlineTime, todayInDhaka } from "@/lib/homeworkDeadline";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -20,7 +21,8 @@ export async function GET(req: NextRequest) {
 
     // Student context: return assignments for this batch OR "all" batches, excluding expired ones
     if (batchName) {
-        const today = new Date().toISOString().split("T")[0];
+        const now = new Date();
+        const today = todayInDhaka(now);
         const assignments = await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
             tx.homeworkAssignment.findMany({
                 where: {
@@ -31,7 +33,9 @@ export async function GET(req: NextRequest) {
                 orderBy: { createdAt: "desc" },
             })
         );
-        return NextResponse.json(assignments);
+        // The date filter only drops earlier days; a folder due today may
+        // already have passed its cut-off time.
+        return NextResponse.json(assignments.filter((a) => !isHomeworkClosed(a, now)));
     }
 
     // Teacher context: own assignments + ones shared with this teacher (view-only)
@@ -84,6 +88,7 @@ export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
         const { teacherUid, teacherName, title, deadlineDate, batchName } = body;
+        const deadlineTime = normalizeDeadlineTime(body.deadlineTime);
 
         const assignment = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
             const created = await tx.homeworkAssignment.create({
@@ -93,6 +98,7 @@ export async function POST(req: NextRequest) {
                     teacherName: teacherName || user.displayName,
                     title,
                     deadlineDate,
+                    deadlineTime,
                     batchName,
                 },
             });
@@ -100,7 +106,7 @@ export async function POST(req: NextRequest) {
                 action: "HOMEWORK_ASSIGNMENT_CREATED",
                 targetType: "homework_assignment",
                 targetId: created.id,
-                description: `${created.teacherName} created homework folder "${created.title}" for ${created.batchName === "all" ? "all batches" : created.batchName} (deadline ${created.deadlineDate})`,
+                description: `${created.teacherName} created homework folder "${created.title}" for ${created.batchName === "all" ? "all batches" : created.batchName} (deadline ${formatDeadline(created.deadlineDate, created.deadlineTime)})`,
             });
             return created;
         });
@@ -110,6 +116,7 @@ export async function POST(req: NextRequest) {
             title: assignment.title,
             batchName: assignment.batchName,
             deadlineDate: assignment.deadlineDate,
+            deadlineTime: assignment.deadlineTime,
             teacherName: assignment.teacherName,
         });
 
@@ -136,6 +143,10 @@ export async function PATCH(req: NextRequest) {
         delete (data as Record<string, unknown>).teacherUid;
         delete (data as Record<string, unknown>).teacherName;
         delete (data as Record<string, unknown>).courseId;
+        // "" (cleared in the form) must become NULL, and junk must not reach the column.
+        if ("deadlineTime" in data) {
+            (data as Record<string, unknown>).deadlineTime = normalizeDeadlineTime(data.deadlineTime);
+        }
 
         return await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
             const existing = await tx.homeworkAssignment.findUnique({ where: { id, courseId } });
@@ -148,7 +159,9 @@ export async function PATCH(req: NextRequest) {
             const assignment = await tx.homeworkAssignment.update({ where: { id, courseId }, data });
             const changes: string[] = [];
             if (assignment.title !== existing.title) changes.push(`title "${existing.title}" → "${assignment.title}"`);
-            if (assignment.deadlineDate !== existing.deadlineDate) changes.push(`deadline ${existing.deadlineDate} → ${assignment.deadlineDate}`);
+            if (assignment.deadlineDate !== existing.deadlineDate || assignment.deadlineTime !== existing.deadlineTime) {
+                changes.push(`deadline ${formatDeadline(existing.deadlineDate, existing.deadlineTime)} → ${formatDeadline(assignment.deadlineDate, assignment.deadlineTime)}`);
+            }
             if (assignment.batchName !== existing.batchName) changes.push(`batch ${existing.batchName} → ${assignment.batchName}`);
             await logHomeworkActivity(tx, user, {
                 action: "HOMEWORK_ASSIGNMENT_UPDATED",
