@@ -12,6 +12,7 @@ import {
     getActiveHomeworkAssignmentsForStudent,
     HomeworkAssignment
 } from "@/services/homeworkService";
+import { formatDeadline } from "@/lib/homeworkDeadline";
 
 export default function HomeworkSubmissionPage() {
     const { user, userProfile, loading: authLoading } = useAuth();
@@ -366,7 +367,7 @@ export default function HomeworkSubmissionPage() {
                                         <option value="">-- Select open assignment --</option>
                                         {filteredAssignments.map((assignment) => (
                                             <option key={assignment.id} value={assignment.id}>
-                                                {assignment.title} (Due {assignment.deadlineDate})
+                                                {assignment.title} (Due {formatDeadline(assignment.deadlineDate, assignment.deadlineTime)})
                                             </option>
                                         ))}
                                     </select>

@@ -3,6 +3,7 @@ import { withCourseContext } from "@/lib/db";
 import { getSessionUser, isTeacherOrAdmin } from "@/lib/auth";
 import { logHomeworkActivity } from "@/lib/homeworkLog";
 import { logActivity } from "@/lib/activityLog";
+import { formatDeadline, isHomeworkClosed } from "@/lib/homeworkDeadline";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -131,6 +132,20 @@ export async function POST(req: NextRequest) {
     };
 
     try {
+        const closedMessage = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+            // The student UI hides closed folders, but the API is the real gate.
+            if (user.role !== "student" || !assignmentId) return null;
+            const assignment = await tx.homeworkAssignment.findFirst({
+                where: { id: assignmentId, courseId },
+                select: { title: true, deadlineDate: true, deadlineTime: true },
+            });
+            if (!assignment || !isHomeworkClosed(assignment)) return null;
+            return `"${assignment.title}" এর জমা দেওয়ার সময় শেষ হয়ে গেছে (${formatDeadline(assignment.deadlineDate, assignment.deadlineTime)})।`;
+        });
+        if (closedMessage) {
+            return NextResponse.json({ error: closedMessage }, { status: 403 });
+        }
+
         const submission = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
             const created = await tx.homeworkSubmission.create({ data: submissionData });
             await logActivity(tx, {

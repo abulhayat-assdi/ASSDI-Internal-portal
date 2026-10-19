@@ -36,6 +36,8 @@ export interface HomeworkAssignment {
     teacherName: string;
     title: string;
     deadlineDate: string;
+    /** Optional "HH:mm" cut-off on deadlineDate (Asia/Dhaka); null/absent = end of day. */
+    deadlineTime?: string | null;
     batchName: string;
     createdAt: string;
     /** true when this folder is shared with the viewer (not owned by them) */
