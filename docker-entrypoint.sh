@@ -23,7 +23,7 @@ chown -R nextjs:nodejs /app/storage
 
 if [ -n "${DB_USER:-}" ] && [ -n "${DB_PASSWORD:-}" ]; then
     _enc_db_pwd=$(node -e "console.log(encodeURIComponent(process.env.DB_PASSWORD))")
-    BOOTSTRAP_DATABASE_URL="postgresql://${DB_USER}:${_enc_db_pwd}@db:5432/${DB_NAME:-asm_portal}?schema=public"
+    BOOTSTRAP_DATABASE_URL="postgresql://${DB_USER}:${_enc_db_pwd}@${DB_HOST:-db}:5432/${DB_NAME:-asm_portal}?schema=public"
 fi
 
 export BOOTSTRAP_DATABASE_URL
@@ -51,7 +51,7 @@ export DATABASE_URL="$BOOTSTRAP_DATABASE_URL"
 # worst-case concurrent sorts — comfortable on a 4GB box.
 if [ -n "${APP_DB_PASSWORD:-}" ]; then
     _enc_app_pwd=$(node -e "console.log(encodeURIComponent(process.env.APP_DB_PASSWORD))")
-    export DATABASE_URL="postgresql://${APP_DB_USER:-asm_app}:${_enc_app_pwd}@db:5432/${DB_NAME:-asm_portal}?schema=public&connection_limit=${DB_POOL_SIZE:-30}&pool_timeout=${DB_POOL_TIMEOUT:-20}"
+    export DATABASE_URL="postgresql://${APP_DB_USER:-asm_app}:${_enc_app_pwd}@${DB_HOST:-db}:5432/${DB_NAME:-asm_portal}?schema=public&connection_limit=${DB_POOL_SIZE:-30}&pool_timeout=${DB_POOL_TIMEOUT:-20}"
 else
     echo "WARNING: APP_DB_PASSWORD is not set. The app will connect as the" >&2
     echo "         database superuser, which BYPASSES row-level security and" >&2
@@ -59,7 +59,7 @@ else
 fi
 if [ -n "${PGRST_AUTHENTICATOR_PASSWORD:-}" ]; then
     _enc_pgrst_pwd=$(node -e "console.log(encodeURIComponent(process.env.PGRST_AUTHENTICATOR_PASSWORD))")
-    export PGRST_DB_URI="postgresql://authenticator:${_enc_pgrst_pwd}@db:5432/${DB_NAME:-asm_portal}"
+    export PGRST_DB_URI="postgresql://authenticator:${_enc_pgrst_pwd}@${DB_HOST:-db}:5432/${DB_NAME:-asm_portal}"
 fi
 
 # Drop to nextjs user for all subsequent processes (Node.js, startup scripts).

@@ -31,8 +31,15 @@ FILES_FILE="$BACKUP_DIR/storage-$STAMP.tar.gz"
 
 echo "🗄️  Dumping database → $DB_FILE"
 # --clean --if-exists makes the dump restorable over an existing database.
-docker compose exec -T db pg_dump -U "$DB_USER" --clean --if-exists "$DB_NAME" \
-    | gzip > "$DB_FILE"
+# DB_CONTAINER: name of a standalone Postgres container (e.g. a Coolify
+# database resource); unset = the compose `db` service.
+if [ -n "${DB_CONTAINER:-}" ]; then
+    docker exec -i "$DB_CONTAINER" pg_dump -U "$DB_USER" --clean --if-exists "$DB_NAME" \
+        | gzip > "$DB_FILE"
+else
+    docker compose exec -T db pg_dump -U "$DB_USER" --clean --if-exists "$DB_NAME" \
+        | gzip > "$DB_FILE"
+fi
 
 # A zero-length or truncated dump is worse than none, because it looks like a
 # backup. Check the gzip stream end-to-end before trusting it.
@@ -64,5 +71,9 @@ echo "⚠️  These files sit on the same machine as the database. Copy them off
 echo "   the host (rclone/scp/S3) or a disk failure takes both with it."
 echo ""
 echo "To restore:"
-echo "  gunzip -c $DB_FILE | docker compose exec -T db psql -U \$DB_USER \$DB_NAME"
+if [ -n "${DB_CONTAINER:-}" ]; then
+    echo "  gunzip -c $DB_FILE | docker exec -i $DB_CONTAINER psql -U \$DB_USER \$DB_NAME"
+else
+    echo "  gunzip -c $DB_FILE | docker compose exec -T db psql -U \$DB_USER \$DB_NAME"
+fi
 echo "  gunzip -c $FILES_FILE | docker compose exec -T app tar -x -C /app/storage"
