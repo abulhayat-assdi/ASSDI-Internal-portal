@@ -1,36 +1,4 @@
 services:
-  db:
-    image: postgres:15-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${DB_USER:?DB_USER must be set}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
-      POSTGRES_DB: ${DB_NAME:?DB_NAME must be set}
-    # The image's own defaults (shared_buffers=128MB, work_mem=4MB) are sized
-    # for a container with no idea how much RAM its host actually has — safe,
-    # but well under what a dedicated small VPS can spare for its only
-    # database. These assume ~2GB available to Postgres; scale them with
-    # POSTGRES_* overrides in .env if the box is bigger or smaller.
-    command: >
-      postgres
-      -c shared_buffers=${POSTGRES_SHARED_BUFFERS:-256MB}
-      -c effective_cache_size=${POSTGRES_EFFECTIVE_CACHE_SIZE:-768MB}
-      -c work_mem=${POSTGRES_WORK_MEM:-8MB}
-      -c maintenance_work_mem=${POSTGRES_MAINTENANCE_WORK_MEM:-64MB}
-      -c max_connections=${POSTGRES_MAX_CONNECTIONS:-100}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    # MVP: DB NOT exposed to host/internet — only compose network.
-    # For emergency psql: docker compose exec db psql -U $DB_USER $DB_NAME
-    expose:
-      - "5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
-
   # Runs once at startup to ensure the storage volume is owned by UID 1001 (nextjs).
   # Needed because Docker named volumes are root-owned on first creation.
   init-storage:
@@ -40,6 +8,8 @@ services:
       - storage_data:/storage
     restart: "no"
 
+  # The database is an external Coolify Postgres resource, reached through
+  # DB_HOST (defaults to `db`).
   # PostgREST fronts the `typing_game` Postgres schema only. Internal-only
   # (no published port) — the app container is the sole caller, using the
   # student's own ASM session JWT as the bearer token (see
@@ -49,16 +19,13 @@ services:
     image: postgrest/postgrest:v12.2.0
     restart: unless-stopped
     environment:
-      PGRST_DB_URI: postgresql://authenticator:${PGRST_AUTHENTICATOR_PASSWORD:?PGRST_AUTHENTICATOR_PASSWORD must be set}@db:5432/${DB_NAME}
+      PGRST_DB_URI: postgresql://authenticator:${PGRST_AUTHENTICATOR_PASSWORD:?PGRST_AUTHENTICATOR_PASSWORD must be set}@${DB_HOST:-db}:5432/${DB_NAME}
       PGRST_DB_SCHEMAS: typing_game
       PGRST_DB_ANON_ROLE: anon
       PGRST_JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
       PGRST_JWT_SECRET_IS_BASE64: "false"
       PGRST_JWT_ROLE_CLAIM_KEY: ".pg_role"
       PGRST_DB_POOL: "10"
-    depends_on:
-      db:
-        condition: service_healthy
 
   app:
     build:
@@ -79,7 +46,8 @@ services:
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       DB_NAME: ${DB_NAME}
-      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}?schema=public
+      DB_HOST: ${DB_HOST:-db}
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST:-db}:5432/${DB_NAME}?schema=public
       # The unprivileged role the server queries as, so RLS is enforced.
       # docker-entrypoint.sh rebuilds DATABASE_URL from these; the value above
       # survives only as BOOTSTRAP_DATABASE_URL for migrations.
@@ -106,8 +74,6 @@ services:
       PGRST_AUTHENTICATOR_PASSWORD: ${PGRST_AUTHENTICATOR_PASSWORD}
       POSTGREST_URL: http://postgrest:3000
     depends_on:
-      db:
-        condition: service_healthy
       init-storage:
         condition: service_completed_successfully
       postgrest:
@@ -129,5 +95,4 @@ services:
       start_period: 90s
 
 volumes:
-  postgres_data:
   storage_data:
