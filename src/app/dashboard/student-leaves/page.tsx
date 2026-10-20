@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { leaveMinutes, leaveHours, validateLeaveWindow, formatLeaveDuration, formatLeaveTime } from "@/lib/leaveDuration";
 
 type LeaveRequest = {
     id: string;
@@ -10,6 +11,8 @@ type LeaveRequest = {
     studentBatchName: string;
     startDate: string;
     endDate: string;
+    startTime?: string | null;
+    endTime?: string | null;
     reason: string;
     attachmentUrl?: string | null;
     attachmentName?: string | null;
@@ -70,6 +73,8 @@ export default function AdminStudentLeavesPage() {
     const [addStudentRoll, setAddStudentRoll] = useState("");
     const [addStartDate, setAddStartDate] = useState("");
     const [addEndDate, setAddEndDate] = useState("");
+    const [addStartTime, setAddStartTime] = useState("");
+    const [addEndTime, setAddEndTime] = useState("");
     const [addReason, setAddReason] = useState("");
     const [addingLeave, setAddingLeave] = useState(false);
     const [addError, setAddError] = useState("");
@@ -204,8 +209,14 @@ export default function AdminStudentLeavesPage() {
         e.preventDefault();
         setAddError("");
 
-        if (!addBatchName || !addStudentRoll || !addStartDate || !addEndDate || !addReason) {
+        if (!addBatchName || !addStudentRoll || !addStartDate || !addEndDate || !addStartTime || !addEndTime || !addReason) {
             setAddError("Please fill out all required fields.");
+            return;
+        }
+
+        const windowError = validateLeaveWindow({ startDate: addStartDate, startTime: addStartTime, endDate: addEndDate, endTime: addEndTime });
+        if (windowError) {
+            setAddError(windowError);
             return;
         }
 
@@ -219,6 +230,8 @@ export default function AdminStudentLeavesPage() {
                     studentRoll: addStudentRoll,
                     startDate: addStartDate,
                     endDate: addEndDate,
+                    startTime: addStartTime,
+                    endTime: addEndTime,
                     reason: addReason,
                     status: "APPROVED",
                 }),
@@ -230,6 +243,8 @@ export default function AdminStudentLeavesPage() {
                 setIsAddLeaveModalOpen(false);
                 setAddStartDate("");
                 setAddEndDate("");
+                setAddStartTime("");
+                setAddEndTime("");
                 setAddReason("");
             } else {
                 const errData = await res.json();
@@ -287,17 +302,7 @@ export default function AdminStudentLeavesPage() {
         }
     }, [studentsForExportModal, exportStudentRoll]);
 
-    const getLeaveDays = (startDateStr: string, endDateStr: string): number => {
-        try {
-            const start = new Date(startDateStr);
-            const end = new Date(endDateStr);
-            const diffTime = Math.abs(end.getTime() - start.getTime());
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-            return isNaN(diffDays) ? 1 : diffDays;
-        } catch {
-            return 1;
-        }
-    };
+    const getLeaveMinutes = (r: LeaveRequest) => leaveMinutes(r);
 
     const handleExecuteExport = async () => {
         try {
@@ -361,8 +366,11 @@ export default function AdminStudentLeavesPage() {
                 "Mobile Number",
                 "Batch Name",
                 "Start Date",
+                "Start Time",
                 "End Date",
-                "Total Days",
+                "End Time",
+                "Total Duration",
+                "Total Hours",
                 "Status",
                 "Student Reason / Note",
                 "Admin Note",
@@ -370,15 +378,18 @@ export default function AdminStudentLeavesPage() {
             ]);
 
             exportRecords.forEach(req => {
-                const days = getLeaveDays(req.startDate, req.endDate);
+                const minutes = getLeaveMinutes(req);
                 sheetData.push([
                     req.studentName || "-",
                     req.studentRoll || "-",
                     req.studentPhone || "-",
                     req.studentBatchName || "-",
                     formatDateSafe(req.startDate),
+                    formatLeaveTime(req.startTime) || "-",
                     formatDateSafe(req.endDate),
-                    days,
+                    formatLeaveTime(req.endTime) || "-",
+                    formatLeaveDuration(minutes),
+                    leaveHours(minutes),
                     req.status,
                     req.reason || "-",
                     req.reviewNote || "-",
@@ -394,8 +405,11 @@ export default function AdminStudentLeavesPage() {
                 { wch: 18 }, // Mobile Number
                 { wch: 16 }, // Batch Name
                 { wch: 14 }, // Start Date
+                { wch: 12 }, // Start Time
                 { wch: 14 }, // End Date
-                { wch: 14 }, // Total Days
+                { wch: 12 }, // End Time
+                { wch: 18 }, // Total Duration
+                { wch: 12 }, // Total Hours
                 { wch: 14 }, // Status
                 { wch: 35 }, // Reason
                 { wch: 30 }, // Admin Note
@@ -408,17 +422,17 @@ export default function AdminStudentLeavesPage() {
             // time actually missed; pending/rejected are listed separately.
             const summary = new Map<string, {
                 name: string; roll: string; batch: string; phone: string;
-                approved: number; approvedDays: number; pending: number; rejected: number; last: string;
+                approved: number; approvedMinutes: number; pending: number; rejected: number; last: string;
             }>();
             exportRecords.forEach(r => {
                 const key = `${r.studentBatchName}::${r.studentRoll}`;
                 const row = summary.get(key) ?? {
                     name: r.studentName, roll: r.studentRoll, batch: r.studentBatchName,
-                    phone: r.studentPhone || "-", approved: 0, approvedDays: 0, pending: 0, rejected: 0, last: "",
+                    phone: r.studentPhone || "-", approved: 0, approvedMinutes: 0, pending: 0, rejected: 0, last: "",
                 };
                 if (r.status === "APPROVED") {
                     row.approved += 1;
-                    row.approvedDays += getLeaveDays(r.startDate, r.endDate);
+                    row.approvedMinutes += getLeaveMinutes(r) ?? 0;
                 } else if (r.status === "PENDING") row.pending += 1;
                 else row.rejected += 1;
                 if (r.endDate > row.last) row.last = r.endDate;
@@ -426,16 +440,16 @@ export default function AdminStudentLeavesPage() {
             });
             const summaryData: (string | number)[][] = [[
                 "Student Name", "Roll Number", "Mobile Number", "Batch Name",
-                "Approved Leaves", "Approved Days", "Pending", "Rejected", "Last Leave Ended",
+                "Approved Leaves", "Approved Duration", "Approved Hours", "Pending", "Rejected", "Last Leave Ended",
             ]];
             [...summary.values()]
-                .sort((a, b) => b.approvedDays - a.approvedDays)
+                .sort((a, b) => b.approvedMinutes - a.approvedMinutes)
                 .forEach(r => summaryData.push([
-                    r.name, r.roll, r.phone, r.batch, r.approved, r.approvedDays, r.pending, r.rejected,
+                    r.name, r.roll, r.phone, r.batch, r.approved, formatLeaveDuration(r.approvedMinutes), leaveHours(r.approvedMinutes), r.pending, r.rejected,
                     r.last ? formatDateSafe(r.last) : "-",
                 ]));
             const summaryWs = XLSX.utils.aoa_to_sheet(summaryData);
-            summaryWs['!cols'] = [{ wch: 25 }, { wch: 12 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 18 }];
+            summaryWs['!cols'] = [{ wch: 25 }, { wch: 12 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 18 }, { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 18 }];
             XLSX.utils.book_append_sheet(wb, summaryWs, "Student Summary");
             XLSX.writeFile(wb, fileName);
             setIsExportModalOpen(false);
@@ -536,7 +550,7 @@ export default function AdminStudentLeavesPage() {
                             <thead>
                                 <tr className="bg-slate-50 border-b border-slate-100 text-slate-600 text-xs uppercase tracking-wider font-semibold">
                                     <th className="p-4">Student Details</th>
-                                    <th className="p-4 text-center">Date Range & Days</th>
+                                    <th className="p-4 text-center">Date Range & Duration</th>
                                     <th className="p-4">Reason</th>
                                     <th className="p-4 text-center">Status</th>
                                     <th className="p-4 text-center">Actions</th>
@@ -551,7 +565,7 @@ export default function AdminStudentLeavesPage() {
                                     </tr>
                                 ) : (
                                     filteredRequests.map((req) => {
-                                        const leaveDays = getLeaveDays(req.startDate, req.endDate);
+                                        const leaveDuration = formatLeaveDuration(getLeaveMinutes(req));
                                         return (
                                             <tr key={req.id} className="hover:bg-slate-50/50 transition-colors">
                                                 <td className="p-4 align-top">
@@ -568,12 +582,12 @@ export default function AdminStudentLeavesPage() {
                                                 </td>
                                                 <td className="p-4 align-top text-center">
                                                     <div className="text-xs text-slate-700 whitespace-nowrap font-medium">
-                                                        {formatDateSafe(req.startDate)} <br />
+                                                        {formatDateSafe(req.startDate)} {formatLeaveTime(req.startTime)} <br />
                                                         <span className="text-slate-400 font-normal">to</span> <br />
-                                                        {formatDateSafe(req.endDate)}
+                                                        {formatDateSafe(req.endDate)} {formatLeaveTime(req.endTime)}
                                                     </div>
                                                     <div className="mt-1 inline-block text-[11px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
-                                                        {leaveDays} {leaveDays === 1 ? "Day" : "Days"}
+                                                        {leaveDuration}
                                                     </div>
                                                 </td>
                                                 <td className="p-4 align-top max-w-xs">
@@ -759,7 +773,7 @@ export default function AdminStudentLeavesPage() {
                                     )}
                                 </div>
 
-                                {/* Start Date & End Date */}
+                                {/* Start / End date & time */}
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
                                         <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">
@@ -769,6 +783,18 @@ export default function AdminStudentLeavesPage() {
                                             type="date"
                                             value={addStartDate}
                                             onChange={(e) => setAddStartDate(e.target.value)}
+                                            className="w-full p-2 text-xs border border-slate-200 bg-slate-50 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#059669] focus:bg-white text-slate-800"
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">
+                                            শুরুর সময় *
+                                        </label>
+                                        <input
+                                            type="time"
+                                            value={addStartTime}
+                                            onChange={(e) => setAddStartTime(e.target.value)}
                                             className="w-full p-2 text-xs border border-slate-200 bg-slate-50 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#059669] focus:bg-white text-slate-800"
                                             required
                                         />
@@ -785,7 +811,24 @@ export default function AdminStudentLeavesPage() {
                                             required
                                         />
                                     </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">
+                                            শেষের সময় *
+                                        </label>
+                                        <input
+                                            type="time"
+                                            value={addEndTime}
+                                            onChange={(e) => setAddEndTime(e.target.value)}
+                                            className="w-full p-2 text-xs border border-slate-200 bg-slate-50 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#059669] focus:bg-white text-slate-800"
+                                            required
+                                        />
+                                    </div>
                                 </div>
+                                {addStartDate && addEndDate && addStartTime && addEndTime && (
+                                    <div className="text-xs bg-emerald-50 text-emerald-800 px-3 py-2 rounded-xl border border-emerald-100">
+                                        মোট ছুটি: <strong>{formatLeaveDuration(leaveMinutes({ startDate: addStartDate, startTime: addStartTime, endDate: addEndDate, endTime: addEndTime }))}</strong>
+                                    </div>
+                                )}
 
                                 {/* Reason / Note */}
                                 <div>

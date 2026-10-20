@@ -14,6 +14,8 @@ export async function createStudentLeaveRequest(
         studentBatchName: string;
         startDate: string;
         endDate: string;
+        startTime?: string | null;
+        endTime?: string | null;
         reason: string;
         attachmentUrl?: string | null;
         attachmentName?: string | null;
@@ -31,6 +33,8 @@ export async function createStudentLeaveRequest(
             studentBatchName: data.studentBatchName,
             startDate: data.startDate,
             endDate: data.endDate,
+            startTime: data.startTime || null,
+            endTime: data.endTime || null,
             reason: data.reason,
             attachmentUrl: data.attachmentUrl || null,
             attachmentName: data.attachmentName || null,

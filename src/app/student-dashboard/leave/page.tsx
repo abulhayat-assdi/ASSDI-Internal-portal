@@ -2,11 +2,14 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { leaveMinutes, validateLeaveWindow, formatLeaveDuration, formatLeaveTime } from "@/lib/leaveDuration";
 
 type LeaveRequest = {
     id: string;
     startDate: string;
     endDate: string;
+    startTime?: string | null;
+    endTime?: string | null;
     reason: string;
     attachmentUrl?: string | null;
     attachmentName?: string | null;
@@ -36,6 +39,8 @@ export default function StudentLeavePage() {
     
     const [startDate, setStartDate] = useState("");
     const [endDate, setEndDate] = useState("");
+    const [startTime, setStartTime] = useState("");
+    const [endTime, setEndTime] = useState("");
     const [reason, setReason] = useState("");
     const [file, setFile] = useState<File | null>(null);
     const [fileError, setFileError] = useState("");
@@ -92,8 +97,14 @@ export default function StudentLeavePage() {
         setError("");
         setSuccess("");
 
-        if (!startDate || !endDate || !reason) {
+        if (!startDate || !endDate || !startTime || !endTime || !reason) {
             setError("All required fields must be filled out.");
+            return;
+        }
+
+        const windowError = validateLeaveWindow({ startDate, startTime, endDate, endTime });
+        if (windowError) {
+            setError(windowError);
             return;
         }
 
@@ -135,6 +146,8 @@ export default function StudentLeavePage() {
                 body: JSON.stringify({
                     startDate,
                     endDate,
+                    startTime,
+                    endTime,
                     reason,
                     attachmentUrl,
                     attachmentName,
@@ -147,6 +160,8 @@ export default function StudentLeavePage() {
                 setSuccess("Leave request submitted successfully!");
                 setStartDate("");
                 setEndDate("");
+                setStartTime("");
+                setEndTime("");
                 setReason("");
                 setFile(null);
                 if (fileInputRef.current) fileInputRef.current.value = "";
@@ -203,25 +218,48 @@ export default function StudentLeavePage() {
                                     
                                     <form onSubmit={handleSubmit} className="space-y-4">
                                         <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-1">Start Date *</label>
-                                            <input
-                                                type="date"
-                                                value={startDate}
-                                                onChange={(e) => setStartDate(e.target.value)}
-                                                className="w-full min-w-0 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors text-sm"
-                                                required
-                                            />
+                                            <label className="block text-sm font-medium text-slate-700 mb-1">Leave From (Date &amp; Time) *</label>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <input
+                                                    type="date"
+                                                    value={startDate}
+                                                    onChange={(e) => setStartDate(e.target.value)}
+                                                    className="w-full min-w-0 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors text-sm"
+                                                    required
+                                                />
+                                                <input
+                                                    type="time"
+                                                    value={startTime}
+                                                    onChange={(e) => setStartTime(e.target.value)}
+                                                    className="w-full min-w-0 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors text-sm"
+                                                    required
+                                                />
+                                            </div>
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-1">End Date *</label>
-                                            <input
-                                                type="date"
-                                                value={endDate}
-                                                onChange={(e) => setEndDate(e.target.value)}
-                                                className="w-full min-w-0 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors text-sm"
-                                                required
-                                            />
+                                            <label className="block text-sm font-medium text-slate-700 mb-1">Leave Until (Date &amp; Time) *</label>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <input
+                                                    type="date"
+                                                    value={endDate}
+                                                    onChange={(e) => setEndDate(e.target.value)}
+                                                    className="w-full min-w-0 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors text-sm"
+                                                    required
+                                                />
+                                                <input
+                                                    type="time"
+                                                    value={endTime}
+                                                    onChange={(e) => setEndTime(e.target.value)}
+                                                    className="w-full min-w-0 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors text-sm"
+                                                    required
+                                                />
+                                            </div>
                                         </div>
+                                        {startDate && endDate && startTime && endTime && (
+                                            <div className="text-sm bg-blue-50 text-blue-800 px-3 py-2 rounded-lg border border-blue-100">
+                                                Total leave: <strong>{formatLeaveDuration(leaveMinutes({ startDate, startTime, endDate, endTime }))}</strong>
+                                            </div>
+                                        )}
                                         <div>
                                             <label className="block text-sm font-medium text-slate-700 mb-1">Reason *</label>
                                             <textarea
@@ -289,7 +327,10 @@ export default function StudentLeavePage() {
                                                         {new Date(req.createdAt).toLocaleDateString()}
                                                     </div>
                                                     <div className="font-medium text-slate-800">
-                                                        {formatDateSafe(req.startDate)} to {formatDateSafe(req.endDate)}
+                                                        {formatDateSafe(req.startDate)} {formatLeaveTime(req.startTime)} to {formatDateSafe(req.endDate)} {formatLeaveTime(req.endTime)}
+                                                    </div>
+                                                    <div className="text-xs text-blue-700 font-medium mt-0.5">
+                                                        {formatLeaveDuration(leaveMinutes(req))}
                                                     </div>
                                                 </div>
                                                 <span className={`shrink-0 px-3 py-1 text-xs font-semibold rounded-full ${
