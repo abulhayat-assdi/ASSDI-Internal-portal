@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { withCourseContext } from "@/lib/db";
 import { getServerSessionUser } from "@/lib/auth";
 import { createStudentLeaveRequest } from "@/lib/studentLeaveDb";
+import { validateLeaveWindow } from "@/lib/leaveDuration";
 
 export async function GET() {
     try {
@@ -98,10 +99,20 @@ export async function POST(req: Request) {
         }
         const courseId = session.courseId;
 
-        const { startDate, endDate, reason, attachmentUrl, attachmentName, studentPhone: reqPhone } = await req.json();
+        const { startDate, endDate, startTime, endTime, reason, attachmentUrl, attachmentName, studentPhone: reqPhone } = await req.json();
 
-        if (!startDate || !endDate || !reason) {
-            return NextResponse.json({ error: "Missing required fields (Start Date, End Date, Reason)" }, { status: 400 });
+        if (!startDate || !endDate || !startTime || !endTime || !reason) {
+            return NextResponse.json({ error: "Missing required fields (Start Date/Time, End Date/Time, Reason)" }, { status: 400 });
+        }
+
+        const windowError = validateLeaveWindow({
+            startDate: String(startDate).trim(),
+            startTime: String(startTime).trim(),
+            endDate: String(endDate).trim(),
+            endTime: String(endTime).trim(),
+        });
+        if (windowError) {
+            return NextResponse.json({ error: windowError }, { status: 400 });
         }
 
         const result = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
@@ -174,6 +185,8 @@ export async function POST(req: Request) {
                 studentBatchName: batchName || "N/A",
                 startDate: String(startDate).trim(),
                 endDate: String(endDate).trim(),
+                startTime: String(startTime).trim(),
+                endTime: String(endTime).trim(),
                 reason: String(reason).trim(),
                 attachmentUrl: attachmentUrl || null,
                 attachmentName: attachmentName || null,

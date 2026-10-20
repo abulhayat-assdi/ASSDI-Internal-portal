@@ -3,6 +3,7 @@ import { withCourseContext } from "@/lib/db";
 import { getServerSessionUser, isTeacherOrAdmin, hasRequiredPermission } from "@/lib/auth";
 import { notifyStudentOfLeaveDecision } from "@/lib/notifications";
 import { createStudentLeaveRequest } from "@/lib/studentLeaveDb";
+import { validateLeaveWindow } from "@/lib/leaveDuration";
 import fs from "fs";
 import path from "path";
 
@@ -51,10 +52,20 @@ export async function POST(req: Request) {
         }
         const courseId = session.courseId;
 
-        const { batchName, studentRoll, startDate, endDate, reason, status } = await req.json();
+        const { batchName, studentRoll, startDate, endDate, startTime, endTime, reason, status } = await req.json();
 
-        if (!batchName || !studentRoll || !startDate || !endDate || !reason) {
-            return NextResponse.json({ error: "All required fields (batch, roll, dates, reason) must be provided." }, { status: 400 });
+        if (!batchName || !studentRoll || !startDate || !endDate || !startTime || !endTime || !reason) {
+            return NextResponse.json({ error: "All required fields (batch, roll, dates, times, reason) must be provided." }, { status: 400 });
+        }
+
+        const windowError = validateLeaveWindow({
+            startDate: String(startDate).trim(),
+            startTime: String(startTime).trim(),
+            endDate: String(endDate).trim(),
+            endTime: String(endTime).trim(),
+        });
+        if (windowError) {
+            return NextResponse.json({ error: windowError }, { status: 400 });
         }
 
         // Normalize status enum
@@ -101,6 +112,8 @@ export async function POST(req: Request) {
                 studentBatchName: bStudent.batchName,
                 startDate: String(startDate).trim(),
                 endDate: String(endDate).trim(),
+                startTime: String(startTime).trim(),
+                endTime: String(endTime).trim(),
                 reason: String(reason).trim(),
                 status: validStatus,
                 reviewedBy: session.id || null,
