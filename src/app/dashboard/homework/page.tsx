@@ -22,6 +22,8 @@ import {
     ShareableTeacher
 } from "@/services/homeworkService";
 import { formatDeadline } from "@/lib/homeworkDeadline";
+import { formatHomeworkSubmittedAt as formatSubmittedAt } from "@/lib/homeworkExport";
+import HomeworkDownload from "@/components/homework/HomeworkDownload";
 import { getAllBatchInfo, getPublicUniqueBatches } from "@/services/batchInfoService";
 
 // Open folder lives in the URL (?folder=<assignmentId>|other) so a browser
@@ -39,24 +41,6 @@ const writeFolderParam = (folderId: string | null) => {
     else url.searchParams.delete(FOLDER_PARAM);
     window.history.pushState(null, "", url.toString());
 };
-
-// "19 Oct 2026, 03:45 pm" in Bangladesh time; falls back to the stored date string.
-const formatSubmittedAt = (hw: HomeworkSubmission): string => {
-    const d = hw.submittedAt ? new Date(hw.submittedAt) : null;
-    if (!d || isNaN(d.getTime())) return hw.submissionDate;
-    return d.toLocaleString("en-GB", {
-        timeZone: "Asia/Dhaka",
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true,
-    });
-};
-
-const getSubmissionFileCount = (hw: HomeworkSubmission): number =>
-    hw.files && hw.files.length > 0 ? hw.files.length : hw.fileName ? 1 : 0;
 
 export default function HomeworkViewPage() {
     const confirm = useConfirm();
@@ -79,7 +63,6 @@ export default function HomeworkViewPage() {
     // View States
     const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
     const [refreshing, setRefreshing] = useState(false);
-    const [exporting, setExporting] = useState(false);
     const [viewingSubmission, setViewingSubmission] = useState<HomeworkSubmission | null>(null);
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [cleanupCount, setCleanupCount] = useState(0);
@@ -431,45 +414,6 @@ export default function HomeworkViewPage() {
         )
         : folderSubmissionsList;
 
-    // Excel export of the visible submissions: student info + text/link answers.
-    // Uploaded files are not exported — only how many were attached.
-    const handleExportExcel = async () => {
-        if (!selectedFolder || activeSubmissionsList.length === 0) return;
-        setExporting(true);
-        try {
-            // Loaded on demand — XLSX is a large library and only this button needs it
-            const XLSX = await import("xlsx");
-            const folderTitle = selectedFolder === "other" ? "Other Submissions" : selectedFolder.title;
-            const sheetData: (string | number)[][] = [[
-                "SL", "Student Name", "Roll Number", "Batch Name", "Submitted At", "Text / Link", "Uploaded Files",
-            ]];
-            activeSubmissionsList.forEach((hw, i) => {
-                const fileCount = getSubmissionFileCount(hw);
-                sheetData.push([
-                    i + 1,
-                    hw.studentName,
-                    hw.studentRoll,
-                    hw.studentBatchName,
-                    formatSubmittedAt(hw),
-                    // Excel caps a cell at 32,767 characters
-                    (hw.textContent ?? "").trim().slice(0, 32767),
-                    fileCount > 0 ? `${fileCount} file(s) uploaded` : "-",
-                ]);
-            });
-            const ws = XLSX.utils.aoa_to_sheet(sheetData);
-            ws["!cols"] = [{ wch: 5 }, { wch: 25 }, { wch: 14 }, { wch: 18 }, { wch: 22 }, { wch: 60 }, { wch: 18 }];
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Submissions");
-            const safeTitle = folderTitle.replace(/[^\wঀ-৿-]+/g, "_").replace(/^_+|_+$/g, "") || "homework";
-            XLSX.writeFile(wb, `${safeTitle}_submissions_${new Date().toISOString().split("T")[0]}.xlsx`);
-        } catch (err) {
-            console.error("Export failed:", err);
-            alert("Failed to export Excel file.");
-        } finally {
-            setExporting(false);
-        }
-    };
-
     if (authLoading || loading) {
         return (
             <div className="flex items-center justify-center p-12">
@@ -714,13 +658,15 @@ export default function HomeworkViewPage() {
                 <div className="animate-in fade-in slide-in-from-right-4 duration-300">
                     
                     {/* Folder Header Info */}
-                    <div className="bg-gradient-to-br from-[#059669] to-[#047857] rounded-3xl p-6 md:p-8 text-white shadow-md mb-8 relative overflow-hidden">
+                    <div className="bg-gradient-to-br from-[#059669] to-[#047857] rounded-3xl p-6 md:p-8 text-white shadow-md mb-8 relative z-20">
                         {/* decorative background element */}
+                        <div className="absolute inset-0 overflow-hidden rounded-3xl pointer-events-none">
                          <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none transform translate-x-4 -translate-y-4">
                              <svg width="200" height="200" viewBox="0 0 24 24" fill="currentColor">
                                  <path d="M20 6h-8l-2-2H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5 3c1.1 0 2 .89 2 2s-.9 2-2 2-2-.89-2-2 .9-2 2-2zm4 8h-8v-1c0-1.33 2.67-2 4-2s4 .67 4 2v1z" />
                              </svg>
                          </div>
+                        </div>
                          
                         <div className="relative z-10">
                             <h2 className="text-2xl md:text-3xl font-black mb-2 flex items-center gap-3">
@@ -748,14 +694,11 @@ export default function HomeworkViewPage() {
                                     <svg className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                                     {refreshing ? "Refreshing..." : "Refresh"}
                                 </button>
-                                <button
-                                    onClick={handleExportExcel}
-                                    disabled={exporting || activeSubmissionsList.length === 0}
-                                    className="px-3 py-1 bg-white/15 hover:bg-white/25 border border-white/30 text-white font-bold rounded-lg text-sm transition-colors disabled:opacity-60 flex items-center gap-1.5"
-                                >
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                                    {exporting ? "Exporting..." : "Export Excel"}
-                                </button>
+                                <HomeworkDownload
+                                    key={selectedFolder === "other" ? "other" : selectedFolder.id}
+                                    title={selectedFolder === "other" ? "Other Submissions" : selectedFolder.title}
+                                    submissions={activeSubmissionsList}
+                                />
                             </div>
                         </div>
                     </div>
