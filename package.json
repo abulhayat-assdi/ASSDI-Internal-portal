@@ -14,7 +14,11 @@
     "test": "vitest run",
     "deploy": "firebase deploy --only hosting",
     "seed:typing-game-catalog": "tsx scripts/typing-game-seed-catalog.ts",
-    "export:typing-game-catalog": "tsx scripts/typing-game-export-catalog.ts"
+    "export:typing-game-catalog": "tsx scripts/typing-game-export-catalog.ts",
+    "crm:generate": "prisma generate --schema prisma/customer-service/schema.prisma",
+    "crm:migrate": "node scripts/customer-service-migrate.cjs",
+    "crm:test": "vitest run src/lib/customer-service",
+    "generate:all": "prisma generate --schema prisma/schema.prisma && npm run crm:generate"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",

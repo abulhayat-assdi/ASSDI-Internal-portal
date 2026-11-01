@@ -1,0 +1,13 @@
+﻿node_modules
+.next
+.git
+.env
+.env.*
+!.env.example
+.crm-test
+*.log
+*.pdf
+*.tsbuildinfo
+storage
+generated/customer-service
+generated/prisma

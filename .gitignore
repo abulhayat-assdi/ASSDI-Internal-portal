@@ -71,3 +71,6 @@ tsconfig.tsbuildinfo
 # during the Docker build (see Dockerfile). Never edit by hand — the
 # TypeScript catalog in src/lib/typing-game/content is the source of truth.
 /generated/typing-game-catalog.json
+
+/generated/customer-service/
+/.crm-test/

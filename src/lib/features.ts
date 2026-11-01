@@ -10,6 +10,7 @@ export interface FeatureDefinition {
 }
 
 export const ALL_FEATURES: FeatureDefinition[] = [
+    { key: 'crm', label: 'Customer Service CRM', description: 'Batch customer service training workspace', defaultEnabled: false },
     { key: 'homework', label: 'হোমওয়ার্ক', description: 'হোমওয়ার্ক জমা ও ম্যানেজমেন্ট সিস্টেম', defaultEnabled: true },
     { key: 'resources', label: 'Resource Library', description: 'ফাইল শেয়ারিং ও রিসোর্স লাইব্রেরি', defaultEnabled: true },
     { key: 'course_modules', label: 'Course Modules', description: 'কোর্স মডিউল ম্যানেজমেন্ট', defaultEnabled: true },

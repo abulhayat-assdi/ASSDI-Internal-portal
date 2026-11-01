@@ -32,7 +32,8 @@ ENV NEXT_PUBLIC_BASE_DOMAIN=$NEXT_PUBLIC_BASE_DOMAIN
 # Use a dummy DB URL during build to satisfy Prisma validation
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 
-RUN npx prisma generate
+RUN npx prisma generate --schema prisma/schema.prisma
+RUN CUSTOMER_SERVICE_DATABASE_URL="postgresql://build:build@localhost:5432/build" npm run crm:generate
 # Emit the game catalog as JSON while tsx and src/ are still available. The
 # runtime image has neither, and the schema migration creates EMPTY content
 # tables — without this artifact a fresh deploy has no worlds and no games,

@@ -1,0 +1,265 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../generated/customer-service"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("CUSTOMER_SERVICE_DATABASE_URL")
+}
+
+model Workspace {
+  id        String   @id @default(uuid())
+  courseId  String
+  batchId   String
+  name      String
+  state     String   @default("ACTIVE")
+  createdAt DateTime @default(now())
+
+  @@unique([courseId, batchId])
+  @@unique([courseId, id])
+}
+
+model Member {
+  id          String   @id @default(uuid())
+  courseId    String
+  workspaceId String
+  createdAt   DateTime @default(now())
+  userId      String
+  role        String   @default("AGENT")
+  teamId      String?
+  active      Boolean  @default(true)
+
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, userId])
+  @@index([courseId, workspaceId])
+}
+
+model StaffAssignment {
+  id          String   @id @default(uuid())
+  courseId    String
+  workspaceId String
+  createdAt   DateTime @default(now())
+  userId      String
+
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, userId])
+  @@index([courseId, workspaceId])
+}
+
+model Team {
+  id          String   @id @default(uuid())
+  courseId    String
+  workspaceId String
+  createdAt   DateTime @default(now())
+  name        String
+  tier        String
+  active      Boolean  @default(true)
+
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, name])
+  @@index([courseId, workspaceId])
+}
+
+model Customer {
+  id          String   @id @default(uuid())
+  courseId    String
+  workspaceId String
+  createdAt   DateTime @default(now())
+  name        String
+  number      String
+  dummy       Boolean  @default(true)
+
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, number])
+  @@index([courseId, workspaceId])
+}
+
+model Option {
+  id          String   @id @default(uuid())
+  courseId    String
+  workspaceId String
+  createdAt   DateTime @default(now())
+  kind        String
+  label       String
+  parentId    String?
+  active      Boolean  @default(true)
+  settings    Json     @default("{}")
+  version     Int      @default(1)
+
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, kind, label])
+  @@index([courseId, workspaceId])
+}
+
+model Policy {
+  id             String   @id @default(uuid())
+  courseId       String
+  workspaceId    String
+  createdAt      DateTime @default(now())
+  key            String
+  version        Int      @default(1)
+  complaintType  String   @default("")
+  issueType      String   @default("")
+  primaryTag     String   @default("")
+  overallMinutes Int
+  l2Minutes      Int?
+  l3Minutes      Int?
+  active         Boolean  @default(true)
+
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, key])
+  @@index([courseId, workspaceId])
+}
+
+model Complaint {
+  id                   String    @id @default(uuid())
+  courseId             String
+  workspaceId          String
+  createdAt            DateTime  @default(now())
+  code                 String    @unique
+  requestId            String
+  customerId           String?
+  creatorId            String
+  ownerId              String?
+  teamId               String?
+  callingNumber        String
+  callingNormalized    String
+  registeredNumber     String    @default("")
+  registeredNormalized String    @default("")
+  identifier           String    @default("")
+  callerType           String
+  channel              String
+  complaintType        String
+  issueType            String
+  primaryTag           String    @default("")
+  tags                 String[]
+  transactionDate      DateTime?
+  transactionAmount    Decimal?  @db.Decimal(18, 2)
+  transactionId        String    @default("")
+  description          String
+  customFields         Json      @default("{}")
+  fieldSnapshot        Json      @default("[]")
+  status               String    @default("PENDING")
+  queue                String    @default("AGENT")
+  returnState          String    @default("NORMAL")
+  resolutionReason     String    @default("")
+  remarks              String    @default("")
+  resolverId           String?
+  resolvedAt           DateTime?
+  closedAt             DateTime?
+  firstL2At            DateTime?
+  l2CompletedAt        DateTime?
+  firstL3At            DateTime?
+  l2DueAt              DateTime?
+  l3DueAt              DateTime?
+  dueAt                DateTime
+  policySnapshot       Json
+  version              Int       @default(1)
+  updatedAt            DateTime  @updatedAt
+
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, creatorId, requestId])
+  @@index([courseId, workspaceId])
+  @@index([workspaceId, status, queue])
+  @@index([workspaceId, ownerId])
+  @@index([workspaceId, callingNormalized, createdAt])
+  @@index([workspaceId, registeredNormalized])
+  @@index([workspaceId, resolvedAt])
+  @@index([workspaceId, dueAt])
+}
+
+model History {
+  id          String   @id @default(uuid())
+  courseId    String
+  workspaceId String
+  createdAt   DateTime @default(now())
+  complaintId String
+  actorId     String
+  actorName   String
+  actorRole   String
+  action      String
+  before      Json
+  after       Json
+  remark      String   @default("")
+  requestId   String
+
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, complaintId, requestId])
+  @@index([courseId, workspaceId])
+  @@index([workspaceId, complaintId, createdAt])
+}
+
+model Interaction {
+  id          String   @id @default(uuid())
+  courseId    String
+  workspaceId String
+  createdAt   DateTime @default(now())
+  complaintId String
+  actorId     String
+  channel     String
+  note        String
+
+  @@unique([workspaceId, id])
+  @@index([courseId, workspaceId])
+  @@index([workspaceId, createdAt])
+}
+
+model Note {
+  id          String   @id @default(uuid())
+  courseId    String
+  workspaceId String
+  createdAt   DateTime @default(now())
+  complaintId String
+  actorId     String
+  text        String
+
+  @@unique([workspaceId, id])
+  @@index([courseId, workspaceId])
+}
+
+model FollowUp {
+  id            String    @id @default(uuid())
+  courseId      String
+  workspaceId   String
+  createdAt     DateTime  @default(now())
+  complaintId   String
+  responsibleId String
+  dueAt         DateTime
+  note          String
+  completedAt   DateTime?
+
+  @@unique([workspaceId, id])
+  @@index([courseId, workspaceId])
+  @@index([workspaceId, responsibleId, dueAt])
+}
+
+model Escalation {
+  id            String    @id @default(uuid())
+  courseId      String
+  workspaceId   String
+  createdAt     DateTime  @default(now())
+  complaintId   String
+  stage         String
+  startedAt     DateTime
+  completedAt   DateTime?
+  targetMinutes Int?
+
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, complaintId, stage])
+  @@index([courseId, workspaceId])
+}
+
+model Audit {
+  id          String   @id @default(uuid())
+  courseId    String
+  workspaceId String
+  createdAt   DateTime @default(now())
+  actorId     String
+  actorName   String
+  action      String
+  data        Json
+
+  @@unique([workspaceId, id])
+  @@index([courseId, workspaceId])
+}
