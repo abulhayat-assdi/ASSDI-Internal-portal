@@ -63,8 +63,8 @@ export interface PermissionMeta {
 }
 
 export const PERMISSION_META: Record<PermissionKey, PermissionMeta> = {
-    crm_supervisor: { label: "CRM Supervisor", path: "/dashboard/crm", group: "management", icon: "??" },
-    crm_admin: { label: "CRM Administration", path: "/dashboard/crm/settings", group: "admin", icon: "??" },
+    crm_supervisor: { label: "CRM Supervisor", path: "/dashboard/crm", group: "management", icon: "\uD83C\uDFA7" },
+    crm_admin: { label: "CRM Administration", path: "/dashboard/crm/settings", group: "admin", icon: "\uD83C\uDFA7" },
     schedule: { label: "Class Schedule", path: "/dashboard/schedule", group: "teacher", icon: "📅" },
     routine: { label: "Routine (view)", path: "/dashboard/manage-routine", group: "teacher", icon: "📆" },
     batch_info: { label: "All Batch Info", path: "/dashboard/all-batch-info", group: "teacher", icon: "📊" },

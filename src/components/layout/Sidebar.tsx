@@ -27,8 +27,8 @@ interface NavSection {
 }
 
 const teacherAdminTopNavItems: NavItem[] = [
-    { href: "/dashboard/crm", label: "Customer Service CRM", icon: "??", permission: "crm_supervisor", feature: "crm" },
-    { href: "/dashboard/crm/settings", label: "CRM Administration", icon: "??", permission: "crm_admin", feature: "crm" },
+    { href: "/dashboard/crm", label: "Customer Service CRM", icon: "\uD83C\uDFA7", permission: "crm_supervisor", feature: "crm" },
+    { href: "/dashboard/crm/settings", label: "CRM Administration", icon: "\uD83C\uDFA7", permission: "crm_admin", feature: "crm" },
     { href: "/dashboard", label: "Dashboard", icon: "🏠", permission: null },
     { href: "/dashboard/all-batch-info", label: "All Batch Info", icon: "📊", permission: "batch_info", feature: "batch_info" },
     { href: "/dashboard/admin/contact-messages", label: "Messages", icon: "💬", permission: "admin_contact" },
@@ -115,7 +115,7 @@ const teacherAdminNavSections: NavSection[] = [
 ];
 
 const studentNavItems: NavItem[] = [
-    { href: "/student-dashboard/crm", label: "Customer Service CRM", icon: "??", permission: null, feature: "crm" },
+    { href: "/student-dashboard/crm", label: "Customer Service CRM", icon: "\uD83C\uDFA7", permission: null, feature: "crm" },
     { href: "/student-dashboard", label: "Dashboard", icon: "🏠", permission: null },
     { href: "/student-dashboard/routine", label: "Class Routine", icon: "🗓️", permission: null },
     { href: "/student-dashboard/resource", label: "Resource", icon: "📚", permission: null, feature: "resources" },
@@ -215,6 +215,7 @@ export default function Sidebar({ variant }: SidebarProps = {}) {
 
     // Filter helper function
     const isNavItemAllowed = (item: NavItem) => {
+        if (item.feature === "crm" && (loading || features.crm !== true)) return false;
         if (loading) return true; // show all while loading
         if (item.feature && Object.keys(features).length > 0) {
             if (item.feature === 'crm' ? features.crm !== true : features[item.feature] === false) return false;
