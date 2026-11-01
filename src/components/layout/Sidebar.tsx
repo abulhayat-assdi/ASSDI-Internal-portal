@@ -27,6 +27,8 @@ interface NavSection {
 }
 
 const teacherAdminTopNavItems: NavItem[] = [
+    { href: "/dashboard/crm", label: "Customer Service CRM", icon: "??", permission: "crm_supervisor", feature: "crm" },
+    { href: "/dashboard/crm/settings", label: "CRM Administration", icon: "??", permission: "crm_admin", feature: "crm" },
     { href: "/dashboard", label: "Dashboard", icon: "🏠", permission: null },
     { href: "/dashboard/all-batch-info", label: "All Batch Info", icon: "📊", permission: "batch_info", feature: "batch_info" },
     { href: "/dashboard/admin/contact-messages", label: "Messages", icon: "💬", permission: "admin_contact" },
@@ -113,6 +115,7 @@ const teacherAdminNavSections: NavSection[] = [
 ];
 
 const studentNavItems: NavItem[] = [
+    { href: "/student-dashboard/crm", label: "Customer Service CRM", icon: "??", permission: null, feature: "crm" },
     { href: "/student-dashboard", label: "Dashboard", icon: "🏠", permission: null },
     { href: "/student-dashboard/routine", label: "Class Routine", icon: "🗓️", permission: null },
     { href: "/student-dashboard/resource", label: "Resource", icon: "📚", permission: null, feature: "resources" },
@@ -214,7 +217,7 @@ export default function Sidebar({ variant }: SidebarProps = {}) {
     const isNavItemAllowed = (item: NavItem) => {
         if (loading) return true; // show all while loading
         if (item.feature && Object.keys(features).length > 0) {
-            if (features[item.feature] === false) return false;
+            if (item.feature === 'crm' ? features.crm !== true : features[item.feature] === false) return false;
         }
         if (isStudent) return true;
         if (!item.permission) return true; // dashboard — always visible
@@ -335,7 +338,7 @@ export default function Sidebar({ variant }: SidebarProps = {}) {
                             return (
                                 <li key={item.href}>
                                     <Link
-                                        href={item.href}
+                                        href={item.href} target={item.href === '/student-dashboard/crm' ? '_blank' : undefined} rel={item.href === '/student-dashboard/crm' ? 'noopener noreferrer' : undefined}
                                         prefetch={true}
                                         onClick={() => {
                                             setIsMobileMenuOpen(false);
@@ -415,7 +418,7 @@ export default function Sidebar({ variant }: SidebarProps = {}) {
                                                     return (
                                                         <li key={item.href}>
                                                             <Link
-                                                                href={item.href}
+                                                                href={item.href} target={item.href === '/student-dashboard/crm' ? '_blank' : undefined} rel={item.href === '/student-dashboard/crm' ? 'noopener noreferrer' : undefined}
                                                                 prefetch={true}
                                                                 onClick={() => {
                                                                     setIsMobileMenuOpen(false);
