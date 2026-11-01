@@ -31,6 +31,11 @@
       .locator(".crm-root")
       .getByRole("button", { name: "Profile", exact: true })
       .waitFor();
+    await p
+      .locator(".crm-root main span")
+      .filter({ hasText: "ACTIVE" })
+      .first()
+      .waitFor();
     return p;
   }
   let p = await login("agent");
