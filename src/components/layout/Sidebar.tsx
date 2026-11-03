@@ -28,7 +28,7 @@ interface NavSection {
 
 const teacherAdminTopNavItems: NavItem[] = [
     { href: "/dashboard/crm", label: "Customer Service CRM", icon: "\uD83C\uDFA7", permission: "crm_supervisor", feature: "crm" },
-    { href: "/dashboard/crm/settings", label: "CRM Administration", icon: "\uD83C\uDFA7", permission: "crm_admin", feature: "crm" },
+    { href: "/dashboard/crm/settings", label: "CRM Settings", icon: "\u2699\uFE0F", permission: "crm_admin", feature: "crm" },
     { href: "/dashboard", label: "Dashboard", icon: "🏠", permission: null },
     { href: "/dashboard/all-batch-info", label: "All Batch Info", icon: "📊", permission: "batch_info", feature: "batch_info" },
     { href: "/dashboard/admin/contact-messages", label: "Messages", icon: "💬", permission: "admin_contact" },

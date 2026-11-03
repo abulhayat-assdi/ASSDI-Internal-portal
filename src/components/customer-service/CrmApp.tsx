@@ -55,7 +55,13 @@ type Member = {
   teamId: string | null;
   active: boolean;
 };
-type Workspace = { id: string; name: string; role: string; state: string };
+type Workspace = {
+  id: string;
+  batchId: string;
+  name: string;
+  role: string;
+  state: string;
+};
 type Policy = {
   id: string;
   complaintType: string;
@@ -173,6 +179,21 @@ const stamp = (v: string | null) =>
   v ? new Date(v).toLocaleString("en-GB", { timeZone: "Asia/Dhaka" }) : "—";
 const duration = (ms: number | null) =>
   ms === null ? "N/A" : (ms / 3600000).toFixed(2) + " h";
+const views = [
+  "Dashboard",
+  "New Complaint",
+  "All Complaints",
+  "My Complaints",
+  "Escalations",
+  "Search",
+  "Training Customers",
+  "Follow-ups",
+  "Reports",
+  "Settings",
+  "Activity",
+  "Profile",
+];
+const viewSlug = (view: string) => view.toLowerCase().replaceAll(" ", "-");
 async function api<T>(
   query: Record<string, string> = {},
   body?: unknown,
@@ -282,6 +303,25 @@ export default function CrmApp({
     [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false),
     [loading, setLoading] = useState(true);
+  useEffect(() => {
+    const syncView = () => {
+      const url = new URL(window.location.href);
+      const requested = views.find(
+        (view) => viewSlug(view) === url.searchParams.get("view"),
+      );
+      setTab(
+        url.pathname.endsWith("/settings")
+          ? "Settings"
+          : requested || initialTab,
+      );
+      setDetail(null);
+      setPage(1);
+      setMessage("");
+    };
+    syncView();
+    window.addEventListener("popstate", syncView);
+    return () => window.removeEventListener("popstate", syncView);
+  }, [initialTab]);
   const [rows, setRows] = useState<Complaint[]>([]),
     [people, setPeople] = useState<Person[]>([]),
     [total, setTotal] = useState(0),
@@ -311,31 +351,73 @@ export default function CrmApp({
     createRequest = useRef<string | null>(null);
   const role = setup?.actor.role || "",
     manager = role === "ADMIN" || role === "SUPERVISOR";
-  const loadBoot = useCallback(async () => {
+  const loadBoot = useCallback(async (preferred?: string) => {
     const b = await api<NonNullable<typeof boot>>();
     setBoot(b);
-    setWorkspace((current) =>
-      b.workspaces.some((w) => w.id === current)
-        ? current
-        : b.workspaces[0]?.id || "",
-    );
+    let remembered = "";
+    try {
+      remembered = localStorage.getItem(`crm.workspace.${b.identity.id}`) || "";
+    } catch {
+      /* Storage is optional. */
+    }
+    setWorkspace((current) => {
+      const selected = [preferred, current, remembered].find((id) =>
+        b.workspaces.some((w) => w.id === id),
+      );
+      return selected || b.workspaces[0]?.id || "";
+    });
   }, []);
   useEffect(() => {
     loadBoot()
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [loadBoot]);
+  useEffect(() => {
+    if (!boot || !workspace) return;
+    try {
+      localStorage.setItem(`crm.workspace.${boot.identity.id}`, workspace);
+    } catch {
+      /* Storage is optional. */
+    }
+  }, [boot, workspace]);
   const loadSetup = useCallback(async () => {
     if (workspace)
       setSetup(await api<Setup>({ kind: "setup", workspaceId: workspace }));
   }, [workspace]);
   useEffect(() => {
+    let active = true;
     setDetail(null);
     setTrainingCustomer(null);
     fetchGeneration.current++;
     setSetup(null);
-    loadSetup().catch((e) => setError(e.message));
-  }, [loadSetup]);
+    setRows([]);
+    setTotal(0);
+    setPeople([]);
+    setReport(null);
+    setFollowUps([]);
+    setForm({ ...empty });
+    setEditing(false);
+    setSearch({ callingNumber: "", registeredNumber: "", code: "" });
+    setFilters((current) => ({ from: current.from, to: current.to }));
+    setTeamId("");
+    setReason("");
+    setAssignee("");
+    setPage(1);
+    setMessage("");
+    setError("");
+    createRequest.current = null;
+    if (workspace)
+      api<Setup>({ kind: "setup", workspaceId: workspace })
+        .then((data) => {
+          if (active) setSetup(data);
+        })
+        .catch((e) => {
+          if (active) setError(e.message);
+        });
+    return () => {
+      active = false;
+    };
+  }, [workspace]);
   const run = async (fn: () => Promise<void>) => {
     if (busyRef.current) return;
     busyRef.current = true;
@@ -421,6 +503,7 @@ export default function CrmApp({
   );
   const loadList = useCallback(async () => {
     if (!workspace) return;
+    const generation = fetchGeneration.current;
     const data = await api<{
       rows: Complaint[];
       total: number;
@@ -433,6 +516,7 @@ export default function CrmApp({
       ...(tab === "My Complaints" ? { mine: "true" } : {}),
       ...(tab === "Escalations" ? { queue: role === "L3" ? "L3" : "L2" } : {}),
     });
+    if (generation !== fetchGeneration.current) return;
     setRows(data.rows);
     setPeople(data.people);
     setTotal(data.total);
@@ -483,9 +567,14 @@ export default function CrmApp({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspace, setup, tab, page]);
   const open = async (id: string) => {
-    setDetail(
-      await api<Detail>({ kind: "detail", workspaceId: workspace, id }),
-    );
+    const generation = fetchGeneration.current;
+    const data = await api<Detail>({
+      kind: "detail",
+      workspaceId: workspace,
+      id,
+    });
+    if (generation !== fetchGeneration.current) return;
+    setDetail(data);
     setEditing(false);
     setRemark("");
     setTab("Detail");
@@ -907,10 +996,19 @@ export default function CrmApp({
     "Training Customers": UsersRound,
   };
   const navigate = (next: string) => {
+    const base = staff ? "/dashboard/crm" : "/student-dashboard/crm";
+    const url =
+      next === "Settings" && staff
+        ? `${base}/settings`
+        : next === "Dashboard"
+          ? base
+          : `${base}?view=${viewSlug(next)}`;
+    window.history.pushState(null, "", url);
     setTab(next);
     setDetail(null);
     setPage(1);
     setError("");
+    setMessage("");
     setMobileMenu(false);
   };
   const displayName = boot?.identity.name || "Your account";
@@ -946,7 +1044,11 @@ export default function CrmApp({
           </span>
           <div className="crm-brand-copy">
             <strong>ASM CRM</strong>
-            <small>Customer service</small>
+            <small>
+              {tab === "Settings" || tab === "Activity"
+                ? "Administration"
+                : "Customer service"}
+            </small>
           </div>
           <button
             className="crm-sidebar-close"
@@ -964,7 +1066,23 @@ export default function CrmApp({
             <select
               aria-label="Workspace"
               value={workspace}
-              onChange={(e) => setWorkspace(e.target.value)}
+              disabled={busy}
+              onChange={(e) => {
+                if (tab === "Detail") navigate("Search");
+                const value = e.target.value;
+                if (value.startsWith("batch:")) {
+                  run(async () => {
+                    const created = await api<Workspace>(
+                      {},
+                      {
+                        action: "provision",
+                        data: { batchId: value.slice(6) },
+                      },
+                    );
+                    await loadBoot(created.id);
+                  });
+                } else setWorkspace(value);
+              }}
             >
               <option value="">Select workspace</option>
               {boot?.workspaces.map((w) => (
@@ -972,6 +1090,16 @@ export default function CrmApp({
                   {w.name}
                 </option>
               ))}
+              {boot?.admin &&
+                boot.batches
+                  .filter(
+                    (b) => !boot.workspaces.some((w) => w.batchId === b.id),
+                  )
+                  .map((b) => (
+                    <option key={b.id} value={`batch:${b.id}`}>
+                      {b.name} — Set up workspace
+                    </option>
+                  ))}
             </select>
           </Field>
         </div>
@@ -1121,41 +1249,11 @@ export default function CrmApp({
                 </div>
                 <h3 className="font-semibold">No assigned workspace</h3>
                 <p className="mt-2 text-slate-600">
-                  Ask your administrator to provision your batch workspace. Eligible batch students join automatically as Agents.
+                  {boot?.admin
+                    ? "Select a batch from Workspace to set it up with 100 training customers. The selected workspace applies to every CRM page."
+                    : "Ask your administrator to set up your batch workspace. Eligible batch students join automatically as Agents."}
                 </p>
               </section>
-            )}
-            {boot?.admin && (
-              <details className="crm-provision">
-                <summary className="cursor-pointer font-medium">
-                  Provision a batch workspace
-                </summary>
-                <form
-                  className="flex gap-3 mt-4"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    const batchId = String(
-                      new FormData(e.currentTarget).get("batchId"),
-                    );
-                    run(async () => {
-                      await api({}, { action: "provision", data: { batchId } });
-                      await loadBoot();
-                      setMessage(
-                        "Workspace provisioned. Configure members, options and SLA policies.",
-                      );
-                    });
-                  }}
-                >
-                  <select name="batchId" required>
-                    {boot.batches.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button disabled={busy}>Provision</button>
-                </form>
-              </details>
             )}
             {workspace && setup && (
               <>
@@ -1945,19 +2043,34 @@ export default function CrmApp({
                   </section>
                 )}
                 {tab === "Settings" && manager && (
-                  <Settings
-                    setup={setup}
-                    busy={busy}
-                    save={(action, data, extra) =>
-                      run(async () => {
-                        await write(action, data, extra);
-                        await loadSetup();
-                        setMessage(
-                          "Configuration saved. Existing complaint SLA snapshots are preserved.",
-                        );
-                      })
-                    }
-                  />
+                  <>
+                    <section className="bg-white p-5 rounded-xl mb-5">
+                      <h3 className="font-semibold">
+                        Administration · {setup.workspace.name}
+                      </h3>
+                      <p className="mt-2 text-sm text-slate-600">
+                        Manage this workspace's members, teams, dropdown options
+                        and SLA policies. Eligible batch students join
+                        automatically as Agents. Use the sidebar for complaints,
+                        follow-ups and reports; the selected workspace applies
+                        throughout CRM.
+                      </p>
+                    </section>
+                    <Settings
+                      key={workspace}
+                      setup={setup}
+                      busy={busy}
+                      save={(action, data, extra) =>
+                        run(async () => {
+                          await write(action, data, extra);
+                          await loadSetup();
+                          setMessage(
+                            "Configuration saved. Existing complaint SLA snapshots are preserved.",
+                          );
+                        })
+                      }
+                    />
+                  </>
                 )}
                 {tab === "Activity" && manager && (
                   <Activity workspaceId={workspace} />
@@ -1970,7 +2083,8 @@ export default function CrmApp({
                     </p>
                     <p className="mt-3 text-sm text-slate-600">
                       Your portal account is your CRM identity. Your teacher
-                      manages any changes to your CRM role and team. Batch students join automatically as Agents.
+                      manages any changes to your CRM role and team. Batch
+                      students join automatically as Agents.
                     </p>
                   </section>
                 )}

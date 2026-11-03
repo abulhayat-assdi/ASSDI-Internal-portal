@@ -4,6 +4,10 @@ Each active workspace receives its own 100 fictional reference customers (TRAIN-
 
 Open **Training Customers**, search by name or either number, then choose **Use customer**. Calling numbers run from `00010000001` to `00010000100`; registered numbers run from `00020000001` to `00020000100`. These are fictional training identifiers, not numbers to dial. Profiles include ten scenario categories, contact details and transaction references.
 
+The sidebar's **Workspace** selector controls every CRM page and remembers the last accessible selection for the signed-in account on this course host. Existing workspaces need no further provisioning. Administrators can select a batch marked **Set up workspace** in this same selector to create and select it, including its 100 references. Teachers/supervisors retain their assigned workspace permissions. Switching workspace clears unsaved complaint fields and stale results.
+
+The staff portal has **Customer Service CRM** for daily operations and **CRM Settings** for administration. Both open the same permission-controlled application. Settings describes the selected workspace's members, teams, options and SLA policies. The browser URL and Back button follow the selected CRM page.
+
 Both number fields have a **Fetch Data** button. Fetch uses the latest complaint visible to the current role in the current workspace, or the training reference when no visible complaint exists. It copies contact/category fields, preserving the trainee's issue description. Reference profiles are not complaints and do not inflate reports; trainees create and resolve real practice cases.
 
 Customer IDs, complaints, history, options and policies are workspace scoped. The same reference numbers can be used independently by different batches. Students with valid current batch enrollment become Agents automatically when accessing their workspace. Existing inactive memberships and administrator-assigned roles are preserved. Administrators handle configuration and escalation; no student L2/L3 assignment is required.
