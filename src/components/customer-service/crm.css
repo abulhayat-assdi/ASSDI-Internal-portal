@@ -1087,3 +1087,28 @@
 .crm-breadcrumb {
   white-space: nowrap;
 }
+
+.crm-training-reference {
+  background: #eff5ff;
+  border: 1px solid #dce7ff;
+  border-radius: 8px;
+  padding: 16px;
+  font-size: 13px;
+}
+.crm-training-reference p {
+  margin: 8px 0;
+  color: #52647f;
+}
+.crm-training-reference small {
+  color: #73819a;
+}
+.crm-root td.crm-scenario-cell {
+  white-space: normal;
+  min-width: 240px;
+  max-width: 420px;
+}
+.crm-scenario-cell p {
+  margin-top: 6px;
+  line-height: 1.6;
+  font-size: 12px;
+}

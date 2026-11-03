@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { useBranding } from "@/contexts/BrandingContext";
 import CrmOverview from "./CrmOverview";
+import CrmTrainingCustomers, { TrainingCustomer } from "./CrmTrainingCustomers";
 import "./crm.css";
 import { localDate } from "@/lib/customer-service/domain";
 type Option = {
@@ -222,6 +223,9 @@ export default function CrmApp({
   initialTab?: string;
 }) {
   const branding = useBranding();
+  const [trainingCustomer, setTrainingCustomer] =
+    useState<TrainingCustomer | null>(null);
+  const fetchGeneration = useRef(0);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenu, setMobileMenu] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -327,6 +331,8 @@ export default function CrmApp({
   }, [workspace]);
   useEffect(() => {
     setDetail(null);
+    setTrainingCustomer(null);
+    fetchGeneration.current++;
     setSetup(null);
     loadSetup().catch((e) => setError(e.message));
   }, [loadSetup]);
@@ -557,6 +563,52 @@ export default function CrmApp({
       )}
     </div>
   );
+  const fetchContact = (by: "calling" | "registered") =>
+    run(async () => {
+      const generation = ++fetchGeneration.current;
+      const result = await api<{
+        source: Pick<
+          Complaint,
+          | "code"
+          | "createdAt"
+          | "callerType"
+          | "channel"
+          | "issueType"
+          | "complaintType"
+          | "registeredNumber"
+        > | null;
+        sourceKind?: string;
+        matchedCallingNumber?: string;
+        customer?: TrainingCustomer | null;
+        message: string | null;
+      }>({
+        kind: "fetch",
+        workspaceId: workspace,
+        by,
+        number: by === "calling" ? form.callingNumber : form.registeredNumber,
+      });
+      if (generation !== fetchGeneration.current) return;
+      setTrainingCustomer(result.customer || null);
+      if (result.source) {
+        const { code, createdAt, ...prefill } = result.source;
+        setForm((current) => ({
+          ...current,
+          ...prefill,
+          callingNumber:
+            current.callingNumber || result.matchedCallingNumber || "",
+        }));
+        setMessage(
+          "Copied contact fields from " +
+            (result.sourceKind === "training"
+              ? "training customer "
+              : "complaint ") +
+            code +
+            " - " +
+            stamp(createdAt) +
+            ". Verify before saving.",
+        );
+      } else setMessage(result.message || "No matching data found");
+    });
   const complaintForm = (submit: (e: FormEvent) => void) => (
     <form onSubmit={submit} className="grid gap-5 md:grid-cols-2">
       <Field label="Calling number">
@@ -564,61 +616,61 @@ export default function CrmApp({
           <input
             aria-label="Calling number"
             required
+            disabled={busy}
             maxLength={40}
             value={form.callingNumber}
-            onChange={(e) =>
-              setForm({ ...form, callingNumber: e.target.value })
-            }
+            onChange={(e) => {
+              setTrainingCustomer(null);
+              setForm({ ...form, callingNumber: e.target.value });
+            }}
           />
           <button
             type="button"
-            disabled={busy || !form.callingNumber}
-            onClick={() =>
-              run(async () => {
-                const result = await api<{
-                  source: Pick<
-                    Complaint,
-                    | "code"
-                    | "createdAt"
-                    | "callerType"
-                    | "channel"
-                    | "issueType"
-                    | "complaintType"
-                    | "registeredNumber"
-                  > | null;
-                  message: string;
-                }>({
-                  kind: "fetch",
-                  workspaceId: workspace,
-                  number: form.callingNumber,
-                });
-                if (result.source) {
-                  const { code, createdAt, ...prefill } = result.source;
-                  setForm((current) => ({ ...current, ...prefill }));
-                  setMessage(
-                    "Copied contact fields from " +
-                      code +
-                      " · " +
-                      stamp(createdAt) +
-                      ". Verify before saving.",
-                  );
-                } else setMessage(result.message);
-              })
-            }
+            aria-label="Fetch Data by calling number"
+            disabled={busy || !form.callingNumber.trim()}
+            onClick={() => fetchContact("calling")}
           >
             Fetch Data
           </button>
         </div>
       </Field>
       <Field label="Registered number">
-        <input
-          maxLength={40}
-          value={form.registeredNumber}
-          onChange={(e) =>
-            setForm({ ...form, registeredNumber: e.target.value })
-          }
-        />
+        <div className="flex gap-2">
+          <input
+            aria-label="Registered number"
+            disabled={busy}
+            maxLength={40}
+            value={form.registeredNumber}
+            onChange={(e) => {
+              setTrainingCustomer(null);
+              setForm({ ...form, registeredNumber: e.target.value });
+            }}
+          />
+          <button
+            type="button"
+            aria-label="Fetch Data by registered number"
+            disabled={busy || !form.registeredNumber.trim()}
+            onClick={() => fetchContact("registered")}
+          >
+            Fetch Data
+          </button>
+        </div>
       </Field>
+      {trainingCustomer && (
+        <aside className="crm-training-reference md:col-span-2">
+          <strong>
+            {trainingCustomer.name} -{" "}
+            {trainingCustomer.trainingProfile.reference}
+          </strong>
+          <p>{trainingCustomer.trainingProfile.scenario}</p>
+          <small>
+            Practice transaction reference:{" "}
+            {trainingCustomer.trainingProfile.transactionReference} / Amount:{" "}
+            {trainingCustomer.trainingProfile.transactionAmount}. Enter
+            complaint details and transaction date yourself.
+          </small>
+        </aside>
+      )}
       <Field label="Email / FB name / ticket ID / username">
         <input
           maxLength={200}
@@ -834,6 +886,7 @@ export default function CrmApp({
       ? ["New Complaint", manager ? "All Complaints" : "My Complaints"]
       : ["Escalations"]),
     "Search",
+    "Training Customers",
     "Follow-ups",
     "Reports",
     ...(manager ? ["Settings", "Activity"] : []),
@@ -851,6 +904,7 @@ export default function CrmApp({
     Settings: Settings2,
     Activity: ActivityIcon,
     Profile: UserRound,
+    "Training Customers": UsersRound,
   };
   const navigate = (next: string) => {
     setTab(next);
@@ -1067,8 +1121,7 @@ export default function CrmApp({
                 </div>
                 <h3 className="font-semibold">No assigned workspace</h3>
                 <p className="mt-2 text-slate-600">
-                  Ask your teacher to provision your batch and activate your CRM
-                  membership.
+                  Ask your administrator to provision your batch workspace. Eligible batch students join automatically as Agents.
                 </p>
               </section>
             )}
@@ -1850,6 +1903,26 @@ export default function CrmApp({
                     </section>
                   </>
                 )}
+                {tab === "Training Customers" && (
+                  <CrmTrainingCustomers
+                    key={workspace}
+                    workspaceId={workspace}
+                    onUse={
+                      role === "AGENT" || manager
+                        ? (customer) => {
+                            setForm({
+                              ...empty,
+                              callingNumber: customer.number,
+                              registeredNumber: customer.registeredNumber,
+                              identifier: customer.name,
+                            });
+                            setTrainingCustomer(customer);
+                            navigate("New Complaint");
+                          }
+                        : undefined
+                    }
+                  />
+                )}
                 {tab === "Follow-ups" && (
                   <section className="bg-white p-5 rounded-xl">
                     {followUps.length === 0 && <p>No follow-ups scheduled.</p>}
@@ -1897,7 +1970,7 @@ export default function CrmApp({
                     </p>
                     <p className="mt-3 text-sm text-slate-600">
                       Your portal account is your CRM identity. Your teacher
-                      manages your CRM role and team.
+                      manages any changes to your CRM role and team. Batch students join automatically as Agents.
                     </p>
                   </section>
                 )}
@@ -2274,10 +2347,12 @@ function Settings({
         <section className="bg-white p-6 rounded-xl">
           <h3 className="font-semibold mb-3">Workspace controls</h3>
           <button disabled={busy} onClick={() => save("dummy", {})}>
-            Load 10 dummy customers
+            Load 100 training customers
           </button>
           <p className="text-xs my-3">
-            Repeatable training data only. Existing complaints are preserved.
+            Loads 100 batch-isolated fictional customers and practice options.
+            Repeat loading preserves existing data. Missing default SLA: 60
+            minutes overall, L2 20, L3 10; existing settings are preserved.
           </p>
           <button
             disabled={busy}

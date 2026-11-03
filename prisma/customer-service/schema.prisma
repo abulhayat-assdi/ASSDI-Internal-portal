@@ -69,9 +69,15 @@ model Customer {
   name        String
   number      String
   dummy       Boolean  @default(true)
+  trainingKey String?
+  registeredNumber String @default("")
+  registeredNormalized String @default("")
+  trainingProfile Json?
 
   @@unique([workspaceId, id])
   @@unique([workspaceId, number])
+  @@unique([workspaceId, trainingKey])
+  @@index([workspaceId, registeredNormalized])
   @@index([courseId, workspaceId])
 }
 

@@ -42,7 +42,7 @@
   assert.equal(await p.locator(".student-portal").count(), 0);
   await p.getByRole("button", { name: "New Complaint", exact: true }).click();
   await p.getByLabel("Calling number", { exact: true }).fill("00123456");
-  await p.getByRole("button", { name: "Fetch Data", exact: true }).click();
+  await p.getByRole("button", { name: "Fetch Data by calling number", exact: true }).click();
   await p
     .getByRole("status")
     .filter({ hasText: "Copied contact fields" })

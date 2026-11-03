@@ -1,4 +1,5 @@
 import "server-only";
+import { loadTrainingCustomers } from "../../../scripts/lib/customer-service-training.cjs";
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { Prisma } from "../../../generated/customer-service";
@@ -240,6 +241,10 @@ export async function provision(ctx: Identity, body: unknown) {
       update: {},
     });
     await tx.$executeRaw`SELECT set_config('crm.workspace', ${w.id},true)`;
+    if (w.state === "ACTIVE") {
+      const training = await loadTrainingCustomers(tx, scope(ctx, w.id));
+      await audit(tx, ctx, w.id, "training.load", training);
+    }
     await audit(tx, ctx, w.id, "workspace.provision", { batchId });
     return w;
   });
@@ -370,11 +375,66 @@ export async function read(
         actor: a,
       };
     }
+    if (kind === "customers") {
+      const search = z
+        .string()
+        .max(100)
+        .parse(q.get("search") || "")
+        .trim();
+      const page = z.coerce
+        .number()
+        .int()
+        .min(1)
+        .max(10000)
+        .parse(q.get("page") || "1");
+      const where: Prisma.CustomerWhereInput = {
+        workspaceId: w,
+        trainingKey: { not: null },
+        ...(search
+          ? {
+              OR: [
+                { name: { contains: search, mode: "insensitive" } },
+                { number: { contains: normalizeNumber(search) || search } },
+                {
+                  registeredNormalized: {
+                    contains: normalizeNumber(search) || search,
+                  },
+                },
+                { trainingKey: { contains: search, mode: "insensitive" } },
+              ],
+            }
+          : {}),
+      };
+      const [rows, total] = await Promise.all([
+        tx.customer.findMany({
+          where,
+          orderBy: { trainingKey: "asc" },
+          skip: (page - 1) * 20,
+          take: 20,
+        }),
+        tx.customer.count({ where }),
+      ]);
+      return { rows, total, page };
+    }
     if (kind === "fetch") {
+      const by = z
+        .enum(["calling", "registered"])
+        .parse(q.get("by") || "calling");
+      const number = normalizeNumber(
+        z
+          .string()
+          .trim()
+          .min(3)
+          .max(40)
+          .parse(q.get("number") || ""),
+      );
+      requireThat(number.length >= 3, "Enter a valid contact number", 400);
       const c = await tx.complaint.findFirst({
         where: {
           ...base,
-          callingNormalized: normalizeNumber(q.get("number") || ""),
+          ...(by === "registered"
+            ? { registeredNormalized: number }
+            : { callingNormalized: number }),
         },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         select: {
@@ -385,11 +445,68 @@ export async function read(
           issueType: true,
           complaintType: true,
           registeredNumber: true,
+          callingNumber: true,
         },
       });
+      const customer = await tx.customer.findFirst({
+        where: {
+          workspaceId: w,
+          trainingKey: { not: null },
+          ...(by === "registered"
+            ? { registeredNormalized: number }
+            : { number }),
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      });
+      if (c) {
+        const { callingNumber, ...source } = c;
+        return {
+          source,
+          sourceKind: "complaint",
+          matchedCallingNumber: callingNumber,
+          customer,
+          message: null,
+        };
+      }
+      if (customer?.trainingProfile) {
+        const profile = z
+          .object({
+            reference: z.string(),
+            callerType: z.string(),
+            channel: z.string(),
+            issueType: z.string(),
+            complaintType: z.string(),
+          })
+          .parse(customer.trainingProfile);
+        const options = await tx.option.findMany({
+          where: { workspaceId: w, active: true },
+        });
+        const option = (
+          kind: "callerType" | "channel" | "issueType" | "complaintType",
+        ) =>
+          options.find((o) => o.kind === kind && o.label === profile[kind])
+            ?.id || "";
+        return {
+          source: {
+            code: profile.reference,
+            createdAt: customer.createdAt,
+            callerType: option("callerType"),
+            channel: option("channel"),
+            issueType: option("issueType"),
+            complaintType: option("complaintType"),
+            registeredNumber: customer.registeredNumber,
+          },
+          sourceKind: "training",
+          matchedCallingNumber: customer.number,
+          customer,
+          message: null,
+        };
+      }
       return {
-        source: c,
-        message: c ? null : "No previous record found for this number",
+        source: null,
+        customer: null,
+        message:
+          "No previous record or training customer found for this number",
       };
     }
     if (kind === "followups") {
@@ -792,24 +909,9 @@ export async function mutate(ctx: Identity, raw: unknown) {
     }
     if (b.action === "dummy") {
       requireThat(a.role === "ADMIN", "CRM administrator required");
-      for (let i = 1; i <= 10; i++)
-        await tx.customer.upsert({
-          where: {
-            workspaceId_number: {
-              workspaceId: w,
-              number: "DEMO-" + String(i).padStart(3, "0"),
-            },
-          },
-          create: {
-            ...s,
-            number: "DEMO-" + String(i).padStart(3, "0"),
-            name: "Training customer " + i,
-            dummy: true,
-          },
-          update: {},
-        });
-      await audit(tx, ctx, w, "dummy.load", { count: 10 });
-      return { ok: true };
+      const result = await loadTrainingCustomers(tx, s);
+      await audit(tx, ctx, w, "training.load", result);
+      return { ok: true, ...result };
     }
     if (b.action === "create") {
       requireThat(

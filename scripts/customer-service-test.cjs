@@ -43,6 +43,12 @@ run([
   "prisma/schema.prisma",
   "--skip-generate",
 ]);
+run([
+  "node_modules/prisma/build/index.js",
+  "generate",
+  "--schema",
+  "prisma/customer-service/schema.prisma",
+]);
 run(["scripts/customer-service-migrate.cjs"]);
 run(["scripts/customer-service-migrate.cjs"]);
 run(["scripts/customer-service-role.cjs"]);

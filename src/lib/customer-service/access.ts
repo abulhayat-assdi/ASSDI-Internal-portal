@@ -87,9 +87,46 @@ export async function workspaceAccess<T>(
       )
         throw new CrmError(403, "This workspace is not assigned to you");
     } else {
-      const member = await tx.member.findUnique({
+      let member = await tx.member.findUnique({
         where: { workspaceId_userId: { workspaceId: id, userId: ctx.user.id } },
       });
+      // identity() has already checked the current authoritative batch roster.
+      // Only missing memberships default to Agent; never undo an admin's role
+      // assignment or inactive membership decision.
+      if (!member && ctx.batchId === workspace.batchId) {
+        const created = await tx.member.createMany({
+          data: [
+            {
+              courseId: ctx.courseId,
+              workspaceId: id,
+              userId: ctx.user.id,
+              role: "AGENT",
+              active: true,
+            },
+          ],
+          skipDuplicates: true,
+        });
+        member = await tx.member.findUnique({
+          where: {
+            workspaceId_userId: { workspaceId: id, userId: ctx.user.id },
+          },
+        });
+        if (created.count)
+          await tx.audit.create({
+            data: {
+              courseId: ctx.courseId,
+              workspaceId: id,
+              actorId: ctx.user.id,
+              actorName: ctx.user.displayName,
+              action: "member.auto_enroll",
+              data: {
+                userId: ctx.user.id,
+                role: "AGENT",
+                batchId: ctx.batchId,
+              },
+            },
+          });
+      }
       if (!member?.active)
         throw new CrmError(403, "Active CRM membership required");
       if (member.role !== "AGENT") {

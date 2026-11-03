@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { scoped, crmClient } from "./db";
+import { localDate } from "./domain";
 import { mutate, provision, read } from "./service";
 import { identity, Identity } from "./access";
 import { signJWT, invalidateUserOverrideCache } from "@/lib/auth";
@@ -487,7 +488,8 @@ describe.skipIf(!enabled)("CRM isolated PostgreSQL integration", () => {
     expect(c.fieldSnapshot[0].version).toBe(1);
   });
   it("computes distinct report cohorts and excludes invalid outcomes", async () => {
-    const q = new URLSearchParams({ from: "2026-11-01", to: "2026-11-01" });
+    const today = localDate(new Date());
+    const q = new URLSearchParams({ from: today, to: today });
     const report = (await read(admin, workspace, "report", q)) as any;
     expect(report.metrics.resolved).toBe(2);
     expect(report.metrics.tethered + report.metrics.untethered).toBe(2);
@@ -555,6 +557,219 @@ describe.skipIf(!enabled)("CRM isolated PostgreSQL integration", () => {
       "create",
       "resolve",
     ]);
+  });
+  it("loads exactly 100 training references per workspace without changing complaints or settings", async () => {
+    const counts = await scoped(courseId, workspace, async (tx) => ({
+      customers: await tx.customer.count({
+        where: { trainingKey: { not: null } },
+      }),
+      complaints: await tx.complaint.count(),
+      policy: await tx.policy.findUnique({
+        where: {
+          workspaceId_key: {
+            workspaceId: workspace,
+            key: JSON.stringify(["", "", ""]),
+          },
+        },
+      }),
+    }));
+    expect(counts.customers).toBe(100);
+    const result: any = await mutate(admin, body("dummy"));
+    expect(result).toMatchObject({ total: 100, added: 0 });
+    const after = await scoped(courseId, workspace, async (tx) => ({
+      complaints: await tx.complaint.count(),
+      policy: await tx.policy.findUnique({
+        where: {
+          workspaceId_key: {
+            workspaceId: workspace,
+            key: JSON.stringify(["", "", ""]),
+          },
+        },
+      }),
+    }));
+    expect(after.complaints).toBe(counts.complaints);
+    expect(after.policy).toEqual(counts.policy);
+    await expect(mutate(agent, body("dummy"))).rejects.toThrow("administrator");
+    await mutate(admin, body("workspace", { state: "READ_ONLY" }));
+    await expect(mutate(admin, body("dummy"))).rejects.toThrow("read-only");
+    await mutate(admin, body("workspace", { state: "ACTIVE" }));
+  });
+  it("fetches both training contact numbers and keeps the dataset isolated across batches", async () => {
+    const calling: any = await read(
+      agent,
+      workspace,
+      "fetch",
+      new URLSearchParams({ number: "0001 0000 001", by: "calling" }),
+    );
+    const registered: any = await read(
+      agent,
+      workspace,
+      "fetch",
+      new URLSearchParams({ number: "0002 0000 001", by: "registered" }),
+    );
+    expect(calling.sourceKind).toBe("training");
+    expect(registered.source).toEqual(calling.source);
+    expect(registered.matchedCallingNumber).toBe("00010000001");
+    expect(registered.source.registeredNumber).toBe("00020000001");
+    expect(registered.source).not.toHaveProperty("description");
+    const otherBatch: any = await read(
+      admin,
+      otherWorkspace,
+      "fetch",
+      new URLSearchParams({ number: "00010000001" }),
+    );
+    expect(otherBatch.customer.id).not.toBe(calling.customer.id);
+    expect(otherBatch.source.issueType).not.toBe(calling.source.issueType);
+    await expect(
+      read(agent, otherWorkspace, "customers", new URLSearchParams()),
+    ).rejects.toThrow("access denied");
+    const page: any = await read(
+      agent,
+      workspace,
+      "customers",
+      new URLSearchParams({ page: "5" }),
+    );
+    expect(page.total).toBe(100);
+    expect(page.rows).toHaveLength(20);
+    const search: any = await read(
+      agent,
+      workspace,
+      "customers",
+      new URLSearchParams({ search: "00020000001" }),
+    );
+    expect(search.rows).toHaveLength(1);
+  });
+  it("prefers latest authorized complaint history for either number without mutating reference data", async () => {
+    const initial: any = await read(
+      agent,
+      workspace,
+      "fetch",
+      new URLSearchParams({ number: "00010000001" }),
+    );
+    const { code, createdAt, ...prefill } = initial.source;
+    const created: any = await mutate(
+      agent,
+      body("create", {
+        ...form(),
+        ...prefill,
+        callingNumber: "00010000001",
+        description: "Training from reusable reference",
+      }),
+    );
+    const byCalling: any = await read(
+      agent,
+      workspace,
+      "fetch",
+      new URLSearchParams({ number: "00010000001" }),
+    );
+    const byRegistered: any = await read(
+      agent,
+      workspace,
+      "fetch",
+      new URLSearchParams({ number: "00020000001", by: "registered" }),
+    );
+    expect(byCalling.sourceKind).toBe("complaint");
+    expect(byRegistered.source.code).toBe(created.code);
+    expect(byCalling.source).toEqual(byRegistered.source);
+    expect(byCalling.customer).toEqual(initial.customer);
+    const untouched: any = await read(
+      admin,
+      otherWorkspace,
+      "fetch",
+      new URLSearchParams({ number: "00020000001", by: "registered" }),
+    );
+    expect(untouched.sourceKind).toBe("training");
+    const hiddenFromL2: any = await read(
+      l2,
+      workspace,
+      "fetch",
+      new URLSearchParams({ number: "00020000001", by: "registered" }),
+    );
+    expect(hiddenFromL2.sourceKind).toBe("training");
+    expect(hiddenFromL2.source.code).not.toBe(created.code);
+    const miss: any = await read(
+      agent,
+      workspace,
+      "fetch",
+      new URLSearchParams({ number: "99999999", by: "registered" }),
+    );
+    expect(miss.source).toBeNull();
+    await expect(
+      read(
+        agent,
+        workspace,
+        "fetch",
+        new URLSearchParams({ number: "", by: "registered" }),
+      ),
+    ).rejects.toThrow();
+    await expect(
+      read(
+        agent,
+        workspace,
+        "fetch",
+        new URLSearchParams({ number: "00010000001", by: "invalid" }),
+      ),
+    ).rejects.toThrow();
+  });
+  it("automatically enrolls eligible batch students as Agents and preserves admin overrides", async () => {
+    const user = request("new-agent-" + suffix);
+    await prisma.user.create({
+      data: {
+        ...user,
+        role: "student",
+        passwordHash: "test-only",
+        activeSession: {
+          create: { expiresAt: new Date(Date.now() + 3600000) },
+        },
+      },
+    });
+    await prisma.batchStudent.create({
+      data: {
+        courseId,
+        batchId,
+        batchName: "Training",
+        roll: user.id,
+        name: user.displayName,
+      },
+    });
+    const token = await signJWT(user);
+    const ctx = await identity(
+      new NextRequest("http://" + slug + ".localhost/api/crm", {
+        headers: { host: slug + ".localhost", cookie: "__session=" + token },
+      }),
+    );
+    const setup: any = await read(
+      ctx,
+      workspace,
+      "setup",
+      new URLSearchParams(),
+    );
+    expect(setup.actor.role).toBe("AGENT");
+    await read(ctx, workspace, "setup", new URLSearchParams());
+    expect(
+      await scoped(courseId, workspace, (tx) =>
+        tx.member.count({ where: { userId: user.id } }),
+      ),
+    ).toBe(1);
+    await mutate(
+      admin,
+      body(
+        "member",
+        { role: "L2", teamId: team2, active: true },
+        { userId: user.id },
+      ),
+    );
+    expect(
+      ((await read(ctx, workspace, "setup", new URLSearchParams())) as any)
+        .actor.role,
+    ).toBe("L2");
+    await mutate(
+      admin,
+      body("member", { role: "AGENT", active: false }, { userId: user.id }),
+    );
+    await expect(
+      read(ctx, workspace, "setup", new URLSearchParams()),
+    ).rejects.toThrow("membership");
   });
   it("validates real sessions, course host, feature flag, deactivation and revocation", async () => {
     const token = await signJWT(agent.user);
