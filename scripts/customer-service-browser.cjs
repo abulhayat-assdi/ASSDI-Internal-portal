@@ -140,6 +140,7 @@
     ),
     "Mobile page overflows",
   );
+  await p.getByRole("button", { name: "Toggle navigation", exact: true }).click();
   await p.getByRole("button", { name: "Reports", exact: true }).click();
   const download = p.waitForEvent("download");
   await p.getByRole("link", { name: "Download CSV", exact: true }).click();

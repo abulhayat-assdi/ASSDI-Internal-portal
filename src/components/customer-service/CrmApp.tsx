@@ -8,6 +8,29 @@ import {
   ReactNode,
 } from "react";
 import Link from "next/link";
+import {
+  Activity as ActivityIcon,
+  ArrowLeft,
+  ArrowUpRight,
+  BarChart3,
+  CalendarClock,
+  ChevronDown,
+  ClipboardList,
+  Headphones,
+  LayoutDashboard,
+  LoaderCircle,
+  Menu,
+  Plus,
+  Search as SearchIcon,
+  Settings2,
+  SlidersHorizontal,
+  UserRound,
+  UsersRound,
+  X,
+} from "lucide-react";
+import { useBranding } from "@/contexts/BrandingContext";
+import CrmOverview from "./CrmOverview";
+import "./crm.css";
 import { localDate } from "@/lib/customer-service/domain";
 type Option = {
   id: string;
@@ -170,7 +193,9 @@ async function api<T>(
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="grid gap-1 text-sm font-medium text-slate-700">
-      {label}
+      {label
+        .replace(/([a-z])([A-Z])/g, "$1 $2")
+        .replace(/^./, (c) => c.toUpperCase())}
       {children}
     </label>
   );
@@ -196,6 +221,49 @@ export default function CrmApp({
   staff?: boolean;
   initialTab?: string;
 }) {
+  const branding = useBranding();
+  const [collapsed, setCollapsed] = useState(false);
+  const [mobileMenu, setMobileMenu] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const menuButton = useRef<HTMLButtonElement>(null);
+  const sidebarRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 767px)");
+    const update = () => {
+      setIsMobile(media.matches);
+      if (!media.matches) setMobileMenu(false);
+    };
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+  useEffect(() => {
+    if (!mobileMenu) return;
+    sidebarRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMobileMenu(false);
+        menuButton.current?.focus();
+      }
+      if (event.key === "Tab") {
+        const nodes = sidebarRef.current?.querySelectorAll<HTMLElement>(
+          "button:not([disabled]),select,a[href]",
+        );
+        if (!nodes?.length) return;
+        const first = nodes[0],
+          last = nodes[nodes.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [mobileMenu]);
   const [boot, setBoot] = useState<{
     identity: { id: string; name: string };
     admin: boolean;
@@ -470,7 +538,10 @@ export default function CrmApp({
               </td>
               <td>{label(c.issueType)}</td>
               <td>
-                {c.status} · {c.queue}
+                <span className={`crm-badge ${c.status.toLowerCase()}`}>
+                  {c.status.replaceAll("_", " ")}
+                </span>{" "}
+                <span className="text-xs text-slate-400">{c.queue}</span>
                 <div>{c.returnState !== "NORMAL" ? c.returnState : ""}</div>
               </td>
               <td>{person(c.ownerId)}</td>
@@ -768,36 +839,76 @@ export default function CrmApp({
     ...(manager ? ["Settings", "Activity"] : []),
     "Profile",
   ];
+  const icons: Record<string, typeof LayoutDashboard> = {
+    Dashboard: LayoutDashboard,
+    "New Complaint": Plus,
+    "All Complaints": ClipboardList,
+    "My Complaints": ClipboardList,
+    Escalations: ArrowUpRight,
+    Search: SearchIcon,
+    "Follow-ups": CalendarClock,
+    Reports: BarChart3,
+    Settings: Settings2,
+    Activity: ActivityIcon,
+    Profile: UserRound,
+  };
+  const navigate = (next: string) => {
+    setTab(next);
+    setDetail(null);
+    setPage(1);
+    setError("");
+    setMobileMenu(false);
+  };
+  const displayName = boot?.identity.name || "Your account";
+  const initials = displayName
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase();
   return (
-    <div className="crm-root min-h-screen bg-slate-100 text-slate-900">
-      <style>
-        {
-          ".crm-root input,.crm-root select,.crm-root textarea{border:1px solid #cbd5e1;border-radius:8px;padding:9px 11px;background:white;min-width:0;width:100%}.crm-root button{border:1px solid #cbd5e1;border-radius:8px;padding:8px 12px;background:white;cursor:pointer}.crm-root button.primary{background:#0f766e;color:white;border-color:#0f766e}.crm-root button:disabled{opacity:.5;cursor:wait}.crm-root th,.crm-root td{padding:12px;border-bottom:1px solid #e2e8f0}.crm-root aside label{color:#cbd5e1}.crm-root aside select{color:#0f172a}.crm-root input[type=checkbox]{width:auto}.crm-root :focus-visible{outline:3px solid #14b8a6;outline-offset:2px}"
-        }
-      </style>
-      <header className="border-b bg-white px-5 py-4 flex flex-wrap justify-between gap-4">
-        <div>
-          <p className="text-xs font-bold tracking-widest text-teal-700">
-            ASM / CUSTOMER SERVICE
-          </p>
-          <h1 className="text-xl font-semibold">Operations workspace</h1>
-        </div>
-        <div className="flex items-center gap-4">
-          <span className="text-sm">
-            {boot?.identity.name} · {role}
+    <div
+      className={`crm-root${collapsed ? " crm-collapsed" : ""}${mobileMenu ? " crm-menu-open" : ""}`}
+    >
+      {mobileMenu && (
+        <button
+          className="crm-mobile-backdrop"
+          aria-label="Close navigation overlay"
+          onClick={() => {
+            setMobileMenu(false);
+            menuButton.current?.focus();
+          }}
+        />
+      )}
+      <aside
+        ref={sidebarRef}
+        className="crm-sidebar"
+        id="crm-navigation"
+        inert={isMobile && !mobileMenu}
+      >
+        <div className="crm-brand">
+          <span className="crm-brand-mark">
+            <Headphones size={20} />
           </span>
-          <Link
-            className="text-sm underline"
-            href={staff ? "/dashboard" : "/student-dashboard"}
+          <div className="crm-brand-copy">
+            <strong>ASM CRM</strong>
+            <small>Customer service</small>
+          </div>
+          <button
+            className="crm-sidebar-close"
+            aria-label="Close navigation"
+            onClick={() => {
+              setMobileMenu(false);
+              menuButton.current?.focus();
+            }}
           >
-            Back to {staff ? "Staff" : "Student"} Portal
-          </Link>
+            <X size={18} />
+          </button>
         </div>
-      </header>
-      <div className="md:flex">
-        <aside className="md:w-56 shrink-0 bg-slate-900 text-white p-4">
+        <div className="crm-workspace-select">
           <Field label="Workspace">
             <select
+              aria-label="Workspace"
               value={workspace}
               onChange={(e) => setWorkspace(e.target.value)}
             >
@@ -809,49 +920,113 @@ export default function CrmApp({
               ))}
             </select>
           </Field>
-          <nav
-            aria-label="CRM"
-            className="mt-5 flex md:flex-col gap-2 overflow-x-auto"
-          >
-            {nav.map((n) => (
+        </div>
+        <p className="crm-nav-label">WORKSPACE</p>
+        <nav aria-label="CRM">
+          {nav.map((n) => {
+            const Icon = icons[n] || ClipboardList;
+            return (
               <button
                 key={n}
-                className={tab === n ? "primary" : ""}
-                style={
-                  tab !== n
-                    ? {
-                        background: "transparent",
-                        color: "#e2e8f0",
-                        borderColor: "transparent",
-                      }
-                    : {}
-                }
-                onClick={() => {
-                  setTab(n);
-                  setDetail(null);
-                  setPage(1);
-                  setError("");
-                }}
+                aria-label={n}
+                title={n}
+                aria-current={tab === n ? "page" : undefined}
+                className={tab === n ? "active" : ""}
+                onClick={() => navigate(n)}
               >
-                {n}
+                <Icon size={18} />
+                <span className="crm-nav-text">{n}</span>
               </button>
-            ))}
-          </nav>
-          <p className="mt-8 text-xs text-slate-400">
-            Training CRM · Asia/Dhaka
-            <br />
-            Continuous 24-hour SLA clock
-          </p>
-        </aside>
-        <main className="min-w-0 flex-1 p-4 md:p-8">
-          <div className="mx-auto max-w-6xl">
-            <div className="flex justify-between mb-5">
-              <h2 className="text-2xl font-semibold">{tab}</h2>
-              {setup && (
-                <span className="text-sm text-slate-500">
-                  {setup.workspace.name} · {setup.workspace.state}
-                </span>
-              )}
+            );
+          })}
+        </nav>
+        <div className="crm-sidebar-foot">
+          <span className="crm-avatar">{initials}</span>
+          <div className="crm-sidebar-foot-copy">
+            <strong>{displayName}</strong>
+            <small>
+              {role || (staff ? "Staff" : "Student")} &middot; Asia/Dhaka
+            </small>
+          </div>
+        </div>
+      </aside>
+      <div className="crm-shell-body">
+        <header className="crm-topbar">
+          <div className="crm-topbar-left">
+            <button
+              ref={menuButton}
+              className="crm-icon-button"
+              aria-label="Toggle navigation"
+              aria-controls="crm-navigation"
+              aria-expanded={isMobile ? mobileMenu : !collapsed}
+              onClick={() => {
+                if (window.matchMedia("(max-width: 767px)").matches)
+                  setMobileMenu(!mobileMenu);
+                else setCollapsed(!collapsed);
+              }}
+            >
+              <Menu size={20} />
+            </button>
+            <button
+              className="crm-top-search"
+              onClick={() => navigate("Search")}
+              aria-label="Search complaints"
+            >
+              <SearchIcon size={17} />
+              <span>Search complaints, contacts...</span>
+            </button>
+          </div>
+          <h1 className="sr-only">Operations workspace</h1>
+          <div className="crm-topbar-right">
+            <Link
+              href={staff ? "/dashboard" : "/student-dashboard"}
+              aria-label={`Back to ${staff ? "Staff" : "Student"} Portal`}
+            >
+              <ArrowLeft size={15} />
+              <span>Back to {staff ? "Staff" : "Student"} Portal</span>
+            </Link>
+            <span className="crm-topbar-separator" />
+            <div className="crm-topbar-user">
+              {displayName}
+              <small>
+                {role || (staff ? "Staff account" : "Student account")}
+              </small>
+            </div>
+            <span className="crm-avatar" aria-hidden="true">
+              {initials}
+            </span>
+          </div>
+        </header>
+        <main className="crm-main">
+          <div className="crm-content">
+            <div className="crm-page-heading">
+              <div>
+                <h2>{tab}</h2>
+                <p className="crm-breadcrumb" title={branding.name}>
+                  Customer service<span>/</span>
+                  {tab === "Detail" ? "Complaint details" : tab}
+                </p>
+              </div>
+              <div className="crm-heading-actions">
+                {setup && (
+                  <span className="crm-workspace-state">
+                    <i />
+                    {setup.workspace.name}
+                    <b>{setup.workspace.state}</b>
+                  </span>
+                )}
+                {setup &&
+                  (role === "AGENT" || manager) &&
+                  tab !== "New Complaint" && (
+                    <button
+                      className="primary"
+                      onClick={() => navigate("New Complaint")}
+                    >
+                      <Plus size={16} />
+                      Create complaint
+                    </button>
+                  )}
+              </div>
             </div>
             {error && (
               <div
@@ -881,12 +1056,15 @@ export default function CrmApp({
               </div>
             )}
             {loading && (
-              <p role="status" className="mb-4">
-                Loading workspace…
+              <p role="status" className="crm-loading">
+                <LoaderCircle size={16} /> Loading workspace...
               </p>
             )}
             {!workspace && !loading && (
-              <section className="bg-white rounded-xl p-8">
+              <section className="crm-empty-workspace">
+                <div className="crm-empty-icon">
+                  <UsersRound size={30} />
+                </div>
                 <h3 className="font-semibold">No assigned workspace</h3>
                 <p className="mt-2 text-slate-600">
                   Ask your teacher to provision your batch and activate your CRM
@@ -895,7 +1073,7 @@ export default function CrmApp({
               </section>
             )}
             {boot?.admin && (
-              <details className="mb-5 mt-4 bg-white p-4 rounded-xl">
+              <details className="crm-provision">
                 <summary className="cursor-pointer font-medium">
                   Provision a batch workspace
                 </summary>
@@ -930,201 +1108,203 @@ export default function CrmApp({
               <>
                 {["Dashboard", "Reports"].includes(tab) && (
                   <>
-                    <form
-                      className="bg-white p-5 rounded-xl grid gap-3 md:grid-cols-4 mb-5"
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        run(loadReport);
-                      }}
+                    <details
+                      className="crm-report-filters"
+                      open={tab === "Reports" ? true : undefined}
                     >
-                      <Field label="Date from (Dhaka)">
-                        <input
-                          type="date"
-                          required
-                          value={filters.from}
-                          onChange={(e) =>
-                            setFilters({ ...filters, from: e.target.value })
-                          }
-                        />
-                      </Field>
-                      <Field label="Date through (Dhaka)">
-                        <input
-                          type="date"
-                          required
-                          value={filters.to}
-                          onChange={(e) =>
-                            setFilters({ ...filters, to: e.target.value })
-                          }
-                        />
-                      </Field>
-                      <Field label="Preset">
-                        <select
-                          defaultValue="This Month"
-                          onChange={(e) => {
-                            if (e.target.value === "Custom") return;
-                            const now = new Date(),
-                              today = localDate(now),
-                              local = new Date(today + "T12:00:00Z");
-                            let from = today,
-                              to = today;
-                            const days = (n: number) =>
-                              localDate(new Date(+now - n * 86400000));
-                            switch (e.target.value) {
-                              case "Yesterday":
-                                from = to = days(1);
-                                break;
-                              case "Last 7 Days":
-                                from = days(6);
-                                break;
-                              case "Last 15 Days":
-                                from = days(14);
-                                break;
-                              case "Last 30 Days":
-                                from = days(29);
-                                break;
-                              case "This Month":
-                                from = today.slice(0, 8) + "01";
-                                break;
-                              case "Last Month":
-                                to = new Date(
-                                  Date.UTC(
-                                    local.getUTCFullYear(),
-                                    local.getUTCMonth(),
-                                    0,
-                                    12,
-                                  ),
-                                )
-                                  .toISOString()
-                                  .slice(0, 10);
-                                from = to.slice(0, 8) + "01";
-                                break;
-                              case "This Week":
-                                from = days(local.getUTCDay());
-                                break;
-                              case "Last Week":
-                                from = days(local.getUTCDay() + 7);
-                                to = days(local.getUTCDay() + 1);
-                                break;
-                            }
-                            setFilters({ ...filters, from, to });
-                          }}
-                        >
-                          {[
-                            "Today",
-                            "Yesterday",
-                            "Last 7 Days",
-                            "Last 15 Days",
-                            "Last 30 Days",
-                            "This Month",
-                            "Last Month",
-                            "This Week",
-                            "Last Week",
-                            "Custom",
-                          ].map((v) => (
-                            <option key={v}>{v}</option>
-                          ))}
-                        </select>
-                      </Field>
-                      {[
-                        "channel",
-                        "issueType",
-                        "complaintType",
-                        "callerType",
-                        "tag",
-                      ].map((k) => (
-                        <Field key={k} label={k}>
-                          {choice(
-                            k,
-                            filters[k] || "",
-                            (v) => setFilters({ ...filters, [k]: v }),
-                            true,
-                          )}
-                        </Field>
-                      ))}
-                      <Field label="Status">
-                        <select
-                          value={filters.status || ""}
-                          onChange={(e) =>
-                            setFilters({ ...filters, status: e.target.value })
-                          }
-                        >
-                          <option value="">All</option>
-                          {[
-                            "PENDING",
-                            "IN_PROGRESS",
-                            "RESOLVED",
-                            "INVALID",
-                          ].map((s) => (
-                            <option key={s}>{s}</option>
-                          ))}
-                        </select>
-                      </Field>
-                      {manager && (
-                        <Field label="Agent (creator / actual resolver)">
-                          <select
-                            value={filters.agent || ""}
+                      <summary>
+                        <SlidersHorizontal size={16} />
+                        Filters
+                        <span className="crm-filter-summary">
+                          {applied.from} &mdash; {applied.to}
+                        </span>
+                        <ChevronDown size={15} className="crm-filter-chevron" />
+                      </summary>
+                      <form
+                        className="crm-filter-grid"
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          run(loadReport);
+                        }}
+                      >
+                        <Field label="Date from (Dhaka)">
+                          <input
+                            type="date"
+                            required
+                            value={filters.from}
                             onChange={(e) =>
-                              setFilters({ ...filters, agent: e.target.value })
+                              setFilters({ ...filters, from: e.target.value })
                             }
+                          />
+                        </Field>
+                        <Field label="Date through (Dhaka)">
+                          <input
+                            type="date"
+                            required
+                            value={filters.to}
+                            onChange={(e) =>
+                              setFilters({ ...filters, to: e.target.value })
+                            }
+                          />
+                        </Field>
+                        <Field label="Preset">
+                          <select
+                            defaultValue="This Month"
+                            onChange={(e) => {
+                              if (e.target.value === "Custom") return;
+                              const now = new Date(),
+                                today = localDate(now),
+                                local = new Date(today + "T12:00:00Z");
+                              let from = today,
+                                to = today;
+                              const days = (n: number) =>
+                                localDate(new Date(+now - n * 86400000));
+                              switch (e.target.value) {
+                                case "Yesterday":
+                                  from = to = days(1);
+                                  break;
+                                case "Last 7 Days":
+                                  from = days(6);
+                                  break;
+                                case "Last 15 Days":
+                                  from = days(14);
+                                  break;
+                                case "Last 30 Days":
+                                  from = days(29);
+                                  break;
+                                case "This Month":
+                                  from = today.slice(0, 8) + "01";
+                                  break;
+                                case "Last Month":
+                                  to = new Date(
+                                    Date.UTC(
+                                      local.getUTCFullYear(),
+                                      local.getUTCMonth(),
+                                      0,
+                                      12,
+                                    ),
+                                  )
+                                    .toISOString()
+                                    .slice(0, 10);
+                                  from = to.slice(0, 8) + "01";
+                                  break;
+                                case "This Week":
+                                  from = days(local.getUTCDay());
+                                  break;
+                                case "Last Week":
+                                  from = days(local.getUTCDay() + 7);
+                                  to = days(local.getUTCDay() + 1);
+                                  break;
+                              }
+                              setFilters({ ...filters, from, to });
+                            }}
                           >
-                            <option value="">All</option>
-                            {setup.roster.map((p) => (
-                              <option key={p.id} value={p.id}>
-                                {p.displayName}
-                              </option>
+                            {[
+                              "Today",
+                              "Yesterday",
+                              "Last 7 Days",
+                              "Last 15 Days",
+                              "Last 30 Days",
+                              "This Month",
+                              "Last Month",
+                              "This Week",
+                              "Last Week",
+                              "Custom",
+                            ].map((v) => (
+                              <option key={v}>{v}</option>
                             ))}
                           </select>
                         </Field>
-                      )}
-                      <button className="primary self-end" disabled={busy}>
-                        Apply
-                      </button>
-                    </form>
+                        {[
+                          "channel",
+                          "issueType",
+                          "complaintType",
+                          "callerType",
+                          "tag",
+                        ].map((k) => (
+                          <Field key={k} label={k}>
+                            {choice(
+                              k,
+                              filters[k] || "",
+                              (v) => setFilters({ ...filters, [k]: v }),
+                              true,
+                            )}
+                          </Field>
+                        ))}
+                        <Field label="Status">
+                          <select
+                            value={filters.status || ""}
+                            onChange={(e) =>
+                              setFilters({ ...filters, status: e.target.value })
+                            }
+                          >
+                            <option value="">All</option>
+                            {[
+                              "PENDING",
+                              "IN_PROGRESS",
+                              "RESOLVED",
+                              "INVALID",
+                            ].map((s) => (
+                              <option key={s}>{s}</option>
+                            ))}
+                          </select>
+                        </Field>
+                        {manager && (
+                          <Field label="Agent (creator / actual resolver)">
+                            <select
+                              value={filters.agent || ""}
+                              onChange={(e) =>
+                                setFilters({
+                                  ...filters,
+                                  agent: e.target.value,
+                                })
+                              }
+                            >
+                              <option value="">All</option>
+                              {setup.roster.map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.displayName}
+                                </option>
+                              ))}
+                            </select>
+                          </Field>
+                        )}
+                        <button className="primary self-end" disabled={busy}>
+                          Apply
+                        </button>
+                      </form>
+                    </details>
                     {report && (
                       <>
-                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                          {Object.entries(report.metrics).map(
-                            ([key, value]) => (
-                              <section
-                                key={key}
-                                className="rounded-xl border border-slate-200 bg-white p-5"
-                              >
-                                <p className="text-sm text-slate-500">
-                                  {(
-                                    {
-                                      escalations: "Total Escalation",
-                                      tethered: "Tethered Resolution",
-                                      untethered: "Untethered Resolution",
-                                      withinSla: "Solved Within SLA %",
-                                      average: "Average SLA",
-                                      median: "Median TAT",
-                                      p90: "P90 TAT",
-                                      interactions: "Total Interactions",
-                                      pending: "Total Pending",
-                                      complaints: "Total Complaints",
-                                      resolved: "Resolved",
-                                    } as Record<string, string>
-                                  )[key] || key}
-                                </p>
-                                <p className="mt-2 text-3xl font-semibold">
-                                  {["average", "median", "p90"].includes(key)
-                                    ? duration(value)
-                                    : value === null
-                                      ? "N/A"
-                                      : key === "withinSla"
-                                        ? value.toFixed(1) + "%"
-                                        : value}
-                                </p>
-                                {key === "average" && (
-                                  <small>
-                                    Average creation-to-resolution time
-                                  </small>
-                                )}
-                              </section>
-                            ),
-                          )}
-                        </div>
-                        <p className="my-4 text-xs text-slate-600">
+                        <CrmOverview
+                          report={report}
+                          from={applied.from}
+                          to={applied.to}
+                          label={label}
+                        />
+                        {tab === "Dashboard" && (
+                          <section className="crm-panel">
+                            <div className="crm-panel-title">
+                              <div>
+                                <h3>Recent resolutions</h3>
+                                <p>Final resolutions in the selected period</p>
+                              </div>
+                              <button onClick={() => navigate("Reports")}>
+                                View report <ArrowUpRight size={14} />
+                              </button>
+                            </div>
+                            {table(
+                              [...report.rows]
+                                .sort((a, b) =>
+                                  (b.resolvedAt || "").localeCompare(
+                                    a.resolvedAt || "",
+                                  ),
+                                )
+                                .slice(0, 5),
+                            )}
+                          </section>
+                        )}
+                        <p className="crm-data-note">
                           {report.basis} Weeks run Sunday 00:00 to Sunday 00:00,
                           Asia/Dhaka.
                         </p>
@@ -1252,6 +1432,7 @@ export default function CrmApp({
                       {Object.entries(search).map(([key, value]) => (
                         <Field key={key} label={key}>
                           <input
+                            aria-label={key}
                             value={value}
                             onChange={(e) =>
                               setSearch({ ...search, [key]: e.target.value })
@@ -1762,7 +1943,7 @@ function Settings({
       fn(new FormData(e.currentTarget));
     };
   return (
-    <div className="space-y-5">
+    <div className="crm-settings-grid">
       {setup.actor.role === "ADMIN" && (
         <>
           <section className="bg-white p-6 rounded-xl">

@@ -5,7 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { getRequiredPermission, UNREGISTERED_PAGE } from "@/lib/permissions";
 
-export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
+export default function ProtectedRoute({ children, minimalLoading = false }: { children: React.ReactNode; minimalLoading?: boolean }) {
     const { user, userProfile, loading, hasPermission } = useAuth();
     const router = useRouter();
     const pathname = usePathname();
@@ -18,6 +18,7 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
 
     // Show full-page dashboard skeleton overlay while checking auth, profile or during redirect
     if (loading || !user || !userProfile) {
+        if (minimalLoading) return <div role="status" className="min-h-screen grid place-items-center bg-slate-50 text-slate-600">Loading your workspace…</div>;
         return (
             <div className="fixed inset-0 z-50 flex min-h-screen bg-gray-50">
                 {/* Sidebar Skeleton */}
