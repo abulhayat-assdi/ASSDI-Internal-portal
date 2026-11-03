@@ -7,6 +7,9 @@ import { localDate } from "./domain";
 import { mutate, provision, read } from "./service";
 import { identity, Identity } from "./access";
 import { signJWT, invalidateUserOverrideCache } from "@/lib/auth";
+import { starterRequestIds } from "../../../scripts/lib/customer-service-practice.cjs";
+import { loadPracticeDataset } from "../../../scripts/lib/customer-service-practice.cjs";
+import { loadTrainingCustomers } from "../../../scripts/lib/customer-service-training.cjs";
 import { invalidateCourseCache } from "@/lib/course";
 const enabled = process.env.CRM_INTEGRATION === "1";
 describe.skipIf(!enabled)("CRM isolated PostgreSQL integration", () => {
@@ -558,7 +561,7 @@ describe.skipIf(!enabled)("CRM isolated PostgreSQL integration", () => {
       "resolve",
     ]);
   });
-  it("loads exactly 100 training references per workspace without changing complaints or settings", async () => {
+  it("loads exactly 500 training customers and preserves starter complaints per workspace without changing complaints or settings", async () => {
     const counts = await scoped(courseId, workspace, async (tx) => ({
       customers: await tx.customer.count({
         where: { trainingKey: { not: null } },
@@ -573,9 +576,14 @@ describe.skipIf(!enabled)("CRM isolated PostgreSQL integration", () => {
         },
       }),
     }));
-    expect(counts.customers).toBe(100);
+    expect(counts.customers).toBe(500);
     const result: any = await mutate(admin, body("dummy"));
-    expect(result).toMatchObject({ total: 100, added: 0 });
+    expect(result).toMatchObject({
+      total: 500,
+      added: 0,
+      complaintsAdded: 0,
+      starterComplaints: 250,
+    });
     const after = await scoped(courseId, workspace, async (tx) => ({
       complaints: await tx.complaint.count(),
       policy: await tx.policy.findUnique({
@@ -599,24 +607,24 @@ describe.skipIf(!enabled)("CRM isolated PostgreSQL integration", () => {
       agent,
       workspace,
       "fetch",
-      new URLSearchParams({ number: "0001 0000 001", by: "calling" }),
+      new URLSearchParams({ number: "0001 0000 251", by: "calling" }),
     );
     const registered: any = await read(
       agent,
       workspace,
       "fetch",
-      new URLSearchParams({ number: "0002 0000 001", by: "registered" }),
+      new URLSearchParams({ number: "0002 0000 251", by: "registered" }),
     );
     expect(calling.sourceKind).toBe("training");
     expect(registered.source).toEqual(calling.source);
-    expect(registered.matchedCallingNumber).toBe("00010000001");
-    expect(registered.source.registeredNumber).toBe("00020000001");
+    expect(registered.matchedCallingNumber).toBe("00010000251");
+    expect(registered.source.registeredNumber).toBe("00020000251");
     expect(registered.source).not.toHaveProperty("description");
     const otherBatch: any = await read(
       admin,
       otherWorkspace,
       "fetch",
-      new URLSearchParams({ number: "00010000001" }),
+      new URLSearchParams({ number: "00010000251" }),
     );
     expect(otherBatch.customer.id).not.toBe(calling.customer.id);
     expect(otherBatch.source.issueType).not.toBe(calling.source.issueType);
@@ -629,13 +637,13 @@ describe.skipIf(!enabled)("CRM isolated PostgreSQL integration", () => {
       "customers",
       new URLSearchParams({ page: "5" }),
     );
-    expect(page.total).toBe(100);
+    expect(page.total).toBe(250);
     expect(page.rows).toHaveLength(20);
     const search: any = await read(
       agent,
       workspace,
       "customers",
-      new URLSearchParams({ search: "00020000001" }),
+      new URLSearchParams({ search: "00020000251" }),
     );
     expect(search.rows).toHaveLength(1);
   });
@@ -644,7 +652,7 @@ describe.skipIf(!enabled)("CRM isolated PostgreSQL integration", () => {
       agent,
       workspace,
       "fetch",
-      new URLSearchParams({ number: "00010000001" }),
+      new URLSearchParams({ number: "00010000251" }),
     );
     const { code, createdAt, ...prefill } = initial.source;
     const created: any = await mutate(
@@ -652,7 +660,7 @@ describe.skipIf(!enabled)("CRM isolated PostgreSQL integration", () => {
       body("create", {
         ...form(),
         ...prefill,
-        callingNumber: "00010000001",
+        callingNumber: "00010000251",
         description: "Training from reusable reference",
       }),
     );
@@ -660,13 +668,13 @@ describe.skipIf(!enabled)("CRM isolated PostgreSQL integration", () => {
       agent,
       workspace,
       "fetch",
-      new URLSearchParams({ number: "00010000001" }),
+      new URLSearchParams({ number: "00010000251" }),
     );
     const byRegistered: any = await read(
       agent,
       workspace,
       "fetch",
-      new URLSearchParams({ number: "00020000001", by: "registered" }),
+      new URLSearchParams({ number: "00020000251", by: "registered" }),
     );
     expect(byCalling.sourceKind).toBe("complaint");
     expect(byRegistered.source.code).toBe(created.code);
@@ -676,14 +684,14 @@ describe.skipIf(!enabled)("CRM isolated PostgreSQL integration", () => {
       admin,
       otherWorkspace,
       "fetch",
-      new URLSearchParams({ number: "00020000001", by: "registered" }),
+      new URLSearchParams({ number: "00020000251", by: "registered" }),
     );
     expect(untouched.sourceKind).toBe("training");
     const hiddenFromL2: any = await read(
       l2,
       workspace,
       "fetch",
-      new URLSearchParams({ number: "00020000001", by: "registered" }),
+      new URLSearchParams({ number: "00020000251", by: "registered" }),
     );
     expect(hiddenFromL2.sourceKind).toBe("training");
     expect(hiddenFromL2.source.code).not.toBe(created.code);
@@ -707,9 +715,168 @@ describe.skipIf(!enabled)("CRM isolated PostgreSQL integration", () => {
         agent,
         workspace,
         "fetch",
-        new URLSearchParams({ number: "00010000001", by: "invalid" }),
+        new URLSearchParams({ number: "00010000251", by: "invalid" }),
       ),
     ).rejects.toThrow();
+  });
+  it("preloads 250 complete pending cases and preserves later practice work on repeat loading", async () => {
+    const seeded = await scoped(courseId, workspace, async (tx) => {
+      const cases = await tx.complaint.findMany({
+        where: {
+          requestId: {
+            in: starterRequestIds({ courseId, workspaceId: workspace }),
+          },
+        },
+        orderBy: { requestId: "asc" },
+      });
+      return {
+        cases,
+        histories: await tx.history.count({
+          where: { complaintId: { in: cases.map((c) => c.id) } },
+        }),
+        interactions: await tx.interaction.count({
+          where: { complaintId: { in: cases.map((c) => c.id) } },
+        }),
+      };
+    });
+    expect(seeded.cases).toHaveLength(250);
+    expect(seeded.histories).toBe(250);
+    expect(seeded.interactions).toBe(250);
+    for (const c of seeded.cases) {
+      expect(c).toMatchObject({
+        status: "PENDING",
+        queue: "AGENT",
+        creatorId: admin.user.id,
+        ownerId: admin.user.id,
+      });
+      expect(c.callingNumber).toHaveLength(11);
+      expect(c.registeredNumber).toHaveLength(11);
+      expect(
+        c.callerType &&
+          c.channel &&
+          c.issueType &&
+          c.complaintType &&
+          c.description &&
+          c.transactionId,
+      ).toBeTruthy();
+      expect(c.transactionAmount?.toNumber()).toBeGreaterThan(0);
+      expect(+c.dueAt).toBeGreaterThan(+c.createdAt);
+    }
+    let c: any = seeded.cases[0];
+    const fetched: any = await read(
+      agent,
+      workspace,
+      "fetch",
+      new URLSearchParams({ number: c.registeredNumber, by: "registered" }),
+    );
+    expect(fetched.source.code).toBe(c.code);
+    c = await mutate(
+      admin,
+      body("assign", undefined, {
+        id: c.id,
+        version: c.version,
+        userId: agent.user.id,
+        remark: "Practice assignment",
+      }),
+    );
+    c = await mutate(
+      agent,
+      body(
+        "resolve",
+        { resolutionReason: options.resolutionReason },
+        { id: c.id, version: c.version, remark: "Practice completed" },
+      ),
+    );
+    expect(c.status).toBe("RESOLVED");
+    const repeated: any = await mutate(admin, body("dummy"));
+    expect(repeated).toMatchObject({
+      total: 500,
+      added: 0,
+      complaintsAdded: 0,
+      starterComplaints: 250,
+      referenceCustomers: 250,
+    });
+    const detail: any = await read(
+      admin,
+      workspace,
+      "detail",
+      new URLSearchParams({ id: c.id }),
+    );
+    expect(detail.complaint).toEqual(c);
+    expect(detail.history.map((h: any) => h.action)).toEqual([
+      "create",
+      "assign",
+      "resolve",
+    ]);
+    const otherCases = await scoped(courseId, otherWorkspace, (tx) =>
+      tx.complaint.findMany({
+        where: {
+          requestId: {
+            in: starterRequestIds({ courseId, workspaceId: otherWorkspace }),
+          },
+        },
+      }),
+    );
+    expect(otherCases).toHaveLength(250);
+    expect(
+      otherCases.every((x) => x.status === "PENDING" && x.id !== c.id),
+    ).toBe(true);
+    const directory: any = await read(
+      admin,
+      workspace,
+      "customers",
+      new URLSearchParams(),
+    );
+    expect(directory).toMatchObject({ total: 250, starterComplaints: 250 });
+    expect(
+      directory.rows.every(
+        (x: any) => !seeded.cases.some((c) => c.customerId === x.id),
+      ),
+    ).toBe(true);
+  });
+  it("upgrades the original 100-reference dataset without replacing existing customers", async () => {
+    const batch = await prisma.batch.create({
+      data: { courseId, name: "Legacy upgrade " + suffix },
+    });
+    const w = await scoped(courseId, "", (tx) =>
+      tx.workspace.create({
+        data: { courseId, batchId: batch.id, name: batch.name },
+      }),
+    );
+    await scoped(courseId, w.id, (tx) =>
+      loadTrainingCustomers(tx, { courseId, workspaceId: w.id }),
+    );
+    const original = await scoped(courseId, w.id, (tx) =>
+      tx.customer.findMany({ orderBy: { trainingKey: "asc" } }),
+    );
+    const result = await scoped(courseId, w.id, (tx) =>
+      loadPracticeDataset(
+        tx,
+        { courseId, workspaceId: w.id },
+        { id: admin.user.id, name: admin.user.displayName },
+      ),
+    );
+    expect(result).toMatchObject({
+      added: 400,
+      total: 500,
+      complaintsAdded: 250,
+      starterComplaints: 250,
+    });
+    const retained = await scoped(courseId, w.id, (tx) =>
+      tx.customer.findMany({
+        where: { id: { in: original.map((c) => c.id) } },
+        orderBy: { trainingKey: "asc" },
+      }),
+    );
+    expect(retained).toEqual(original);
+    const repeat = await scoped(courseId, w.id, (tx) =>
+      loadPracticeDataset(
+        tx,
+        { courseId, workspaceId: w.id },
+        { id: admin.user.id, name: admin.user.displayName },
+      ),
+    );
+    expect(repeat).toMatchObject({ added: 0, complaintsAdded: 0 });
   });
   it("automatically enrolls eligible batch students as Agents and preserves admin overrides", async () => {
     const user = request("new-agent-" + suffix);

@@ -1,5 +1,6 @@
 // Shared by the protected application loader and the one-shot release script.
-// These are fictional references, never completed complaints or portal identities.
+// Fictional reference profiles; starter pending complaints are loaded separately.
+const { createHash } = require("node:crypto");
 const VERSION = "training-v1";
 const scenarios = [
   [
@@ -79,14 +80,21 @@ const family = [
 ];
 const channels = ["Phone", "Email", "Facebook", "Web form"];
 const callers = ["Existing customer", "New customer"];
-function trainingCustomers() {
-  return Array.from({ length: 100 }, (_, index) => {
+function trainingCustomers(count = 100) {
+  return Array.from({ length: count }, (_, index) => {
     const serial = String(index + 1).padStart(3, "0");
+    const variation =
+      index < 100
+        ? index
+        : createHash("sha256")
+            .update(`training-profile-${serial}`)
+            .digest()
+            .readUInt32LE(0);
     const [issueType, complaintType, scenario] =
-      scenarios[index % scenarios.length];
+      scenarios[variation % scenarios.length];
     return {
       trainingKey: `${VERSION}-${serial}`,
-      name: `${given[index % 10]} ${family[Math.floor(index / 10)]} (Training ${serial})`,
+      name: `${given[variation % 10]} ${family[Math.floor(variation / 10) % 10]} (Training ${serial})`,
       number: `00010000${serial}`,
       registeredNumber: `00020000${serial}`,
       registeredNormalized: `00020000${serial}`,
@@ -94,8 +102,11 @@ function trainingCustomers() {
       trainingProfile: {
         reference: `TRAIN-${serial}`,
         email: `customer${serial}@example.test`,
-        callerType: callers[index % callers.length],
-        channel: channels[index % channels.length],
+        callerType: callers[variation % callers.length],
+        channel:
+          channels[
+            Math.floor(variation / (index < 100 ? 1 : 11)) % channels.length
+          ],
         complaintType,
         issueType,
         scenario,
@@ -109,7 +120,7 @@ function trainingCustomers() {
 /** @param {import('../../generated/customer-service').Prisma.TransactionClient} tx
  * @param {{courseId:string,workspaceId:string}} scope
  */
-async function loadTrainingCustomers(tx, scope) {
+async function loadTrainingCustomers(tx, scope, count = 100) {
   // Serialize repeated provisioning/loading within one workspace.
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${scope.workspaceId}), 100)`;
   const workspace = await tx.workspace.findFirst({
@@ -162,13 +173,19 @@ async function loadTrainingCustomers(tx, scope) {
     skipDuplicates: true,
   });
   const result = await tx.customer.createMany({
-    data: trainingCustomers().map((customer) => ({ ...scope, ...customer })),
+    data: trainingCustomers(count).map((customer) => ({
+      ...scope,
+      ...customer,
+    })),
     skipDuplicates: true,
   });
   const total = await tx.customer.count({
-    where: { ...scope, trainingKey: { startsWith: VERSION + "-" } },
+    where: {
+      ...scope,
+      trainingKey: { in: trainingCustomers(count).map((c) => c.trainingKey) },
+    },
   });
-  if (total !== 100)
+  if (total !== count)
     throw Error(
       "Training number conflict: no existing customer was overwritten. Review the workspace before retrying.",
     );

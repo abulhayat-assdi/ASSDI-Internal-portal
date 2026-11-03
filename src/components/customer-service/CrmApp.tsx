@@ -1250,7 +1250,7 @@ export default function CrmApp({
                 <h3 className="font-semibold">No assigned workspace</h3>
                 <p className="mt-2 text-slate-600">
                   {boot?.admin
-                    ? "Select a batch from Workspace to set it up with 100 training customers. The selected workspace applies to every CRM page."
+                    ? "Select a batch from Workspace to set it up with 500 training customers and 250 pending complaints. The selected workspace applies to every CRM page."
                     : "Ask your administrator to set up your batch workspace. Eligible batch students join automatically as Agents."}
                 </p>
               </section>
@@ -2461,12 +2461,13 @@ function Settings({
         <section className="bg-white p-6 rounded-xl">
           <h3 className="font-semibold mb-3">Workspace controls</h3>
           <button disabled={busy} onClick={() => save("dummy", {})}>
-            Load 100 training customers
+            Load 500 customers / 250 pending complaints
           </button>
           <p className="text-xs my-3">
-            Loads 100 batch-isolated fictional customers and practice options.
-            Repeat loading preserves existing data. Missing default SLA: 60
-            minutes overall, L2 20, L3 10; existing settings are preserved.
+            Loads 500 batch-isolated fictional customers: 250 with ready pending
+            complaints and 250 reference profiles for new practice. Repeat
+            loading preserves existing data. Missing default SLA: 60 minutes
+            overall, L2 20, L3 10; existing settings are preserved.
           </p>
           <button
             disabled={busy}

@@ -32,6 +32,7 @@ export default function CrmTrainingCustomers({
   const [data, setData] = useState<{
     rows: TrainingCustomer[];
     total: number;
+    starterComplaints: number;
   } | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -72,8 +73,7 @@ export default function CrmTrainingCustomers({
         <div>
           <h3>Training customer directory</h3>
           <p>
-            100 fictional references per batch. Practice complaints stay in this
-            workspace.
+            Reference customers for new practice complaints in this workspace.
           </p>
         </div>
         <UsersRound size={20} />
@@ -81,8 +81,9 @@ export default function CrmTrainingCustomers({
       <div className="p-5">
         <p className="text-sm text-slate-500 mb-4">
           Use either contact number with Fetch Data. Numbers beginning with 000
-          are fictional and must not be dialled. Reference customers do not
-          count as complaints in reports.
+          are fictional and must not be dialled. {data?.starterComplaints || 0}{" "}
+          starter customer complaints are already in All Complaints; the
+          remaining profiles are listed here. Reports include saved complaints.
         </p>
         <form
           className="flex gap-3 mb-4"

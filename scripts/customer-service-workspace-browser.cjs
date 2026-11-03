@@ -25,11 +25,11 @@ for (const key of ["DATABASE_URL", "CUSTOMER_SERVICE_DATABASE_URL"]) {
   await page.getByRole("heading", { name: "Administration · " + batch.name, exact: true }).waitFor();
   const selected = await page.getByLabel("Workspace", { exact: true }).inputValue();
   await page.getByRole("button", { name: "Training Customers", exact: true }).click();
-  await page.getByText("Page 1 · 100 training customers", { exact: true }).waitFor();
+  await page.getByText("Page 1 · 250 training customers", { exact: true }).waitFor();
   assert.equal(new URL(page.url()).searchParams.get("view"), "training-customers");
   assert.equal(new URL(page.url()).pathname, "/dashboard/crm");
   await page.reload();
-  await page.getByText("Page 1 · 100 training customers", { exact: true }).waitFor();
+  await page.getByText("Page 1 · 250 training customers", { exact: true }).waitFor();
   assert.equal(await page.getByLabel("Workspace", { exact: true }).inputValue(), selected);
   await page.getByRole("button", { name: "New Complaint", exact: true }).click();
   await page.getByLabel("Calling number", { exact: true }).fill("00010000001");
@@ -49,5 +49,5 @@ for (const key of ["DATABASE_URL", "CUSTOMER_SERVICE_DATABASE_URL"]) {
   await page.getByRole("heading", { name: "Settings", exact: true }).waitFor();
   await page.screenshot({ path: ".crm-test/workspace-settings.png", fullPage: true });
   await browser.close();
-  console.log("PASS: one workspace selector creates/selects the batch, 100 profiles, selection persists across pages/reload, drafts reset on batch change, Settings and work URLs/back navigation stay in sync.");
+  console.log("PASS: one workspace selector creates/selects the batch, 250 reference profiles, selection persists across pages/reload, drafts reset on batch change, Settings and work URLs/back navigation stay in sync.");
 })().catch((e) => { console.error(e.message); process.exit(1); });

@@ -1,5 +1,8 @@
 import "server-only";
-import { loadTrainingCustomers } from "../../../scripts/lib/customer-service-training.cjs";
+import {
+  loadPracticeDataset,
+  starterRequestIds,
+} from "../../../scripts/lib/customer-service-practice.cjs";
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { Prisma } from "../../../generated/customer-service";
@@ -242,7 +245,10 @@ export async function provision(ctx: Identity, body: unknown) {
     });
     await tx.$executeRaw`SELECT set_config('crm.workspace', ${w.id},true)`;
     if (w.state === "ACTIVE") {
-      const training = await loadTrainingCustomers(tx, scope(ctx, w.id));
+      const training = await loadPracticeDataset(tx, scope(ctx, w.id), {
+        id: ctx.user.id,
+        name: ctx.user.displayName,
+      });
       await audit(tx, ctx, w.id, "training.load", training);
     }
     await audit(tx, ctx, w.id, "workspace.provision", { batchId });
@@ -376,6 +382,16 @@ export async function read(
       };
     }
     if (kind === "customers") {
+      const starters = await tx.complaint.findMany({
+        where: {
+          workspaceId: w,
+          requestId: { in: starterRequestIds(scope(ctx, w)) },
+        },
+        select: { customerId: true },
+      });
+      const starterCustomerIds = starters.flatMap((c) =>
+        c.customerId ? [c.customerId] : [],
+      );
       const search = z
         .string()
         .max(100)
@@ -390,6 +406,9 @@ export async function read(
       const where: Prisma.CustomerWhereInput = {
         workspaceId: w,
         trainingKey: { not: null },
+        ...(starterCustomerIds.length
+          ? { id: { notIn: starterCustomerIds } }
+          : {}),
         ...(search
           ? {
               OR: [
@@ -414,7 +433,7 @@ export async function read(
         }),
         tx.customer.count({ where }),
       ]);
-      return { rows, total, page };
+      return { rows, total, page, starterComplaints: starters.length };
     }
     if (kind === "fetch") {
       const by = z
@@ -909,7 +928,10 @@ export async function mutate(ctx: Identity, raw: unknown) {
     }
     if (b.action === "dummy") {
       requireThat(a.role === "ADMIN", "CRM administrator required");
-      const result = await loadTrainingCustomers(tx, s);
+      const result = await loadPracticeDataset(tx, s, {
+        id: ctx.user.id,
+        name: ctx.user.displayName,
+      });
       await audit(tx, ctx, w, "training.load", result);
       return { ok: true, ...result };
     }

@@ -1,8 +1,6 @@
 // Explicit one-shot release task. No credentials or customer data are printed.
 // node scripts/customer-service-training.cjs --course telesales [--enroll-agents]
-const {
-  loadTrainingCustomers,
-} = require("./lib/customer-service-training.cjs");
+const { loadPracticeDataset } = require("./lib/customer-service-practice.cjs");
 const { PrismaClient: Crm } = require("../generated/customer-service");
 const { PrismaClient: Portal } = require("@prisma/client");
 const args = process.argv.slice(2);
@@ -25,6 +23,16 @@ const portal = new Portal(),
   });
   if (!course || course.settings?.features?.crm !== true)
     throw Error("An existing CRM-enabled course is required");
+  const administrator = await portal.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT set_config('app.current_course_id', ${course.id}, true), set_config('app.is_super_admin', 'false', true)`;
+    return tx.user.findFirst({
+      where: { courseId: course.id, role: "admin", deletedAt: null },
+      orderBy: { id: "asc" },
+      select: { id: true, displayName: true },
+    });
+  });
+  if (!administrator)
+    throw Error("An existing course administrator is required");
   const workspaces = await crm.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT set_config('crm.course', ${course.id}, true), set_config('crm.workspace', '', true)`;
     return tx.workspace.findMany({
@@ -65,7 +73,10 @@ const portal = new Portal(),
         await tx.$executeRaw`SELECT set_config('crm.course', ${course.id}, true), set_config('crm.workspace', ${w.id}, true)`;
         const scope = { courseId: course.id, workspaceId: w.id };
         const before = await tx.complaint.count();
-        const training = await loadTrainingCustomers(tx, scope);
+        const training = await loadPracticeDataset(tx, scope, {
+          id: administrator.id,
+          name: administrator.displayName,
+        });
         const members = eligible.length
           ? await tx.member.createMany({
               data: eligible.map((u) => ({
@@ -77,8 +88,8 @@ const portal = new Portal(),
               skipDuplicates: true,
             })
           : { count: 0 };
-        if ((await tx.complaint.count()) !== before)
-          throw Error("Training loader must not change complaint counts");
+        if ((await tx.complaint.count()) !== before + training.complaintsAdded)
+          throw Error("Unexpected practice complaint count");
         await tx.audit.create({
           data: {
             ...scope,
@@ -92,7 +103,7 @@ const portal = new Portal(),
           workspace: w.name,
           ...training,
           agentsAdded: members.count,
-          complaintsPreserved: before,
+          previousComplaints: before,
         };
       },
       { timeout: 30000 },

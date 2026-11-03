@@ -30,7 +30,7 @@ The role script grants current and future table/sequence privileges for the migr
 5. Apply additive CRM migrations and runtime grants using the one-shot owner job before enabling CRM.
 6. Deploy the reviewed application. Existing `/api/health` remains independent of optional CRM availability. An authenticated CRM administrator can check `/api/crm?kind=health` on the course host.
 7. Enable the course CRM feature in the platform course configuration. Grant staff `crm_admin` and/or `crm_supervisor` through existing Access Management. Teachers receive neither implicitly. Administrators manage the course; supervisors additionally need explicit workspace assignment.
-8. Provision the authoritative batch. Eligible students automatically join as Agents; administrators handle escalation. The training release adds 100 isolated reference customers per workspace, missing dropdown options, L2/L3 teams and a 60/20/10-minute fallback practice SLA without overwriting existing settings. See [CRM training data](CRM_TRAINING_DATA.md) for loading existing workspaces and changing defaults.
+8. Provision the authoritative batch. Eligible students automatically join as Agents; administrators handle escalation. The training release adds 500 isolated customers per workspace, including 250 ready Pending complaints, missing dropdown options, L2/L3 teams and a 60/20/10-minute fallback practice SLA without overwriting existing settings. See [CRM training data](CRM_TRAINING_DATA.md) for loading existing workspaces and changing defaults.
 9. Smoke-test student new-tab entry, direct resolution, L2 revert/resubmit, L3 handoff, reports and export. Roll out to additional batches deliberately.
 
 ## Scope and operational rules
