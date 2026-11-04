@@ -938,6 +938,328 @@ describe.skipIf(!enabled)("CRM isolated PostgreSQL integration", () => {
       read(ctx, workspace, "setup", new URLSearchParams()),
     ).rejects.toThrow("membership");
   });
+  it("previews and bulk assigns only available pool cases, atomically and idempotently", async () => {
+    await mutate(
+      admin,
+      body(
+        "member",
+        { role: "AGENT", active: true },
+        { userId: other.user.id },
+      ),
+    );
+    const pool: any = await read(
+      admin,
+      workspace,
+      "assignment_pool",
+      new URLSearchParams(),
+    );
+    expect(pool.total).toBeGreaterThan(200);
+    expect(pool.agents.map((p: any) => p.id)).toContain(agent.user.id);
+    expect(pool.agents.map((p: any) => p.id)).not.toContain(l2.user.id);
+    await expect(
+      read(agent, workspace, "assignment_pool", new URLSearchParams()),
+    ).rejects.toThrow("Supervisor");
+    const allocations = pool.cases.slice(0, 4).map((c: any, i: number) => ({
+      id: c.id,
+      version: c.version,
+      userId: i % 2 ? other.user.id : agent.user.id,
+    }));
+    const command = body("bulk_assign", {
+      allocations,
+      reason: "Distribute training work",
+    });
+    expect(await mutate(admin, command)).toEqual({ assigned: 4 });
+    expect(await mutate(admin, command)).toEqual({ assigned: 4 });
+    const assigned = await scoped(courseId, workspace, (tx) =>
+      tx.complaint.findMany({
+        where: { id: { in: allocations.map((a: any) => a.id) } },
+      }),
+    );
+    for (const c of assigned)
+      expect(c.ownerId).toBe(
+        allocations.find((x: any) => x.id === c.id).userId,
+      );
+    expect(
+      await scoped(courseId, workspace, (tx) =>
+        tx.history.count({
+          where: { action: "assign", requestId: command.requestId },
+        }),
+      ),
+    ).toBe(4);
+    expect(
+      await scoped(courseId, workspace, (tx) =>
+        tx.notification.count({
+          where: { eventKey: { startsWith: command.requestId } },
+        }),
+      ),
+    ).toBe(4);
+    const after: any = await read(
+      admin,
+      workspace,
+      "assignment_pool",
+      new URLSearchParams(),
+    );
+    expect(after.total).toBe(pool.total - 4);
+    const rows: any = await read(
+      admin,
+      workspace,
+      "list",
+      new URLSearchParams({ ownerId: other.user.id }),
+    );
+    expect(rows.rows.every((c: any) => c.ownerId === other.user.id)).toBe(true);
+    await expect(
+      read(
+        agent,
+        workspace,
+        "list",
+        new URLSearchParams({ ownerId: other.user.id }),
+      ),
+    ).rejects.toThrow("Supervisor");
+    await expect(
+      mutate(agent, body("bulk_assign", { allocations, reason: "Denied" })),
+    ).rejects.toThrow("Supervisor");
+  });
+  it("rejects stale, cross-batch and duplicate bulk allocations without partial writes", async () => {
+    const pool: any = await read(
+      admin,
+      workspace,
+      "assignment_pool",
+      new URLSearchParams(),
+    );
+    const allocations = pool.cases.slice(0, 2).map((c: any) => ({
+      id: c.id,
+      version: c.version,
+      userId: agent.user.id,
+    }));
+    await mutate(
+      admin,
+      body("assign", undefined, {
+        id: allocations[1].id,
+        version: allocations[1].version,
+        userId: agent.user.id,
+        remark: "Assigned concurrently",
+      }),
+    );
+    const original = await scoped(courseId, workspace, (tx) =>
+      tx.complaint.findUniqueOrThrow({ where: { id: allocations[0].id } }),
+    );
+    await expect(
+      mutate(
+        admin,
+        body("bulk_assign", { allocations, reason: "Stale preview" }),
+      ),
+    ).rejects.toThrow("pool changed");
+    expect(
+      await scoped(courseId, workspace, (tx) =>
+        tx.complaint.findUniqueOrThrow({ where: { id: original.id } }),
+      ),
+    ).toEqual(original);
+    await expect(
+      mutate(
+        admin,
+        body("bulk_assign", {
+          allocations: [allocations[0], allocations[0]],
+          reason: "Duplicate",
+        }),
+      ),
+    ).rejects.toThrow("Duplicate");
+    await expect(
+      mutate(
+        admin,
+        body("bulk_assign", {
+          allocations: [{ ...allocations[0], userId: l2.user.id }],
+          reason: "Wrong role",
+        }),
+      ),
+    ).rejects.toThrow("eligible");
+    await expect(
+      mutate(admin, {
+        ...body("bulk_assign", {
+          allocations: [allocations[0]],
+          reason: "Cross workspace",
+        }),
+        workspaceId: otherWorkspace,
+      }),
+    ).rejects.toThrow();
+  });
+  it("keeps inbox and read state personal and workspace scoped, including read-only workspaces", async () => {
+    const mine: any = await read(
+      agent,
+      workspace,
+      "notifications",
+      new URLSearchParams(),
+    );
+    const theirs: any = await read(
+      other,
+      workspace,
+      "notifications",
+      new URLSearchParams(),
+    );
+    expect(mine.unread).toBeGreaterThan(0);
+    expect(theirs.unread).toBeGreaterThan(0);
+    expect(mine.items.every((n: any) => n.userId === agent.user.id)).toBe(true);
+    const changed: any = await mutate(
+      agent,
+      body("notification_read", { ids: theirs.items.map((n: any) => n.id) }),
+    );
+    expect(changed.count).toBe(0);
+    expect(
+      (
+        (await read(
+          other,
+          workspace,
+          "notifications",
+          new URLSearchParams(),
+        )) as any
+      ).unread,
+    ).toBe(theirs.unread);
+    await mutate(admin, body("workspace", { state: "READ_ONLY" }));
+    const marked: any = await mutate(
+      agent,
+      body("notification_read", { all: true }),
+    );
+    expect(marked.count).toBe(mine.unread);
+    expect(
+      (
+        (await read(
+          agent,
+          workspace,
+          "notifications",
+          new URLSearchParams(),
+        )) as any
+      ).unread,
+    ).toBe(0);
+    await mutate(admin, body("workspace", { state: "ACTIVE" }));
+    await expect(
+      read(agent, otherWorkspace, "notifications", new URLSearchParams()),
+    ).rejects.toThrow("access denied");
+    expect(await crmClient().notification.count()).toBe(0);
+  });
+  it("shows current assigned workload separately from student creations and actual resolutions", async () => {
+    const mine: any = await read(
+      agent,
+      workspace,
+      "list",
+      new URLSearchParams({ mine: "true" }),
+    );
+    const target = mine.rows.find(
+      (c: any) =>
+        c.status === "PENDING" &&
+        c.queue === "AGENT" &&
+        c.creatorId === admin.user.id,
+    );
+    expect(target).toBeTruthy();
+    let c: any = await mutate(
+      agent,
+      body("progress", undefined, { id: target.id, version: target.version }),
+    );
+    c = await mutate(
+      agent,
+      body(
+        "resolve",
+        { resolutionReason: options.resolutionReason },
+        {
+          id: c.id,
+          version: c.version,
+          remark: "Student completed assigned work",
+        },
+      ),
+    );
+    const result: any = await read(
+      admin,
+      workspace,
+      "progress",
+      new URLSearchParams(),
+    );
+    const row = result.rows.find((p: any) => p.id === agent.user.id);
+    const actual = await scoped(courseId, workspace, async (tx) => ({
+      open: await tx.complaint.count({
+        where: { ownerId: agent.user.id, closedAt: null },
+      }),
+      created: await tx.complaint.count({
+        where: { creatorId: agent.user.id },
+      }),
+      resolved: await tx.complaint.count({
+        where: { resolverId: agent.user.id, status: "RESOLVED" },
+      }),
+    }));
+    expect(row.assignedNow).toBe(actual.open);
+    expect(row.created).toBe(actual.created);
+    expect(row.resolved).toBe(actual.resolved);
+    expect(row.assignedInPeriod).toBeGreaterThanOrEqual(3);
+    expect(row.worked).toBeGreaterThan(0);
+    expect(row.averageTat).toBeGreaterThanOrEqual(0);
+    const personal: any = await read(
+      agent,
+      workspace,
+      "progress",
+      new URLSearchParams({ agent: other.user.id }),
+    );
+    expect(personal.rows).toHaveLength(1);
+    expect(personal.rows[0].id).toBe(agent.user.id);
+    const old: any = await read(
+      admin,
+      workspace,
+      "progress",
+      new URLSearchParams({ from: "2020-01-01", to: "2020-01-02" }),
+    );
+    const oldRow = old.rows.find((p: any) => p.id === agent.user.id);
+    expect(oldRow.resolved).toBe(0);
+    expect(oldRow.assignedInPeriod).toBe(0);
+    expect(oldRow.assignedNow).toBe(actual.open);
+    const adminInbox: any = await read(
+      admin,
+      workspace,
+      "notifications",
+      new URLSearchParams(),
+    );
+    expect(adminInbox.items.some((n: any) => n.complaintId === c.id)).toBe(
+      true,
+    );
+  });
+  it("notifies the escalation team and administrators when an Agent requests help", async () => {
+    let c: any = await mutate(agent, body("create", form()));
+    c = await mutate(
+      agent,
+      body("escalate", undefined, {
+        id: c.id,
+        version: c.version,
+        remark: "Needs support",
+        teamId: team2,
+      }),
+    );
+    const inbox: any = await read(
+      l2,
+      workspace,
+      "notifications",
+      new URLSearchParams(),
+    );
+    expect(inbox.items.some((n: any) => n.complaintId === c.id)).toBe(true);
+    const admins: any = await read(
+      admin,
+      workspace,
+      "notifications",
+      new URLSearchParams(),
+    );
+    expect(admins.items.some((n: any) => n.complaintId === c.id)).toBe(true);
+    const submitted: any = await mutate(
+      agent,
+      body("create", form(), {
+        initialAction: "escalate",
+        teamId: team2,
+        remark: "Immediate escalation at first contact",
+      }),
+    );
+    const initialInbox: any = await read(
+      l2,
+      workspace,
+      "notifications",
+      new URLSearchParams(),
+    );
+    expect(
+      initialInbox.items.some((n: any) => n.complaintId === submitted.id),
+    ).toBe(true);
+  });
   it("validates real sessions, course host, feature flag, deactivation and revocation", async () => {
     const token = await signJWT(agent.user);
     const req = () =>

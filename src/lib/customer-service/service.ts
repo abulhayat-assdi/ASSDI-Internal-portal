@@ -10,6 +10,14 @@ import { withCourseContext } from "@/lib/db";
 import { scoped, Tx, CrmError } from "./db";
 import { Identity, workspaceAccess, portalRoster } from "./access";
 import {
+  notificationInbox,
+  markNotificationsRead,
+  assignmentPool,
+  bulkAssign,
+  studentProgress,
+  notifyWorkflow,
+} from "./operations";
+import {
   Actor,
   canRead,
   canEdit,
@@ -262,6 +270,9 @@ export async function read(
   q: URLSearchParams,
 ) {
   return workspaceAccess(ctx, w, false, async (tx, a) => {
+    if (kind === "notifications") return notificationInbox(tx, w, a);
+    if (kind === "assignment_pool") return assignmentPool(tx, ctx, w, a);
+    if (kind === "progress") return studentProgress(tx, ctx, w, a, q);
     const base = { workspaceId: w, ...bucket(a) };
     if (kind === "setup") {
       const [options, policies, teams, members, staffAssignments] =
@@ -547,6 +558,13 @@ export async function read(
     if (kind === "report") return report(tx, a, w, q);
     const page = Math.max(1, Math.min(10000, Number(q.get("page")) || 1));
     const where: Prisma.ComplaintWhereInput = { ...base };
+    if (q.get("ownerId")) {
+      requireThat(
+        supervisor(a) || q.get("ownerId") === a.id,
+        "Supervisor required",
+      );
+      where.ownerId = z.string().max(100).parse(q.get("ownerId"));
+    }
     if (q.get("mine") === "true") where.ownerId = a.id;
     if (q.get("callingNumber"))
       where.callingNormalized = {
@@ -760,8 +778,13 @@ async function report(tx: Tx, a: Actor, w: string, q: URLSearchParams) {
 export async function mutate(ctx: Identity, raw: unknown) {
   const b = operation.parse(raw),
     w = b.workspaceId;
-  return workspaceAccess(ctx, w, b.action !== "workspace", async (tx, a) => {
+  const writable = !["workspace", "notification_read"].includes(b.action);
+  return workspaceAccess(ctx, w, writable, async (tx, a) => {
     const s = scope(ctx, w);
+    if (b.action === "notification_read")
+      return markNotificationsRead(tx, w, a, b.data);
+    if (b.action === "bulk_assign")
+      return bulkAssign(tx, ctx, w, a, b.data, b.requestId);
     if (b.action === "team") {
       requireThat(a.role === "ADMIN", "CRM administrator required");
       const data = z
@@ -1076,6 +1099,15 @@ export async function mutate(ctx: Identity, raw: unknown) {
           b.remark,
           b.requestId + ":submit",
         );
+        await notifyWorkflow(
+          tx,
+          ctx,
+          w,
+          a,
+          c,
+          submitted,
+          b.requestId + ":submit",
+        );
         return submitted;
       }
       return c;
@@ -1335,6 +1367,7 @@ export async function mutate(ctx: Identity, raw: unknown) {
       b.remark,
       b.requestId,
     );
+    await notifyWorkflow(tx, ctx, w, a, c!, after, b.requestId);
     return after;
   });
 }

@@ -269,3 +269,20 @@ model Audit {
   @@unique([workspaceId, id])
   @@index([courseId, workspaceId])
 }
+
+model Notification {
+  id          String   @id @default(uuid())
+  courseId    String
+  workspaceId String
+  createdAt   DateTime @default(now())
+  userId      String
+  complaintId String
+  eventKey    String
+  message     String
+  readAt      DateTime?
+
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, userId, eventKey])
+  @@index([courseId, workspaceId])
+  @@index([workspaceId, userId, createdAt])
+}

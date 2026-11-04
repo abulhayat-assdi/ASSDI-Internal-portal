@@ -31,6 +31,11 @@ import {
 import { useBranding } from "@/contexts/BrandingContext";
 import CrmOverview from "./CrmOverview";
 import CrmTrainingCustomers, { TrainingCustomer } from "./CrmTrainingCustomers";
+import {
+  CrmNotifications,
+  CrmBulkAssignment,
+  CrmStudentProgress,
+} from "./CrmOperations";
 import "./crm.css";
 import { localDate } from "@/lib/customer-service/domain";
 type Option = {
@@ -192,6 +197,9 @@ const views = [
   "Settings",
   "Activity",
   "Profile",
+  "Student Progress",
+  "My Progress",
+  "Distribute Work",
 ];
 const viewSlug = (view: string) => view.toLowerCase().replaceAll(" ", "-");
 async function api<T>(
@@ -381,8 +389,11 @@ export default function CrmApp({
     }
   }, [boot, workspace]);
   const loadSetup = useCallback(async () => {
-    if (workspace)
-      setSetup(await api<Setup>({ kind: "setup", workspaceId: workspace }));
+    if (workspace) {
+      const generation = fetchGeneration.current;
+      const data = await api<Setup>({ kind: "setup", workspaceId: workspace });
+      if (generation === fetchGeneration.current) setSetup(data);
+    }
   }, [workspace]);
   useEffect(() => {
     let active = true;
@@ -521,6 +532,35 @@ export default function CrmApp({
     setPeople(data.people);
     setTotal(data.total);
   }, [workspace, search, page, tab, role]);
+  useEffect(() => {
+    if (
+      !workspace ||
+      !setup ||
+      !["My Complaints", "All Complaints", "Search", "Escalations"].includes(
+        tab,
+      )
+    )
+      return;
+    let pending = false;
+    const refresh = async () => {
+      if (pending || busyRef.current || document.visibilityState === "hidden")
+        return;
+      pending = true;
+      try {
+        await loadList();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Live list update failed");
+      } finally {
+        pending = false;
+      }
+    };
+    const timer = setInterval(refresh, 20000);
+    window.addEventListener("focus", refresh);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [workspace, setup, tab, loadList]);
   const loadReport = async () => {
     setReport(
       await api<Report>({ kind: "report", workspaceId: workspace, ...filters }),
@@ -978,6 +1018,7 @@ export default function CrmApp({
     "Training Customers",
     "Follow-ups",
     "Reports",
+    ...(manager ? ["Student Progress", "Distribute Work"] : ["My Progress"]),
     ...(manager ? ["Settings", "Activity"] : []),
     "Profile",
   ];
@@ -994,6 +1035,9 @@ export default function CrmApp({
     Activity: ActivityIcon,
     Profile: UserRound,
     "Training Customers": UsersRound,
+    "Student Progress": BarChart3,
+    "My Progress": BarChart3,
+    "Distribute Work": UsersRound,
   };
   const navigate = (next: string) => {
     const base = staff ? "/dashboard/crm" : "/student-dashboard/crm";
@@ -1160,6 +1204,15 @@ export default function CrmApp({
           </div>
           <h1 className="sr-only">Operations workspace</h1>
           <div className="crm-topbar-right">
+            {workspace && setup && (
+              <CrmNotifications
+                key={workspace}
+                workspaceId={workspace}
+                onOpen={(id) => {
+                  void run(() => open(id));
+                }}
+              />
+            )}
             <Link
               href={staff ? "/dashboard" : "/student-dashboard"}
               aria-label={`Back to ${staff ? "Staff" : "Student"} Portal`}
@@ -1257,6 +1310,24 @@ export default function CrmApp({
             )}
             {workspace && setup && (
               <>
+                {["Student Progress", "My Progress"].includes(tab) && (
+                  <CrmStudentProgress
+                    key={workspace}
+                    workspaceId={workspace}
+                    onOpen={(id) => {
+                      void run(() => open(id));
+                    }}
+                  />
+                )}
+                {tab === "Distribute Work" && manager && (
+                  <CrmBulkAssignment
+                    key={workspace}
+                    workspaceId={workspace}
+                    onChanged={() => {
+                      void loadSetup().catch((e) => setError(e.message));
+                    }}
+                  />
+                )}
                 {["Dashboard", "Reports"].includes(tab) && (
                   <>
                     <details
