@@ -52,4 +52,4 @@ run([
 run(["scripts/customer-service-migrate.cjs"]);
 run(["scripts/customer-service-migrate.cjs"]);
 run(["scripts/customer-service-role.cjs"]);
-run(["node_modules/vitest/vitest.mjs", "run", "src/lib/customer-service"]);
+run(["node_modules/vitest/vitest.mjs", "run", "src/lib/customer-service", "--exclude", ".worktrees/**"]);

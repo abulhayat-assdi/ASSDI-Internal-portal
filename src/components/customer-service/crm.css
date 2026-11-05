@@ -1112,3 +1112,17 @@
   line-height: 1.6;
   font-size: 12px;
 }
+.crm-notifications { position: relative; }
+.crm-root .crm-notifications > button { display: inline-flex; align-items: center; gap: 6px; }
+.crm-notification-count { border-radius: 99px; background: #4878ff; color: white; padding: 1px 6px; font-size: 11px; }
+.crm-notification-panel { position: absolute; z-index: 60; top: calc(100% + 12px); right: 0; width: min(420px, calc(100vw - 40px)); background: white; border: 1px solid #e5eaf1; border-radius: 10px; box-shadow: 0 12px 40px #24354724; }
+.crm-notification-list { max-height: 420px; overflow: auto; }
+.crm-root .crm-notification-list > button { display: flex; flex-direction: column; align-items: flex-start; width: 100%; white-space: normal; text-align: left; border: 0; border-top: 1px solid #e5eaf1; border-radius: 0; padding: 14px; gap: 6px; }
+.crm-notification-list > button.unread { background: #edf3ff; font-weight: 600; }
+.crm-notification-list small { color: #71809b; font-size: 11px; font-weight: 400; }
+.crm-agent-picker { display: grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap: 10px; max-height: 240px; overflow: auto; margin: 14px 0; }
+.crm-agent-picker label { display: flex; align-items: center; gap: 10px; }
+.crm-root .crm-agent-picker input { width: 16px; min-height: 16px; }
+.crm-assignment-fields, .crm-progress-filters { display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: 14px; margin: 16px 0; align-items: end; }
+.crm-assignment-fields label, .crm-progress-filters label { display: grid; gap: 6px; }
+@media(max-width:767px) { .crm-notification-panel { position: fixed; top: 76px; right: 16px; } }

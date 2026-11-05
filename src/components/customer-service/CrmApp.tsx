@@ -31,6 +31,11 @@ import {
 import { useBranding } from "@/contexts/BrandingContext";
 import CrmOverview from "./CrmOverview";
 import CrmTrainingCustomers, { TrainingCustomer } from "./CrmTrainingCustomers";
+import {
+  CrmNotifications,
+  CrmBulkAssignment,
+  CrmStudentProgress,
+} from "./CrmOperations";
 import "./crm.css";
 import { localDate } from "@/lib/customer-service/domain";
 type Option = {
@@ -192,6 +197,9 @@ const views = [
   "Settings",
   "Activity",
   "Profile",
+  "Student Progress",
+  "My Progress",
+  "Distribute Work",
 ];
 const viewSlug = (view: string) => view.toLowerCase().replaceAll(" ", "-");
 async function api<T>(
@@ -312,7 +320,7 @@ export default function CrmApp({
       setTab(
         url.pathname.endsWith("/settings")
           ? "Settings"
-          : requested || initialTab,
+          : requested || "Dashboard",
       );
       setDetail(null);
       setPage(1);
@@ -334,6 +342,11 @@ export default function CrmApp({
       registeredNumber: "",
       code: "",
     }),
+    [appliedSearch, setAppliedSearch] = useState({
+      callingNumber: "",
+      registeredNumber: "",
+      code: "",
+    }),
     [filters, setFilters] = useState<Record<string, string>>({
       from: localDate(new Date()).slice(0, 8) + "01",
       to: localDate(new Date()),
@@ -349,6 +362,7 @@ export default function CrmApp({
     [assignee, setAssignee] = useState("");
   const busyRef = useRef(false),
     createRequest = useRef<string | null>(null);
+  const listGeneration = useRef(0);
   const role = setup?.actor.role || "",
     manager = role === "ADMIN" || role === "SUPERVISOR";
   const loadBoot = useCallback(async (preferred?: string) => {
@@ -381,8 +395,11 @@ export default function CrmApp({
     }
   }, [boot, workspace]);
   const loadSetup = useCallback(async () => {
-    if (workspace)
-      setSetup(await api<Setup>({ kind: "setup", workspaceId: workspace }));
+    if (workspace) {
+      const generation = fetchGeneration.current;
+      const data = await api<Setup>({ kind: "setup", workspaceId: workspace });
+      if (generation === fetchGeneration.current) setSetup(data);
+    }
   }, [workspace]);
   useEffect(() => {
     let active = true;
@@ -398,6 +415,7 @@ export default function CrmApp({
     setForm({ ...empty });
     setEditing(false);
     setSearch({ callingNumber: "", registeredNumber: "", code: "" });
+    setAppliedSearch({ callingNumber: "", registeredNumber: "", code: "" });
     setFilters((current) => ({ from: current.from, to: current.to }));
     setTeamId("");
     setReason("");
@@ -504,6 +522,7 @@ export default function CrmApp({
   const loadList = useCallback(async () => {
     if (!workspace) return;
     const generation = fetchGeneration.current;
+    const requestGeneration = ++listGeneration.current;
     const data = await api<{
       rows: Complaint[];
       total: number;
@@ -511,16 +530,49 @@ export default function CrmApp({
     }>({
       kind: "list",
       workspaceId: workspace,
-      ...search,
+      ...appliedSearch,
       page: String(page),
       ...(tab === "My Complaints" ? { mine: "true" } : {}),
       ...(tab === "Escalations" ? { queue: role === "L3" ? "L3" : "L2" } : {}),
     });
-    if (generation !== fetchGeneration.current) return;
+    if (
+      generation !== fetchGeneration.current ||
+      requestGeneration !== listGeneration.current
+    )
+      return;
     setRows(data.rows);
     setPeople(data.people);
     setTotal(data.total);
-  }, [workspace, search, page, tab, role]);
+  }, [workspace, appliedSearch, page, tab, role]);
+  useEffect(() => {
+    if (
+      !workspace ||
+      !setup ||
+      !["My Complaints", "All Complaints", "Search", "Escalations"].includes(
+        tab,
+      )
+    )
+      return;
+    let pending = false;
+    const refresh = async () => {
+      if (pending || busyRef.current || document.visibilityState === "hidden")
+        return;
+      pending = true;
+      try {
+        await loadList();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Live list update failed");
+      } finally {
+        pending = false;
+      }
+    };
+    const timer = setInterval(refresh, 20000);
+    window.addEventListener("focus", refresh);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [workspace, setup, tab, loadList]);
   const loadReport = async () => {
     setReport(
       await api<Report>({ kind: "report", workspaceId: workspace, ...filters }),
@@ -565,7 +617,7 @@ export default function CrmApp({
     };
     // Filters are applied explicitly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspace, setup, tab, page]);
+  }, [workspace, setup, tab, page, appliedSearch]);
   const open = async (id: string) => {
     const generation = fetchGeneration.current;
     const data = await api<Detail>({
@@ -589,9 +641,7 @@ export default function CrmApp({
       userId: assignee,
     });
     if (!manager && role !== "AGENT" && updated.queue !== role) {
-      setDetail(null);
-      setTab("Escalations");
-      await loadList();
+      navigate("Escalations");
     } else await open(detail.complaint.id);
     setMessage("Saved.");
   };
@@ -978,6 +1028,7 @@ export default function CrmApp({
     "Training Customers",
     "Follow-ups",
     "Reports",
+    ...(manager ? ["Student Progress", "Distribute Work"] : ["My Progress"]),
     ...(manager ? ["Settings", "Activity"] : []),
     "Profile",
   ];
@@ -994,8 +1045,12 @@ export default function CrmApp({
     Activity: ActivityIcon,
     Profile: UserRound,
     "Training Customers": UsersRound,
+    "Student Progress": BarChart3,
+    "My Progress": BarChart3,
+    "Distribute Work": UsersRound,
   };
   const navigate = (next: string) => {
+    listGeneration.current++;
     const base = staff ? "/dashboard/crm" : "/student-dashboard/crm";
     const url =
       next === "Settings" && staff
@@ -1160,6 +1215,15 @@ export default function CrmApp({
           </div>
           <h1 className="sr-only">Operations workspace</h1>
           <div className="crm-topbar-right">
+            {workspace && setup && (
+              <CrmNotifications
+                key={workspace}
+                workspaceId={workspace}
+                onOpen={(id) => {
+                  void run(() => open(id));
+                }}
+              />
+            )}
             <Link
               href={staff ? "/dashboard" : "/student-dashboard"}
               aria-label={`Back to ${staff ? "Staff" : "Student"} Portal`}
@@ -1257,6 +1321,24 @@ export default function CrmApp({
             )}
             {workspace && setup && (
               <>
+                {["Student Progress", "My Progress"].includes(tab) && (
+                  <CrmStudentProgress
+                    key={workspace}
+                    workspaceId={workspace}
+                    onOpen={(id) => {
+                      void run(() => open(id));
+                    }}
+                  />
+                )}
+                {tab === "Distribute Work" && manager && (
+                  <CrmBulkAssignment
+                    key={workspace}
+                    workspaceId={workspace}
+                    onChanged={() => {
+                      void loadSetup().catch((e) => setError(e.message));
+                    }}
+                  />
+                )}
                 {["Dashboard", "Reports"].includes(tab) && (
                   <>
                     <details
@@ -1576,8 +1658,9 @@ export default function CrmApp({
                       className="grid md:grid-cols-4 gap-3 mb-4"
                       onSubmit={(e) => {
                         e.preventDefault();
+                        setError("");
+                        setAppliedSearch({ ...search });
                         setPage(1);
-                        run(loadList);
                       }}
                     >
                       {Object.entries(search).map(([key, value]) => (

@@ -938,6 +938,580 @@ describe.skipIf(!enabled)("CRM isolated PostgreSQL integration", () => {
       read(ctx, workspace, "setup", new URLSearchParams()),
     ).rejects.toThrow("membership");
   });
+  it("previews and bulk assigns only available pool cases, atomically and idempotently", async () => {
+    await mutate(
+      admin,
+      body(
+        "member",
+        { role: "AGENT", active: true },
+        { userId: other.user.id },
+      ),
+    );
+    const pool: any = await read(
+      admin,
+      workspace,
+      "assignment_pool",
+      new URLSearchParams(),
+    );
+    expect(pool.total).toBeGreaterThan(200);
+    expect(pool.agents.map((p: any) => p.id)).toContain(agent.user.id);
+    expect(pool.agents.map((p: any) => p.id)).not.toContain(l2.user.id);
+    await expect(
+      read(agent, workspace, "assignment_pool", new URLSearchParams()),
+    ).rejects.toThrow("Supervisor");
+    const allocations = pool.cases.slice(0, 4).map((c: any, i: number) => ({
+      id: c.id,
+      version: c.version,
+      userId: i % 2 ? other.user.id : agent.user.id,
+    }));
+    const command = body("bulk_assign", {
+      allocations,
+      reason: "Distribute training work",
+    });
+    expect(await mutate(admin, command)).toEqual({ assigned: 4 });
+    expect(await mutate(admin, command)).toEqual({ assigned: 4 });
+    const assigned = await scoped(courseId, workspace, (tx) =>
+      tx.complaint.findMany({
+        where: { id: { in: allocations.map((a: any) => a.id) } },
+      }),
+    );
+    for (const c of assigned)
+      expect(c.ownerId).toBe(
+        allocations.find((x: any) => x.id === c.id).userId,
+      );
+    expect(
+      await scoped(courseId, workspace, (tx) =>
+        tx.history.count({
+          where: { action: "assign", requestId: command.requestId },
+        }),
+      ),
+    ).toBe(4);
+    expect(
+      await scoped(courseId, workspace, (tx) =>
+        tx.notification.count({
+          where: { eventKey: { startsWith: command.requestId } },
+        }),
+      ),
+    ).toBe(4);
+    const after: any = await read(
+      admin,
+      workspace,
+      "assignment_pool",
+      new URLSearchParams(),
+    );
+    expect(after.total).toBe(pool.total - 4);
+    const rows: any = await read(
+      admin,
+      workspace,
+      "list",
+      new URLSearchParams({ ownerId: other.user.id }),
+    );
+    expect(rows.rows.every((c: any) => c.ownerId === other.user.id)).toBe(true);
+    await expect(
+      read(
+        agent,
+        workspace,
+        "list",
+        new URLSearchParams({ ownerId: other.user.id }),
+      ),
+    ).rejects.toThrow("Supervisor");
+    await expect(
+      mutate(agent, body("bulk_assign", { allocations, reason: "Denied" })),
+    ).rejects.toThrow("Supervisor");
+  });
+  it("rejects stale, cross-batch and duplicate bulk allocations without partial writes", async () => {
+    const pool: any = await read(
+      admin,
+      workspace,
+      "assignment_pool",
+      new URLSearchParams(),
+    );
+    const allocations = pool.cases.slice(0, 2).map((c: any) => ({
+      id: c.id,
+      version: c.version,
+      userId: agent.user.id,
+    }));
+    await mutate(
+      admin,
+      body("assign", undefined, {
+        id: allocations[1].id,
+        version: allocations[1].version,
+        userId: agent.user.id,
+        remark: "Assigned concurrently",
+      }),
+    );
+    const original = await scoped(courseId, workspace, (tx) =>
+      tx.complaint.findUniqueOrThrow({ where: { id: allocations[0].id } }),
+    );
+    await expect(
+      mutate(
+        admin,
+        body("bulk_assign", { allocations, reason: "Stale preview" }),
+      ),
+    ).rejects.toThrow("pool changed");
+    expect(
+      await scoped(courseId, workspace, (tx) =>
+        tx.complaint.findUniqueOrThrow({ where: { id: original.id } }),
+      ),
+    ).toEqual(original);
+    await expect(
+      mutate(
+        admin,
+        body("bulk_assign", {
+          allocations: [allocations[0], allocations[0]],
+          reason: "Duplicate",
+        }),
+      ),
+    ).rejects.toThrow("Duplicate");
+    await expect(
+      mutate(
+        admin,
+        body("bulk_assign", {
+          allocations: [{ ...allocations[0], userId: l2.user.id }],
+          reason: "Wrong role",
+        }),
+      ),
+    ).rejects.toThrow("eligible");
+    await expect(
+      mutate(admin, {
+        ...body("bulk_assign", {
+          allocations: [allocations[0]],
+          reason: "Cross workspace",
+        }),
+        workspaceId: otherWorkspace,
+      }),
+    ).rejects.toThrow();
+  });
+  it("keeps inbox and read state personal and workspace scoped, including read-only workspaces", async () => {
+    const mine: any = await read(
+      agent,
+      workspace,
+      "notifications",
+      new URLSearchParams(),
+    );
+    const theirs: any = await read(
+      other,
+      workspace,
+      "notifications",
+      new URLSearchParams(),
+    );
+    expect(mine.unread).toBeGreaterThan(0);
+    expect(theirs.unread).toBeGreaterThan(0);
+    expect(mine.items.every((n: any) => n.userId === agent.user.id)).toBe(true);
+    const changed: any = await mutate(
+      agent,
+      body("notification_read", { ids: theirs.items.map((n: any) => n.id) }),
+    );
+    expect(changed.count).toBe(0);
+    expect(
+      (
+        (await read(
+          other,
+          workspace,
+          "notifications",
+          new URLSearchParams(),
+        )) as any
+      ).unread,
+    ).toBe(theirs.unread);
+    await mutate(admin, body("workspace", { state: "READ_ONLY" }));
+    const marked: any = await mutate(
+      agent,
+      body("notification_read", { all: true }),
+    );
+    expect(marked.count).toBe(mine.unread);
+    expect(
+      (
+        (await read(
+          agent,
+          workspace,
+          "notifications",
+          new URLSearchParams(),
+        )) as any
+      ).unread,
+    ).toBe(0);
+    await mutate(admin, body("workspace", { state: "ACTIVE" }));
+    await expect(
+      read(agent, otherWorkspace, "notifications", new URLSearchParams()),
+    ).rejects.toThrow("access denied");
+    expect(await crmClient().notification.count()).toBe(0);
+  });
+  it("shows current assigned workload separately from student creations and actual resolutions", async () => {
+    const mine: any = await read(
+      agent,
+      workspace,
+      "list",
+      new URLSearchParams({ mine: "true" }),
+    );
+    const target = mine.rows.find(
+      (c: any) =>
+        c.status === "PENDING" &&
+        c.queue === "AGENT" &&
+        c.creatorId === admin.user.id,
+    );
+    expect(target).toBeTruthy();
+    let c: any = await mutate(
+      agent,
+      body("progress", undefined, { id: target.id, version: target.version }),
+    );
+    c = await mutate(
+      agent,
+      body(
+        "resolve",
+        { resolutionReason: options.resolutionReason },
+        {
+          id: c.id,
+          version: c.version,
+          remark: "Student completed assigned work",
+        },
+      ),
+    );
+    const result: any = await read(
+      admin,
+      workspace,
+      "progress",
+      new URLSearchParams(),
+    );
+    const row = result.rows.find((p: any) => p.id === agent.user.id);
+    const actual = await scoped(courseId, workspace, async (tx) => ({
+      open: await tx.complaint.count({
+        where: { ownerId: agent.user.id, closedAt: null },
+      }),
+      created: await tx.complaint.count({
+        where: { creatorId: agent.user.id },
+      }),
+      resolved: await tx.complaint.count({
+        where: { resolverId: agent.user.id, status: "RESOLVED" },
+      }),
+    }));
+    expect(row.assignedNow).toBe(actual.open);
+    expect(row.created).toBe(actual.created);
+    expect(row.resolved).toBe(actual.resolved);
+    expect(row.assignedInPeriod).toBeGreaterThanOrEqual(3);
+    expect(row.worked).toBeGreaterThan(0);
+    expect(row.averageTat).toBeGreaterThanOrEqual(0);
+    const personal: any = await read(
+      agent,
+      workspace,
+      "progress",
+      new URLSearchParams({ agent: other.user.id }),
+    );
+    expect(personal.rows).toHaveLength(1);
+    expect(personal.rows[0].id).toBe(agent.user.id);
+    const old: any = await read(
+      admin,
+      workspace,
+      "progress",
+      new URLSearchParams({ from: "2020-01-01", to: "2020-01-02" }),
+    );
+    const oldRow = old.rows.find((p: any) => p.id === agent.user.id);
+    expect(oldRow.resolved).toBe(0);
+    expect(oldRow.assignedInPeriod).toBe(0);
+    expect(oldRow.assignedNow).toBe(actual.open);
+    const adminInbox: any = await read(
+      admin,
+      workspace,
+      "notifications",
+      new URLSearchParams(),
+    );
+    expect(adminInbox.items.some((n: any) => n.complaintId === c.id)).toBe(
+      true,
+    );
+  });
+  it("notifies the escalation team and administrators when an Agent requests help", async () => {
+    let c: any = await mutate(agent, body("create", form()));
+    c = await mutate(
+      agent,
+      body("escalate", undefined, {
+        id: c.id,
+        version: c.version,
+        remark: "Needs support",
+        teamId: team2,
+      }),
+    );
+    const inbox: any = await read(
+      l2,
+      workspace,
+      "notifications",
+      new URLSearchParams(),
+    );
+    expect(inbox.items.some((n: any) => n.complaintId === c.id)).toBe(true);
+    const admins: any = await read(
+      admin,
+      workspace,
+      "notifications",
+      new URLSearchParams(),
+    );
+    expect(admins.items.some((n: any) => n.complaintId === c.id)).toBe(true);
+    const submitted: any = await mutate(
+      agent,
+      body("create", form(), {
+        initialAction: "escalate",
+        teamId: team2,
+        remark: "Immediate escalation at first contact",
+      }),
+    );
+    const initialInbox: any = await read(
+      l2,
+      workspace,
+      "notifications",
+      new URLSearchParams(),
+    );
+    expect(
+      initialInbox.items.some((n: any) => n.complaintId === submitted.id),
+    ).toBe(true);
+  });
+  it("returns assigned practice cases to the handling Agent instead of the original administrator", async () => {
+    let c: any = await mutate(admin, body("create", form()));
+    c = await mutate(
+      admin,
+      body("assign", undefined, {
+        id: c.id,
+        version: c.version,
+        userId: agent.user.id,
+        remark: "Assign practice case",
+      }),
+    );
+    c = await mutate(
+      agent,
+      body("escalate", undefined, {
+        id: c.id,
+        version: c.version,
+        teamId: team2,
+        remark: "Needs investigation",
+      }),
+    );
+    const firstL2At = c.firstL2At,
+      dueAt = c.dueAt;
+    c = await mutate(
+      l2,
+      body("claim", undefined, { id: c.id, version: c.version }),
+    );
+    c = await mutate(
+      l2,
+      body("agent_mistake", undefined, {
+        id: c.id,
+        version: c.version,
+        remark: "Correct missing information",
+      }),
+    );
+    expect(c.creatorId).toBe(admin.user.id);
+    expect(c.ownerId).toBe(agent.user.id);
+    c = await mutate(
+      agent,
+      body(
+        "edit",
+        { ...form(), description: "Corrected assigned practice case" },
+        { id: c.id, version: c.version },
+      ),
+    );
+    c = await mutate(
+      agent,
+      body("resubmit", undefined, {
+        id: c.id,
+        version: c.version,
+        teamId: team2,
+        remark: "Correction ready",
+      }),
+    );
+    c = await mutate(
+      l2,
+      body("claim", undefined, { id: c.id, version: c.version }),
+    );
+    c = await mutate(
+      l2,
+      body("revert", undefined, {
+        id: c.id,
+        version: c.version,
+        remark: "One more correction",
+      }),
+    );
+    expect(c.ownerId).toBe(agent.user.id);
+    expect(c.firstL2At).toEqual(firstL2At);
+    expect(c.dueAt).toEqual(dueAt);
+  });
+  it("hands over outstanding follow-ups when complaint ownership is reassigned", async () => {
+    let c: any = await mutate(agent, body("create", form()));
+    c = await mutate(
+      agent,
+      body(
+        "followup",
+        { dueAt: new Date(Date.now() + 3600000).toISOString() },
+        { id: c.id, version: c.version, remark: "Callback needed" },
+      ),
+    );
+    const before: any = await read(
+      agent,
+      workspace,
+      "detail",
+      new URLSearchParams({ id: c.id }),
+    );
+    const followUpId = before.followUps[0].id;
+    c = await mutate(
+      admin,
+      body("assign", undefined, {
+        id: c.id,
+        version: c.version,
+        userId: other.user.id,
+        remark: "Transfer active case",
+      }),
+    );
+    const after: any = await read(
+      other,
+      workspace,
+      "detail",
+      new URLSearchParams({ id: c.id }),
+    );
+    expect(
+      after.followUps.find((f: any) => f.id === followUpId).responsibleId,
+    ).toBe(other.user.id);
+    await mutate(
+      other,
+      body(
+        "complete_followup",
+        { followUpId },
+        { id: c.id, version: c.version, remark: "Callback completed" },
+      ),
+    );
+  });
+  it("routes a return to administration when the previous Agent is inactive", async () => {
+    let c: any = await mutate(admin, body("create", form()));
+    c = await mutate(
+      admin,
+      body("assign", undefined, {
+        id: c.id,
+        version: c.version,
+        userId: other.user.id,
+        remark: "Delegate",
+      }),
+    );
+    c = await mutate(
+      other,
+      body("escalate", undefined, {
+        id: c.id,
+        version: c.version,
+        teamId: team2,
+        remark: "Investigate",
+      }),
+    );
+    c = await mutate(
+      l2,
+      body("claim", undefined, { id: c.id, version: c.version }),
+    );
+    await mutate(
+      admin,
+      body(
+        "member",
+        { role: "AGENT", active: false },
+        { userId: other.user.id },
+      ),
+    );
+    c = await mutate(
+      l2,
+      body("revert", undefined, {
+        id: c.id,
+        version: c.version,
+        remark: "Agent is unavailable",
+      }),
+    );
+    expect(c.ownerId).toBe(admin.user.id);
+    await mutate(
+      admin,
+      body(
+        "member",
+        { role: "AGENT", active: true },
+        { userId: other.user.id },
+      ),
+    );
+  });
+  it("validates pagination rather than silently accepting invalid page values", async () => {
+    for (const page of ["bad", "0", "-1", "1.5", "10001"]) {
+      await expect(
+        read(admin, workspace, "list", new URLSearchParams({ page })),
+      ).rejects.toThrow();
+    }
+  });
+  it("distributes all 250 starter cases and their outstanding callbacks to a newly enrolled Agent", async () => {
+    const batch = await prisma.batch.create({
+      data: { courseId, name: "Bulk audit " + suffix },
+    });
+    const w = (await provision(admin, { batchId: batch.id })).id;
+    const user = await prisma.user.create({
+      data: {
+        ...request("bulk-agent-" + suffix),
+        studentBatchName: batch.name,
+        role: "student",
+        passwordHash: "test-only",
+      },
+    });
+    await prisma.batchStudent.create({
+      data: {
+        courseId,
+        batchId: batch.id,
+        batchName: batch.name,
+        roll: user.studentRoll!,
+        name: user.displayName,
+      },
+    });
+    let pool: any = await read(
+      admin,
+      w,
+      "assignment_pool",
+      new URLSearchParams(),
+    );
+    const first = pool.cases[0];
+    await mutate(
+      admin,
+      body(
+        "followup",
+        { dueAt: new Date(Date.now() + 3600000).toISOString() },
+        {
+          workspaceId: w,
+          id: first.id,
+          version: first.version,
+          remark: "Transfer this callback with the case",
+        },
+      ),
+    );
+    pool = await read(admin, w, "assignment_pool", new URLSearchParams());
+    const command = body(
+      "bulk_assign",
+      {
+        allocations: pool.cases.map((c: any) => ({
+          id: c.id,
+          version: c.version,
+          userId: user.id,
+        })),
+        reason: "Full-batch training distribution",
+      },
+      { workspaceId: w },
+    );
+    expect(await mutate(admin, command)).toEqual({ assigned: 250 });
+    expect(await mutate(admin, command)).toEqual({ assigned: 250 });
+    const counts = await scoped(courseId, w, async (tx) => ({
+      owned: await tx.complaint.count({ where: { ownerId: user.id } }),
+      notices: await tx.notification.count({ where: { userId: user.id } }),
+      callbacks: await tx.followUp.count({ where: { responsibleId: user.id } }),
+      member: await tx.member.findFirst({ where: { userId: user.id } }),
+    }));
+    expect(counts).toMatchObject({
+      owned: 250,
+      notices: 250,
+      callbacks: 1,
+      member: { active: true, role: "AGENT" },
+    });
+    const progress: any = await read(
+      admin,
+      w,
+      "progress",
+      new URLSearchParams(),
+    );
+    expect(progress.rows.find((p: any) => p.id === user.id)).toMatchObject({
+      assignedNow: 250,
+      assignedInPeriod: 250,
+      pending: 250,
+      created: 0,
+    });
+  }, 20000);
   it("validates real sessions, course host, feature flag, deactivation and revocation", async () => {
     const token = await signJWT(agent.user);
     const req = () =>
