@@ -33,6 +33,7 @@ export async function register() {
     const port = process.env.PORT || '3000';
     const url = `http://127.0.0.1:${port}/api/cron/attendance-alerts`;
     const cleanupUrl = `http://127.0.0.1:${port}/api/cron/deployment-cleanup`;
+    const incubationRetentionUrl = `http://127.0.0.1:${port}/api/cron/incubation-retention`;
 
     let lastRunDate: string | null = null;
 
@@ -64,6 +65,12 @@ export async function register() {
             else console.error(`[cron] deployment cleanup returned ${res.status}`);
         } catch (error) {
             console.error('[cron] deployment cleanup failed:', error instanceof Error ? error.message : error);
+        }
+        try {
+            const res = await fetch(incubationRetentionUrl, { method: 'POST', headers: { 'x-cron-secret': secret } });
+            if (!res.ok) console.error(`[cron] incubation retention returned ${res.status}`);
+        } catch (error) {
+            console.error('[cron] incubation retention failed:', error instanceof Error ? error.message : error);
         }
     };
 

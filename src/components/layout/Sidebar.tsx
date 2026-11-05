@@ -27,6 +27,7 @@ interface NavSection {
 }
 
 const teacherAdminTopNavItems: NavItem[] = [
+    { href: "/dashboard/incubation", label: "Business Incubation", icon: "🌱", permission: "business_incubation", feature: "business_incubation" },
     { href: "/dashboard/crm", label: "Customer Service CRM", icon: "\uD83C\uDFA7", permission: "crm_supervisor", feature: "crm" },
     { href: "/dashboard/crm/settings", label: "CRM Settings", icon: "\u2699\uFE0F", permission: "crm_admin", feature: "crm" },
     { href: "/dashboard", label: "Dashboard", icon: "🏠", permission: null },
@@ -115,6 +116,7 @@ const teacherAdminNavSections: NavSection[] = [
 ];
 
 const studentNavItems: NavItem[] = [
+    { href: "/student-dashboard/incubation", label: "Business Incubation", icon: "🌱", permission: null, feature: "business_incubation" },
     { href: "/student-dashboard/crm", label: "Customer Service CRM", icon: "\uD83C\uDFA7", permission: null, feature: "crm" },
     { href: "/student-dashboard", label: "Dashboard", icon: "🏠", permission: null },
     { href: "/student-dashboard/routine", label: "Class Routine", icon: "🗓️", permission: null },

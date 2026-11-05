@@ -187,6 +187,7 @@ enum QuizAttemptStatus {
 // ============================================================
 
 model Course {
+  incubationPrograms IncubationProgram[]
   id           String       @id @default(cuid())
   slug         String       @unique
   name         String
@@ -261,6 +262,250 @@ model Course {
   @@index([slug])
   @@index([status])
   @@map("courses")
+}
+
+// Business Incubation. Operational documents are versioned JSON records;
+// quantities/money are canonical decimal strings, calculated in integer units.
+model IncubationProgram {
+  id String @id @default(uuid())
+  courseId String @map("course_id")
+  name String
+  description String @default("")
+  startDate String @map("start_date")
+  endDate String? @map("end_date")
+  status String @default("draft")
+  batchNames Json @default("[]") @map("batch_names")
+  staffIds Json @default("[]") @map("staff_ids")
+  settings Json @default("{}")
+  publicTokenHash String? @unique @map("public_token_hash")
+  createdBy String @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  course Course @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  teams IncubationTeam[]
+  catalog IncubationCatalog[]
+  sprints IncubationSprint[]
+  records IncubationRecord[]
+  corrections IncubationCorrection[]
+  fieldCorrections IncubationFieldCorrection[]
+  fields IncubationFieldSession[]
+  attachments IncubationAttachment[]
+  audit IncubationAudit[]
+  @@unique([id, courseId])
+  @@index([courseId, status])
+  @@map("incubation_programs")
+}
+
+model IncubationTeam {
+  batchName String @default("") @map("batch_name")
+  id String @id @default(uuid())
+  courseId String @map("course_id")
+  programId String @map("program_id")
+  name String
+  active Boolean @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  program IncubationProgram @relation(fields: [programId, courseId], references: [id, courseId], onDelete: Restrict)
+  members IncubationMember[]
+  sprints IncubationSprint[]
+  records IncubationRecord[] @relation("RecordTeam")
+  received IncubationRecord[] @relation("TargetTeam")
+  fields IncubationFieldSession[]
+  @@unique([id, programId, courseId])
+  @@unique([programId, name])
+  @@map("incubation_teams")
+}
+
+model IncubationMember {
+  id String @id @default(uuid())
+  courseId String @map("course_id")
+  programId String @map("program_id")
+  teamId String @map("team_id")
+  studentId String @map("student_id")
+  batchName String @map("batch_name")
+  roll String
+  name String
+  isLead Boolean @default(false) @map("is_lead")
+  team IncubationTeam @relation(fields: [teamId, programId, courseId], references: [id, programId, courseId], onDelete: Restrict)
+  @@unique([programId, studentId])
+  @@index([courseId, batchName, roll])
+  @@map("incubation_members")
+}
+
+model IncubationCatalog {
+  id String @id @default(uuid())
+  courseId String @map("course_id")
+  programId String @map("program_id")
+  kind String
+  name String
+  parentId String? @map("parent_id")
+  unit String @default("piece")
+  fractional Boolean @default(false)
+  active Boolean @default(true)
+  program IncubationProgram @relation(fields: [programId, courseId], references: [id, courseId], onDelete: Restrict)
+  @@unique([id, programId, courseId])
+  @@index([programId, kind])
+  @@map("incubation_catalog")
+}
+
+model IncubationSprint {
+  id String @id @default(uuid())
+  courseId String @map("course_id")
+  programId String @map("program_id")
+  teamId String @map("team_id")
+  categoryId String @map("category_id")
+  startDate String @map("start_date")
+  endDate String @map("end_date")
+  program IncubationProgram @relation(fields: [programId, courseId], references: [id, courseId], onDelete: Restrict)
+  team IncubationTeam @relation(fields: [teamId, programId, courseId], references: [id, programId, courseId], onDelete: Restrict)
+  @@index([programId, teamId, startDate])
+  @@map("incubation_sprints")
+}
+
+model IncubationRecord {
+  entryOrder Int @default(autoincrement()) @map("entry_order")
+  id String @id @default(uuid())
+  courseId String @map("course_id")
+  programId String @map("program_id")
+  teamId String @map("team_id")
+  targetTeamId String? @map("target_team_id")
+  kind String
+  date String
+  status String @default("posted")
+  data Json
+  version Int @default(1)
+  requestKey String @map("request_key")
+  requestHash String @map("request_hash")
+  enteredBy String @map("entered_by")
+  enteredByName String @map("entered_by_name")
+  reviewedBy String? @map("reviewed_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  program IncubationProgram @relation(fields: [programId, courseId], references: [id, courseId], onDelete: Restrict)
+  team IncubationTeam @relation("RecordTeam", fields: [teamId, programId, courseId], references: [id, programId, courseId], onDelete: Restrict)
+  targetTeam IncubationTeam? @relation("TargetTeam", fields: [targetTeamId, programId, courseId], references: [id, programId, courseId], onDelete: Restrict)
+  corrections IncubationCorrection[]
+  @@unique([id, programId, courseId])
+  @@unique([programId, enteredBy, requestKey])
+  @@index([programId, status, date])
+  @@map("incubation_records")
+}
+
+model IncubationCorrection {
+  id String @id @default(uuid())
+  courseId String @map("course_id")
+  programId String @map("program_id")
+  recordId String @map("record_id")
+  expectedVersion Int @map("expected_version")
+  before Json
+  proposed Json
+  reason String
+  status String @default("pending")
+  requestedBy String @map("requested_by")
+  requestedByName String @map("requested_by_name")
+  reviewedBy String? @map("reviewed_by")
+  reviewNote String? @map("review_note")
+  createdAt DateTime @default(now()) @map("created_at")
+  reviewedAt DateTime? @map("reviewed_at")
+  program IncubationProgram @relation(fields: [programId, courseId], references: [id, courseId], onDelete: Restrict)
+  record IncubationRecord @relation(fields: [recordId, programId, courseId], references: [id, programId, courseId], onDelete: Restrict)
+  @@index([programId, status])
+  @@map("incubation_corrections")
+}
+
+model IncubationFieldSession {
+  version Int @default(1)
+  id String @id @default(uuid())
+  courseId String @map("course_id")
+  programId String @map("program_id")
+  teamId String @map("team_id")
+  userId String @map("user_id")
+  userName String @map("user_name")
+  checkIn DateTime @default(now()) @map("check_in")
+  checkOut DateTime? @map("check_out")
+  startAreaId String @map("start_area_id")
+  endAreaId String? @map("end_area_id")
+  startPosition Json @map("start_position")
+  endPosition Json? @map("end_position")
+  carried Json @default("[]")
+  steps Int @default(0)
+  proofId String? @map("proof_id")
+  program IncubationProgram @relation(fields: [programId, courseId], references: [id, courseId], onDelete: Restrict)
+  team IncubationTeam @relation(fields: [teamId, programId, courseId], references: [id, programId, courseId], onDelete: Restrict)
+  pings IncubationPosition[]
+  corrections IncubationFieldCorrection[]
+  @@unique([id, courseId])
+  @@index([programId, checkIn])
+  @@map("incubation_field_sessions")
+}
+
+model IncubationFieldCorrection {
+  id String @id @default(uuid())
+  courseId String @map("course_id")
+  programId String @map("program_id")
+  sessionId String @map("session_id")
+  expectedVersion Int @map("expected_version")
+  before Json
+  proposed Json
+  reason String
+  status String @default("pending")
+  requestedBy String @map("requested_by")
+  requestedByName String @map("requested_by_name")
+  reviewedBy String? @map("reviewed_by")
+  reviewNote String? @map("review_note")
+  createdAt DateTime @default(now()) @map("created_at")
+  reviewedAt DateTime? @map("reviewed_at")
+  program IncubationProgram @relation(fields: [programId, courseId], references: [id, courseId], onDelete: Restrict)
+  session IncubationFieldSession @relation(fields: [sessionId, courseId], references: [id, courseId], onDelete: Restrict)
+  @@index([programId, status])
+  @@map("incubation_field_corrections")
+}
+
+model IncubationPosition {
+  id String @id @default(uuid())
+  courseId String @map("course_id")
+  sessionId String @map("session_id")
+  capturedAt DateTime @map("captured_at")
+  receivedAt DateTime @default(now()) @map("received_at")
+  latitude Decimal @db.Decimal(10, 7)
+  longitude Decimal @db.Decimal(10, 7)
+  accuracy Decimal @db.Decimal(10, 2)
+  session IncubationFieldSession @relation(fields: [sessionId, courseId], references: [id, courseId], onDelete: Cascade)
+  @@unique([sessionId, capturedAt])
+  @@index([courseId, receivedAt])
+  @@map("incubation_positions")
+}
+
+model IncubationAttachment {
+  id String @id @default(uuid())
+  courseId String @map("course_id")
+  programId String @map("program_id")
+  teamId String? @map("team_id")
+  uploadedBy String @map("uploaded_by")
+  name String
+  mime String
+  size Int
+  path String @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  program IncubationProgram @relation(fields: [programId, courseId], references: [id, courseId], onDelete: Restrict)
+  @@index([programId, teamId])
+  @@map("incubation_attachments")
+}
+
+model IncubationAudit {
+  id String @id @default(uuid())
+  courseId String @map("course_id")
+  programId String @map("program_id")
+  action String
+  entityId String @map("entity_id")
+  actorId String @map("actor_id")
+  actorName String @map("actor_name")
+  reason String @default("")
+  before Json?
+  after Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  program IncubationProgram @relation(fields: [programId, courseId], references: [id, courseId], onDelete: Restrict)
+  @@index([programId, createdAt])
+  @@map("incubation_audit")
 }
 
 // ============================================================

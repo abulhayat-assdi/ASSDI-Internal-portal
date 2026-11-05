@@ -9,6 +9,7 @@ import { extractCourseSlug, isSuperAdminHost, getCourseBySlug, isCourseUsable } 
 export const runtime = 'nodejs';
 
 const PUBLIC_API_ROUTES = [
+    '/api/incubation/public/',
     '/api/health',
     // Authenticates with CRON_SECRET, not a session — there is no user behind it.
     '/api/cron/',
