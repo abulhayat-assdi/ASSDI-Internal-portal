@@ -10,6 +10,8 @@ export const runtime = 'nodejs';
 
 const PUBLIC_API_ROUTES = [
     '/api/incubation/public/',
+    '/api/live-chat/public/',
+    '/live-chat/',
     '/api/health',
     // Authenticates with CRON_SECRET, not a session — there is no user behind it.
     '/api/cron/',

@@ -1,0 +1,18 @@
+# Optional overlay: docker compose -f docker-compose.yml -f docker-compose.live-chat.yml up -d
+# Apply reviewed CRM migrations first. Use restricted URLs, never migration-owner URLs.
+services:
+  live-chat-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_BASE_DOMAIN: ${NEXT_PUBLIC_BASE_DOMAIN:?Set course base domain}
+    restart: unless-stopped
+    user: "1001:1001"
+    # Bypass the web entrypoint: worker does not bootstrap users, run migrations or chown storage.
+    entrypoint: ["node", "scripts/live-chat-worker.cjs"]
+    environment:
+      DATABASE_URL: ${LIVE_CHAT_PORTAL_DATABASE_URL:?Set restricted portal runtime URL}
+      CUSTOMER_SERVICE_DATABASE_URL: ${CUSTOMER_SERVICE_DATABASE_URL:?Set restricted CRM runtime URL}
+      NODE_ENV: production
+    stop_grace_period: 30s
