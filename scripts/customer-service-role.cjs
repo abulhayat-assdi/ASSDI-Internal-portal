@@ -59,6 +59,9 @@ const { Client } = require("pg");
       'REVOKE UPDATE,DELETE ON "History","Audit" FROM ' + quote(role),
     );
     await c.query('REVOKE ALL ON "_prisma_migrations" FROM ' + quote(role));
+    if ((await c.query("SELECT to_regclass('public.\"ChatEvent\"') AS name")).rows[0].name) {
+      await c.query('REVOKE UPDATE,DELETE ON "ChatEvent","ChatMessage" FROM ' + quote(role));
+    }
     console.log("CRM runtime grants configured.");
   } finally {
     await c.end();

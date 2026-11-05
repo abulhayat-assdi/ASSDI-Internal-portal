@@ -21,7 +21,9 @@
     "generate:all": "prisma generate --schema prisma/schema.prisma && npm run crm:generate",
     "incubation:test": "vitest run src/lib/incubation",
     "incubation:preview": "tsx scripts/incubation-preview.ts",
-    "incubation:check-schema": "node scripts/incubation-check-schema.cjs"
+    "incubation:check-schema": "node scripts/incubation-check-schema.cjs",
+    "chat:test": "vitest run src/lib/live-chat --exclude .worktrees/**",
+    "chat:worker": "node scripts/live-chat-worker.cjs"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",

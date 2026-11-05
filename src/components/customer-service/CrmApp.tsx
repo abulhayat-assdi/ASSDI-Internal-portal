@@ -105,6 +105,7 @@ type Form = {
   customFields: Record<string, string | number>;
 };
 type Complaint = Form & {
+  customerId?: string | null;
   id: string;
   code: string;
   createdAt: string;
@@ -252,6 +253,8 @@ export default function CrmApp({
   initialTab?: string;
 }) {
   const branding = useBranding();
+  const [liveChatEnabled, setLiveChatEnabled] = useState(false);
+  useEffect(() => { let active = true; fetch("/api/site-settings").then(r => r.json()).then(v => { if (active) setLiveChatEnabled(v.features?.live_chat === true); }).catch(() => {}); return () => { active = false; }; }, []);
   const [trainingCustomer, setTrainingCustomer] =
     useState<TrainingCustomer | null>(null);
   const fetchGeneration = useRef(0);
@@ -375,7 +378,7 @@ export default function CrmApp({
       /* Storage is optional. */
     }
     setWorkspace((current) => {
-      const selected = [preferred, current, remembered].find((id) =>
+      const selected = [preferred, current, new URLSearchParams(location.search).get("workspaceId"), remembered].find((id) =>
         b.workspaces.some((w) => w.id === id),
       );
       return selected || b.workspaces[0]?.id || "";
@@ -1160,6 +1163,7 @@ export default function CrmApp({
         </div>
         <p className="crm-nav-label">WORKSPACE</p>
         <nav aria-label="CRM">
+          {liveChatEnabled && <a href={(staff ? "/dashboard/crm" : "/student-dashboard/crm") + "/live-chat?workspaceId=" + encodeURIComponent(workspace)} style={{display:"block",padding:"12px",color:"inherit"}}>Live Chat Training ↗</a>}
           {nav.map((n) => {
             const Icon = icons[n] || ClipboardList;
             return (
@@ -1638,10 +1642,18 @@ export default function CrmApp({
                           },
                         );
                         createRequest.current = null;
+                        const chatId = new URLSearchParams(location.search).get("chatId");
+                        let chatLinkFailed=false;
+                        if (chatId) {
+                          try {
+                            const linked = await fetch("/api/live-chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ workspaceId: workspace, action: "crm_link", id: chatId, data: { customerId: c.customerId || null, complaintId: c.id } }) });
+                            chatLinkFailed=!linked.ok;
+                          }catch{chatLinkFailed=true;}
+                        }
                         setForm({ ...empty });
                         await open(c.id);
                         setMessage(
-                          "Complaint saved. Resolve it or escalate with a reason.",
+                          chatLinkFailed?"Complaint saved; chat linking failed. Link the complaint from Live Chat.":"Complaint saved. Resolve it or escalate with a reason.",
                         );
                       });
                     })}

@@ -3,6 +3,220 @@ generator client {
   output   = "../../generated/customer-service"
 }
 
+// Live chat training: all operational data lives in the CRM database.
+model ChatSettings {
+  id String @id @default(uuid())
+  courseId String
+  workspaceId String @unique
+  value Json @default("{}")
+  version Int @default(1)
+  @@unique([workspaceId, id])
+}
+
+model ChatCategory {
+  id String @id @default(uuid())
+  courseId String
+  workspaceId String
+  name String
+  active Boolean @default(true)
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, name])
+}
+
+model ChatTrainingSession {
+  id String @id @default(uuid())
+  courseId String
+  workspaceId String
+  name String
+  mode String @default("PRACTICE")
+  state String @default("OPEN")
+  scenario String @default("")
+  participants String[]
+  startsAt DateTime @default(now())
+  endsAt DateTime?
+  hints Boolean @default(true)
+  demonstrationId String?
+  rubric Json
+  policySnapshot Json @default("{}")
+  passMark Int @default(70)
+  released Boolean @default(false)
+  createdAt DateTime @default(now())
+  @@unique([workspaceId, id])
+  @@index([workspaceId, state])
+}
+
+model ChatPublicLink {
+  id String @id @default(uuid())
+  courseId String
+  workspaceId String
+  tokenHash String @unique
+  sessionId String?
+  active Boolean @default(true)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  @@unique([workspaceId, id])
+}
+
+model ChatAgentState {
+  id String @id @default(uuid())
+  courseId String
+  workspaceId String
+  userId String
+  name String
+  roll String @default("")
+  status String @default("OFFLINE")
+  heartbeatAt DateTime @default(now())
+  statusAt DateTime @default(now())
+  lastAssignedAt DateTime @default(now())
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, userId])
+  @@index([workspaceId, status, lastAssignedAt])
+}
+
+model ChatCustomerSession {
+  id String @id @default(uuid())
+  courseId String
+  workspaceId String
+  tokenHash String @unique
+  name String
+  heartbeatAt DateTime @default(now())
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  @@unique([workspaceId, id])
+}
+
+model ChatConversation {
+  id String @id @default(uuid())
+  courseId String
+  workspaceId String
+  sessionId String?
+  customerSessionId String
+  customerName String
+  categoryId String
+  status String @default("QUEUED")
+  agentId String?
+  customerId String?
+  complaintId String?
+  createdAt DateTime @default(now())
+  queueAt DateTime @default(now())
+  assignedAt DateTime?
+  acceptedAt DateTime?
+  firstReplyAt DateTime?
+  resolvedAt DateTime?
+  closedAt DateTime?
+  lastCustomerAt DateTime @default(now())
+  lastAgentAt DateTime?
+  unansweredAt DateTime?
+  lastActivityAt DateTime @default(now())
+  warned Boolean @default(false)
+  serviceSeconds Int @default(60)
+  policySnapshot Json @default("{}")
+  resolution String @default("")
+  closingNote String @default("")
+  transferTo String?
+  transferAt DateTime?
+  customerTypingAt DateTime?
+  agentTypingAt DateTime?
+  customerReadAt DateTime?
+  agentReadAt DateTime?
+  feedback Int?
+  feedbackComment String @default("")
+  @@unique([workspaceId, id])
+  @@index([workspaceId, status, queueAt])
+  @@index([workspaceId, agentId, status])
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, customerSessionId])
+}
+
+model ChatMessage {
+  id String @id @default(uuid())
+  sequence BigInt @unique @default(autoincrement())
+  courseId String
+  workspaceId String
+  conversationId String
+  senderId String
+  senderName String
+  sender String
+  kind String @default("MESSAGE")
+  text String
+  requestId String
+  createdAt DateTime @default(now())
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, conversationId, senderId, requestId])
+  @@index([workspaceId, conversationId, createdAt, id])
+  @@index([workspaceId, conversationId, sequence], map: "ChatMessage_workspace_conversation_sequence_idx")
+}
+
+model ChatAssignment {
+  id String @id @default(uuid())
+  courseId String
+  workspaceId String
+  conversationId String
+  agentId String
+  startedAt DateTime @default(now())
+  acceptedAt DateTime?
+  firstReplyAt DateTime?
+  endedAt DateTime?
+  wrapSeconds Int @default(0)
+  handleSeconds Float @default(0)
+  @@unique([workspaceId, id])
+  @@index([workspaceId, conversationId])
+  @@index([workspaceId, agentId, endedAt])
+}
+
+model ChatEvent {
+  id BigInt @id @default(autoincrement())
+  courseId String
+  workspaceId String
+  conversationId String?
+  actorId String
+  type String
+  data Json @default("{}")
+  createdAt DateTime @default(now())
+  @@index([workspaceId, id])
+  @@index([workspaceId, conversationId, id])
+}
+
+model ChatQaEvaluation {
+  id String @id @default(uuid())
+  courseId String
+  workspaceId String
+  conversationId String
+  agentId String
+  evaluatorId String
+  scores Json
+  rubric Json
+  total Float
+  passMark Int
+  feedback String
+  privateNote String @default("")
+  released Boolean @default(false)
+  createdAt DateTime @default(now())
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, conversationId, agentId])
+}
+
+model ChatReference {
+  id String @id @default(uuid())
+  courseId String
+  workspaceId String
+  kind String
+  title String
+  text String
+  active Boolean @default(true)
+  @@unique([workspaceId, id])
+  @@index([workspaceId, kind])
+}
+
+model ChatRateBucket {
+  id String @id
+  courseId String
+  workspaceId String
+  count Int @default(1)
+  expiresAt DateTime
+  @@index([workspaceId, expiresAt])
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("CUSTOMER_SERVICE_DATABASE_URL")

@@ -75,3 +75,4 @@ tsconfig.tsbuildinfo
 /generated/customer-service/
 /.crm-test/
 /.incubation-test/
+/tmp/live-chat/
