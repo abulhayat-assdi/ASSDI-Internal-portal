@@ -1,0 +1,613 @@
+﻿import { beforeAll, afterAll, describe, it, expect } from "vitest";
+import { startIncubationTestDatabase } from "../../../test/incubation-database";
+import type { Actor } from "./server";
+import { todayDhaka } from "./domain";
+import { buildReport } from "./report";
+import { execFileSync } from "node:child_process";
+import path from "node:path";
+let fixture: Awaited<ReturnType<typeof startIncubationTestDatabase>>,
+  prisma: (typeof import("@/lib/db"))["prisma"],
+  api: typeof import("./server"),
+  field: typeof import("./field");
+let programId = "",
+  teamA = "",
+  teamB = "",
+  product = "",
+  area = "",
+  saleId = "",
+  purchaseId = "";
+const manager: Actor = {
+  id: "manager",
+  email: "manager@test.local",
+  displayName: "Manager",
+  role: "admin",
+  courseId: "course-a",
+};
+const lead: Actor = {
+  id: "lead",
+  email: "lead@test.local",
+  displayName: "Lead",
+  role: "student",
+  courseId: "course-a",
+};
+const member: Actor = {
+  id: "member",
+  email: "member@test.local",
+  displayName: "Member",
+  role: "student",
+  courseId: "course-a",
+};
+const target: Actor = {
+  id: "target",
+  email: "target@test.local",
+  displayName: "Target",
+  role: "student",
+  courseId: "course-a",
+};
+const settings = {
+  sprintDays: 3,
+  enforceCategory: false,
+  maxFieldHours: null,
+  trackingMinutes: 5,
+  retentionDays: 30,
+  expenseTypes: ["Transport"],
+};
+const send = (actor: Actor, action: string, payload: Record<string, unknown>) =>
+  api.command(actor, { action, programId, payload }) as Promise<any>;
+const record = (
+  actor: Actor,
+  kind: string,
+  data: unknown,
+  extra: Record<string, unknown> = {},
+) =>
+  send(actor, "record", {
+    teamId: teamA,
+    kind,
+    date: todayDhaka(),
+    data,
+    requestKey: crypto.randomUUID(),
+    ...extra,
+  });
+const line = (q: string, price = "100") => ({
+  productId: product,
+  quantity: q,
+  unitPrice: price,
+});
+beforeAll(async () => {
+  fixture = await startIncubationTestDatabase();
+  process.env.DATABASE_URL = fixture.url;
+  prisma = (await import("@/lib/db")).prisma;
+  api = await import("./server");
+  field = await import("./field");
+  await prisma.course.createMany({
+    data: [
+      {
+        id: "course-a",
+        slug: "incubation",
+        name: "Incubation Test",
+        settings: { features: { business_incubation: true } },
+      },
+      {
+        id: "course-b",
+        slug: "other",
+        name: "Other",
+        settings: { features: { business_incubation: true } },
+      },
+    ],
+  });
+  await prisma.batch.create({
+    data: { id: "batch-a", courseId: "course-a", name: "Batch 1" },
+  });
+  for (const [id, roll] of [
+    ["lead", "1"],
+    ["member", "2"],
+    ["target", "3"],
+  ]) {
+    await prisma.user.create({
+      data: {
+        id,
+        courseId: "course-a",
+        email: `${id}@test.local`,
+        displayName: id,
+        passwordHash: "unused",
+        role: "student",
+        studentBatchName: "Batch 1",
+        studentRoll: roll,
+      },
+    });
+    await prisma.batchStudent.create({
+      data: {
+        id: `s-${id}`,
+        courseId: "course-a",
+        batchId: "batch-a",
+        batchName: "Batch 1",
+        roll,
+        name: id,
+      },
+    });
+  }
+  await prisma.user.create({
+    data: {
+      id: manager.id,
+      courseId: "course-a",
+      email: manager.email,
+      displayName: "Manager",
+      passwordHash: "unused",
+      role: "admin",
+    },
+  });
+  const p = (await api.command(manager, {
+    action: "program",
+    payload: {
+      name: "Market Lab",
+      description: "",
+      startDate: "2026-01-01",
+      endDate: null,
+      batchNames: ["Batch 1"],
+      staffIds: [],
+      settings,
+      status: "active",
+    },
+  })) as any;
+  programId = p.id;
+  teamA = (
+    await send(manager, "team", {
+      name: "Team A",
+      studentIds: ["s-lead", "s-member"],
+      leadId: "s-lead",
+      active: true,
+    })
+  ).id;
+  teamB = (
+    await send(manager, "team", {
+      name: "Team B",
+      studentIds: ["s-target"],
+      leadId: "s-target",
+      active: true,
+    })
+  ).id;
+  const category = (
+    await send(manager, "catalog", {
+      kind: "category",
+      name: "Food",
+      parentId: null,
+      unit: "piece",
+      fractional: false,
+      active: true,
+    })
+  ).id;
+  product = (
+    await send(manager, "catalog", {
+      kind: "product",
+      name: "Product",
+      parentId: category,
+      unit: "piece",
+      fractional: false,
+      active: true,
+    })
+  ).id;
+  area = (
+    await send(manager, "catalog", {
+      kind: "area",
+      name: "Broad Area",
+      parentId: null,
+      unit: "piece",
+      fractional: false,
+      active: true,
+    })
+  ).id;
+  await prisma.incubationAttachment.createMany({
+    data: [
+      {
+        id: "voucher-a",
+        courseId: "course-a",
+        programId,
+        teamId: teamA,
+        uploadedBy: "lead",
+        name: "voucher.jpg",
+        mime: "image/jpeg",
+        size: 100,
+        path: "incubation/test-a.jpg",
+      },
+      {
+        id: "voucher-b",
+        courseId: "course-a",
+        programId,
+        teamId: teamB,
+        uploadedBy: "target",
+        name: "handover.jpg",
+        mime: "image/jpeg",
+        size: 100,
+        path: "incubation/test-b.jpg",
+      },
+    ],
+  });
+}, 60000);
+afterAll(async () => {
+  await prisma?.$disconnect();
+  await fixture?.stop();
+});
+describe("real migration and transactional incubation workflows", () => {
+  it("applies real empty feature tables and their RLS policies", async () => {
+    const policies = await fixture.db.query(
+      "SELECT tablename FROM pg_policies WHERE tablename LIKE 'incubation_%'",
+    );
+    expect(policies.rows).toHaveLength(12);
+    expect(await prisma.incubationRecord.count()).toBe(0);
+  });
+  it("requires a purchase voucher and restricts financial entries to the lead", async () => {
+    await expect(
+      record(lead, "purchase", { lines: [line("10")] }),
+    ).rejects.toThrow();
+    await expect(
+      record(member, "purchase", {
+        lines: [line("10")],
+        voucherId: "voucher-a",
+      }),
+    ).rejects.toThrow();
+  });
+  it("commits funding and purchases, then deduplicates safe retries", async () => {
+    await record(manager, "fund", { amount: "5000" });
+    const payload = {
+      teamId: teamA,
+      kind: "purchase",
+      date: todayDhaka(),
+      data: { lines: [line("10")], voucherId: "voucher-a" },
+      requestKey: "purchase-once",
+    };
+    const a = await send(lead, "record", payload),
+      b = await send(lead, "record", payload);
+    purchaseId = a.id;
+    expect(a.id).toBe(b.id);
+    await expect(
+      send(lead, "record", {
+        ...payload,
+        data: { ...payload.data, lines: [line("11")] },
+      }),
+    ).rejects.toThrow();
+  });
+  it("rolls back a failed oversale and posts valid sales", async () => {
+    await expect(
+      record(lead, "sale", { lines: [line("6"), line("6")], areaId: area }),
+    ).rejects.toThrow();
+    expect(
+      await prisma.incubationRecord.count({ where: { kind: "sale" } }),
+    ).toBe(0);
+    saleId = (
+      await record(lead, "sale", { lines: [line("4", "150")], areaId: area })
+    ).id;
+  });
+  it("does not post an old submission until reviewed", async () => {
+    const r = await record(
+      lead,
+      "expense",
+      { amount: "50", expenseType: "Transport", reason: "Forgot report" },
+      { date: "2026-01-02" },
+    );
+    expect(r.status).toBe("pending");
+    await send(manager, "review_late", {
+      recordId: r.id,
+      approve: true,
+      reason: "Evidence checked",
+    });
+    expect(
+      (await prisma.incubationRecord.findUnique({ where: { id: r.id } }))
+        ?.status,
+    ).toBe("posted");
+    await expect(
+      send(manager, "review_late", {
+        recordId: r.id,
+        approve: true,
+        reason: "Again",
+      }),
+    ).rejects.toThrow();
+  });
+  it("keeps old values until correction approval and retains revisions", async () => {
+    const original = await prisma.incubationRecord.findUniqueOrThrow({
+      where: { id: saleId },
+    });
+    const request = await send(lead, "correct", {
+      recordId: saleId,
+      version: 1,
+      date: original.date,
+      data: { lines: [line("3", "150")], areaId: area },
+      reason: "Quantity typo",
+      void: false,
+    });
+    expect(
+      (
+        await prisma.incubationRecord.findUniqueOrThrow({
+          where: { id: saleId },
+        })
+      ).version,
+    ).toBe(1);
+    await send(manager, "review_correction", {
+      id: request.id,
+      approve: true,
+      reason: "Receipt verified",
+    });
+    expect(
+      (
+        await prisma.incubationRecord.findUniqueOrThrow({
+          where: { id: saleId },
+        })
+      ).version,
+    ).toBe(2);
+    expect(
+      await prisma.incubationAudit.count({
+        where: { entityId: saleId, action: "correction.applied" },
+      }),
+    ).toBe(1);
+  });
+  it("atomically links another team's return and purchase upon acceptance", async () => {
+    const r = await record(
+      lead,
+      "transfer",
+      { lines: [line("2")], reason: "Category finished" },
+      { targetTeamId: teamB },
+    );
+    expect(r.status).toBe("transfer_pending");
+    await expect(
+      send(lead, "accept_transfer", {
+        recordId: r.id,
+        approve: true,
+        reason: "Take",
+      }),
+    ).rejects.toThrow();
+    await send(target, "accept_transfer", {
+      recordId: r.id,
+      approve: true,
+      reason: "Goods received",
+      voucherId: "voucher-b",
+    });
+    const b = (await api.overview(target, programId)) as any;
+    expect(b.ledger.stocks[`${teamB}|${product}`].quantity).toBe(2000);
+    expect(b.ledger.summaries[0].cash).toBe(-20000);
+    const recipientReport = buildReport(b.reportEntries, b.catalog, b.teams);
+    expect(
+      recipientReport.inventory.find((s) => s.teamId === teamB)?.quantity,
+    ).toBe(2000);
+    expect(recipientReport.summaries[0].purchases).toBe(20000);
+    expect(recipientReport.summaries[0].cash).toBe(-20000);
+  });
+  it("rejects cross-course and unassigned supervisor access", async () => {
+    await expect(
+      api.overview({ ...manager, courseId: "course-b" }, programId),
+    ).rejects.toThrow();
+    await expect(
+      api.overview(
+        { ...manager, role: "teacher", permissions: ["business_incubation"] },
+        programId,
+      ),
+    ).rejects.toThrow();
+  });
+  it("publishes only an allowlisted public report and revokes links", async () => {
+    const { token } = await send(manager, "share", { enabled: true });
+    const report = await (
+      await import("./public")
+    ).publicReport("course-a", token);
+    expect(report.summaries).toHaveLength(2);
+    const data = JSON.stringify(report);
+    for (const word of [
+      "voucher-a",
+      "password",
+      "latitude",
+      "requestedBy",
+      "cashDifference",
+    ])
+      expect(data).not.toContain(word);
+    await send(manager, "share", { enabled: false });
+    await expect(
+      (await import("./public")).publicReport("course-a", token),
+    ).rejects.toThrow();
+  });
+  it("starts and ends a member's GPS field session, preventing overlapping custody", async () => {
+    const position = {
+      latitude: 23.8,
+      longitude: 90.4,
+      accuracy: 15,
+      capturedAt: new Date().toISOString(),
+    };
+    const a = await field.fieldCommand(lead, {
+      action: "checkin",
+      programId,
+      position,
+      areaId: area,
+      carried: [{ productId: product, quantity: "4" }],
+    });
+    expect(a.session.checkOut).toBeNull();
+    await expect(
+      field.fieldCommand(member, {
+        action: "checkin",
+        programId,
+        position,
+        areaId: area,
+        carried: [{ productId: product, quantity: "4" }],
+      }),
+    ).rejects.toThrow();
+    const end = await field.fieldCommand(lead, {
+      action: "checkout",
+      programId,
+      position: { ...position, capturedAt: new Date().toISOString() },
+      areaId: area,
+      steps: 400,
+    });
+    expect(end.session.checkOut).not.toBeNull();
+  });
+  it("reviews individual field corrections without editing recorded coordinates", async () => {
+    const session = await prisma.incubationFieldSession.findFirstOrThrow({
+      where: { userId: lead.id, checkOut: { not: null } },
+    });
+    const proposed = {
+      checkIn: session.checkIn.toISOString(),
+      checkOut: session.checkOut!.toISOString(),
+      startAreaId: area,
+      endAreaId: area,
+      steps: 999,
+    };
+    const request = (await field.fieldCorrectionCommand(lead, {
+      action: "field_correct",
+      programId,
+      payload: {
+        sessionId: session.id,
+        version: session.version,
+        proposed,
+        reason: "Pedometer typo",
+      },
+    })) as any;
+    expect(
+      (
+        await prisma.incubationFieldSession.findUniqueOrThrow({
+          where: { id: session.id },
+        })
+      ).steps,
+    ).toBe(400);
+    await field.fieldCorrectionCommand(manager, {
+      action: "field_review",
+      programId,
+      payload: { id: request.id, approve: true, reason: "Proof checked" },
+    });
+    expect(
+      await prisma.incubationFieldSession.findUniqueOrThrow({
+        where: { id: session.id },
+      }),
+    ).toMatchObject({ steps: 999, version: 2 });
+  });
+  it("bulk sheet edits are atomic and version checked", async () => {
+    const expense = await record(manager, "expense", {
+      amount: "2",
+      expenseType: "Transport",
+    });
+    const sale = await prisma.incubationRecord.findUniqueOrThrow({
+      where: { id: saleId },
+    });
+    await expect(
+      send(manager, "bulk_correct", {
+        reason: "Batch edit",
+        changes: [
+          {
+            recordId: expense.id,
+            version: 1,
+            date: expense.date,
+            data: { amount: "3", expenseType: "Transport" },
+          },
+          {
+            recordId: saleId,
+            version: sale.version,
+            date: sale.date,
+            data: { lines: [line("99", "150")], areaId: area },
+          },
+        ],
+      }),
+    ).rejects.toThrow();
+    expect(
+      (
+        await prisma.incubationRecord.findUniqueOrThrow({
+          where: { id: expense.id },
+        })
+      ).version,
+    ).toBe(1);
+    await send(manager, "bulk_correct", {
+      reason: "Verified batch",
+      changes: [
+        {
+          recordId: expense.id,
+          version: 1,
+          date: expense.date,
+          data: { amount: "3", expenseType: "Transport" },
+        },
+      ],
+    });
+    expect(
+      (
+        await prisma.incubationRecord.findUniqueOrThrow({
+          where: { id: expense.id },
+        })
+      ).version,
+    ).toBe(2);
+  });
+  it("pending handovers reserve source stock until accepted/rejected", async () => {
+    const r = await record(
+      lead,
+      "transfer",
+      { lines: [line("4")], reason: "Reserve handover" },
+      { targetTeamId: teamB },
+    );
+    await expect(
+      record(lead, "sale", { lines: [line("2", "150")], areaId: area }),
+    ).rejects.toThrow();
+    await send(target, "accept_transfer", {
+      recordId: r.id,
+      approve: false,
+      reason: "Handover cancelled",
+    });
+  });
+  it("concurrent sale requests cannot oversell the same stock", async () => {
+    const results = await Promise.allSettled([
+      record(lead, "sale", { lines: [line("4", "150")], areaId: area }),
+      record(lead, "sale", { lines: [line("4", "150")], areaId: area }),
+    ]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter((r) => r.status === "rejected")).toHaveLength(1);
+  });
+  it("replacing the lead immediately removes posting access", async () => {
+    await send(manager, "team", {
+      id: teamA,
+      name: "Team A",
+      studentIds: ["s-lead", "s-member"],
+      leadId: "s-member",
+      active: true,
+    });
+    await expect(
+      record(lead, "expense", { amount: "1", expenseType: "Transport" }),
+    ).rejects.toThrow();
+  });
+  it("audit history cannot be overwritten even by a direct database update", async () => {
+    await expect(
+      fixture.db.exec("UPDATE incubation_audit SET reason='changed'"),
+    ).rejects.toThrow(/immutable/);
+  });
+  it("database RLS fails closed for an unprivileged role", async () => {
+    await fixture.db.exec(
+      "DO $$ BEGIN CREATE ROLE incubation_test_role NOSUPERUSER NOBYPASSRLS; EXCEPTION WHEN duplicate_object THEN NULL; END $$; GRANT USAGE ON SCHEMA public TO incubation_test_role; GRANT SELECT ON ALL TABLES IN SCHEMA public TO incubation_test_role;",
+    );
+    await fixture.db.exec("SET ROLE incubation_test_role");
+    try {
+      const rows = await fixture.db.query("SELECT id FROM incubation_programs");
+      expect(rows.rows).toHaveLength(0);
+    } finally {
+      await fixture.db.exec("RESET ROLE");
+    }
+  });
+  it("repeat deploy preserves business records and the Coolify readiness gate succeeds", async () => {
+    if (process.env.INCUBATION_NATIVE_TEST !== "1") return;
+    const count = await prisma.incubationRecord.count();
+    execFileSync(
+      process.execPath,
+      [path.resolve("node_modules/prisma/build/index.js"), "migrate", "deploy"],
+      { stdio: "pipe", env: { ...process.env, DATABASE_URL: fixture.url } },
+    );
+    expect(await prisma.incubationRecord.count()).toBe(count);
+    execFileSync(process.execPath, ["scripts/ensure-app-role.js"], {
+      stdio: "pipe",
+      env: {
+        ...process.env,
+        DATABASE_URL: fixture.url,
+        APP_DB_USER: "incubation_runtime_test",
+        APP_DB_PASSWORD: "incubation_runtime_local",
+      },
+    });
+    const runtime = new URL(fixture.url);
+    runtime.username = "incubation_runtime_test";
+    runtime.password = "incubation_runtime_local";
+    const output = execFileSync(
+      process.execPath,
+      ["scripts/incubation-check-schema.cjs"],
+      {
+        encoding: "utf8",
+        env: { ...process.env, DATABASE_URL: runtime.toString() },
+      },
+    );
+    expect(output).toContain("no data seeded");
+  });
+});

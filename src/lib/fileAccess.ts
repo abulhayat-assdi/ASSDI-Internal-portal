@@ -99,6 +99,8 @@ export async function authorizeFileRead(
     normalizedPath: string,
     user: JWTPayload | null
 ): Promise<FileAccessDecision> {
+    // Incubation evidence is served only through its attachment-aware API.
+    if (normalizedPath.startsWith("incubation/") || normalizedPath.startsWith("uploads/incubation/")) return { allowed: false, status: 403 };
     if (isPublicStoredPath(normalizedPath)) return { allowed: true, isPublic: true };
 
     if (!user) return { allowed: false, status: 401 };
@@ -129,6 +131,7 @@ export async function authorizeFileDelete(
     normalizedPath: string,
     user: JWTPayload | null
 ): Promise<FileAccessDecision> {
+    if (normalizedPath.startsWith("incubation/") || normalizedPath.startsWith("uploads/incubation/")) return { allowed: false, status: 403 };
     if (!user) return { allowed: false, status: 401 };
 
     const role = (user.role || "").toLowerCase();

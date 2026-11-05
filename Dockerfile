@@ -74,7 +74,7 @@ RUN apk add --no-cache su-exec libc6-compat openssl
 
 # Entrypoint: fixes /app/storage ownership then drops to nextjs user
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh && chmod +x /usr/local/bin/docker-entrypoint.sh
 
 EXPOSE 3000
 ENV PORT=3000
@@ -95,4 +95,4 @@ ENTRYPOINT ["docker-entrypoint.sh"]
 # docker-entrypoint.sh and scripts/ensure-app-role.js). ensure-app-role and
 # migrate are fatal on failure — booting without either means running with no
 # tenant isolation, or against a half-migrated schema.
-CMD ["sh", "-c", "set -e; DATABASE_URL=\"${BOOTSTRAP_DATABASE_URL:-$DATABASE_URL}\" node scripts/ensure-app-role.js; DATABASE_URL=\"${BOOTSTRAP_DATABASE_URL:-$DATABASE_URL}\" prisma migrate deploy; set +e; DATABASE_URL=\"${BOOTSTRAP_DATABASE_URL:-$DATABASE_URL}\" node scripts/startup.js; DATABASE_URL=\"${BOOTSTRAP_DATABASE_URL:-$DATABASE_URL}\" node scripts/typing-game-migrate.js; DATABASE_URL=\"${BOOTSTRAP_DATABASE_URL:-$DATABASE_URL}\" node scripts/typing-game-seed-catalog.js; DATABASE_URL=\"${BOOTSTRAP_DATABASE_URL:-$DATABASE_URL}\" node prisma/seed.js; set -e; exec node server.js"]
+CMD ["sh", "-c", "set -e; DATABASE_URL=\"${BOOTSTRAP_DATABASE_URL:-$DATABASE_URL}\" node scripts/ensure-app-role.js; DATABASE_URL=\"${BOOTSTRAP_DATABASE_URL:-$DATABASE_URL}\" prisma migrate deploy; node scripts/incubation-check-schema.cjs; set +e; DATABASE_URL=\"${BOOTSTRAP_DATABASE_URL:-$DATABASE_URL}\" node scripts/startup.js; DATABASE_URL=\"${BOOTSTRAP_DATABASE_URL:-$DATABASE_URL}\" node scripts/typing-game-migrate.js; DATABASE_URL=\"${BOOTSTRAP_DATABASE_URL:-$DATABASE_URL}\" node scripts/typing-game-seed-catalog.js; DATABASE_URL=\"${BOOTSTRAP_DATABASE_URL:-$DATABASE_URL}\" node prisma/seed.js; set -e; exec node server.js"]

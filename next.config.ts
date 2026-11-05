@@ -8,6 +8,7 @@ import type { NextConfig } from "next";
 const BASE_DOMAIN = process.env.NEXT_PUBLIC_BASE_DOMAIN || 'tasm-skill.asf.bd';
 
 const nextConfig: NextConfig = {
+    outputFileTracingRoot: process.cwd(),
     output: 'standalone',
     eslint: {
         // Still on: the remaining failures are all @typescript-eslint
@@ -25,7 +26,7 @@ const nextConfig: NextConfig = {
     // nodemailer is reached from instrumentation.ts, which Next also compiles
     // for the edge/client fallback — where its node:child_process import cannot
     // be resolved. Keeping it external stops it being bundled there at all.
-    serverExternalPackages: ['@prisma/client', '@react-pdf/renderer', 'sharp', 'unzipper', 'cheerio', 'nodemailer'],
+    serverExternalPackages: ['@prisma/client', '@react-pdf/renderer', 'exceljs', 'sharp', 'unzipper', 'cheerio', 'nodemailer'],
     experimental: {
         serverActions: {
             allowedOrigins: [
@@ -64,6 +65,8 @@ const nextConfig: NextConfig = {
     },
     async headers() {
         return [
+            // Allow location only in the incubation student workspace. The
+            // default policy below continues denying it elsewhere.
             {
                 source: '/:path*',
                 headers: [
@@ -74,6 +77,10 @@ const nextConfig: NextConfig = {
                     // HSTS only takes effect behind HTTPS (Nginx/Caddy). Safe to send always.
                     { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
                 ],
+            },
+            {
+                source: '/student-dashboard/incubation/:path*',
+                headers: [{ key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(self)' }],
             },
         ];
     },

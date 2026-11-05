@@ -1,5 +1,17 @@
 import { describe, it, expect } from "vitest";
-import { normalizeStoredPath, isPublicStoredPath } from "./fileAccess";
+import { normalizeStoredPath, isPublicStoredPath, authorizeFileRead, authorizeFileDelete } from "./fileAccess";
+
+describe("incubation evidence access", () => {
+    it("requires the attachment-aware route for reads and deletes, even for an administrator", async () => {
+        const admin = { id: "admin", email: "admin@test.local", displayName: "Administrator", role: "admin", courseId: "course" };
+        for (const storedPath of ["incubation/course/program/private.png", "uploads/incubation/course/program/private.png"]) {
+            for (const actor of [null, admin]) {
+                await expect(authorizeFileRead(storedPath, actor)).resolves.toMatchObject({ allowed: false, status: 403 });
+                await expect(authorizeFileDelete(storedPath, actor)).resolves.toMatchObject({ allowed: false, status: 403 });
+            }
+        }
+    });
+});
 
 describe("normalizeStoredPath", () => {
     it("canonicalises the prefixes the various upload routes have written", () => {

@@ -11,6 +11,8 @@ export const PORTAL_OWNER_EMAIL =
     process.env.NEXT_PUBLIC_PORTAL_OWNER_EMAIL?.toLowerCase().trim() || "mohammadabulhayatt@gmail.com";
 
 export type PermissionKey =
+    | "business_incubation"
+    | "admin_incubation"
     | "crm_supervisor"
     | "crm_admin"
     | "schedule"
@@ -63,6 +65,8 @@ export interface PermissionMeta {
 }
 
 export const PERMISSION_META: Record<PermissionKey, PermissionMeta> = {
+    business_incubation: { label: "Business Incubation", path: "/dashboard/incubation", group: "teacher", icon: "🌱" },
+    admin_incubation: { label: "Incubation Administration", path: "/dashboard/incubation/settings", group: "admin", icon: "🌱" },
     crm_supervisor: { label: "CRM Supervisor", path: "/dashboard/crm", group: "management", icon: "\uD83C\uDFA7" },
     crm_admin: { label: "CRM Administration", path: "/dashboard/crm/settings", group: "admin", icon: "\uD83C\uDFA7" },
     schedule: { label: "Class Schedule", path: "/dashboard/schedule", group: "teacher", icon: "📅" },
@@ -173,6 +177,7 @@ export const DEFAULT_TEACHER_PERMISSIONS: PermissionKey[] = [
 // needing Super Admin intervention. Super Admin still retains platform-wide
 // control via admin.tasm-skill.asf.bd.
 export const DEFAULT_ADMIN_PERMISSIONS: PermissionKey[] = [
+    "business_incubation", "admin_incubation",
     "teachers", "batch_info",
     "admin_panel", "admin_homework", "admin_quiz", "admin_results", "admin_leave",
     "admin_notices", "admin_contact", "admin_resources", "admin_course_modules",
