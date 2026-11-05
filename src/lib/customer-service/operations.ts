@@ -189,6 +189,7 @@ export async function bulkAssign(
   });
   const histories: Prisma.HistoryCreateManyInput[] = [],
     notices: Prisma.NotificationCreateManyInput[] = [];
+  let followupsTransferred = 0;
   for (const allocation of data.allocations) {
     const before = cases.find((c) => c.id === allocation.id)!;
     const changed = await tx.complaint.updateMany({
@@ -205,6 +206,13 @@ export async function bulkAssign(
       changed.count === 1,
       "A complaint changed. Reload the preview before assigning.",
       409,
+    );
+    followupsTransferred += await handoffFollowUps(
+      tx,
+      w,
+      before.id,
+      before.ownerId,
+      allocation.userId,
     );
     histories.push({
       ...s,
@@ -245,11 +253,31 @@ export async function bulkAssign(
         requestId,
         reason: data.reason,
         allocations: data.allocations,
+        followupsTransferred,
         result,
       }),
     },
   });
   return result;
+}
+export async function handoffFollowUps(
+  tx: Tx,
+  w: string,
+  complaintId: string,
+  oldOwner: string | null,
+  newOwner: string,
+) {
+  if (!oldOwner || oldOwner === newOwner) return 0;
+  const result = await tx.followUp.updateMany({
+    where: {
+      workspaceId: w,
+      complaintId,
+      responsibleId: oldOwner,
+      completedAt: null,
+    },
+    data: { responsibleId: newOwner },
+  });
+  return result.count;
 }
 type Change = {
   id: string;
@@ -276,14 +304,17 @@ export async function notifyWorkflow(
       `${after.code}: a complaint has been assigned or returned to you.`,
     );
   if (after.queue !== before.queue && !after.ownerId && after.teamId) {
-    const members = await tx.member.findMany({
-      where: {
-        workspaceId: w,
-        active: true,
-        teamId: after.teamId,
-        role: after.queue,
-      },
-    });
+    const members =
+      after.queue === "AGENT"
+        ? []
+        : await tx.member.findMany({
+            where: {
+              workspaceId: w,
+              active: true,
+              teamId: after.teamId,
+              role: after.queue,
+            },
+          });
     for (const m of members)
       recipients.set(
         m.userId,
@@ -296,7 +327,12 @@ export async function notifyWorkflow(
     for (const p of people.filter(
       (p) => p.role === "admin" || staff.some((s) => s.userId === p.id),
     ))
-      recipients.set(p.id, `${after.code}: a new escalation needs attention.`);
+      recipients.set(
+        p.id,
+        after.queue === "AGENT"
+          ? `${after.code}: a returned complaint needs an active Agent.`
+          : `${after.code}: a new escalation needs attention.`,
+      );
   }
   if (after.status === "RESOLVED" && before.status !== "RESOLVED")
     recipients.set(

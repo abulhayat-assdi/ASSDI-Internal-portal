@@ -16,6 +16,7 @@ import {
   bulkAssign,
   studentProgress,
   notifyWorkflow,
+  handoffFollowUps,
 } from "./operations";
 import {
   Actor,
@@ -556,7 +557,12 @@ export async function read(
       });
     }
     if (kind === "report") return report(tx, a, w, q);
-    const page = Math.max(1, Math.min(10000, Number(q.get("page")) || 1));
+    const page = z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(10000)
+      .parse(q.get("page") || "1");
     const where: Prisma.ComplaintWhereInput = { ...base };
     if (q.get("ownerId")) {
       requireThat(
@@ -774,6 +780,37 @@ async function report(tx: Tx, a: Actor, w: string, q: URLSearchParams) {
     rows: resolved,
     created,
   };
+}
+async function returningAgent(
+  tx: Tx,
+  ctx: Identity,
+  w: string,
+  complaint: { id: string; creatorId: string },
+) {
+  const departure = await tx.history.findFirst({
+    where: {
+      workspaceId: w,
+      complaintId: complaint.id,
+      action: { in: ["escalate", "resubmit"] },
+      before: { path: ["queue"], equals: "AGENT" },
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    select: { before: true },
+  });
+  const target =
+    (departure?.before as { ownerId?: string | null } | undefined)?.ownerId ||
+    complaint.creatorId;
+  const workspace = await tx.workspace.findUniqueOrThrow({ where: { id: w } });
+  const people = await portalRoster(ctx, workspace.batchId);
+  const member = await tx.member.findFirst({
+    where: { workspaceId: w, userId: target, active: true, role: "AGENT" },
+  });
+  if (member && people.some((p) => p.id === target && p.role === "student"))
+    return target;
+  const administrator = people.find(
+    (p) => p.id === complaint.creatorId && p.role === "admin",
+  );
+  return administrator?.id || null;
 }
 export async function mutate(ctx: Identity, raw: unknown) {
   const b = operation.parse(raw),
@@ -1284,6 +1321,9 @@ export async function mutate(ctx: Identity, raw: unknown) {
         new Date(),
         policy,
         b.teamId,
+        ["revert", "agent_mistake"].includes(b.action)
+          ? await returningAgent(tx, ctx, w, c!)
+          : undefined,
       );
       data = { ...data, ...next };
       if (b.action === "resolve") {
@@ -1355,6 +1395,16 @@ export async function mutate(ctx: Identity, raw: unknown) {
     const after = await tx.complaint.findUniqueOrThrow({
       where: { id: c!.id },
     });
+    if (b.action === "assign" && after.ownerId)
+      result = {
+        followupsTransferred: await handoffFollowUps(
+          tx,
+          w,
+          c!.id,
+          c!.ownerId,
+          after.ownerId,
+        ),
+      };
     await record(
       tx,
       ctx,

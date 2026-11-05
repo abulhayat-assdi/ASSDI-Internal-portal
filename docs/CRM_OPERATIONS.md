@@ -6,6 +6,8 @@ The pool contains Pending cases in the Agent queue, with normal return state, ow
 
 Every assignment records immutable complaint history and an audit entry. Bulk assignment uses an idempotency key, a workspace lock and complaint versions. A stale preview fails without partially assigning cases. Reload the pool and preview again after a conflict.
 
+An explicit reassignment also transfers outstanding follow-ups held by the previous owner; completed callbacks retain their original attribution. L2 returns follow the last handling Agent recorded before escalation, rather than assuming the original creator is that Agent. If that Agent is inactive or no longer eligible, the original course administrator receives the return when available; otherwise it waits for staff reassignment and staff receive a notification. Original creator identity and SLA clocks remain unchanged.
+
 The notification bell shows the signed-in user's recent 50 notifications and total unread count for the selected workspace. Assignments, returned complaints, escalation team arrivals and resolutions generate notices for relevant recipients. Administrators and assigned supervisors receive escalation notices. Users mark their own notices read or click a notice to open the complaint; the complaint's current access checks still apply.
 
 Notifications poll every 15 seconds, complaint lists every 20 seconds and progress every 30 seconds while the browser page is visible. Focusing the window refreshes these views too. These updates do not replace an open complaint form or unsaved edits. This release adds in-app notifications; desktop push, sounds and email delivery are outside this feature.

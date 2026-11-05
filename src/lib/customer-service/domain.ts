@@ -52,6 +52,7 @@ export function transition(
   now: Date,
   policy: { l2Minutes?: number | null; l3Minutes?: number | null },
   teamId?: string,
+  returnOwnerId?: string | null,
 ) {
   const next: Workflow = {
     creatorId: c.creatorId,
@@ -112,7 +113,7 @@ export function transition(
     if (c.queue !== "L2")
       throw new DomainError("Only L2 can return a complaint");
     next.queue = "AGENT";
-    next.ownerId = c.creatorId;
+    next.ownerId = returnOwnerId === undefined ? c.creatorId : returnOwnerId;
     next.returnState =
       action === "agent_mistake" ? "AGENT_MISTAKE" : "REVERTED";
     next.status = "PENDING";

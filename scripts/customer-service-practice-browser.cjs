@@ -19,20 +19,47 @@ const { chromium } = require("../.crm-test/tools/node_modules/playwright");
   await page
     .getByRole("button", { name: "All Complaints", exact: true })
     .click();
+  const workspaceId = await page
+    .getByLabel("Workspace", { exact: true })
+    .inputValue();
+  const pending = await page.evaluate(async (workspaceId) => {
+    const pool = await (
+      await fetch(
+        "/api/crm?" +
+          new URLSearchParams({ kind: "assignment_pool", workspaceId }),
+      )
+    ).json();
+    const detail = await (
+      await fetch(
+        "/api/crm?" +
+          new URLSearchParams({
+            kind: "detail",
+            workspaceId,
+            id: pool.cases[0].id,
+          }),
+      )
+    ).json();
+    return detail.complaint;
+  }, workspaceId);
+  const reference = pending.description.match(/\[Practice (TRAIN-\d+)\]/)[1];
   await page
     .getByLabel("registeredNumber", { exact: true })
-    .fill("00020000003");
+    .fill(pending.registeredNumber);
   await page
     .locator("main form")
     .getByRole("button", { name: "Search", exact: true })
     .click();
-  const row = page.locator("tbody tr").filter({ hasText: "00010000003" });
+  const row = page
+    .locator("tbody tr")
+    .filter({ hasText: pending.callingNumber });
   await row.waitFor();
   assert.match(await row.innerText(), /PENDING/);
   const code = await row.locator("button").first().innerText();
   await row.locator("button").first().click();
   await page.getByRole("heading", { name: code, exact: true }).waitFor();
-  assert.match(await page.locator("main").innerText(), /Practice TRAIN-003/);
+  assert(
+    (await page.locator("main").innerText()).includes("Practice " + reference),
+  );
   await page.screenshot({
     path: ".crm-test/practice-pending-case.png",
     fullPage: true,
