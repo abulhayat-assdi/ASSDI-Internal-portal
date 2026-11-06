@@ -1,6 +1,6 @@
 # Business Incubation — Competitions integration ও access পুনর্বিন্যাস
 
-তারিখ: ২০২৬-১১-০৬। অবস্থা: **Revision বাস্তবায়িত; web/native database পরীক্ষা পাস। স্থানীয় Docker engine recovery-এর পরে শেষ container startup/restart যাচাই বাকি।**
+তারিখ: ২০২৬-১১-০৬। অবস্থা: **Revision বাস্তবায়িত; web/native database, Linux production build, fresh migration ও container পুনরায় তৈরি করার সব নির্ধারিত পরীক্ষা পাস। ব্যবহারকারীর main merge নির্দেশের অপেক্ষায়।**
 
 Branch: `feature/incubation-competitions-v2`, worktree: `asm-portal-v2-incubation`। main `ab8a271` থেকে শুরু; সর্বশেষ main `0619687` feature branch-এ অন্তর্ভুক্ত; এই revision main-এ merge/push/deploy করা হয়নি।
 
