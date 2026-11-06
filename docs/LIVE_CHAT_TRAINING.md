@@ -136,3 +136,29 @@ No production migration was executed during this fix. The Coolify log/error code
 - Browser checks pass for main Dashboard links for staff/students, legacy bookmark redirects, persisted scripted replies, simulated setup error and Retry recovery, public entry, human SSE replies, private-note privacy, reconnect, mobile width, closure/rating, staff settings, Excel and Bengali PDF exports.
 - The database setup check, idempotent course seed and standalone worker --once pass against fixed disposable local databases.
 - Production build remains unverified due to the Windows glob/junction issue recorded above. No merge, push or production database change is included in this follow-up.
+
+
+## Desktop/tablet composer follow-up (2026-11-06)
+
+Changes are isolated on fix/live-chat-workspace. No database migration or seed is needed for this UI fix.
+
+The agent/supervisor workspace uses the available viewport height at widths of 768px and above, with independent scroll areas for the queue, transcript and conversation tools. The composer stays visible without page scrolling. At tablet widths below 1180px, conversation tools are a toggleable side panel so the transcript retains usable width. Other tabs scroll within the workspace. Existing public customer layout remains available.
+
+A conversation-selection effect previously reset the message kind to MESSAGE even when a non-owner supervisor had only the COACH option. The dropdown displayed coaching while the controlled state and disabled Send condition still referenced MESSAGE. The selection now stays synchronized with valid options and its customer/private visibility label. Customer-facing replies still require an accepted active assignment; queued practice uses Start practice, and other supervisors use the existing availability/Take over flow. Coaching remains private and server-side permissions remain enforced.
+
+The composer focuses when a selected chat becomes writable and returns focus after Send if the user has not moved to another control. Enter sends; Shift+Enter inserts a new line; IME composition Enter does not send. A failed send retains its draft and request identity. Repeated key presses are guarded while sending; typing the next draft during a pending request does not let the previous response erase it. Incoming updates scroll only the transcript when following the latest messages, preserving intentional review of older messages.
+
+Verification: full project TypeScript and all 69 CRM/Live Chat regression tests pass. Expanded browser checks cover teacher coaching across two queued conversations, teacher customer replies after claiming practice, student replies, repeated Enter/button sending, focus restoration, failed-send retry, multiline and IME handling, and viewport containment at 1920x1080, 1366x768, 1280x720, 1024x768, 768x1024 and 1024x600. Existing public chat, private-note isolation, reconnect, exports and staff settings checks also pass. The Linux production build and deployment are not claimed by these local checks.
+
+
+## Helpdesk design and local themes (2026-11-06)
+
+The reference-inspired redesign is isolated to the internal Live Chat workspace on feature/live-chat-helpdesk-design, based on the earlier tested composer/layout fix af324b2. It does not change the customer CRM, the portal-wide theme or the anonymous public chat design. No new dependencies, schema changes or migrations are needed.
+
+The sidebar contains the existing permission-aware Dashboard, Live Chat, Queue (staff), History, Agents, Sessions, Reports and Settings (staff). A searchable Knowledge Base exposes the reference materials already returned by the authorized API; assessment restrictions continue to be enforced by that API. Saved replies/reference text can be copied, with a visible fallback message if clipboard access fails. Tablet navigation uses an icon rail with accessible names and tooltips. Conversation tools open in a separate panel at narrower widths; the composer and independently scrolling transcript remain inside the viewport.
+
+The header offers a dark/light toggle. The preference is stored only in the current browser under asm-live-chat-theme; dark is the initial default. Theme CSS variables are scoped to .lc-workspace. Both themes cover navigation, dashboard cards, tables, forms, chat bubbles, status badges, private coaching, internal notes and errors. Theme changes do not animate colors through unreadable intermediate states.
+
+Dashboard cards and the status-distribution chart use actual scoped API counts. Agent presence uses heartbeat freshness and availability, with online agents shown first. Queue previews and response alerts clearly describe their current-page scope. There are no invented uptime/SLA percentages, historical trends or sample dashboard metrics. Student status totals retain their existing assigned-conversation scope. Public role-play and teacher coaching behavior remain unchanged.
+
+Verification: all 69 CRM/Live Chat regression tests and whole-project TypeScript checks pass. Browser tests pass for the sidebar, Knowledge Base search/empty state, dark/light persistence after reload, measured 4.5:1-or-better contrast on representative dashboard text, teacher and student messages, private coaching across conversation switches, focus/draft preservation, keyboard/IME behavior, viewport containment at six desktop/tablet sizes, public messaging, exports and settings. Screenshots of both dashboard themes and both chat themes were reviewed locally. No merge, push or production deployment was performed for this redesign; the previously documented Windows production-build limitation remains.

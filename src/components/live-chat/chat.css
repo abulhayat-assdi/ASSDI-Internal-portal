@@ -330,3 +330,191 @@
     max-width: 95%;
   }
 }
+
+/* Agent workspace: fixed viewport shell, independent queue / transcript / tools scrolling. */
+.lc-tools-toggle {
+  display: none;
+}
+.lc-reply-hint {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 6px;
+}
+.lc-compose-hint {
+  font-size: 11px;
+}
+.lc-message {
+  flex-shrink: 0;
+}
+@media (min-width: 768px) {
+  .lc-workspace {
+    height: calc(100dvh - var(--lc-offset, 0px));
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .lc-workspace > header,
+  .lc-workspace > .lc-toolbar,
+  .lc-workspace > nav {
+    flex-shrink: 0;
+  }
+  .lc-workspace .lc-top {
+    padding: 10px 18px;
+  }
+  .lc-workspace .lc-top h1 {
+    font-size: 21px;
+  }
+  .lc-workspace .lc-toolbar {
+    padding: 8px 18px;
+  }
+  .lc-workspace .lc-tabs {
+    padding: 8px 18px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+  .lc-workspace .lc-tabs button {
+    white-space: nowrap;
+    padding: 7px 11px;
+  }
+  .lc-workspace > .lc-error,
+  .lc-workspace > .lc-notice {
+    flex-shrink: 0;
+    max-height: 12dvh;
+    overflow: auto;
+    padding: 8px 12px;
+    margin: 6px 18px;
+  }
+  .lc-workspace .lc-main {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: 0 18px 12px;
+  }
+  .lc-workspace .lc-main-chat {
+    display: flex;
+    overflow: hidden;
+  }
+  .lc-workspace .lc-grid {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+    grid-template-columns: 240px minmax(0, 1fr) 270px;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .lc-workspace .lc-grid > .lc-panel {
+    padding: 12px;
+    min-height: 0;
+  }
+  .lc-workspace .lc-list {
+    height: 100%;
+    max-height: none;
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+  .lc-workspace .lc-list > input {
+    width: 100%;
+    margin: 6px 0;
+  }
+  .lc-workspace .lc-chat-item {
+    padding: 9px;
+  }
+  .lc-workspace .lc-conversation {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .lc-workspace .lc-conversation-head {
+    flex: 0 1 auto;
+    max-height: 36%;
+    min-height: 0;
+    overflow: auto;
+  }
+  .lc-workspace .lc-conversation-head .lc-notice {
+    margin: 0 0 8px;
+    padding: 8px;
+    font-size: 12px;
+  }
+  .lc-workspace .lc-conversation-head > .lc-row {
+    gap: 6px;
+    margin-bottom: 5px;
+  }
+  .lc-workspace .lc-conversation-head button,
+  .lc-workspace .lc-conversation-head a {
+    padding: 6px 9px;
+    font-size: 13px;
+  }
+  .lc-workspace .lc-messages {
+    flex: 1 1 0;
+    min-height: 0;
+    height: auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scroll-behavior: auto;
+    padding: 10px 0;
+  }
+  .lc-workspace .lc-compose {
+    flex: 0 0 auto;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "mode mode" "text send" "hint hint";
+    gap: 6px;
+    padding-top: 8px;
+  }
+  .lc-workspace .lc-compose > .lc-row {
+    grid-area: mode;
+    font-size: 12px;
+  }
+  .lc-workspace .lc-compose select {
+    padding: 5px 7px;
+  }
+  .lc-workspace .lc-compose textarea {
+    grid-area: text;
+    min-height: 58px;
+    height: 64px;
+    resize: none;
+  }
+  .lc-workspace .lc-compose > button {
+    grid-area: send;
+    align-self: stretch;
+    min-width: 70px;
+  }
+  .lc-workspace .lc-compose-hint {
+    grid-area: hint;
+  }
+  .lc-workspace .lc-details {
+    grid-column: auto;
+    overflow: auto;
+    align-content: start;
+    overscroll-behavior: contain;
+  }
+  .lc-workspace .lc-details summary {
+    cursor: pointer;
+  }
+  .lc-workspace .lc-empty {
+    padding: 24px 12px;
+  }
+}
+@media (min-width: 768px) and (max-width: 1179px) {
+  .lc-workspace .lc-grid {
+    grid-template-columns: 200px minmax(0, 1fr);
+  }
+  .lc-workspace .lc-tools-toggle {
+    display: block;
+    margin-left: auto;
+  }
+  .lc-workspace .lc-details {
+    display: none;
+  }
+  .lc-workspace .lc-tools-open .lc-details {
+    display: grid;
+    position: absolute;
+    z-index: 10;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(340px, 70%);
+    box-shadow: -8px 0 24px #102c4220;
+  }
+}
