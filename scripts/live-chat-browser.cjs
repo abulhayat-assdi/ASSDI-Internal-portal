@@ -24,9 +24,22 @@ let runningBrowser;
     const [workspaceId] = fixture.token.split(".");
     const workspaceCourse = fixture.host.replace(".localhost", "");
     await tx.$executeRaw`SELECT set_config('crm.course',${workspaceCourse},true),set_config('crm.workspace',${workspaceId},true)`;
+    await require("./lib/live-chat-engine.cjs").lock(tx, workspaceId);
     await tx.chatConversation.updateMany({
-      where: { workspaceId, status: { in: ["QUEUED", "ASSIGNED", "ACTIVE"] } },
+      where: {
+        workspaceId,
+        status: { in: ["QUEUED", "ASSIGNED", "ACTIVE"] },
+        OR: [{ practiceKey: null }, { practiceStartedAt: { not: null } }],
+      },
       data: { status: "CLOSED", closedAt: new Date() },
+    });
+    await tx.chatConversation.updateMany({
+      where: {
+        workspaceId,
+        practiceKey: { not: null },
+        practiceStartedAt: null,
+      },
+      data: { status: "QUEUED", closedAt: null },
     });
     await tx.chatAssignment.updateMany({
       where: { workspaceId, endedAt: null },
@@ -62,6 +75,58 @@ let runningBrowser;
       fixture.workspaceId,
     { timeout: 90000, waitUntil: "domcontentloaded" },
   );
+  await agent.waitForURL("**/student-dashboard/live-chat?**", {
+    timeout: 60000,
+  });
+  assert(new URL(agent.url()).pathname === "/student-dashboard/live-chat");
+  await agent
+    .getByRole("button")
+    .filter({
+      has: agent.locator(".lc-badge").filter({ hasText: "Scripted practice" }),
+    })
+    .first()
+    .click({ timeout: 60000 });
+  await agent
+    .getByRole("button", { name: "Start practice", exact: true })
+    .click();
+  await agent
+    .getByLabel("Message", { exact: true })
+    .fill("Hello, please share your training reference.");
+  await agent.getByRole("button", { name: "Send", exact: true }).click();
+  await agent
+    .locator(".lc-messages")
+    .getByText("Hello, please share your training reference.", { exact: true })
+    .waitFor({ timeout: 30000 });
+  await agent
+    .locator(".lc-messages")
+    .getByText(/My training reference is|আমার অনুশীলনের রেফারেন্স/)
+    .waitFor({ timeout: 30000 });
+  await agent.screenshot({
+    path: ".crm-test/live-chat-practice.png",
+    fullPage: true,
+  });
+  const fixtureDb = new PrismaClient({
+    datasources: { db: { url: dbEnv.CUSTOMER_SERVICE_DATABASE_URL } },
+  });
+  await fixtureDb.$transaction(async (tx) => {
+    const course = fixture.host.replace(".localhost", ""),
+      workspaceId = fixture.workspaceId;
+    await tx.$executeRawUnsafe(
+      "SELECT set_config('crm.course',$1,true),set_config('crm.workspace',$2,true)",
+      course,
+      workspaceId,
+    );
+    await require("./lib/live-chat-engine.cjs").lock(tx, workspaceId);
+    await tx.chatConversation.updateMany({
+      where: { workspaceId, practiceKey: { not: null } },
+      data: { status: "CLOSED", closedAt: new Date() },
+    });
+    await tx.chatAssignment.updateMany({
+      where: { workspaceId, endedAt: null },
+      data: { endedAt: new Date() },
+    });
+  });
+  await fixtureDb.$disconnect();
   await agent
     .getByLabel("Your availability", { exact: true })
     .selectOption("AVAILABLE", { timeout: 60000 });
@@ -229,10 +294,38 @@ let runningBrowser;
   ]);
   const admin = await adminContext.newPage();
   await admin.goto(
-    origin + "/dashboard/crm/live-chat?workspaceId=" + fixture.workspaceId,
+    origin + "/dashboard/live-chat?workspaceId=" + fixture.workspaceId,
     { timeout: 90000 },
   );
-  await admin.getByRole("button", { name: "Settings", exact: true }).click();
+  await admin
+    .getByRole("button", { name: "Settings", exact: true })
+    .waitFor({ timeout: 60000 });
+  const statePattern = "**/api/live-chat?*";
+  await admin.route(statePattern, async (route) => {
+    const u = new URL(route.request().url());
+    if (!u.searchParams.get("kind") || u.searchParams.get("kind") === "state")
+      return route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({
+          error: "Live Chat setup is incomplete.",
+          code: "CHAT_DATABASE_SETUP_REQUIRED",
+        }),
+      });
+    return route.continue();
+  });
+  await admin.reload({ timeout: 90000 });
+  await admin
+    .getByRole("heading", { name: "Chat workspace could not load" })
+    .waitFor({ timeout: 60000 });
+  await admin
+    .getByText("Loading chat workspace…", { exact: true })
+    .waitFor({ state: "hidden" });
+  await admin.unroute(statePattern);
+  await admin.getByRole("button", { name: "Retry", exact: true }).click();
+  await admin
+    .getByRole("button", { name: "Settings", exact: true })
+    .click({ timeout: 60000 });
   await admin
     .getByRole("button", {
       name: "Initialize categories & training references",
@@ -251,10 +344,30 @@ let runningBrowser;
     path: ".crm-test/live-chat-dashboard.png",
     fullPage: true,
   });
+  await admin.goto(origin + "/dashboard", { timeout: 90000 });
+  await admin
+    .locator('a[href="/dashboard/live-chat"]')
+    .first()
+    .click({ timeout: 60000 });
+  await admin
+    .getByRole("heading", { name: "Live Chat Training", exact: true })
+    .waitFor({ timeout: 60000 });
+  await agent.goto(origin + "/student-dashboard", { timeout: 90000 });
+  const studentLink = agent
+    .locator('a[href="/student-dashboard/live-chat"]')
+    .first();
+  await studentLink.waitFor({ timeout: 60000 });
+  const [practiceTab] = await Promise.all([
+    agentContext.waitForEvent("page"),
+    studentLink.click(),
+  ]);
+  await practiceTab
+    .getByRole("heading", { name: "Live Chat Training", exact: true })
+    .waitFor({ timeout: 60000 });
   assert.deepEqual(errors, []);
   await browser.close();
   console.log(
-    "Browser passed: public entry, bidirectional SSE messages, private notes, reconnect, mobile width, Bengali PDF, Excel export, close, feedback, staff settings.",
+    "Browser passed: standalone staff/student dashboard links, legacy redirect, scripted practice replies, database error/retry, public entry, bidirectional SSE messages, private notes, reconnect, mobile width, Bengali PDF, Excel export, close, feedback, staff settings.",
   );
 })().catch(async (e) => {
   console.error(e);

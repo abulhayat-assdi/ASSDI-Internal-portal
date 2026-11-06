@@ -4,6 +4,8 @@ import { defaults, rubric, closed, metricLabels } from "@/lib/live-chat/domain";
 import "./chat.css";
 import { mergeMessages } from "./messages";
 type Chat = {
+  practiceKey?: string | null;
+  practiceScript?: { title: string; guide: string; reference: string } | null;
   lastMessagePreview: string;
   unread: number;
   id: string;
@@ -106,7 +108,8 @@ type Boot = {
   identity: { id: string; name: string };
   staff: boolean;
   admin: boolean;
-  workspaces: { id: string; name: string; role: string }[];
+  workspaces: { id: string; name: string; role: string; batchId: string }[];
+  batches: { id: string; name: string }[];
 };
 const tabs = [
   ["Dashboard", "ড্যাশবোর্ড"],
@@ -126,7 +129,7 @@ async function api(query: Record<string, string>, body?: unknown) {
     cache: "no-store",
   });
   const value = await r.json();
-  if (!r.ok) throw Error(value.error);
+  if (!r.ok) throw Object.assign(Error(value.error), { code: value.code });
   return value;
 }
 export default function ChatApp({ staff = false }: { staff?: boolean }) {
@@ -159,6 +162,7 @@ export default function ChatApp({ staff = false }: { staff?: boolean }) {
     search,
     page: String(page),
   };
+  const [setupRequired, setSetupRequired] = useState(false);
   const generation = useRef(0),
     requestId = useRef<{ text: string; id: string } | null>(null),
     end = useRef<HTMLDivElement>(null),
@@ -169,7 +173,16 @@ export default function ChatApp({ staff = false }: { staff?: boolean }) {
     if (!w) return;
     const g = generation.current,
       r = ++refreshGeneration.current;
-    const next = await api({ workspaceId: w, ...queryRef.current });
+    let next;
+    try {
+      next = await api({ workspaceId: w, ...queryRef.current });
+      setSetupRequired(false);
+    } catch (e) {
+      setSetupRequired(
+        (e as { code?: string }).code === "CHAT_DATABASE_SETUP_REQUIRED",
+      );
+      throw e;
+    }
     if (g === generation.current && r === refreshGeneration.current)
       setState(next);
   }, [w]);
@@ -292,12 +305,12 @@ export default function ChatApp({ staff = false }: { staff?: boolean }) {
     end.current?.scrollIntoView({ block: "nearest" });
   }, [detail?.messages.at(-1)?.id]);
   const perform = async (action: string, data?: unknown, id = selected) => {
-    const operationGeneration=generation.current;
+    const operationGeneration = generation.current;
     setError("");
     setBusy(true);
     try {
       const v = await api({}, { workspaceId: w, action, id, data });
-      if(operationGeneration!==generation.current)return null;
+      if (operationGeneration !== generation.current) return null;
       await refresh();
       if (selected) await loadDetail();
       return v;
@@ -368,15 +381,19 @@ export default function ChatApp({ staff = false }: { staff?: boolean }) {
     <div className="lc">
       <header className="lc-top">
         <div>
-          <small>ASM CRM / CONTACT CENTER</small>
+          <small>CONTACT CENTER / TRAINING</small>
           <h1>{t("Live Chat Training", "লাইভ চ্যাট প্রশিক্ষণ")}</h1>
           <small>
-            {boot?.identity.name} · {isStaff ? "Supervisor" : "Agent"}
+            {boot?.identity.name} ·{" "}
+            {isStaff || boot?.staff ? "Supervisor" : "Agent"}
           </small>
         </div>
         <div className="lc-row">
-          <a className="lc-link" href={base}>
-            {t("Back to CRM", "সিআরএমে ফিরুন")}
+          <a
+            className="lc-link"
+            href={staff ? "/dashboard" : "/student-dashboard"}
+          >
+            {t("Back to Dashboard", "ড্যাশবোর্ডে ফিরুন")}
           </a>
           <button onClick={() => setBn(!bn)}>{bn ? "English" : "বাংলা"}</button>
         </div>
@@ -388,13 +405,43 @@ export default function ChatApp({ staff = false }: { staff?: boolean }) {
             aria-label="Chat workspace"
             disabled={busy}
             value={w}
-            onChange={(e) => setW(e.target.value)}
+            onChange={async (e) => {
+              const value = e.target.value;
+              if (!value.startsWith("batch:")) {
+                setW(value);
+                return;
+              }
+              setBusy(true);
+              try {
+                const result = await api(
+                  {},
+                  {
+                    action: "provision_workspace",
+                    data: { batchId: value.slice(6) },
+                  },
+                );
+                setBoot(await api({ kind: "bootstrap" }));
+                setW(result.id);
+              } catch (err) {
+                setError((err as Error).message);
+              } finally {
+                setBusy(false);
+              }
+            }}
           >
             {!boot?.workspaces.length && (
               <option value="">
                 {t("No accessible workspace", "ওয়ার্কস্পেস নেই")}
               </option>
             )}
+            {boot?.admin &&
+              boot.batches
+                .filter((b) => !boot.workspaces.some((w) => w.batchId === b.id))
+                .map((b) => (
+                  <option key={b.id} value={"batch:" + b.id}>
+                    {b.name} — Set up Live Chat
+                  </option>
+                ))}
             {boot?.workspaces.map((x) => (
               <option key={x.id} value={x.id}>
                 {x.name}
@@ -452,12 +499,42 @@ export default function ChatApp({ staff = false }: { staff?: boolean }) {
           ))}
       </nav>
       <main className="lc-main">
-        {!state ? (
+        {!state && error ? (
+          <section className="lc-panel lc-stack" role="status">
+            <h2>
+              {t("Chat workspace could not load", "চ্যাট ওয়ার্কস্পেস লোড হয়নি")}
+            </h2>
+            <p>
+              {t(
+                "Please retry. If setup is incomplete, your course administrator needs to finish the database setup.",
+                "আবার চেষ্টা করুন। সেটআপ অসম্পূর্ণ হলে কোর্স প্রশাসককে ডাটাবেস সেটআপ সম্পন্ন করতে হবে।",
+              )}
+            </p>
+            {setupRequired && boot?.staff && (
+              <details>
+                <summary>Administrator setup</summary>
+                <p>
+                  Run the CRM migrations and runtime grants on database 2, then
+                  load the practice data. Use the Live Chat setup script
+                  documented in the repository.
+                </p>
+              </details>
+            )}
+            <button
+              onClick={() => {
+                setError("");
+                void refresh().catch((e) => setError(e.message));
+              }}
+            >
+              {t("Retry", "আবার চেষ্টা করুন")}
+            </button>
+          </section>
+        ) : !state ? (
           <div className="lc-empty">
             {boot && !w
               ? t(
-                  "Set up a CRM workspace first.",
-                  "আগে সিআরএম ওয়ার্কস্পেস তৈরি করুন।",
+                  "Your batch needs Live Chat setup. An administrator can select the batch above to prepare it.",
+                  "ব্যাচের লাইভ চ্যাট সেটআপ প্রয়োজন। প্রশাসক উপরের তালিকা থেকে ব্যাচটি নির্বাচন করে প্রস্তুত করতে পারবেন।",
                 )
               : t("Loading chat workspace…", "ওয়ার্কস্পেস লোড হচ্ছে…")}
           </div>
@@ -584,6 +661,11 @@ export default function ChatApp({ staff = false }: { staff?: boolean }) {
                       onClick={() => setSelected(x.id)}
                     >
                       <strong>{x.customerName}</strong>
+                      {x.practiceKey && (
+                        <span className="lc-badge">
+                          Scripted practice / অনুশীলন
+                        </span>
+                      )}
                       <small>{x.lastMessagePreview}</small>
                       {x.unread > 0 && (
                         <span className="lc-badge">
@@ -618,6 +700,14 @@ export default function ChatApp({ staff = false }: { staff?: boolean }) {
                     </div>
                   ) : (
                     <>
+                      {c.practiceKey && (
+                        <p className="lc-notice">
+                          {t(
+                            "Scripted customer practice. Replies follow a fixed scenario; your teacher evaluates the quality.",
+                            "স্ক্রিপ্টভিত্তিক কাস্টমার অনুশীলন। উত্তর নির্দিষ্ট পরিস্থিতি অনুযায়ী আসে; শিক্ষক কথোপকথনের মান মূল্যায়ন করবেন।",
+                          )}
+                        </p>
+                      )}
                       <div className="lc-row">
                         <h2>{c.customerName}</h2>
                         <span className={"lc-badge " + c.status}>
@@ -639,6 +729,17 @@ export default function ChatApp({ staff = false }: { staff?: boolean }) {
                         </a>
                       </div>
                       <div className="lc-row">
+                        {c.practiceKey &&
+                          c.status === "QUEUED" &&
+                          !c.agentId && (
+                            <button
+                              className="primary"
+                              disabled={busy}
+                              onClick={() => void perform("claim_practice")}
+                            >
+                              {t("Start practice", "অনুশীলন শুরু করুন")}
+                            </button>
+                          )}
                         {owner && c.status === "ASSIGNED" && (
                           <button
                             className="primary"
@@ -815,6 +916,19 @@ export default function ChatApp({ staff = false }: { staff?: boolean }) {
                   <h2>{t("Conversation tools", "কথোপকথনের টুলস")}</h2>
                   {c && (
                     <>
+                      {c.practiceScript && (
+                        <details open>
+                          <summary>
+                            {t("Practice brief", "অনুশীলনের বিবরণ")}
+                          </summary>
+                          <strong>{c.practiceScript.title}</strong>
+                          <p>{c.practiceScript.guide}</p>
+                          <small>
+                            {t("Fictional reference", "কাল্পনিক রেফারেন্স")}:{" "}
+                            {c.practiceScript.reference}
+                          </small>
+                        </details>
+                      )}
                       <small>
                         {
                           state.categories.find((x) => x.id === c.categoryId)
@@ -1051,6 +1165,22 @@ export default function ChatApp({ staff = false }: { staff?: boolean }) {
             {tab === "Sessions" && (
               <section className="lc-panel lc-stack">
                 <h2>{t("Training & assessment", "প্রশিক্ষণ ও মূল্যায়ন")}</h2>
+                {isStaff && (
+                  <button
+                    disabled={busy}
+                    onClick={async () => {
+                      const result = await perform("load_practice", {}, "");
+                      if (result)
+                        setNotice(
+                          "Practice chats added: " +
+                            result.added +
+                            ". Existing work is preserved.",
+                        );
+                    }}
+                  >
+                    Load 60 practice chats / অনুশীলনের চ্যাট লোড করুন
+                  </button>
+                )}
                 {isStaff && (
                   <SessionForm
                     agents={state.agents}
@@ -1736,18 +1866,22 @@ function SettingsForm({
             onChange={(e) => setForm({ ...form, timezone: e.target.value })}
           />
         </label>
-        {(["allowTransfer", "feedback"] as const).map((key) => (
-          <label key={key}>
-            <span>
-              <input
-                type="checkbox"
-                checked={form[key]}
-                onChange={(e) => setForm({ ...form, [key]: e.target.checked })}
-              />{" "}
-              {key}
-            </span>
-          </label>
-        ))}
+        {(["allowTransfer", "feedback", "practiceAutoAssign"] as const).map(
+          (key) => (
+            <label key={key}>
+              <span>
+                <input
+                  type="checkbox"
+                  checked={form[key]}
+                  onChange={(e) =>
+                    setForm({ ...form, [key]: e.target.checked })
+                  }
+                />{" "}
+                {key}
+              </span>
+            </label>
+          ),
+        )}
         <label>
           <span>
             <input

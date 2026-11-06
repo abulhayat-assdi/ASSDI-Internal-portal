@@ -139,6 +139,8 @@ const matchesPath = (pathname: string, path: string, exact?: boolean) =>
 export function getRequiredPermission(pathname: string): PermissionKey | typeof UNREGISTERED_PAGE | null {
     if (pathname !== "/dashboard" && !pathname.startsWith("/dashboard/")) return null;
 
+    if (matchesPath(pathname, "/dashboard/live-chat")) return "crm_supervisor";
+
     const entries = (Object.entries(PERMISSION_META) as [PermissionKey, PermissionMeta][])
         .sort((a, b) => b[1].path.length - a[1].path.length);
     for (const [key, meta] of entries) {

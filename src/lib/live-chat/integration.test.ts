@@ -4,7 +4,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { scoped, crmClient } from "@/lib/customer-service/db";
 import type { Identity } from "@/lib/customer-service/access";
-import { mutate, read, conversation } from "./service";
+import { mutate, read, conversation, prepareWorkspace } from "./service";
 import { chatIdentity } from "./access";
 import { publicMutate, publicRead } from "./public";
 import { signJWT } from "@/lib/auth";
@@ -152,6 +152,7 @@ describe.skipIf(!enabled)("Live Chat isolated PostgreSQL", () => {
           where: {
             workspaceId: w,
             status: { in: ["QUEUED", "ACTIVE", "ASSIGNED"] },
+            OR: [{ practiceKey: null }, { practiceStartedAt: { not: null } }],
           },
           data: { status: "CLOSED", closedAt: new Date() },
         });
@@ -782,5 +783,122 @@ describe.skipIf(!enabled)("Live Chat isolated PostgreSQL", () => {
         }),
       ),
     ).toBe(1);
+  });
+  it("loads 60 pending practice cases exactly once and preserves completed work", async () => {
+    const first = await prepareWorkspace(admin, w);
+    expect(first.added).toBe(60);
+    const secondLoad = await prepareWorkspace(admin, w);
+    expect(secondLoad.added).toBe(0);
+    const cases = await scoped(courseId, w, (tx) =>
+      tx.chatConversation.findMany({
+        where: { workspaceId: w, practiceKey: { not: null } },
+      }),
+    );
+    expect(cases).toHaveLength(60);
+    expect(cases.every((c) => c.status === "QUEUED" && !c.agentId)).toBe(true);
+    expect(
+      cases.some(
+        (c) => (c.practiceScript as { language: string }).language === "bn",
+      ),
+    ).toBe(true);
+    const chosen = cases[0];
+    await scoped(courseId, w, (tx) =>
+      tx.chatConversation.update({
+        where: { id: chosen.id },
+        data: {
+          status: "CLOSED",
+          closedAt: new Date(),
+          resolution: "PRACTICE_COMPLETED",
+        },
+      }),
+    );
+    await prepareWorkspace(admin, w);
+    expect(
+      (await scoped(courseId, w, (tx) => conversation(tx, w, chosen.id)))
+        .resolution,
+    ).toBe("PRACTICE_COMPLETED");
+  });
+  it("lets a trainee start a pending practice and receives persisted scripted customer replies", async () => {
+    const c = await scoped(courseId, w, (tx) =>
+      tx.chatConversation.findFirstOrThrow({
+        where: {
+          workspaceId: w,
+          practiceKey: { not: null },
+          practiceStartedAt: null,
+          status: "QUEUED",
+        },
+      }),
+    );
+    await act(second, "claim_practice", {}, c.id);
+    const message = {
+      text: "Hello, I will check your request. Please share the training reference.",
+      requestId: randomUUID(),
+    };
+    await act(second, "message", message, c.id);
+    await act(second, "message", message, c.id);
+    const saved = await scoped(courseId, w, (tx) => conversation(tx, w, c.id));
+    expect(saved.practiceStep).toBe(1);
+    expect(saved.agentId).toBe(second.user.id);
+    expect(saved.practiceStartedAt).toBeTruthy();
+    expect(
+      await scoped(courseId, w, (tx) =>
+        tx.chatMessage.count({
+          where: { workspaceId: w, conversationId: c.id, sender: "CUSTOMER" },
+        }),
+      ),
+    ).toBe(2);
+    await expect(act(third, "claim_practice", {}, c.id)).rejects.toThrow();
+  });
+  it("keeps unopened practice cases pending and does not auto-assign them by default", async () => {
+    const c = await scoped(courseId, w, (tx) =>
+      tx.chatConversation.findFirstOrThrow({
+        where: {
+          workspaceId: w,
+          practiceKey: { not: null },
+          practiceStartedAt: null,
+          status: "QUEUED",
+        },
+      }),
+    );
+    await scoped(courseId, w, async (tx) => {
+      await tx.chatConversation.update({
+        where: { id: c.id },
+        data: { queueAt: new Date(Date.now() - 7 * 86400000) },
+      });
+      await tx.chatCustomerSession.update({
+        where: { id: c.customerSessionId },
+        data: { heartbeatAt: new Date(Date.now() - 7 * 86400000) },
+      });
+      await tick(tx, { courseId, workspaceId: w });
+    });
+    const pending = await scoped(courseId, w, (tx) =>
+      conversation(tx, w, c.id),
+    );
+    expect(pending.status).toBe("QUEUED");
+    expect(pending.practiceStartedAt).toBeNull();
+    const otherWorkspace = await scoped(courseId, "", (tx) =>
+      tx.workspace.create({
+        data: {
+          courseId,
+          batchId: "other-" + randomUUID(),
+          name: "Other practice batch",
+        },
+      }),
+    );
+    await scoped(courseId, otherWorkspace.id, async (tx) => {
+      const { seedPractice } =
+        await import("../../../scripts/lib/live-chat-practice.cjs");
+      await seedPractice(tx, { courseId, workspaceId: otherWorkspace.id }, {});
+    });
+    expect(
+      await scoped(courseId, otherWorkspace.id, (tx) =>
+        tx.chatConversation.count({
+          where: { workspaceId: otherWorkspace.id, practiceKey: { not: null } },
+        }),
+      ),
+    ).toBe(60);
+    await expect(
+      read(second, otherWorkspace.id, new URLSearchParams()),
+    ).rejects.toThrow("Workspace access denied");
   });
 });
