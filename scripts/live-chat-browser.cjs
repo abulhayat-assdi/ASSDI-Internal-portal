@@ -418,6 +418,11 @@ let runningBrowser;
   assert.equal(reportPdf.status(), 200, await reportPdf.text());
   assert((await reportPdf.body()).subarray(0, 4).toString() === "%PDF");
   fs.writeFileSync(".crm-test/live-chat-report.pdf", await reportPdf.body());
+  const toolsButton = agent.getByRole("button", {
+    name: "Conversation tools",
+    exact: true,
+  });
+  if (await toolsButton.isVisible()) await toolsButton.click();
   await agent
     .locator("summary")
     .filter({ hasText: "Close & document" })
@@ -533,6 +538,125 @@ let runningBrowser;
     path: ".crm-test/live-chat-desktop-composer.png",
     fullPage: true,
   });
+  await admin.setViewportSize({ width: 1440, height: 1000 });
+  await admin.getByRole("button", { name: "Dashboard", exact: true }).click();
+  await admin
+    .getByRole("heading", { name: "Current operations", exact: true })
+    .waitFor();
+  assert.equal(
+    await admin.locator(".lc-workspace").getAttribute("data-theme"),
+    "dark",
+  );
+  async function readable(page) {
+    const result = await page.evaluate(() => {
+      const rgb = (s) => (s.match(/[\d.]+/g) || []).slice(0, 3).map(Number);
+      const lum = (c) =>
+        c
+          .map((v) => {
+            v /= 255;
+            return v <= 0.04045
+              ? v / 12.92
+              : Math.pow((v + 0.055) / 1.055, 2.4);
+          })
+          .reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0);
+      const elements = [
+        document.querySelector(".lc-overview-heading h2"),
+        document.querySelector(".lc-overview-heading p"),
+        document.querySelector(".lc-summary-card small"),
+        document.querySelector(".lc-distribution-legend span"),
+      ];
+      return elements.map((el) => {
+        const color = rgb(getComputedStyle(el).color);
+        let node = el,
+          bg;
+        while (node) {
+          const value = getComputedStyle(node).backgroundColor;
+          if (value !== "rgba(0, 0, 0, 0)" && value !== "transparent") {
+            bg = rgb(value);
+            break;
+          }
+          node = node.parentElement;
+        }
+        const a = lum(color),
+          b = lum(bg);
+        return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+      });
+    });
+    assert(
+      result.every((r) => r >= 4.5),
+      JSON.stringify(result),
+    );
+  }
+  await readable(admin);
+  await admin.screenshot({
+    path: ".crm-test/live-chat-overview-dark.png",
+    fullPage: true,
+  });
+  await admin
+    .getByRole("button", { name: "Switch to light mode", exact: true })
+    .click();
+  assert.equal(
+    await admin.locator(".lc-workspace").getAttribute("data-theme"),
+    "light",
+  );
+  await readable(admin);
+  await admin.screenshot({
+    path: ".crm-test/live-chat-overview-light.png",
+    fullPage: true,
+  });
+  await admin.reload({ timeout: 90000 });
+  await admin.waitForFunction(
+    () => document.querySelector(".lc-workspace")?.dataset.theme === "light",
+  );
+  await admin
+    .getByRole("button", { name: "Switch to dark mode", exact: true })
+    .click();
+  await admin.reload({ timeout: 90000 });
+  await admin.waitForFunction(
+    () => document.querySelector(".lc-workspace")?.dataset.theme === "dark",
+  );
+  await admin
+    .getByRole("button", { name: "Knowledge Base", exact: true })
+    .click();
+  await admin
+    .getByLabel("Search reference materials", { exact: true })
+    .fill("Greeting");
+  await admin
+    .locator(".lc-knowledge-grid article h3")
+    .getByText("Greeting", { exact: true })
+    .waitFor();
+  await admin
+    .getByLabel("Search reference materials", { exact: true })
+    .fill("no-matching-reference-xyz");
+  await admin
+    .getByText("No reference materials are available for this view.", {
+      exact: true,
+    })
+    .waitFor();
+  await admin.getByRole("button", { name: "Live Chat", exact: true }).click();
+  await examples.nth(1).click();
+  await focused(admin);
+  for (const [width, height] of [
+    [1920, 1080],
+    [1366, 768],
+    [1280, 720],
+    [1024, 768],
+    [768, 1024],
+    [1024, 600],
+  ])
+    await fits(admin, width, height);
+  await admin.setViewportSize({ width: 1440, height: 1000 });
+  await admin.screenshot({
+    path: ".crm-test/live-chat-redesign-dark.png",
+    fullPage: true,
+  });
+  await admin
+    .getByRole("button", { name: "Switch to light mode", exact: true })
+    .click();
+  await admin.screenshot({
+    path: ".crm-test/live-chat-redesign-light.png",
+    fullPage: true,
+  });
   const statePattern = "**/api/live-chat?*";
   await admin.route(statePattern, async (route) => {
     const u = new URL(route.request().url());
@@ -600,7 +724,7 @@ let runningBrowser;
   assert.deepEqual(errors, []);
   await browser.close();
   console.log(
-    "Browser passed: desktop/tablet viewport fit, teacher coaching across chat switches, teacher customer replies, autofocus, repeated Enter/button sends, Shift+Enter/IME, failed-send retry, standalone staff/student dashboard links, legacy redirect, scripted practice replies, database error/retry, public entry, bidirectional SSE messages, private notes, reconnect, mobile width, Bengali PDF, Excel export, close, feedback, staff settings.",
+    "Browser passed: role-aware helpdesk navigation, dark/light contrast and theme persistence, searchable Knowledge Base, redesigned dashboard, desktop/tablet viewport fit, teacher coaching across chat switches, teacher customer replies, autofocus, repeated Enter/button sends, Shift+Enter/IME, failed-send retry, standalone staff/student dashboard links, legacy redirect, scripted practice replies, database error/retry, public entry, bidirectional SSE messages, private notes, reconnect, mobile width, Bengali PDF, Excel export, close, feedback, staff settings.",
   );
 })().catch(async (e) => {
   console.error(e);
