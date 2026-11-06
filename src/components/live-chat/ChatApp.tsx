@@ -1,5 +1,11 @@
 "use client";
-import { useState, useEffect, useRef, useCallback } from "react";
+import {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useCallback,
+} from "react";
 import { defaults, rubric, closed, metricLabels } from "@/lib/live-chat/domain";
 import "./chat.css";
 import { mergeMessages } from "./messages";
@@ -154,7 +160,8 @@ export default function ChatApp({ staff = false }: { staff?: boolean }) {
     [sessionFilter, setSessionFilter] = useState(""),
     [statusFilter, setStatusFilter] = useState(""),
     [page, setPage] = useState(1),
-    [agentVisibility, setAgentVisibility] = useState("ALL");
+    [agentVisibility, setAgentVisibility] = useState("ALL"),
+    [toolsOpen, setToolsOpen] = useState(false);
   const queryRef = useRef({ view: "active", search: "", page: "1" }),
     refreshGeneration = useRef(0);
   queryRef.current = {
@@ -165,8 +172,14 @@ export default function ChatApp({ staff = false }: { staff?: boolean }) {
   const [setupRequired, setSetupRequired] = useState(false);
   const generation = useRef(0),
     requestId = useRef<{ text: string; id: string } | null>(null),
-    end = useRef<HTMLDivElement>(null),
+    workspace = useRef<HTMLDivElement>(null),
+    composer = useRef<HTMLTextAreaElement>(null),
+    messageList = useRef<HTMLDivElement>(null),
+    followMessages = useRef(true),
+    sending = useRef(false),
+    draft = useRef(text),
     typingAt = useRef(0);
+  draft.current = text;
   const t = (en: string, ba: string) => (bn ? ba : en),
     base = staff ? "/dashboard/crm" : "/student-dashboard/crm";
   const refresh = useCallback(async () => {
@@ -259,7 +272,7 @@ export default function ChatApp({ staff = false }: { staff?: boolean }) {
     latestMessage.current = null;
     setText("");
     requestId.current = null;
-    setKind("MESSAGE");
+    followMessages.current = true;
     void loadDetail().catch((e) => setError(e.message));
   }, [loadDetail]);
   useEffect(() => {
@@ -301,9 +314,36 @@ export default function ChatApp({ staff = false }: { staff?: boolean }) {
     }, 20000);
     return () => clearInterval(timer);
   }, [w]);
-  useEffect(() => {
-    end.current?.scrollIntoView({ block: "nearest" });
+  useLayoutEffect(() => {
+    const list = messageList.current;
+    if (list && followMessages.current) list.scrollTop = list.scrollHeight;
   }, [detail?.messages.at(-1)?.id]);
+  useEffect(() => {
+    const list = messageList.current;
+    if (!list) return;
+    const observer = new ResizeObserver(() => {
+      if (followMessages.current) list.scrollTop = list.scrollHeight;
+    });
+    observer.observe(list);
+    return () => observer.disconnect();
+  }, [detail?.conversation.id]);
+  useEffect(() => {
+    const root = workspace.current;
+    if (!root) return;
+    const fit = () =>
+      root.style.setProperty(
+        "--lc-offset",
+        Math.max(0, root.getBoundingClientRect().top + window.scrollY) + "px",
+      );
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(document.body);
+    window.addEventListener("resize", fit);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", fit);
+    };
+  }, []);
   const perform = async (action: string, data?: unknown, id = selected) => {
     const operationGeneration = generation.current;
     setError("");
@@ -312,7 +352,7 @@ export default function ChatApp({ staff = false }: { staff?: boolean }) {
       const v = await api({}, { workspaceId: w, action, id, data });
       if (operationGeneration !== generation.current) return null;
       await refresh();
-      if (selected) await loadDetail();
+      if (selected && selectedRef.current === selected) await loadDetail();
       return v;
     } catch (e) {
       setError((e as Error).message);
@@ -323,9 +363,21 @@ export default function ChatApp({ staff = false }: { staff?: boolean }) {
   };
   const me = state?.agents.find((a) => a.userId === state.identity.id),
     c = detail?.conversation,
-    owner = c?.agentId === state?.identity.id,
+    owner = !!c && c.agentId === state?.identity.id,
     isStaff = !!state?.identity.staff;
-  useEffect(() => setKind(owner ? "MESSAGE" : "COACH"), [owner]);
+  // Keep the controlled value aligned with the options on every conversation switch.
+  useEffect(() => {
+    setKind(owner ? "MESSAGE" : isStaff ? "COACH" : "MESSAGE");
+  }, [c?.id, owner, isStaff]);
+  const effectiveKind = !owner && isStaff ? "COACH" : kind;
+  const canCompose =
+    !!c &&
+    !closed(c.status) &&
+    (effectiveKind === "COACH" ? isStaff : owner && c.status === "ACTIVE");
+  useEffect(() => {
+    if (canCompose && ["Live Chat", "Queue", "History"].includes(tab))
+      composer.current?.focus({ preventScroll: true });
+  }, [c?.id, owner, c?.status, canCompose, tab]);
   useEffect(() => {
     if (owner && selected && document.visibilityState === "visible")
       void api({}, { workspaceId: w, action: "read", id: selected }).catch(
@@ -353,16 +405,55 @@ export default function ChatApp({ staff = false }: { staff?: boolean }) {
   };
   async function send(e: React.FormEvent) {
     e.preventDefault();
-    if (!text.trim() || busy) return;
+    if (!text.trim() || busy || sending.current || !canCompose) return;
+    const sentText = text,
+      sentKind = effectiveKind,
+      sentId = selected,
+      sentGeneration = generation.current;
+    const key = sentId + ":" + sentKind + ":" + sentText;
     const pending =
-      requestId.current?.text === text
+      requestId.current?.text === key
         ? requestId.current
-        : { text, id: crypto.randomUUID() };
+        : { text: key, id: crypto.randomUUID() };
     requestId.current = pending;
-    const v = await perform("message", { text, kind, requestId: pending.id });
-    if (v) {
-      setText("");
+    sending.current = true;
+    setBusy(true);
+    setError("");
+    try {
+      await api(
+        {},
+        {
+          workspaceId: w,
+          action: "message",
+          id: sentId,
+          data: { text: sentText, kind: sentKind, requestId: pending.id },
+        },
+      );
+      if (
+        sentGeneration !== generation.current ||
+        selectedRef.current !== sentId
+      )
+        return;
+      if (draft.current === sentText) setText("");
       requestId.current = null;
+      followMessages.current = true;
+      // Only restore composer focus if the user has not moved to another control.
+      const active = document.activeElement;
+      if (
+        active === document.body ||
+        composer.current?.closest("form")?.contains(active)
+      )
+        composer.current?.focus({ preventScroll: true });
+      await Promise.all([refresh(), loadDetail()]);
+    } catch (e) {
+      if (
+        sentGeneration === generation.current &&
+        selectedRef.current === sentId
+      )
+        setError((e as Error).message);
+    } finally {
+      sending.current = false;
+      setBusy(false);
     }
   }
   const filtered =
@@ -378,7 +469,7 @@ export default function ChatApp({ staff = false }: { staff?: boolean }) {
           .includes(search.toLowerCase()),
     ) || [];
   return (
-    <div className="lc">
+    <div ref={workspace} className="lc lc-workspace">
       <header className="lc-top">
         <div>
           <small>CONTACT CENTER / TRAINING</small>
@@ -497,8 +588,28 @@ export default function ChatApp({ staff = false }: { staff?: boolean }) {
               {t(en, ba)}
             </button>
           ))}
+        {["Live Chat", "Queue", "History"].includes(tab) && (
+          <button
+            className="lc-tools-toggle"
+            aria-expanded={toolsOpen}
+            aria-controls="lc-conversation-tools"
+            onClick={() => setToolsOpen(!toolsOpen)}
+          >
+            {t(
+              toolsOpen ? "Close tools" : "Conversation tools",
+              toolsOpen ? "টুলস বন্ধ করুন" : "কথোপকথনের টুলস",
+            )}
+          </button>
+        )}
       </nav>
-      <main className="lc-main">
+      <main
+        className={
+          "lc-main" +
+          (["Live Chat", "Queue", "History"].includes(tab)
+            ? " lc-main-chat"
+            : "")
+        }
+      >
         {!state && error ? (
           <section className="lc-panel lc-stack" role="status">
             <h2>
@@ -612,7 +723,7 @@ export default function ChatApp({ staff = false }: { staff?: boolean }) {
               </section>
             )}
             {["Live Chat", "Queue", "History"].includes(tab) && (
-              <div className="lc-grid">
+              <div className={"lc-grid" + (toolsOpen ? " lc-tools-open" : "")}>
                 <aside className="lc-panel lc-list">
                   <h2>{t(tab, tabs.find((x) => x[0] === tab)?.[1] || tab)}</h2>
                   <input
@@ -690,7 +801,7 @@ export default function ChatApp({ staff = false }: { staff?: boolean }) {
                     </button>
                   ))}
                 </aside>
-                <section className="lc-panel">
+                <section className="lc-panel lc-conversation">
                   {!c ? (
                     <div className="lc-empty">
                       {t(
@@ -700,80 +811,117 @@ export default function ChatApp({ staff = false }: { staff?: boolean }) {
                     </div>
                   ) : (
                     <>
-                      {c.practiceKey && (
-                        <p className="lc-notice">
-                          {t(
-                            "Scripted customer practice. Replies follow a fixed scenario; your teacher evaluates the quality.",
-                            "স্ক্রিপ্টভিত্তিক কাস্টমার অনুশীলন। উত্তর নির্দিষ্ট পরিস্থিতি অনুযায়ী আসে; শিক্ষক কথোপকথনের মান মূল্যায়ন করবেন।",
-                          )}
-                        </p>
-                      )}
-                      <div className="lc-row">
-                        <h2>{c.customerName}</h2>
-                        <span className={"lc-badge " + c.status}>
-                          {c.status}
-                        </span>
-                        <small>#{c.id.slice(0, 8)}</small>
-                        <a
-                          className="lc-link"
-                          href={
-                            "/api/live-chat/export?" +
-                            new URLSearchParams({
-                              workspaceId: w,
-                              id: c.id,
-                              format: "pdf",
-                            })
-                          }
-                        >
-                          Transcript PDF ↓
-                        </a>
-                      </div>
-                      <div className="lc-row">
-                        {c.practiceKey &&
-                          c.status === "QUEUED" &&
-                          !c.agentId && (
+                      <div className="lc-conversation-head">
+                        {c.practiceKey && (
+                          <p className="lc-notice">
+                            {t(
+                              "Scripted customer practice. Replies follow a fixed scenario; your teacher evaluates the quality.",
+                              "স্ক্রিপ্টভিত্তিক কাস্টমার অনুশীলন। উত্তর নির্দিষ্ট পরিস্থিতি অনুযায়ী আসে; শিক্ষক কথোপকথনের মান মূল্যায়ন করবেন।",
+                            )}
+                          </p>
+                        )}
+                        <div className="lc-row">
+                          <h2>{c.customerName}</h2>
+                          <span className={"lc-badge " + c.status}>
+                            {c.status}
+                          </span>
+                          <small>#{c.id.slice(0, 8)}</small>
+                          <a
+                            className="lc-link"
+                            href={
+                              "/api/live-chat/export?" +
+                              new URLSearchParams({
+                                workspaceId: w,
+                                id: c.id,
+                                format: "pdf",
+                              })
+                            }
+                          >
+                            Transcript PDF ↓
+                          </a>
+                        </div>
+                        <div className="lc-row">
+                          {c.practiceKey &&
+                            c.status === "QUEUED" &&
+                            (!c.agentId || owner || isStaff) && (
+                              <button
+                                className="primary"
+                                disabled={busy}
+                                onClick={() => void perform("claim_practice")}
+                              >
+                                {t("Start practice", "অনুশীলন শুরু করুন")}
+                              </button>
+                            )}
+                          {owner && c.status === "ASSIGNED" && (
                             <button
                               className="primary"
                               disabled={busy}
-                              onClick={() => void perform("claim_practice")}
+                              onClick={() => void perform("accept")}
                             >
-                              {t("Start practice", "অনুশীলন শুরু করুন")}
+                              {t("Accept chat", "চ্যাট গ্রহণ করুন")}
                             </button>
                           )}
+                          {c.transferTo === state.identity.id && (
+                            <button
+                              className="primary"
+                              disabled={busy}
+                              onClick={() => void perform("accept_transfer")}
+                            >
+                              {t("Accept transfer", "ট্রান্সফার গ্রহণ")}
+                            </button>
+                          )}
+                          {isStaff &&
+                            !owner &&
+                            !closed(c.status) &&
+                            !(c.practiceKey && c.status === "QUEUED") && (
+                              <button
+                                disabled={busy}
+                                onClick={() => void perform("takeover")}
+                              >
+                                {t("Take over", "নিজে গ্রহণ করুন")}
+                              </button>
+                            )}
+                          <button
+                            disabled={!owner || busy}
+                            onClick={() => void perform("read")}
+                          >
+                            {t("Mark read", "পড়া হয়েছে")}
+                          </button>
+                        </div>
+                        {!owner && !closed(c.status) && (
+                          <p className="lc-reply-hint">
+                            {t(
+                              c.practiceKey && c.status === "QUEUED"
+                                ? "Start practice to reply as the agent. Coaching is private."
+                                : "Customer replies require taking over the chat. Set your availability to AVAILABLE first. Coaching is private.",
+                              c.practiceKey && c.status === "QUEUED"
+                                ? "কাস্টমারকে উত্তর দিতে অনুশীলন শুরু করুন। কোচিং ব্যক্তিগত।"
+                                : "কাস্টমারকে উত্তর দিতে চ্যাট গ্রহণ করুন। আগে AVAILABLE নির্বাচন করুন। কোচিং ব্যক্তিগত।",
+                            )}
+                          </p>
+                        )}
                         {owner && c.status === "ASSIGNED" && (
-                          <button
-                            className="primary"
-                            disabled={busy}
-                            onClick={() => void perform("accept")}
-                          >
-                            {t("Accept chat", "চ্যাট গ্রহণ করুন")}
-                          </button>
+                          <p className="lc-reply-hint">
+                            {t(
+                              "Accept this chat to reply to the customer.",
+                              "কাস্টমারকে উত্তর দিতে চ্যাট গ্রহণ করুন।",
+                            )}
+                          </p>
                         )}
-                        {c.transferTo === state.identity.id && (
-                          <button
-                            className="primary"
-                            disabled={busy}
-                            onClick={() => void perform("accept_transfer")}
-                          >
-                            {t("Accept transfer", "ট্রান্সফার গ্রহণ")}
-                          </button>
-                        )}
-                        {isStaff && !owner && !closed(c.status) && (
-                          <button
-                            disabled={busy}
-                            onClick={() => void perform("takeover")}
-                          >
-                            {t("Take over", "নিজে গ্রহণ করুন")}
-                          </button>
-                        )}
-                        <button
-                          disabled={!owner || busy}
-                          onClick={() => void perform("read")}
-                        >
-                          {t("Mark read", "পড়া হয়েছে")}
-                        </button>
                       </div>
-                      <div className="lc-messages" aria-live="polite">
+                      <div
+                        ref={messageList}
+                        className="lc-messages"
+                        role="log"
+                        aria-label="Conversation messages"
+                        aria-live="polite"
+                        onScroll={(e) => {
+                          const el = e.currentTarget;
+                          followMessages.current =
+                            el.scrollHeight - el.scrollTop - el.clientHeight <
+                            64;
+                        }}
+                      >
                         {detail.messages.length >= 100 && (
                           <button
                             onClick={async () => {
@@ -828,7 +976,6 @@ export default function ChatApp({ staff = false }: { staff?: boolean }) {
                             </small>
                           </article>
                         ))}
-                        <div ref={end} />
                       </div>
                       {!closed(c.status) && (owner || isStaff) && (
                         <form className="lc-compose" onSubmit={send}>
@@ -842,8 +989,13 @@ export default function ChatApp({ staff = false }: { staff?: boolean }) {
                           <div className="lc-row">
                             <select
                               aria-label="Message type"
-                              value={kind}
-                              onChange={(e) => setKind(e.target.value)}
+                              value={effectiveKind}
+                              onChange={(e) => {
+                                setKind(e.target.value);
+                                composer.current?.focus({
+                                  preventScroll: true,
+                                });
+                              }}
                             >
                               {owner && (
                                 <>
@@ -862,12 +1014,33 @@ export default function ChatApp({ staff = false }: { staff?: boolean }) {
                               )}
                             </select>
                             <small>
-                              {kind === "MESSAGE"
-                                ? "Visible to customer"
-                                : "Hidden from customer"}
+                              {effectiveKind === "MESSAGE"
+                                ? t(
+                                    "Visible to customer",
+                                    "কাস্টমারের কাছে যাবে",
+                                  )
+                                : t(
+                                    "Private — hidden from customer",
+                                    "ব্যক্তিগত — কাস্টমারের কাছে যাবে না",
+                                  )}
                             </small>
                           </div>
                           <textarea
+                            ref={composer}
+                            rows={2}
+                            disabled={!canCompose}
+                            aria-describedby="lc-compose-hint"
+                            onKeyDown={(e) => {
+                              if (
+                                e.key === "Enter" &&
+                                !e.shiftKey &&
+                                !e.nativeEvent.isComposing &&
+                                e.nativeEvent.keyCode !== 229
+                              ) {
+                                e.preventDefault();
+                                e.currentTarget.form?.requestSubmit();
+                              }
+                            }}
                             aria-label="Message"
                             required
                             maxLength={8000}
@@ -892,16 +1065,21 @@ export default function ChatApp({ staff = false }: { staff?: boolean }) {
                           />
                           <button
                             className="primary"
-                            disabled={
-                              busy ||
-                              (!owner && kind !== "COACH") ||
-                              (owner && c.status !== "ACTIVE")
-                            }
+                            disabled={busy || !canCompose || !text.trim()}
                           >
                             {busy
                               ? t("Sending…", "পাঠানো হচ্ছে…")
                               : t("Send", "পাঠান")}
                           </button>
+                          <small
+                            id="lc-compose-hint"
+                            className="lc-compose-hint"
+                          >
+                            {t(
+                              "Enter to send · Shift+Enter for a new line",
+                              "পাঠাতে Enter · নতুন লাইনে Shift+Enter",
+                            )}
+                          </small>
                         </form>
                       )}
                       {closed(c.status) && (
@@ -912,7 +1090,10 @@ export default function ChatApp({ staff = false }: { staff?: boolean }) {
                     </>
                   )}
                 </section>
-                <aside className="lc-panel lc-details lc-stack">
+                <aside
+                  id="lc-conversation-tools"
+                  className="lc-panel lc-details lc-stack"
+                >
                   <h2>{t("Conversation tools", "কথোপকথনের টুলস")}</h2>
                   {c && (
                     <>

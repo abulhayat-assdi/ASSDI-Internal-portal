@@ -101,6 +101,157 @@ let runningBrowser;
     .locator(".lc-messages")
     .getByText(/My training reference is|আমার অনুশীলনের রেফারেন্স/)
     .waitFor({ timeout: 30000 });
+  async function focused(page) {
+    await page.waitForFunction(
+      () =>
+        document.activeElement ===
+        document.querySelector('textarea[aria-label="Message"]'),
+    );
+  }
+  async function fits(page, width, height) {
+    await page.setViewportSize({ width, height });
+    await page.waitForFunction(() => {
+      const t = document.querySelector(".lc-compose textarea"),
+        b = document.querySelector(".lc-compose button");
+      if (!t || !b) return false;
+      const a = t.getBoundingClientRect(),
+        r = b.getBoundingClientRect();
+      return a.top >= 0 && a.bottom <= innerHeight && r.bottom <= innerHeight;
+    });
+    const sizes = await page.evaluate(() => ({
+      body: document.documentElement.scrollHeight,
+      width: document.documentElement.scrollWidth,
+      height: innerHeight,
+      vw: innerWidth,
+    }));
+    assert(
+      sizes.body <= height + 2,
+      JSON.stringify({ width, height, ...sizes }),
+    );
+    assert(sizes.width <= width + 2, JSON.stringify(sizes));
+  }
+  await focused(agent);
+  for (const [width, height] of [
+    [1920, 1080],
+    [1366, 768],
+    [1280, 720],
+    [1024, 768],
+    [768, 1024],
+    [1024, 600],
+  ])
+    await fits(agent, width, height);
+  await agent
+    .getByRole("button", { name: "Conversation tools", exact: true })
+    .click();
+  await agent.locator("#lc-conversation-tools").waitFor({ state: "visible" });
+  await agent.getByRole("button", { name: "Close tools", exact: true }).click();
+  await agent.setViewportSize({ width: 1366, height: 768 });
+  await agent.getByLabel("Message", { exact: true }).focus();
+  await agent.keyboard.type("Second message without clicking the composer");
+  await agent.keyboard.press("Enter");
+  await agent
+    .locator(".lc-messages")
+    .getByText("Second message without clicking the composer", { exact: true })
+    .waitFor();
+  await focused(agent);
+  await agent.keyboard.type("A line");
+  await agent.keyboard.press("Shift+Enter");
+  await agent.keyboard.type("Another line");
+  assert.equal(
+    await agent.getByLabel("Message", { exact: true }).inputValue(),
+    "A line\nAnother line",
+  );
+  await agent.getByLabel("Message", { exact: true }).dispatchEvent("keydown", {
+    key: "Enter",
+    code: "Enter",
+    isComposing: true,
+  });
+  assert.equal(
+    await agent.getByLabel("Message", { exact: true }).inputValue(),
+    "A line\nAnother line",
+  );
+  await agent
+    .getByLabel("Message", { exact: true })
+    .fill("Retry this message once");
+  let rejectOnce = true;
+  await agent.route("**/api/live-chat?*", async (route) => {
+    const b = route.request().postDataJSON();
+    if (b?.action === "message" && rejectOnce) {
+      rejectOnce = false;
+      return route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "Simulated connection interruption" }),
+      });
+    }
+    return route.continue();
+  });
+  await agent.keyboard.press("Enter");
+  await agent
+    .getByRole("alert")
+    .getByText("Simulated connection interruption")
+    .waitFor();
+  assert.equal(
+    await agent.getByLabel("Message", { exact: true }).inputValue(),
+    "Retry this message once",
+  );
+  await agent.unroute("**/api/live-chat?*");
+  await focused(agent);
+  await agent.keyboard.press("Enter");
+  await agent
+    .locator(".lc-messages")
+    .getByText("Retry this message once", { exact: true })
+    .waitFor();
+  assert.equal(
+    await agent
+      .locator(".lc-messages")
+      .getByText("Retry this message once", { exact: true })
+      .count(),
+    1,
+  );
+  await focused(agent);
+  let releaseSend, notifySend;
+  const sendGate = new Promise((resolve) => (releaseSend = resolve)),
+    arrived = new Promise((resolve) => (notifySend = resolve));
+  await agent.route("**/api/live-chat?*", async (route) => {
+    const b = route.request().postDataJSON();
+    if (b?.action === "message") {
+      notifySend();
+      await sendGate;
+    }
+    return route.continue();
+  });
+  await agent
+    .getByLabel("Message", { exact: true })
+    .fill("Delayed message for draft test");
+  await agent
+    .getByRole("button", { name: "Send", exact: true })
+    .waitFor({ state: "visible" });
+  await agent.waitForFunction(
+    () => !document.querySelector(".lc-compose button")?.disabled,
+  );
+  await agent.keyboard.press("Enter");
+  await arrived;
+  await agent
+    .getByLabel("Message", { exact: true })
+    .fill("Keep this next draft");
+  await agent.getByLabel("Search conversations", { exact: true }).focus();
+  releaseSend();
+  await agent
+    .locator(".lc-messages")
+    .getByText("Delayed message for draft test", { exact: true })
+    .waitFor();
+  assert.equal(
+    await agent.getByLabel("Message", { exact: true }).inputValue(),
+    "Keep this next draft",
+  );
+  assert(
+    await agent
+      .getByLabel("Search conversations", { exact: true })
+      .evaluate((el) => document.activeElement === el),
+  );
+  await agent.unroute("**/api/live-chat?*");
+  await agent.getByLabel("Message", { exact: true }).fill("");
   await agent.screenshot({
     path: ".crm-test/live-chat-practice.png",
     fullPage: true,
@@ -300,6 +451,88 @@ let runningBrowser;
   await admin
     .getByRole("button", { name: "Settings", exact: true })
     .waitFor({ timeout: 60000 });
+  const staffDb = new PrismaClient({
+    datasources: { db: { url: dbEnv.CUSTOMER_SERVICE_DATABASE_URL } },
+  });
+  await staffDb.$transaction(async (tx) => {
+    const workspaceId = fixture.workspaceId;
+    await tx.$executeRawUnsafe(
+      "SELECT set_config('crm.course',$1,true),set_config('crm.workspace',$2,true)",
+      fixture.host.replace(".localhost", ""),
+      workspaceId,
+    );
+    await require("./lib/live-chat-engine.cjs").lock(tx, workspaceId);
+    await tx.chatConversation.updateMany({
+      where: {
+        workspaceId,
+        practiceKey: { not: null },
+        practiceStartedAt: null,
+      },
+      data: { status: "QUEUED", closedAt: null },
+    });
+  });
+  await staffDb.$disconnect();
+  await admin.reload({ timeout: 90000 });
+  const examples = admin.locator("button.lc-chat-item").filter({
+    has: admin.locator(".lc-badge").filter({ hasText: "Scripted practice" }),
+  });
+  for (let n = 0; n < 2; n++) {
+    await examples.nth(n).click({ timeout: 60000 });
+    await focused(admin);
+    assert.equal(
+      await admin.getByLabel("Message type", { exact: true }).inputValue(),
+      "COACH",
+    );
+    await admin
+      .getByText("Private — hidden from customer", { exact: true })
+      .waitFor();
+    await admin.keyboard.type("Teacher coaching example " + n);
+    await admin.keyboard.press("Enter");
+    await admin
+      .locator(".lc-message.COACH")
+      .getByText("Teacher coaching example " + n, { exact: true })
+      .waitFor();
+    await focused(admin);
+  }
+  await admin
+    .getByRole("button", { name: "Start practice", exact: true })
+    .click();
+  await admin.waitForFunction(
+    () =>
+      document.querySelector('select[aria-label="Message type"]')?.value ===
+      "MESSAGE",
+  );
+  await focused(admin);
+  await admin.keyboard.type("Teacher customer-facing reply");
+  await admin.keyboard.press("Enter");
+  await admin
+    .locator(".lc-messages")
+    .getByText("Teacher customer-facing reply", { exact: true })
+    .waitFor();
+  await focused(admin);
+  await admin.keyboard.type("Teacher second reply");
+  await admin.getByRole("button", { name: "Send", exact: true }).click();
+  await admin
+    .locator(".lc-messages")
+    .getByText("Teacher second reply", { exact: true })
+    .waitFor();
+  await focused(admin);
+  for (const [width, height] of [
+    [1366, 768],
+    [1024, 768],
+    [768, 1024],
+    [1024, 600],
+  ])
+    await fits(admin, width, height);
+  await admin.screenshot({
+    path: ".crm-test/live-chat-tablet-composer.png",
+    fullPage: true,
+  });
+  await admin.setViewportSize({ width: 1366, height: 768 });
+  await admin.screenshot({
+    path: ".crm-test/live-chat-desktop-composer.png",
+    fullPage: true,
+  });
   const statePattern = "**/api/live-chat?*";
   await admin.route(statePattern, async (route) => {
     const u = new URL(route.request().url());
@@ -367,7 +600,7 @@ let runningBrowser;
   assert.deepEqual(errors, []);
   await browser.close();
   console.log(
-    "Browser passed: standalone staff/student dashboard links, legacy redirect, scripted practice replies, database error/retry, public entry, bidirectional SSE messages, private notes, reconnect, mobile width, Bengali PDF, Excel export, close, feedback, staff settings.",
+    "Browser passed: desktop/tablet viewport fit, teacher coaching across chat switches, teacher customer replies, autofocus, repeated Enter/button sends, Shift+Enter/IME, failed-send retry, standalone staff/student dashboard links, legacy redirect, scripted practice replies, database error/retry, public entry, bidirectional SSE messages, private notes, reconnect, mobile width, Bengali PDF, Excel export, close, feedback, staff settings.",
   );
 })().catch(async (e) => {
   console.error(e);
