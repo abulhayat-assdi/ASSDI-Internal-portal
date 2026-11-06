@@ -405,6 +405,7 @@ export const hasRequiredPermission = (user: JWTPayload, permission: PermissionKe
     // what's actually stored on the target admin's own permissions row —
     // except Homework, which stays off-limits/hidden for impersonated sessions.
     if (user.impersonatedBy) return permission !== 'homework';
+    if (permission === 'competitions_view') return user.role === 'teacher' || ['competitions_view', 'admin_competitions', 'business_incubation', 'admin_incubation'].some(k => user.permissions?.includes(k));
     if (!user.permissions) return false;
     return user.permissions.includes(permission);
 };

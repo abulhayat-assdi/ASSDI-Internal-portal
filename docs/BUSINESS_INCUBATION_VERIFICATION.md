@@ -1,34 +1,68 @@
-# Business Incubation verification
+# Business Incubation — Competition integration verification
 
-Date: 2026-11-05, Asia/Dhaka. Branch: `feature/business-incubation`.
+Date: 2026-11-06, Asia/Dhaka. Branch: `feature/incubation-competitions-v2`, started from main `ab8a271`; latest main `0619687` integrated into this feature branch. Worktree: `asm-portal-v2-incubation`.
 
-This is a local review record. Production credentials, existing students, production uploads and historical business data were not used. Android implementation remains deferred; its plan is in `ANDROID_PORTAL_APP_PLAN.md`.
+Implementation and all required local verification are complete, including the final Linux production image, automatic fresh migration, four-role production-browser workflows and container replacement with persistent data/uploads. This revision has not been merged into main, pushed, migrated in production, or deployed to Coolify.
 
-## Automated checks
+## Confirmed behavior
 
-- Native PostgreSQL 16: **38 passed**, including the checked-in migration, runtime-role/RLS isolation, repeated deployment preserving financial records, mandatory vouchers, lead permissions, idempotent retries, chronological stock validation, atomic team handovers, corrections, field custody and public link revocation.
-- In-memory PostgreSQL: **38 passed** through `npm run incubation:test`.
-- Existing permissions, Competitions, file access and deployment-rule regression suites: **44 passed**. Includes rejecting generic reads/deletes of Incubation attachments even for an administrator.
-- TypeScript and targeted ESLint: pass.
-- HTTP checks: real program/team/catalog setup, funding, procurement and voucher, sales/expense/FGD/insight, pending handover/correction, public allowlist, actual XLSX/PDF generation, separate sheet exports and person filtering restricted to field/learning records.
-- Browser checks: staff desktop, 390 px mobile layout, read-only original/correction comparison, atomic spreadsheet edit with preview, student sale form, actual browser geolocation check-in/out using mocked coordinates, public report, recovery from invalid date ranges and visible chart headings. No page errors or feature-level horizontal overflow.
+- Competitions is the entry point for both form competitions and Business Incubation. Staff select the type on Create New; students see running items and their own assignment. Old standalone Incubation pages redirect to the hub.
+- Members have a personal field/FGD/Insight workspace and read-only own-team summary. They cannot post financial entries or download detailed financial sheets/vouchers.
+- Leaders have prominent sales, purchase, expense and return actions, their own team's detailed accounts, and all of their members' field/GPS/proof/learning activity. Other teams' private records remain inaccessible. Handover counterpart information is limited to the shared transfer.
+- Teachers manage every Incubation program in their own course, including creation/setup, funding, entries, corrections and reports. Assignment to a program's staff list is not required. Admin management remains course scoped.
+- Public links expose summary and team-wise results only. The public page has no edit controls, and its API accepts no writes. GPS, proof, vouchers, private notes and audit/correction details are excluded.
+- Existing Competition groups can be copied into a new Incubation team. Batch/roll identities are resolved against the current roster, and the copied team is independent of future group changes.
+- Structured product variants, configurable sales sessions, funding round, configurable FGD minimum, optional Insight purchase reason, reconciliation, reserved transfer stock and cash-count snapshots are included.
 
-`test/incubation-database.ts` only creates disposable fixture databases. Native mode uses a fixed localhost service and creates/drops a unique database per run. `scripts/incubation-preview.ts` uses an in-memory database; no legacy records are imported. The HTTP harness also supports `INCUBATION_CONTAINER_TEST=1` on fixed localhost port 3106 with separate ignored fixture credentials.
+## Completed automated checks
 
-## Artifacts
+- Incubation Vitest suites: **42 passed** in memory and **42 passed** in native PostgreSQL mode. Native mode runs transactional tests on PostgreSQL 16; the populated-upgrade fixture in that suite remains in-memory. These are repeated runs of the same tests, not 84 distinct tests.
+- Existing permissions, Competitions, file-access, deployment-rule and CRM domain regression suites: **55 passed**. After integrating main `0619687`, the combined run passed **97 tests across 9 files**.
+- Whole-project TypeScript: passed. Targeted ESLint: passed. `git diff --check`: passed.
+- Additive populated-upgrade tests passed in memory and in a separate native PostgreSQL database. The native check first deployed the older checked-in migrations, inserted an existing program/team/fund, and then ran the real new migration and a repeated deploy. Full operational rows, IDs, timestamps and BDT 5,000 were identical before/after; exactly one parent Competition was created. Existing applied migration is unchanged.
+- Native migration deploy, repeated deploy preserving records, runtime-role preparation and schema/RLS readiness: passed. The new required link/kind/variant columns are checked.
+- Financial tests cover mandatory vouchers, lead replacement, retry deduplication, chronological and concurrent stock checks, paired transfers, pending stock reservation, old/new corrections, atomic bulk edits, immutable audit and course isolation.
+- New lifecycle/access tests cover roles that differ by program, draft and ended programs, inactive teams, revoked batch eligibility and teachers' full course management.
 
-The HTTP harness opens the generated workbook with ExcelJS, checks summary values and sheet names, and confirms user text is not stored as executable spreadsheet formulas. The final Linux-generated 16-page fixture PDF was rendered with MuPDF; summary, Bengali FGD, inventory, charts and history pages were reviewed. Bengali text remains readable, nested history values are serialized, and compact table headers repeat. Extracted text was checked for accidental `[object Object]` placeholders. Review screenshots and sample files are under ignored `.incubation-test/`; they are fixtures rather than production data.
+## HTTP and real-browser checks
 
-## Deployment checks
+`test/incubation-http.mjs` passes real setup, funding, procurement/voucher, sale, expense, FGD/Insight, transfer, correction and actual Excel/PDF generation. The generated workbook is opened with ExcelJS and its totals, sheets and formula-escaping are checked.
 
-The Docker startup runs the existing runtime-role preparation and `prisma migrate deploy`, followed by the Incubation schema/RLS readiness gate. An empty disposable database was bootstrapped through the actual container entrypoint: all 12 feature tables appeared, Incubation program/financial-record counts were both zero, and `/api/health` returned HTTP 200 with the database up.
+`test/incubation-access-http.mjs` passes member/leader/teacher access tests, another team's private canary isolation, cross-program denial, member finance/export/file denial, other-team GPS denial, no-team disabled directory cards, teacher creation/funding, typed legacy API guards, public allowlisting/read-only methods, group-template visibility, and original form create/submit/report regression. The harness safely reuses its existing disposable Competition group across repeated runs.
 
-The test identified Windows CRLF in `docker-entrypoint.sh`; the Dockerfile now normalizes it before execution and `.gitattributes` keeps shell scripts in LF. The Incubation student page explicitly permits same-origin geolocation while other pages keep their existing policy.
+`test/incubation-browser.mjs` first creates fresh disposable financial fixtures and runs the HTTP access suite. Its four accounts then pass:
 
-Final Linux build: **passed**, image `asm-incubation-review:release`, local image ID `sha256:9f33da7740299e9c72fbf2fbf1a5aa6588933cf742f71b211668442a54a486dc`.
+1. Admin: Competition hub, no standalone sidebar entry, management workspace and reconciliation.
+2. Member at 390 px: no sales/setup controls; actual browser GPS check-in/out with mocked coordinates, steps and image proof upload.
+3. Leader at 390 px: actual sale submission, member GPS history and proof access, own-team workspace.
+4. Teacher: setup, new draft Competition creation, copying a previous Competition group, checking selected members/leader, and saving the new team.
+5. Unauthenticated public view: summary/team results and absence of edit/correction/setup controls.
 
-The production image passed the HTTP workflow harness on the disposable PostgreSQL database. Replacing it with the final release image and a dedicated upload volume preserved all **7** fixture business records, the **BDT 4,800** team balance and authenticated access to the existing voucher. The readiness endpoint remained HTTP 200, repeated migrations did not reset records, and the final image produced valid Excel and the readable PDF described above. Only fixture services were used; no Coolify or production service was contacted.
+The complete HTTP/access/browser sequence also passed against the final Linux production image on localhost port 3106. No page errors or feature-level horizontal overflow were observed. Browser GPS uses mocked test coordinates; physical Android/background tracking is outside this web release. The browser uncovered and verified a fix for compressed image uploads losing their filename; JPEG uploads now retain a valid File name/type.
 
-## Review boundaries
+## Visual artifacts
 
-Use `BUSINESS_INCUBATION_OPERATIONS.md` for setup, accounting, exports, retention and rollout/rollback instructions. No main merge, push, production migration or deployment has been performed. The feature began at `cf8f544`; subsequent main/CRM work has been left intact. Integrate current main changes and rerun release checks when the user explicitly authorizes the merge.
+Ignored `.incubation-test/` contains desktop/mobile screenshots: `competition-hub.png`, `admin-workspace.png`, `member-home.png`, `member-field.png`, `leader-home.png`, `leader-sale.png`, `leader-team-field.png`, `teacher-setup.png` and `public-read-only.png`.
+
+The final Linux-generated 18-page fixture PDF was rendered with MuPDF. Summary, Bengali FGD and audit/history pages were inspected; text extraction contains no accidental `[object Object]` values. Excel and PDF fixture downloads are `report.xlsx` / `report.pdf`. These contain only test data, not actual student/business records.
+
+## Completed Linux build and runtime verification
+
+The final source passed `docker build -t asm-incubation-review:competition-v2 .`, including Next compilation, TypeScript, static pages, tracing, runtime assembly, layer export and unpacking. Image ID: `sha256:95cb2564568afc01b5b909175c2dc955a9afa766dd65d867814b3da7e26fd0fa`.
+
+On this resumed validation, Docker Desktop was fully stopped and started normally. No force-stop, process kill or WSL shutdown was required. The earlier rejected force-stop action was not retried or bypassed.
+
+The production image ran through the actual Docker entrypoint against an isolated empty PostgreSQL database and dedicated upload volume:
+
+1. All 35 checked-in portal migrations applied automatically. Both Incubation migrations and the schema/course-isolation gate passed. Before fixture setup, Incubation program/record counts were both zero.
+2. The runtime role was verified as `NOSUPERUSER` and `NOBYPASSRLS`; `/api/health` returned HTTP 200 with database `up`.
+3. The complete HTTP/access/four-role browser sequence passed against this image, including GPS/proof, sales, teacher create/group-copy, original form regression and public read-only reports.
+4. A snapshot captured all **10** fixture business records, their full data/versions/timestamps, both teams and member lists, all financial summaries, the parent Competition link and a voucher SHA-256 checksum.
+5. Only the test app container was stopped/replaced, keeping its database and upload volume. Startup reported `No pending migrations to apply` and passed the readiness gate again. The entire snapshot matched exactly; voucher bytes were identical and actual Excel/PDF generation still passed.
+6. All three fixture Incubation programs had exactly three parent Competitions, with no duplicate backfill. Final export totals matched the selected team summaries. The final PDF was rendered and inspected as described above.
+
+Build, startup/redeploy, HTTP/browser, native-upgrade and persistence logs are retained under ignored `.incubation-test/`. No runtime validation gate remains pending for this revision.
+
+## Release boundary
+
+No historical CSV/ZIP data import or production credential use occurred. Android remains a separate documented plan in `ANDROID_PORTAL_APP_PLAN.md`; this release provides web foreground GPS only. Use `BUSINESS_INCUBATION_OPERATIONS.md` for setup and the automatic Coolify migration path. Main merge, push and production deployment require the user's later instruction.

@@ -214,6 +214,7 @@ export function reportRows(
   record: Entry,
   products: Product[],
   teamName: string,
+  programStart?: string,
 ): Record<string, unknown>[] {
   const base = {
     "Record ID": record.id,
@@ -223,11 +224,24 @@ export function reportRows(
     Kind: record.kind,
     Status: record.status,
     "Submitted By": record.enteredByName || "",
+    Session: record.data.session || "",
+    Round: record.data.round || "",
+    ...(programStart
+      ? {
+          "Program Day":
+            Math.floor(
+              (Date.parse(record.date + "T00:00:00Z") -
+                Date.parse(programStart + "T00:00:00Z")) /
+                86400000,
+            ) + 1,
+        }
+      : {}),
   };
   if (record.data.lines?.length)
     return record.data.lines.map((l) => ({
       ...base,
       Product: products.find((p) => p.id === l.productId)?.name || l.productId,
+      Variant: products.find((p) => p.id === l.productId)?.variant || "",
       Quantity: scaled(l.quantity, 3) / 1000,
       "Unit Price": scaled(l.unitPrice || "0") / 100,
       Amount: lineTotal(l.quantity, l.unitPrice || "0") / 100,

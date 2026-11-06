@@ -35,9 +35,9 @@ export async function GET(
         : null;
       insist(
         !member ||
-          f.teamId === member.teamId ||
+          (member.isLead && f.teamId === member.teamId) ||
           f.uploadedBy === actor.id ||
-          linked,
+          (member.isLead && linked),
         "এই ফাইলের অনুমতি নেই।",
         403,
       );

@@ -268,6 +268,7 @@ model Course {
 // quantities/money are canonical decimal strings, calculated in integer units.
 model IncubationProgram {
   id String @id @default(uuid())
+  competitionId String @unique @map("competition_id")
   courseId String @map("course_id")
   name String
   description String @default("")
@@ -282,6 +283,7 @@ model IncubationProgram {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
   course Course @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  competition Competition @relation(fields: [competitionId, courseId], references: [id, courseId], onDelete: Restrict)
   teams IncubationTeam[]
   catalog IncubationCatalog[]
   sprints IncubationSprint[]
@@ -293,6 +295,7 @@ model IncubationProgram {
   audit IncubationAudit[]
   @@unique([id, courseId])
   @@index([courseId, status])
+  @@unique([competitionId, courseId])
   @@map("incubation_programs")
 }
 
@@ -337,6 +340,7 @@ model IncubationCatalog {
   programId String @map("program_id")
   kind String
   name String
+  variant String @default("")
   parentId String? @map("parent_id")
   unit String @default("piece")
   fractional Boolean @default(false)
@@ -1727,7 +1731,8 @@ model Competition {
   courseId    String    @map("course_id")
   title       String // e.g., "Battle of Cups"
   description String?
-  batchName   String    @map("batch_name")
+  kind        String    @default("form")
+  batchName   String?   @map("batch_name")
   schema      Json // Form schema (questions, types, validations)
   isActive    Boolean   @default(true) @map("is_active")
   startDate   DateTime  @default(now()) @map("start_date")
@@ -1740,6 +1745,9 @@ model Competition {
   corrections  CompetitionCorrectionRequest[]
   products     CompetitionProduct[]
   procurements CompetitionProcurement[]
+  incubation IncubationProgram?
+
+  @@unique([id, courseId])
 
   @@index([batchName])
   @@index([courseId])

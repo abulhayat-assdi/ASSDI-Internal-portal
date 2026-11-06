@@ -17,6 +17,13 @@ export async function GET(req: NextRequest) {
     const bundle = await overview(a as Actor, programId);
     const { program, catalog, records, teams, fields } = bundle;
     insist(
+      !bundle.member ||
+        bundle.member.isLead ||
+        ["field", "learning", "fgd", "insight"].includes(q.get("sheet") || ""),
+      "বিস্তারিত আর্থিক রিপোর্ট শুধু টিম লিডার দেখতে পারবেন।",
+      403,
+    );
+    insist(
       program && catalog && records && teams && fields,
       "রিপোর্ট পাওয়া যায়নি।",
     );
@@ -86,6 +93,7 @@ export async function GET(req: NextRequest) {
             r,
             products,
             teams.find((t) => t.id === r.teamId)?.name || "",
+            program.startDate,
           ),
         );
       sheets.push({ name: kind, rows });
@@ -177,6 +185,7 @@ export async function GET(req: NextRequest) {
             { ...r, data: r.data as EntryData },
             products,
             teams.find((t) => t.id === r.teamId)?.name || "",
+            program.startDate,
           ),
         ),
     });

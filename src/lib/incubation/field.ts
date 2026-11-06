@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import { isIncubationRunning } from "./lifecycle";
 import { Prisma } from "@prisma/client";
 import {
   accessProgram,
@@ -114,7 +115,10 @@ export async function fieldCommand(actor: Actor, input: unknown) {
       "মাঠ সেশন শিক্ষার্থীর নিজের অ্যাকাউন্ট থেকে করতে হবে।",
       403,
     );
-    insist(program.status === "active", "প্রোগ্রাম সক্রিয় নেই।");
+    insist(
+      body.action !== "checkin" || isIncubationRunning(program),
+      "প্রোগ্রাম সক্রিয় নেই।",
+    );
     const captured = new Date(body.position.capturedAt),
       now = new Date();
     insist(

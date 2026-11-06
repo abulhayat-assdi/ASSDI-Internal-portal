@@ -9,6 +9,7 @@ import { z } from "zod";
 import type { JWTPayload } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 import { isFeatureEnabled } from "@/lib/features";
+import { isIncubationRunning, incubationState } from "./lifecycle";
 import { withCourseContext } from "@/lib/db";
 import {
   calculateLedger,
@@ -55,8 +56,9 @@ const entryDataSchema = z
     sourceId: id.optional(),
     saleable: z.boolean().optional(),
     session: z.string().max(100).optional(),
-    findings: z.array(text).length(3).optional(),
-    actions: z.array(text).length(3).optional(),
+    round: z.string().max(100).optional(),
+    findings: z.array(z.string().trim().max(500)).min(1).max(3).optional(),
+    actions: z.array(z.string().trim().max(500)).min(1).max(3).optional(),
     segment: z.string().max(500).optional(),
     objections: z.string().max(2000).optional(),
     whyBought: z.string().max(2000).optional(),
@@ -71,10 +73,20 @@ export const settingsSchema = z
     trackingMinutes: z.number().int().min(1).max(60),
     retentionDays: z.number().int().min(1).max(730),
     expenseTypes: z.array(text).min(1).max(30),
+    sessions: z.array(text).max(30).default([]),
+    sessionsRequired: z.boolean().default(false),
+    segments: z.array(text).max(50).default([]),
+    objections: z.array(text).max(50).default([]),
+    fgdRequiredCount: z.number().int().min(1).max(3).default(1),
+    whyBoughtRequired: z.boolean().default(false),
   })
   .strict();
 export const isManager = (a: JWTPayload) =>
-  hasPermission(a.role, a.permissions, "admin_incubation");
+  ["teacher", "admin", "super_admin"].includes(a.role) &&
+  (a.role === "teacher" ||
+    hasPermission(a.role, a.permissions, "admin_incubation") ||
+    hasPermission(a.role, a.permissions, "business_incubation") ||
+    hasPermission(a.role, a.permissions, "admin_competitions"));
 export const isSupervisor = (a: JWTPayload) =>
   isManager(a) || hasPermission(a.role, a.permissions, "business_incubation");
 export async function featureTx<T>(actor: Actor, fn: (tx: Tx) => Promise<T>) {
@@ -128,6 +140,11 @@ export async function accessProgram(
   insist(program, "প্রোগ্রাম পাওয়া যায়নি।", 404);
   let member = null;
   if (actor.role === "student") {
+    insist(
+      program.status !== "draft",
+      "এই competition এখনো প্রকাশ করা হয়নি।",
+      403,
+    );
     const student = await studentIdentity(tx, actor);
     member = student
       ? await tx.incubationMember.findUnique({
@@ -136,7 +153,9 @@ export async function accessProgram(
         })
       : null;
     insist(
-      member && member.team.active,
+      member &&
+        member.team.active &&
+        (program.batchNames as string[]).includes(member.batchName),
       "এই প্রোগ্রামের সক্রিয় টিমে আপনাকে যুক্ত করা হয়নি।",
       403,
     );
@@ -358,16 +377,49 @@ async function validateData(
         })),
       "গ্রহণকারী টিম নির্বাচন করুন।",
     );
+  const settings = settingsSchema.parse(program.settings);
+  if (r.kind === "sale")
+    insist(
+      !settings.sessionsRequired ||
+        (!!d.session && settings.sessions.includes(d.session)),
+      "বিক্রির session নির্বাচন করুন।",
+    );
+  if (d.session && settings.sessions.length)
+    insist(
+      settings.sessions.includes(d.session),
+      "সঠিক session নির্বাচন করুন।",
+    );
   if (r.kind === "fgd")
     insist(
-      d.findings?.length === 3 && d.actions?.length === 3,
-      "FGD-তে ৩টি finding ও ৩টি action দিন।",
+      d.findings &&
+        d.actions &&
+        d.findings
+          .slice(0, settings.fgdRequiredCount)
+          .filter((v) => v.length >= 3).length === settings.fgdRequiredCount &&
+        d.actions
+          .slice(0, settings.fgdRequiredCount)
+          .filter((v) => v.length >= 3).length === settings.fgdRequiredCount,
+      `FGD-তে অন্তত ${settings.fgdRequiredCount}টি finding ও action দিন।`,
     );
   if (r.kind === "insight")
     insist(
-      d.segment && d.objections && d.whyBought && d.bestArea,
+      d.segment &&
+        d.objections &&
+        d.bestArea &&
+        (!settings.whyBoughtRequired || d.whyBought),
       "Insights-এর সব তথ্য দিন।",
     );
+  if (r.kind === "insight") {
+    insist(
+      !settings.segments.length || settings.segments.includes(d.segment || ""),
+      "সঠিক customer segment নির্বাচন করুন।",
+    );
+    insist(
+      !settings.objections.length ||
+        settings.objections.includes(d.objections || ""),
+      "সঠিক objection নির্বাচন করুন।",
+    );
+  }
   return d;
 }
 export async function overview(actor: Actor, programId?: string) {
@@ -381,6 +433,7 @@ export async function overview(actor: Actor, programId?: string) {
         courseId: actor.courseId,
         ...(actor.role === "student"
           ? {
+              status: { not: "draft" },
               batchNames: {
                 array_contains: student?.batchName
                   ? [student.batchName]
@@ -393,7 +446,20 @@ export async function overview(actor: Actor, programId?: string) {
       },
       orderBy: { createdAt: "desc" },
     });
-    const safePrograms = programs.map(({ publicTokenHash, ...p }) => p);
+    const safePrograms = programs.map(({ publicTokenHash, ...p }) =>
+      actor.role === "student"
+        ? {
+            id: p.id,
+            competitionId: p.competitionId,
+            name: p.name,
+            description: p.description,
+            startDate: p.startDate,
+            endDate: p.endDate,
+            status: p.status,
+            batchNames: student ? [student.batchName] : [],
+          }
+        : p,
+    );
     if (!programId)
       return {
         programs: safePrograms,
@@ -447,6 +513,9 @@ export async function overview(actor: Actor, programId?: string) {
       tx.incubationRecord.findMany({
         where: {
           programId,
+          ...(member && !member.isLead
+            ? { kind: { in: ["fgd", "insight"] }, enteredBy: actor.id }
+            : {}),
           ...(member
             ? {
                 OR: [
@@ -461,12 +530,23 @@ export async function overview(actor: Actor, programId?: string) {
       tx.incubationCorrection.findMany({
         where: {
           programId,
-          ...(member ? { record: { teamId: member.teamId } } : {}),
+          ...(member
+            ? member.isLead
+              ? { record: { teamId: member.teamId } }
+              : { requestedBy: actor.id }
+            : {}),
         },
         orderBy: { createdAt: "desc" },
       }),
       tx.incubationFieldSession.findMany({
-        where: { programId, ...(member ? { userId: actor.id } : {}) },
+        where: {
+          programId,
+          ...(member
+            ? member.isLead
+              ? { teamId: member.teamId }
+              : { userId: actor.id }
+            : {}),
+        },
         include: { pings: { orderBy: { capturedAt: "desc" }, take: 1 } },
         orderBy: { checkIn: "desc" },
       }),
@@ -474,7 +554,9 @@ export async function overview(actor: Actor, programId?: string) {
         where: {
           programId,
           ...(member
-            ? { OR: [{ teamId: member.teamId }, { uploadedBy: actor.id }] }
+            ? member.isLead
+              ? { teamId: member.teamId }
+              : { uploadedBy: actor.id }
             : {}),
         },
         select: { id: true, name: true, teamId: true, size: true },
@@ -490,7 +572,11 @@ export async function overview(actor: Actor, programId?: string) {
                     entityId: {
                       in: (
                         await tx.incubationRecord.findMany({
-                          where: { programId, teamId: member.teamId },
+                          where: {
+                            programId,
+                            teamId: member.teamId,
+                            ...(!member.isLead ? { enteredBy: actor.id } : {}),
+                          },
                           select: { id: true },
                         })
                       ).map((r) => r.id),
@@ -535,7 +621,14 @@ export async function overview(actor: Actor, programId?: string) {
       select: { id: true, name: true },
     });
     const fieldCorrections = await tx.incubationFieldCorrection.findMany({
-      where: { programId, ...(member ? { requestedBy: actor.id } : {}) },
+      where: {
+        programId,
+        ...(member
+          ? member.isLead
+            ? { session: { teamId: member.teamId } }
+            : { requestedBy: actor.id }
+          : {}),
+      },
       orderBy: { createdAt: "desc" },
     });
     const reportEntries = records.map((r) =>
@@ -544,10 +637,45 @@ export async function overview(actor: Actor, programId?: string) {
         : r,
     );
     const computed = await ledger(tx, programId);
+    const permittedProducts = new Set(
+      member
+        ? records
+            .flatMap(
+              (r) => (r.data as EntryData).lines?.map((l) => l.productId) || [],
+            )
+            .concat(
+              Object.keys(computed.stocks)
+                .filter((k) => k.startsWith(member.teamId + "|"))
+                .map((k) => k.split("|")[1]),
+            )
+        : [],
+    );
+    const permittedCategories = new Set(
+      member
+        ? [
+            ...sprints.map((s) => s.categoryId),
+            ...catalog
+              .filter((c) => permittedProducts.has(c.id))
+              .map((c) => c.parentId),
+          ]
+        : [],
+    );
     return {
       programs: safePrograms,
       program: {
-        ...program,
+        ...(member
+          ? {
+              id: program.id,
+              competitionId: program.competitionId,
+              name: program.name,
+              description: program.description,
+              startDate: program.startDate,
+              endDate: program.endDate,
+              status: program.status,
+              batchNames: [member.batchName],
+              settings: settingsSchema.parse(program.settings),
+            }
+          : program),
         publicTokenHash: undefined,
         publicEnabled: !!program.publicTokenHash,
       },
@@ -556,8 +684,19 @@ export async function overview(actor: Actor, programId?: string) {
       supervisor,
       batches,
       teams,
-      transferTeams,
-      catalog,
+      transferTeams: member && !member.isLead ? [] : transferTeams,
+      catalog: member
+        ? catalog.filter(
+            (c) =>
+              (member.isLead &&
+                !settingsSchema.parse(program.settings).enforceCategory) ||
+              c.kind === "area" ||
+              (c.kind === "category"
+                ? permittedCategories.has(c.id)
+                : permittedProducts.has(c.id) ||
+                  permittedCategories.has(c.parentId)),
+          )
+        : catalog,
       sprints,
       records,
       reportEntries,
@@ -568,8 +707,28 @@ export async function overview(actor: Actor, programId?: string) {
       history,
       roster,
       staff,
+      groupTemplates: manager
+        ? await tx.competitionGroup.findMany({
+            where: {
+              courseId: actor.courseId,
+              batchName: { in: program.batchNames as string[] },
+            },
+            select: {
+              id: true,
+              groupName: true,
+              batchName: true,
+              members: true,
+            },
+            orderBy: { groupName: "asc" },
+          })
+        : [],
       ledger: member
         ? {
+            reserved: Object.fromEntries(
+              Object.entries(computed.reserved).filter(([k]) =>
+                k.startsWith(`${member.teamId}|`),
+              ),
+            ),
             stocks: Object.fromEntries(
               Object.entries(computed.stocks).filter(([k]) =>
                 k.startsWith(`${member.teamId}|`),
@@ -580,7 +739,13 @@ export async function overview(actor: Actor, programId?: string) {
             ),
           }
         : computed,
-      actor: { id: actor.id, name: actor.displayName },
+      actor: { id: actor.id, name: actor.displayName, role: actor.role },
+      state: incubationState(program),
+      capabilities: {
+        manage: manager,
+        finance: !!member?.isLead,
+        teamPeople: !!member?.isLead,
+      },
     };
   });
 }
@@ -666,8 +831,37 @@ export async function command(actor: Actor, input: unknown) {
               courseId: actor.courseId,
               createdBy: actor.id,
               settings: json(values.settings),
+              competitionId: (
+                await tx.competition.create({
+                  data: {
+                    courseId: actor.courseId,
+                    kind: "business_incubation",
+                    title: values.name,
+                    description: values.description,
+                    batchName: null,
+                    schema: [],
+                    isActive: values.status === "active",
+                    startDate: new Date(values.startDate + "T00:00:00+06:00"),
+                    endDate: values.endDate
+                      ? new Date(values.endDate + "T23:59:59+06:00")
+                      : null,
+                  },
+                })
+              ).id,
             },
           });
+      await tx.competition.update({
+        where: { id: result.competitionId },
+        data: {
+          title: result.name,
+          description: result.description,
+          isActive: result.status === "active",
+          startDate: new Date(result.startDate + "T00:00:00+06:00"),
+          endDate: result.endDate
+            ? new Date(result.endDate + "T23:59:59+06:00")
+            : null,
+        },
+      });
       await audit(
         tx,
         actor,
@@ -678,7 +872,7 @@ export async function command(actor: Actor, input: unknown) {
         result,
         String(p.reason || ""),
       );
-      return { id: result.id };
+      return { id: result.id, competitionId: result.competitionId };
     }
     insist(body.programId, "প্রোগ্রাম নির্বাচন করুন।");
     const { program, member } = await accessProgram(
@@ -793,6 +987,7 @@ export async function command(actor: Actor, input: unknown) {
           kind: z.enum(["category", "product", "area"]),
           name: text,
           parentId: id.nullable(),
+          variant: z.string().trim().max(100).default(""),
           unit: text,
           fractional: z.boolean(),
           active: z.boolean(),
@@ -807,6 +1002,18 @@ export async function command(actor: Actor, input: unknown) {
           "পণ্যের ক্যাটাগরি নির্বাচন করুন।",
         );
       else v.parentId = null;
+      if (v.kind !== "product") v.variant = "";
+      const duplicate = await tx.incubationCatalog.findFirst({
+        where: {
+          programId: pid,
+          kind: v.kind,
+          parentId: v.parentId,
+          name: { equals: v.name, mode: "insensitive" },
+          variant: { equals: v.variant, mode: "insensitive" },
+          id: { not: v.id || "__new__" },
+        },
+      });
+      insist(!duplicate, "একই নাম ও variant-এর আইটেম আগে থেকেই আছে।");
       const before = v.id
         ? await tx.incubationCatalog.findFirst({
             where: { id: v.id, programId: pid },
@@ -820,6 +1027,7 @@ export async function command(actor: Actor, input: unknown) {
         before?.kind === "product" &&
         (before.parentId !== v.parentId ||
           before.unit !== v.unit ||
+          before.variant !== v.variant ||
           before.fractional !== v.fractional)
       ) {
         const used = await tx.$queryRaw<
@@ -923,7 +1131,7 @@ export async function command(actor: Actor, input: unknown) {
     }
     if (body.action === "record") {
       insist(
-        program.status === "active",
+        isIncubationRunning(program),
         "এন্ট্রির জন্য প্রোগ্রাম সক্রিয় থাকতে হবে।",
       );
       const v = z

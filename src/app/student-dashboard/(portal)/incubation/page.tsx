@@ -1,2 +1,2 @@
-import IncubationApp from "@/components/incubation/IncubationApp";
-export default function Page(){return <IncubationApp student/>;}
+import {redirect} from 'next/navigation';
+export default function Page(){redirect('/student-dashboard/competitions')}

@@ -26,6 +26,7 @@ async function main() {
   });
   for (const [id, role, roll, name] of [
     ["preview-admin", "admin", "", "Program Administrator"],
+    ["preview-teacher", "teacher", "", "Program Teacher"],
     ["preview-lead", "student", "1", "Team Leader"],
     ["preview-member", "student", "2", "Team Member"],
     ["preview-target", "student", "3", "Team Two Leader"],
@@ -81,6 +82,26 @@ async function main() {
     .setIssuedAt()
     .setExpirationTime("1d")
     .sign(new TextEncoder().encode(secret));
+  const otherTokens: Record<string, string> = {};
+  for (const [key, id, role, roll] of [
+    ["teacherToken", "preview-teacher", "teacher", ""],
+    ["memberToken", "preview-member", "student", "2"],
+    ["targetToken", "preview-target", "student", "3"],
+  ])
+    otherTokens[key] = await new SignJWT({
+      id,
+      email: id + "@test.local",
+      displayName: id,
+      role,
+      courseId: "preview-course",
+      ...(roll
+        ? { studentBatchName: "Sales Batch 12", studentRoll: roll }
+        : {}),
+    })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuedAt()
+      .setExpirationTime("1d")
+      .sign(new TextEncoder().encode(secret));
   mkdirSync(".incubation-test", { recursive: true });
   writeFileSync(
     ".incubation-test/preview.json",
@@ -88,6 +109,7 @@ async function main() {
       origin: "http://incubation.localhost:3105",
       adminToken,
       studentToken,
+      ...otherTokens,
     }),
   );
   await prisma.$disconnect();

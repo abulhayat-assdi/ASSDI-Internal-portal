@@ -663,3 +663,65 @@
     display: none;
   }
 }
+
+.inc-task-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+  margin: 18px 0;
+}
+.inc-task {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px;
+  text-align: left;
+  border: 1px solid #c9ddd4;
+  background: white;
+  border-radius: 16px;
+  font-size: 16px;
+  font-weight: 650;
+  color: #164e40;
+  cursor: pointer;
+}
+.inc-task:hover {
+  background: #e7f3eb;
+}
+.inc-task:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.inc-role {
+  border: 1px solid #ffffff60;
+  border-radius: 30px;
+  padding: 8px 16px;
+  font-weight: 700;
+}
+.inc-member .inc-head {
+  background: #214a6c;
+}
+.inc-leader .inc-head {
+  background: #164f3e;
+}
+.inc-student .inc-card {
+  margin-bottom: 16px;
+}
+.inc-student .inc-tabs {
+  margin-bottom: 20px;
+}
+
+@media (max-width: 500px) {
+  .inc-task-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .inc-task {
+    flex-direction: column;
+    align-items: flex-start;
+    font-size: 14px;
+    padding: 14px;
+    min-width: 0;
+  }
+  .inc-task svg {
+    flex-shrink: 0;
+  }
+}

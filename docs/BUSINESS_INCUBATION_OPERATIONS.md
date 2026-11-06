@@ -4,18 +4,19 @@
 
 এই release-এ Business Incubation-এর ওয়েব ফিচার রয়েছে। Android অ্যাপের পরিকল্পনা `ANDROID_PORTAL_APP_PLAN.md`-তে রাখা আছে; APK বা ফোন লক অবস্থার tracking এই release-এর অংশ নয়।
 
-কাজের branch: `feature/business-incubation`। ব্যবহারকারীর স্পষ্ট নির্দেশ ছাড়া main-এ merge, push বা production deployment করা হবে না।
+কাজের branch: `feature/incubation-competitions-v2`। ব্যবহারকারীর স্পষ্ট নির্দেশ ছাড়া main-এ merge, push বা production deployment করা হবে না।
 
 ## কোর্সে চালু করা
 
 1. Super Admin-এর course feature settings থেকে **Business Incubation** চালু করুন। নতুন ফিচার default off থাকে। বন্ধ করলে ডাটা মুছে যায় না এবং API-ও feature access বন্ধ করে।
-2. Staff-এর জন্য **Business Incubation** permission এবং পরিচালকের জন্য **Incubation Administration** permission দিন। নির্দিষ্ট শিক্ষককে প্রোগ্রামের staff list-এও যুক্ত করুন। Existing explicit permission lists-এ নতুন permission প্রয়োজনে Access Management থেকে দিতে হবে।
-3. Staff page: `/dashboard/incubation`; student page: `/student-dashboard/incubation`। Sidebar-এ একই নামে entry রয়েছে।
+2. শিক্ষক নিজের course-এর সব Incubation কাজ করতে পারবেন। অ্যাডমিনের existing Incubation/Competition access বজায় থাকবে। Public report-এ কারও edit access নেই।
+3. Staff ও student sidebar-এর **Competitions** খুলুন। Staff: Create New → Business Incubation। Student: Running item → নিজের team workspace। পুরোনো standalone Incubation URL Competitions-এ redirect হবে।
+4. Staff page: `/dashboard/competitions/[id]`; student page: `/student-dashboard/competitions/[id]`। `[id]` হলো parent Competition ID, internal program ID নয়।
 
 ## প্রথম প্রোগ্রাম
 
 1. নতুন প্রোগ্রামে নাম, শুরু/শেষ, বিদ্যমান ব্যাচ, তত্ত্বাবধায়ক ও নিয়ম দিন। স্প্রিন্টের দিন নিজে নির্ধারণ করুন। মাঠের সর্বোচ্চ সময় ঐচ্ছিক। GPS update interval ও retention period দিন।
-2. All Batch Info-এর বিদ্যমান roster থেকে একই ব্যাচের সদস্য নিয়ে টিম তৈরি করুন এবং একজন লিডার বাছুন। একই প্রোগ্রামে একজন দুই টিমে থাকতে পারবেন না।
+2. All Batch Info-এর বিদ্যমান roster থেকে একই ব্যাচের সদস্য নিয়ে টিম তৈরি করুন এবং একজন লিডার বাছুন। চাইলে একই ব্যাচের আগের Competition group থেকে সদস্য/লিডার কপি করে যাচাই করুন; পরে পুরোনো group বদলালে এই team বদলাবে না। একই প্রোগ্রামে একজন দুই টিমে থাকতে পারবেন না।
 3. ক্যাটাগরি, পণ্য/ভ্যারিয়েন্ট, একক ও ব্রড এরিয়া তৈরি করুন। ভগ্নাংশ শুধু উপযুক্ত পণ্যে চালু করুন। লেনদেন থাকা পণ্যের একক/ক্যাটাগরি বদলানোর বদলে নতুন পণ্য তৈরি করুন; নাম ও সক্রিয়তা বদলানো যায়।
 4. প্রতি টিমে স্প্রিন্টের শুরু/শেষ ও ক্যাটাগরি দিন। একই টিমের overlapping sprint গ্রহণযোগ্য নয়। বিক্রির নির্দিষ্ট এলাকা বরাদ্দ হয় না।
 5. সব প্রস্তুত হলে প্রোগ্রাম active করুন এবং প্রতিষ্ঠানের ফান্ড প্রদান নথিভুক্ত করুন।
@@ -25,7 +26,7 @@
 - সবাই নিজস্ব student account ব্যবহার করবে; আলাদা username/password বা নতুন student registration নেই।
 - শুধু বর্তমান লিডার টিমের আর্থিক এন্ট্রি দিতে পারবেন। নতুন লিডার নির্বাচিত হলে আগের লিডারের posting access সাথে সাথে বন্ধ হয়।
 - Procurement-এ voucher বাধ্যতামূলক। ছবি browser-এ ছোট করা হয়; server গ্রহণ করে JPG/PNG/WebP/PDF, সর্বোচ্চ ৮ MB।
-- Sales-এ পরিমাণ, মূল্য, পাওয়া টাকা ও ব্রড এরিয়া দিন। পাওয়া টাকা বিক্রির মূল্যের সমান না হলে কারণ দিন। বকেয়া আদায়ের আলাদা module নেই; পার্থক্য reconciliation-এ দৃশ্যমান থাকে।
+- লিডারের প্রথম পর্দায় বিক্রি/কেনা/খরচ/ফেরতের সরাসরি action আছে। Sales-এ পণ্য/variant, পরিমাণ, মূল্য, পাওয়া টাকা, configured session ও ব্রড এরিয়া দিন। পাওয়া টাকা বিক্রির মূল্যের সমান না হলে কারণ দিন। বকেয়া আদায়ের আলাদা module নেই; পার্থক্য reconciliation-এ দৃশ্যমান থাকে।
 - আজকের বিক্রি আজ বা আগামীকাল স্বাভাবিকভাবে জমা দেওয়া যায়। আরও পুরোনো এন্ট্রি নির্দিষ্ট submission-এর অনুমোদনের অপেক্ষায় থাকে। অননুমোদিত ডাটা হিসাব বা official report বদলায় না।
 - মূল ফান্ড ফেরতের প্রস্তাব লিডার জমা দিতে পারেন; প্রতিষ্ঠান/অনুমোদিত staff গ্রহণ নিশ্চিত করলে ক্যাশ ও বাকি principal বদলাবে। লাভ টিমের কাছেই থাকবে।
 - সদস্যরা নিজস্ব field session, steps/pedometer proof, FGD এবং market insight জমা দেবেন। আর্থিক ফলাফল শুধু টিমভিত্তিক; ব্যক্তিগত sales ranking নেই।
@@ -41,7 +42,7 @@
 
 ডাটা শিটে তারিখ/দাখিলের সময়সহ আগের record দেখা যায়। শিক্ষার্থী record বেছে পুরোনো read-only তথ্যের পাশে প্রস্তাবিত নতুন তথ্য ও কারণ দেন। অনুমোদিত শিক্ষক/অ্যাডমিন Correction Requests থেকে তুলনা করে গ্রহণ/প্রত্যাখ্যান করেন। অনুমোদনের সময় পুরোনো version, chronological stock ও linked team effects পুনরায় যাচাই হয়।
 
-Admin সরাসরি row editor বা একাধিক record-এর sheet editor ব্যবহার করতে পারেন। Sheet editor preview দেখায়; সব পরিবর্তন এক transaction-এ হয়। একটিও invalid/stale হলে পুরো পরিবর্তন বাতিল হয়। একবারে ২০০ record-এর সীমা স্পষ্টভাবে দেখায়; বড় scope হলে ফিল্টার ছোট করতে হবে। মূল history physically delete করা হয় না। Pending stale request প্রত্যাখ্যান করে নতুন request দেওয়া যায়।
+শিক্ষক/অ্যাডমিন সরাসরি row editor বা একাধিক record-এর sheet editor ব্যবহার করতে পারেন। Sheet editor preview দেখায়; সব পরিবর্তন এক transaction-এ হয়। একটিও invalid/stale হলে পুরো পরিবর্তন বাতিল হয়। একবারে ২০০ record-এর সীমা স্পষ্টভাবে দেখায়; বড় scope হলে ফিল্টার ছোট করতে হবে। মূল history physically delete করা হয় না। Pending stale request প্রত্যাখ্যান করে নতুন request দেওয়া যায়।
 
 মাঠের বন্ধ সেশনের সময়/ব্রড এরিয়া/স্টেপও একইভাবে সংশোধন করা যায়; captured GPS coordinates হাতে edit করা যায় না। Closing/closed period-এর admin correction-ও history-তে থাকে। অসম্পূর্ণ stock/principal/variance নিয়ে প্রোগ্রাম বন্ধ করতে ব্যাখ্যা দিতে হয়; principal নিজে থেকে মওকুফ হয় না।
 
@@ -62,7 +63,7 @@ Date range, batch, team, sprint, category, product ও broad area দিয়ে �
 - Institution-wide consolidated net profit ও stock value থেকে অবিক্রীত internal handover markup বাদ দেওয়া হয়। Team statements নিজেদের agreed handover মূল্য অনুযায়ী থাকে।
 - Excel-এ summary ও আলাদা operational sheets, pending/rejected submissions ও authorized history থাকে। PDF-এ বাংলা font, chart/table এবং page numbering থাকে। Pagination-এর প্রথম পৃষ্ঠা নয়, matching records export হয়।
 - ডাটা শিট, মাঠ ও FGD পেজের Excel/PDF বোতাম বর্তমান শিট export করে। রিপোর্ট পেজের বোতাম পুরো নির্বাচিত scope export করে। ব্যক্তির ফিল্টার শুধু মাঠ, FGD ও Insights-এ প্রযোজ্য; টিমের আর্থিক হিসাবকে ব্যক্তিগত sales হিসেবে দেখায় না। দৈনিক নিট বিক্রির চার্টে refund তার কার্যকর তারিখে বাদ যায়।
-- Public report স্পষ্টভাবে publish করতে হয়। নতুন link পুরোনো link revoke করে; unpublish-ও করা যায়। Public API/export-এ শুধু অনুমোদিত team aggregates থাকে—GPS, vouchers, private notes, raw records বা history নয়।
+- Public report স্পষ্টভাবে publish করতে হয়। নতুন link পুরোনো link revoke করে; unpublish-ও করা যায়। Public view শুধু দেখার জন্য: summary ও team-wise ফল। Public API/export-এ শুধু অনুমোদিত aggregates থাকে—GPS, vouchers, private notes, raw records বা history নয়।
 
 ## Coolify-এ automatic migration
 
@@ -75,11 +76,11 @@ Date range, batch, team, sprint, category, product ও broad area দিয়ে �
 3. `scripts/incubation-check-schema.cjs` দিয়ে সব ১২টি table এবং RLS readiness যাচাই হয়।
 4. তারপর বিদ্যমান startup steps ও Next server চালু হয়। Migration/readiness ব্যর্থ হলে app launch হয় না।
 
-Migration: `prisma/migrations/202611040001_business_incubation/migration.sql`। এটি schema-only; কোনো legacy import, sample program, product বা transaction seed করে না। Repeated startup আগের records reset করে না।
+Migration: `202611040001_business_incubation` খালি operational tables তৈরি করে; নতুন `202611060001_incubation_competitions` বিদ্যমান program-কে একবার parent Competition-এর সঙ্গে যুক্ত করে এবং variant field যোগ করে। Form competition-এর single batch rule বহাল থাকে। কোনো legacy CSV import, sample program/product/transaction seed নেই। Existing program/team/record/share IDs বজায় থাকে; repeated startup data reset বা duplicate parent তৈরি করে না। Readiness gate নতুন link/kind/variant columns-ও যাচাই করে।
 
 বিদ্যমান Coolify database credentials/`APP_DB_PASSWORD` বজায় রাখুন। Upload volume `/app/storage` persistent হতে হবে এবং `LOCAL_STORAGE_PATH=/app/storage` থাকতে হবে। GPS retention চালাতে `CRON_SECRET` বা external cron দরকার।
 
-ব্যবহারকারী merge ও push বললে তবেই Git/Coolify release করুন। আগে database ও upload backup, পরে migration log-এ `[incubation] schema and course isolation ready; no data seeded` এবং `/api/health` যাচাই করুন। নতুন ফিচার default off থাকবে; নির্বাচিত কোর্সে enable করে খালি setup থেকে শুরু করুন।
+ব্যবহারকারী merge ও push বললে তবেই Git/Coolify release করুন। আগে database ও upload backup, পরে migration log-এ `[incubation] schema and course isolation ready; no data seeded` এবং `/api/health` যাচাই করুন। নতুন ফিচার default off থাকবে; নির্বাচিত কোর্সে enable করুন। আগের program থাকলে Competitions → All-এ দেখুন; নতুন course হলে খালি setup থেকে শুরু করুন।
 
 ## স্থানীয় যাচাই
 
@@ -90,3 +91,9 @@ Native PostgreSQL checks-এর জন্য localhost-only disposable service p
 ## Rollback
 
 প্রয়োজনে course feature বন্ধ করে আগের application release চালানো যায়; নতুন tables/records রেখে দিন। Database restore বা table drop সাধারণ rollback নয়, কারণ এতে পরের আসল এন্ট্রি হারাতে পারে। Android release-এর কাজ পরে আলাদা পরিকল্পনা অনুযায়ী হবে।
+
+## এই revision-এর access ও review
+
+সদস্য নিজের মাঠ/FGD/Insight ও টিম summary দেখবেন; detailed finance/voucher নয়। লিডার নিজের টিমের finance এবং সবার field/GPS/proof/learning দেখবেন; অন্য টিমের private তথ্য নয়। হস্তান্তরের জন্য অন্য টিমের নাম ও সেই লেনদেনের তথ্য দেখা যাবে। শিক্ষকের সব পরিচালনার ক্ষমতা নিজ course-এ সীমিত।
+
+লিডার বদল, draft/ended/inactive team, no-team card, reserved stock এবং cash-count snapshot আলাদা validation পায়। ছাত্রের response sheet-এ search/sort/pagination এবং date filters আছে। Summary/stock হিসাব গণনা করা হয়; সরাসরি computed cell edit করা হয় না।

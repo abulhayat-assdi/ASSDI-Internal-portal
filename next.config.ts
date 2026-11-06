@@ -79,7 +79,7 @@ const nextConfig: NextConfig = {
                 ],
             },
             {
-                source: '/student-dashboard/incubation/:path*',
+                source: '/student-dashboard/competitions/:path*',
                 headers: [{ key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(self)' }],
             },
         ];

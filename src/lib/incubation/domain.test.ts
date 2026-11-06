@@ -40,6 +40,17 @@ const line = (quantity: string, unitPrice = "100", cash?: string) => ({
   unitPrice,
   ...(cash === undefined ? {} : { cash }),
 });
+it("cash reconciliation compares a count with the balance at that count, not later cash movements", () => {
+  const rows = [
+    entry("fund", { amount: "1000" }),
+    entry("cash_count", { amount: "990" }),
+    entry("expense", { amount: "100" }),
+  ];
+  const f = calculateLedger(rows, products).summaries[0];
+  expect(f.cash).toBe(90000);
+  expect(f.cashAtCount).toBe(100000);
+  expect(f.cashDifference).toBe(-1000);
+});
 const sample = () => [
   entry("fund", { amount: "5000" }),
   entry("purchase", { lines: [line("10")] }),

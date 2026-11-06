@@ -29,6 +29,16 @@ async function check() {
       if (!row || !row.relrowsecurity || !row.relforcerowsecurity)
         throw Error(`Incubation schema/RLS missing: ${name}`);
     }
+    const columns = await client.query(
+      "SELECT table_name,column_name,is_nullable FROM information_schema.columns WHERE table_schema='public' AND ((table_name='incubation_programs' AND column_name='competition_id') OR (table_name='competitions' AND column_name='kind') OR (table_name='incubation_catalog' AND column_name='variant'))",
+    );
+    if (
+      columns.rows.length !== 3 ||
+      !columns.rows.some(
+        (r) => r.column_name === "competition_id" && r.is_nullable === "NO",
+      )
+    )
+      throw Error("Incubation Competition upgrade is missing");
     console.log(
       "[incubation] schema and course isolation ready; no data seeded",
     );
