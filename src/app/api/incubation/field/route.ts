@@ -29,13 +29,15 @@ export async function GET(req: NextRequest) {
       sessionId = req.nextUrl.searchParams.get("sessionId") || "";
     return NextResponse.json(
       await featureTx(actor, async (tx) => {
-        await accessProgram(tx, actor, programId);
+        const { member } = await accessProgram(tx, actor, programId);
         const field = await tx.incubationFieldSession.findFirst({
           where: { id: sessionId, programId },
         });
         insist(field, "সেশন পাওয়া যায়নি।", 404);
         insist(
-          actor.role !== "student" || field.userId === actor.id,
+          actor.role !== "student" ||
+            field.userId === actor.id ||
+            (!!member?.isLead && field.teamId === member.teamId),
           "শুধু নিজের অবস্থানের ইতিহাস দেখা যাবে।",
           403,
         );

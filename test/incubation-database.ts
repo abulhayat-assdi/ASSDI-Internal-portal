@@ -7,8 +7,9 @@ import { Client } from "pg";
 /** Always creates an in-memory database. Never reads DATABASE_URL or production credentials. */
 export async function startIncubationTestDatabase(
   port = 56000 + (process.pid % 5000),
+  upgrade = true,
 ) {
-  if (process.env.INCUBATION_NATIVE_TEST === "1") {
+  if (process.env.INCUBATION_NATIVE_TEST === "1" && upgrade) {
     // This exact, localhost-only throwaway service is created by the review command.
     // Never accept an arbitrary database URL from the caller or the portal .env.
     const baseUrl =
@@ -81,6 +82,13 @@ export async function startIncubationTestDatabase(
       "utf8",
     ),
   );
+  if (upgrade)
+    await db.exec(
+      readFileSync(
+        "prisma/migrations/202611060001_incubation_competitions/migration.sql",
+        "utf8",
+      ),
+    );
   const server = new PGLiteSocketServer({
     db,
     host: "127.0.0.1",

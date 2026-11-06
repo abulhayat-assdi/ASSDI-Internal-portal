@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
-import { command, overview, type Actor } from "@/lib/incubation/server";
+import {
+  command,
+  overview,
+  featureTx,
+  type Actor,
+} from "@/lib/incubation/server";
 import { failure } from "@/lib/incubation/http";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -9,12 +14,25 @@ export async function GET(req: NextRequest) {
     const actor = await getSessionUser(req);
     if (!actor?.courseId)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    return NextResponse.json(
-      await overview(
-        actor as Actor,
-        req.nextUrl.searchParams.get("programId") || undefined,
-      ),
-    );
+    const cid = req.nextUrl.searchParams.get("competitionId");
+    const pid = cid
+      ? await featureTx(
+          actor as Actor,
+          async (tx) =>
+            (
+              await tx.incubationProgram.findFirst({
+                where: { competitionId: cid },
+                select: { id: true },
+              })
+            )?.id,
+        )
+      : req.nextUrl.searchParams.get("programId");
+    if (cid && !pid)
+      return NextResponse.json(
+        { error: "Competition পাওয়া যায়নি।" },
+        { status: 404 },
+      );
+    return NextResponse.json(await overview(actor as Actor, pid || undefined));
   } catch (e) {
     return failure(e);
   }

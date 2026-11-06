@@ -146,6 +146,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // access in this course, except Homework — which stays hidden/off-limits.
         if (user.impersonatedBy) return key !== "homework";
         const perms = user.permissions ?? getEffectivePermissions(user.role, []);
+        if (key === 'competitions_view') return user.role === 'teacher' || ['competitions_view', 'admin_competitions', 'business_incubation', 'admin_incubation'].some(k => perms.includes(k));
         return perms.includes(key);
     };
 

@@ -5,7 +5,7 @@ import { getDateFieldId, isValidReportDate } from "@/lib/competitions";
 
 export async function POST(
   req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
@@ -21,65 +21,74 @@ export async function POST(
 
     const compId = id;
 
-    const result = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
-      const competition = await tx.competition.findUnique({ where: { id: compId, courseId } });
-      if (!competition) return { error: "Competition not found" as const };
-
-      // The form's date answer is the day a row counts for, so an edit to it
-      // here has to move the row's report date too.
-      const dateField = getDateFieldId(competition.schema);
-      const reportDateOf = (data: any) => {
-        const answered = dateField ? data?.[dateField] : null;
-        return isValidReportDate(answered) ? { reportDate: answered } : {};
-      };
-
-      // Handle deletion of requested submission IDs
-      if (Array.isArray(deletedIds) && deletedIds.length > 0) {
-        await tx.competitionSubmission.deleteMany({
-          where: {
-            id: { in: deletedIds },
-            competitionId: compId,
-            courseId,
-          }
+    const result = await withCourseContext(
+      { courseId, isSuperAdmin: false },
+      async (tx) => {
+        const competition = await tx.competition.findUnique({
+          where: { id: compId, courseId, kind: "form" },
         });
-      }
+        if (!competition) return { error: "Competition not found" as const };
 
-      if (Array.isArray(submissions) && submissions.length > 0) {
-        // Process upserts/updates & creates
-        for (const sub of submissions) {
-          if (sub.id) {
-            // Update existing submission
-            await tx.competitionSubmission.update({
-              where: { id: sub.id, courseId },
-              data: {
-                type: sub.teamName ? "team" : "individual",
-                teamName: sub.teamName || null,
-                rollNumber: sub.rollNumber,
-                studentName: sub.studentName || "N/A",
-                data: sub.data,
-                ...reportDateOf(sub.data)
-              }
-            }).catch(console.error);
-          } else {
-            // Create new submission
-            await tx.competitionSubmission.create({
-              data: {
-                courseId,
-                competitionId: compId,
-                type: sub.teamName ? "team" : "individual",
-                teamName: sub.teamName || null,
-                rollNumber: sub.rollNumber,
-                studentName: sub.studentName || "N/A",
-                data: sub.data,
-                ...reportDateOf(sub.data)
-              }
-            }).catch(console.error);
+        // The form's date answer is the day a row counts for, so an edit to it
+        // here has to move the row's report date too.
+        const dateField = getDateFieldId(competition.schema);
+        const reportDateOf = (data: any) => {
+          const answered = dateField ? data?.[dateField] : null;
+          return isValidReportDate(answered) ? { reportDate: answered } : {};
+        };
+
+        // Handle deletion of requested submission IDs
+        if (Array.isArray(deletedIds) && deletedIds.length > 0) {
+          await tx.competitionSubmission.deleteMany({
+            where: {
+              id: { in: deletedIds },
+              competitionId: compId,
+              courseId,
+            },
+          });
+        }
+
+        if (Array.isArray(submissions) && submissions.length > 0) {
+          // Process upserts/updates & creates
+          for (const sub of submissions) {
+            if (sub.id) {
+              // Update existing submission
+              await tx.competitionSubmission
+                .update({
+                  where: { id: sub.id, courseId },
+                  data: {
+                    type: sub.teamName ? "team" : "individual",
+                    teamName: sub.teamName || null,
+                    rollNumber: sub.rollNumber,
+                    studentName: sub.studentName || "N/A",
+                    data: sub.data,
+                    ...reportDateOf(sub.data),
+                  },
+                })
+                .catch(console.error);
+            } else {
+              // Create new submission
+              await tx.competitionSubmission
+                .create({
+                  data: {
+                    courseId,
+                    competitionId: compId,
+                    type: sub.teamName ? "team" : "individual",
+                    teamName: sub.teamName || null,
+                    rollNumber: sub.rollNumber,
+                    studentName: sub.studentName || "N/A",
+                    data: sub.data,
+                    ...reportDateOf(sub.data),
+                  },
+                })
+                .catch(console.error);
+            }
           }
         }
-      }
 
-      return { count: submissions?.length || 0 };
-    });
+        return { count: submissions?.length || 0 };
+      },
+    );
 
     if ("error" in result) {
       return NextResponse.json({ error: result.error }, { status: 404 });
@@ -88,13 +97,16 @@ export async function POST(
     return NextResponse.json({ success: true, count: result.count });
   } catch (error: any) {
     console.error("Error managing bulk submissions:", error);
-    return NextResponse.json({ error: error.message || "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: error.message || "Internal server error" },
+      { status: 500 },
+    );
   }
 }
 
 export async function DELETE(
   req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id: compId } = await params;
@@ -109,7 +121,10 @@ export async function DELETE(
     const submissionId = searchParams.get("submissionId");
 
     if (!submissionId) {
-      return NextResponse.json({ error: "Submission ID required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Submission ID required" },
+        { status: 400 },
+      );
     }
 
     await withCourseContext({ courseId, isSuperAdmin: false }, (tx) =>
@@ -118,13 +133,16 @@ export async function DELETE(
           id: submissionId,
           competitionId: compId,
           courseId,
-        }
-      })
+        },
+      }),
     );
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error("Error deleting submission:", error);
-    return NextResponse.json({ error: error.message || "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: error.message || "Internal server error" },
+      { status: 500 },
+    );
   }
 }

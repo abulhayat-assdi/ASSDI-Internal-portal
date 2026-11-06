@@ -99,6 +99,7 @@ export function isLate(date: string, today = todayDhaka()) {
 export interface Product {
   id: string;
   name: string;
+  variant?: string;
   parentId: string | null;
   unit: string;
   fractional: boolean;
@@ -122,6 +123,7 @@ export interface EntryData {
   sourceId?: string;
   saleable?: boolean;
   session?: string;
+  round?: string;
   findings?: string[];
   actions?: string[];
   segment?: string;
@@ -165,6 +167,7 @@ export interface Finance {
   cash: number;
   variance: number;
   countedCash: number | null;
+  cashAtCount: number | null;
 }
 const emptyFinance = (): Finance => ({
   funding: 0,
@@ -180,6 +183,7 @@ const emptyFinance = (): Finance => ({
   cash: 0,
   variance: 0,
   countedCash: null,
+  cashAtCount: null,
 });
 export function calculateLedger(entries: Entry[], products: Product[]) {
   const stocks: Record<string, Stock> = {},
@@ -275,7 +279,10 @@ export function calculateLedger(entries: Entry[], products: Product[]) {
         f.expenses += amount;
         f.cash -= amount;
       }
-      if (r.kind === "cash_count") f.countedCash = amount;
+      if (r.kind === "cash_count") {
+        f.countedCash = amount;
+        f.cashAtCount = f.cash;
+      }
       recordEffects();
       continue;
     }
@@ -431,7 +438,8 @@ export function calculateLedger(entries: Entry[], products: Product[]) {
     grossProfit: f.revenue - f.costOfSales,
     netProfit: f.revenue - f.costOfSales - f.expenses - f.damage + f.returnGain,
     principalOutstanding: f.funding - f.principalReturned,
-    cashDifference: f.countedCash === null ? null : f.countedCash - f.cash,
+    cashDifference:
+      f.countedCash === null ? null : f.countedCash - (f.cashAtCount ?? f.cash),
     stockValue: Object.entries(stocks)
       .filter(([k]) => k.startsWith(`${teamId}|`))
       .reduce((n, [, s]) => n + s.value, 0),

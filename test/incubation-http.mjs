@@ -291,6 +291,8 @@ for (const [scope, person] of [
     assert.equal(wb.getWorksheet("Field Sessions").rowCount, 1);
   if (scope === "learning") assert.equal(wb.getWorksheet("fgd").rowCount, 2);
 }
+config.competitionId = bundle.program.competitionId;
+config.targetTeamId = target;
 config.areaId = area;
 config.programId = programId;
 config.teamId = team;

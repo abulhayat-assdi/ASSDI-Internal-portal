@@ -370,16 +370,15 @@ describe("real migration and transactional incubation workflows", () => {
     expect(recipientReport.summaries[0].purchases).toBe(20000);
     expect(recipientReport.summaries[0].cash).toBe(-20000);
   });
-  it("rejects cross-course and unassigned supervisor access", async () => {
+  it("rejects cross-course access and gives teachers full course management", async () => {
     await expect(
       api.overview({ ...manager, courseId: "course-b" }, programId),
     ).rejects.toThrow();
-    await expect(
-      api.overview(
-        { ...manager, role: "teacher", permissions: ["business_incubation"] },
-        programId,
-      ),
-    ).rejects.toThrow();
+    const teacherBundle = await api.overview(
+      { ...manager, role: "teacher", permissions: [] },
+      programId,
+    );
+    expect(teacherBundle.manager).toBe(true);
   });
   it("publishes only an allowlisted public report and revokes links", async () => {
     const { token } = await send(manager, "share", { enabled: true });
@@ -533,6 +532,13 @@ describe("real migration and transactional incubation workflows", () => {
       { lines: [line("4")], reason: "Reserve handover" },
       { targetTeamId: teamB },
     );
+    const scoped = await api.overview(lead, programId);
+    expect(scoped.ledger?.reserved[teamA + "|" + product]).toBe(4000);
+    expect(
+      Object.keys(scoped.ledger?.reserved || {}).every((k) =>
+        k.startsWith(teamA + "|"),
+      ),
+    ).toBe(true);
     await expect(
       record(lead, "sale", { lines: [line("2", "150")], areaId: area }),
     ).rejects.toThrow();
@@ -561,6 +567,82 @@ describe("real migration and transactional incubation workflows", () => {
     await expect(
       record(lead, "expense", { amount: "1", expenseType: "Transport" }),
     ).rejects.toThrow();
+  });
+  it("keeps roles per program and blocks drafts, ended entries and inactive teams", async () => {
+    const created = (await api.command(manager, {
+      action: "program",
+      payload: {
+        name: "Independent program",
+        description: "",
+        startDate: todayDhaka(),
+        endDate: null,
+        batchNames: ["Batch 1"],
+        staffIds: [],
+        status: "active",
+        settings,
+      },
+    })) as any;
+    const original = await api.overview(lead, programId);
+    const studentRow = await prisma.batchStudent.findUniqueOrThrow({
+      where: { id: "s-lead" },
+    });
+    // Use the real roster batch rather than a global roll-based group.
+    await prisma.incubationProgram.update({
+      where: { id: created.id },
+      data: { batchNames: [studentRow.batchName] },
+    });
+    const newTeam = (await api.command(manager, {
+      action: "team",
+      programId: created.id,
+      payload: {
+        name: "Independent team",
+        studentIds: [studentRow.id],
+        leadId: studentRow.id,
+        active: true,
+      },
+    })) as any;
+    expect(original.member?.isLead).toBe(false);
+    expect((await api.overview(lead, created.id)).member?.isLead).toBe(true);
+    await prisma.incubationTeam.update({
+      where: { id: newTeam.id },
+      data: { active: false },
+    });
+    await expect(api.overview(lead, created.id)).rejects.toThrow();
+    await prisma.incubationTeam.update({
+      where: { id: newTeam.id },
+      data: { active: true },
+    });
+    await prisma.incubationProgram.update({
+      where: { id: created.id },
+      data: { status: "draft" },
+    });
+    await expect(api.overview(lead, created.id)).rejects.toThrow();
+    await prisma.incubationProgram.update({
+      where: { id: created.id },
+      data: {
+        status: "active",
+        startDate: "2026-01-01",
+        endDate: "2026-01-02",
+      },
+    });
+    await expect(
+      api.command(lead, {
+        action: "record",
+        programId: created.id,
+        payload: {
+          teamId: newTeam.id,
+          kind: "expense",
+          date: "2026-01-01",
+          requestKey: "ended-rejected",
+          data: { amount: "1", expenseType: "Transport" },
+        },
+      }),
+    ).rejects.toThrow();
+    await prisma.incubationProgram.update({
+      where: { id: created.id },
+      data: { endDate: null, batchNames: ["Revoked batch"] },
+    });
+    await expect(api.overview(lead, created.id)).rejects.toThrow();
   });
   it("audit history cannot be overwritten even by a direct database update", async () => {
     await expect(

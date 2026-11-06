@@ -11,6 +11,7 @@ export const PORTAL_OWNER_EMAIL =
     process.env.NEXT_PUBLIC_PORTAL_OWNER_EMAIL?.toLowerCase().trim() || "mohammadabulhayatt@gmail.com";
 
 export type PermissionKey =
+    | "competitions_view"
     | "business_incubation"
     | "admin_incubation"
     | "crm_supervisor"
@@ -65,6 +66,7 @@ export interface PermissionMeta {
 }
 
 export const PERMISSION_META: Record<PermissionKey, PermissionMeta> = {
+    competitions_view:{label:'Competitions workspace',path:'/dashboard/competitions',group:'teacher',icon:'🏆',exact:true},
     business_incubation: { label: "Business Incubation", path: "/dashboard/incubation", group: "teacher", icon: "🌱" },
     admin_incubation: { label: "Incubation Administration", path: "/dashboard/incubation/settings", group: "admin", icon: "🌱" },
     crm_supervisor: { label: "CRM Supervisor", path: "/dashboard/crm", group: "management", icon: "\uD83C\uDFA7" },
@@ -137,6 +139,7 @@ const matchesPath = (pathname: string, path: string, exact?: boolean) =>
  * The most specific (longest) registered path wins.
  */
 export function getRequiredPermission(pathname: string): PermissionKey | typeof UNREGISTERED_PAGE | null {
+    if(pathname==='/dashboard/competitions/create' || (/^\/dashboard\/competitions\/[^/]+$/.test(pathname) && !['groups','corrections'].includes(pathname.split('/').pop()!)))return 'competitions_view';
     if (pathname !== "/dashboard" && !pathname.startsWith("/dashboard/")) return null;
 
     const entries = (Object.entries(PERMISSION_META) as [PermissionKey, PermissionMeta][])
@@ -166,6 +169,7 @@ export const ADMIN_TEACHER_MARKER = "__role:admin_teacher";
 // creation) is deliberately excluded — an admin must opt a teacher in
 // explicitly via Access Management, it is not granted by default.
 export const DEFAULT_TEACHER_PERMISSIONS: PermissionKey[] = [
+    'competitions_view','business_incubation',
     "schedule", "routine", "batch_info", "resources", "course_modules",
     "policies", "feedback", "homework", "quiz", "attendance", "teacher_attendance",
     "teachers", "admin_results", "typing_exam",
@@ -249,5 +253,6 @@ export function hasPermission(
 ): boolean {
     if (role === "super_admin") return true;
     const effective = getEffectivePermissions(role, storedPermissions);
+    if (permission === 'competitions_view') return role === 'teacher' || ['competitions_view', 'admin_competitions', 'business_incubation', 'admin_incubation'].some(k => effective.includes(k as PermissionKey));
     return effective.includes(permission);
 }

@@ -27,7 +27,6 @@ interface NavSection {
 }
 
 const teacherAdminTopNavItems: NavItem[] = [
-    { href: "/dashboard/incubation", label: "Business Incubation", icon: "🌱", permission: "business_incubation", feature: "business_incubation" },
     { href: "/dashboard/crm", label: "Customer Service CRM", icon: "\uD83C\uDFA7", permission: "crm_supervisor", feature: "crm" },
     { href: "/dashboard/crm/settings", label: "CRM Settings", icon: "\u2699\uFE0F", permission: "crm_admin", feature: "crm" },
     { href: "/dashboard", label: "Dashboard", icon: "🏠", permission: null },
@@ -73,7 +72,7 @@ const teacherAdminNavSections: NavSection[] = [
         title: "Resources & Activities",
         icon: "📑",
         items: [
-            { href: "/dashboard/competitions", label: "Competitions (Forms)", icon: "🏆", permission: "admin_competitions", feature: "competitions" },
+            { href: "/dashboard/competitions", label: "Competitions", icon: "🏆", permission: "competitions_view", feature: "competitions" },
             { href: "/dashboard/resources", label: "Resource Library", icon: "🗂️", permission: "resources", feature: "resources" },
             { href: "/dashboard/admin/resource-management", label: "Admin: Resources", icon: "🗂️", permission: "admin_resources", feature: "resources" },
             { href: "/dashboard/policies", label: "Policy & Minutes", icon: "📋", permission: "policies", feature: "policies" },
@@ -116,7 +115,6 @@ const teacherAdminNavSections: NavSection[] = [
 ];
 
 const studentNavItems: NavItem[] = [
-    { href: "/student-dashboard/incubation", label: "Business Incubation", icon: "🌱", permission: null, feature: "business_incubation" },
     { href: "/student-dashboard/crm", label: "Customer Service CRM", icon: "\uD83C\uDFA7", permission: null, feature: "crm" },
     { href: "/student-dashboard", label: "Dashboard", icon: "🏠", permission: null },
     { href: "/student-dashboard/routine", label: "Class Routine", icon: "🗓️", permission: null },
@@ -217,6 +215,7 @@ export default function Sidebar({ variant }: SidebarProps = {}) {
 
     // Filter helper function
     const isNavItemAllowed = (item: NavItem) => {
+        if(item.feature === "competitions" && !loading) return (features.competitions !== false || features.business_incubation === true) && (isStudent || hasPermission("competitions_view"));
         if (item.feature === "crm" && (loading || features.crm !== true)) return false;
         if (loading) return true; // show all while loading
         if (item.feature && Object.keys(features).length > 0) {

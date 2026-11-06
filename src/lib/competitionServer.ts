@@ -42,7 +42,9 @@ export async function resolveTeam(tx: Tx, courseId: string, student: StudentComp
  * A competition's products and procurement entries. Entries carry the team's
  * current name, so a renamed team does not split into two in the totals.
  */
-export async function loadProcurement(tx: Tx, courseId: string, competition: { id: string; batchName: string }) {
+export async function loadProcurement(tx: Tx, courseId: string, competition: { id: string; batchName: string | null }) {
+    const batchName = competition.batchName;
+    if (!batchName) throw new Error("Form competition batch missing");
     const [products, rows, groups] = await Promise.all([
         tx.competitionProduct.findMany({ where: { courseId, competitionId: competition.id }, orderBy: { createdAt: "asc" } }),
         tx.competitionProcurement.findMany({
@@ -51,7 +53,7 @@ export async function loadProcurement(tx: Tx, courseId: string, competition: { i
             include: { product: { select: { name: true } } },
         }),
         tx.competitionGroup.findMany({
-            where: { courseId, batchName: competition.batchName },
+            where: { courseId, batchName },
             orderBy: { groupName: "asc" },
             select: { id: true, groupName: true, members: true },
         }),

@@ -80,6 +80,7 @@ export async function publicReport(
         id: p.id,
         name: p.name,
         parentId: p.parentId,
+        variant: p.variant,
       })),
       summaries: report.summaries.map((s) => ({
         teamId: s.teamId,
