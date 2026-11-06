@@ -17,7 +17,7 @@ Implementation and the web/native database checks below are complete. Final prod
 ## Completed automated checks
 
 - Incubation Vitest suites: **42 passed** in memory and **42 passed** on native PostgreSQL 16. These are the same tests run on two database engines, not 84 distinct tests.
-- Existing permissions, Competitions, file-access, deployment-rule and CRM domain regression suites: **54 passed**.
+- Existing permissions, Competitions, file-access, deployment-rule and CRM domain regression suites: **55 passed**. After integrating main `0619687`, the combined run passed **97 tests across 9 files**.
 - Whole-project TypeScript: passed. Targeted ESLint: passed. `git diff --check`: passed.
 - Additive populated-upgrade test: an existing program/team/fund retains its IDs and BDT 5,000 record while receiving its parent Competition link. Existing applied migration is unchanged.
 - Native migration deploy, repeated deploy preserving records, runtime-role preparation and schema/RLS readiness: passed. The new required link/kind/variant columns are checked.
@@ -48,14 +48,14 @@ The generated 16-page fixture PDF was rendered with MuPDF. Summary and Bengali o
 
 ## Linux build and remaining runtime gate
 
-The checked-in Dockerfile completed Next compilation, TypeScript validation, static page generation, build tracing, runtime assembly and layer export. During final image unpacking the local Docker engine returned EOF/API 500 and Docker Desktop remained in `stopping` state. The CLI therefore did **not** report a successful final Docker build. Its tagged manifest was visible, but this is not evidence of a runnable image.
+An earlier source snapshot of this revision completed Next compilation, TypeScript validation, static page generation, build tracing, runtime assembly and layer export through the checked-in Dockerfile. During final image unpacking the local Docker engine returned EOF/API 500 and Docker Desktop remained in `stopping` state. The CLI therefore did **not** report a successful final Docker build. Its tagged manifest was visible, but this is not evidence of a runnable image. The final personal-correction UI guard and latest main integration were checked again with whole-project TypeScript, regression and browser tests; the final source still requires a new successful image build.
 
 The normal Docker Desktop restart timed out. Automatic approval review rejected `docker desktop stop --force --timeout 30` because it could abruptly terminate unrelated local containers. No workaround, forced process kill, WSL shutdown, database removal or volume removal was performed.
 
 Remaining before release validation is complete:
 
 1. Recover Docker Desktop with the user's approval or let the user restart it.
-2. Finish/check `asm-incubation-review:competition-v2` and start it on localhost port 3106 with the isolated `incubation_competition_review` database and dedicated upload volume.
+2. Rebuild `asm-incubation-review:competition-v2` from the final source and start it on localhost port 3106 with the isolated `incubation_competition_review` database and dedicated upload volume.
 3. Confirm automatic fresh migration leaves Incubation programs/records empty, run the four-role HTTP/browser checks against that image, then restart it and compare all record versions, balances, the parent Competition link and an existing voucher.
 
 The earlier release's successful container checks are historical; they are not claimed as this revision's completed runtime validation. Native PostgreSQL migration/readiness checks have passed for this revision independently of Docker image startup.
