@@ -67,6 +67,7 @@ export const settingsSchema = z
       .default(rubric),
     serviceTarget: z.number().min(1).max(100).default(80),
     allowTransfer: z.boolean().default(true),
+    practiceAutoAssign: z.boolean().default(false),
     feedback: z.boolean().default(true),
     timezone: z
       .string()

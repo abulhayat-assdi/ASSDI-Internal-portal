@@ -107,3 +107,32 @@ The feature was initially implemented as uncommitted edits in the main checkout.
 The worktree uses its own clean `npm ci` installation and freshly generated portal/CRM Prisma clients. All 61 CRM + Live Chat tests pass there, including 60 concurrent customer starts, full 180-chat agent capacity and overflow queue checks. The complete project TypeScript check passes there as well: the earlier Incubation type/dependency errors are resolved by the clean dependency installation and client generation.
 
 The public/agent browser flow, mobile width, reconnect, internal-note privacy, customer feedback, teacher settings/dashboard, Excel export, Bengali transcript PDF and report PDF all pass from the isolated worktree. The standalone worker's `--once` cycle also passes. The optimized production build was retried in that worktree and still fails at the Windows `Application Data` junction; it is the remaining build-verification blocker. The feature is not represented as release-ready until that check passes in a suitable environment.
+
+
+## Dashboard entry and batch practice update (2026-11-06)
+
+The original feature was merged into main at ab8a271. This follow-up is isolated on branch fix/live-chat-entry-practice; it has not been merged, pushed or deployed.
+
+Staff now enter at /dashboard/live-chat and students at /student-dashboard/live-chat from the main portal sidebar, immediately above CRM. Existing CRM Live Chat bookmarks redirect with their query parameters intact. Existing CRM permissions and course/batch guards still apply. An administrator can select an unconfigured batch in the Live Chat workspace selector to provision its shared batch workspace directly.
+
+Each active batch workspace receives 60 fictional pending conversations on its first state load. The loader also adds bilingual categories and default references without overwriting existing configuration. Ten scenarios cover payment, delivery, refund, account access, wrong product, interruption, sales, cancellation, scheduling and complaint follow-up. Each conversation includes a fictional reference and a practice brief. Students select Start practice; capacity and assignment permissions still apply. Unstarted examples remain pending and do not expire or consume live routing capacity. Timers begin at the first practice assignment. The optional practiceAutoAssign setting enables automatic assignment; it is disabled by default.
+
+Customer replies follow four saved script steps, one per agent message. They are labelled scripted practice; they do not understand arbitrary replies or evaluate quality. Teachers assess the conversation. Public links and teacher role-play continue to provide human customer conversations. Cases and replies are stored in CRM database 2. Reloading or running Load 60 practice chats does not duplicate cases or reset completed work. A new batch gets a separate set; previous batch transcripts remain available to authorized staff.
+
+### Diagnosing the deployed error
+
+The screenshot's generic error alone does not establish the production cause. Missing chat tables/columns or runtime grants now return CHAT_DATABASE_SETUP_REQUIRED, connection failures return CHAT_DATABASE_CONNECTION, and server logs contain safe error codes. An empty message-preview query is skipped and nonempty preview IDs are explicitly cast to text[]. A failed initial load now shows a Retry action rather than an endless loading panel.
+
+Run npm run chat:setup -- --check in a one-shot job using the portal runtime DATABASE_URL and CRM runtime CUSTOMER_SERVICE_DATABASE_URL. This is read-only and checks tables, columns, role restrictions and grants, including the message sequence. To apply additive migrations, grant runtime permissions and preload eligible batch workspaces, run npm run chat:setup -- --migrate --seed --course telesales in that job, additionally supplying CUSTOMER_SERVICE_MIGRATION_DATABASE_URL. Use the actual course slug. Keep the migration owner URL out of the web and worker services. This includes migration 202611060001_chat_practice; deploy the corresponding generated Prisma client to both services.
+
+No production migration was executed during this fix. The Coolify log/error code and production setup status were unavailable, so the exact live failure remains to be confirmed by the setup check and post-deployment smoke test.
+
+
+### Follow-up verification
+
+- 69 CRM and Live Chat tests pass, including idempotent per-batch loading, protected practice claims, scripted reply deduplication, pending retention and cross-batch denial.
+- Four dashboard permission tests pass, including registration of the standalone Live Chat path.
+- Full project TypeScript validation passes.
+- Browser checks pass for main Dashboard links for staff/students, legacy bookmark redirects, persisted scripted replies, simulated setup error and Retry recovery, public entry, human SSE replies, private-note privacy, reconnect, mobile width, closure/rating, staff settings, Excel and Bengali PDF exports.
+- The database setup check, idempotent course seed and standalone worker --once pass against fixed disposable local databases.
+- Production build remains unverified due to the Windows glob/junction issue recorded above. No merge, push or production database change is included in this follow-up.

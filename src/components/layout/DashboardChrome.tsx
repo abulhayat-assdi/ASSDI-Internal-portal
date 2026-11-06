@@ -15,7 +15,8 @@ export default function DashboardChrome({
   const pathname = usePathname();
   const crm =
     pathname === "/dashboard/crm" || pathname.startsWith("/dashboard/crm/");
-  if (crm)
+  const liveChat = pathname === "/dashboard/live-chat" || pathname.startsWith("/dashboard/live-chat/");
+  if (crm || liveChat)
     return (
       <>
         <ImpersonationBanner />

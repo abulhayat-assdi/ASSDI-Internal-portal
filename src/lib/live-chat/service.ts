@@ -20,6 +20,10 @@ import {
   dispatch,
   finishAssignments,
 } from "../../../scripts/lib/live-chat-engine.cjs";
+import {
+  seedPractice,
+  advancePractice,
+} from "../../../scripts/lib/live-chat-practice.cjs";
 const json = (v: unknown) => JSON.parse(JSON.stringify(v));
 const scope = (ctx: Identity, workspaceId: string) => ({
   courseId: ctx.courseId,
@@ -44,7 +48,12 @@ async function canView(
   ctx: Identity,
   c: Awaited<ReturnType<typeof conversation>>,
 ) {
-  if (ctx.staff || c.agentId === ctx.user.id || c.transferTo === ctx.user.id)
+  if (
+    ctx.staff ||
+    c.agentId === ctx.user.id ||
+    c.transferTo === ctx.user.id ||
+    (c.practiceKey && !c.practiceStartedAt && c.status === "QUEUED")
+  )
     return;
   // A prior assignee retains read-only access to their own historical handling.
   const prior = await tx.chatAssignment.findFirst({
@@ -55,6 +64,17 @@ async function canView(
     },
   });
   need(prior, "This conversation is not assigned to you");
+}
+export async function prepareWorkspace(ctx: Identity, w: string) {
+  return access(ctx, w, true, async (tx) => {
+    await lock(tx, w);
+    const count = await tx.chatConversation.count({
+      where: { workspaceId: w, practiceKey: { startsWith: "practice-v1-" } },
+    });
+    if (count >= 60) return { added: 0, total: 60 };
+    const cfg = await config(tx, w);
+    return seedPractice(tx, scope(ctx, w), json(cfg), "system");
+  });
 }
 export async function read(ctx: Identity, w: string, q: URLSearchParams) {
   return access(ctx, w, false, async (tx) => {
@@ -200,6 +220,11 @@ export async function read(ctx: Identity, w: string, q: URLSearchParams) {
               { agentId: ctx.user.id },
               { transferTo: ctx.user.id },
               { id: { in: historyIds } },
+              {
+                practiceKey: { not: null },
+                practiceStartedAt: null,
+                status: "QUEUED",
+              },
             ],
           }
         : {}),
@@ -234,13 +259,15 @@ export async function read(ctx: Identity, w: string, q: URLSearchParams) {
       skip: (page - 1) * 50,
     });
     const total = await tx.chatConversation.count({ where: listWhere });
-    const previews = await tx.$queryRaw<
-      { id: string; preview: string | null; unread: bigint }[]
-    >`
+    const previews = chats.length
+      ? await tx.$queryRaw<
+          { id: string; preview: string | null; unread: bigint }[]
+        >`
       SELECT c.id,
       (SELECT m.text FROM "ChatMessage" m WHERE m."workspaceId"=${w} AND m."conversationId"=c.id AND m.kind='MESSAGE' ORDER BY m.sequence DESC LIMIT 1) AS preview,
       (SELECT count(*) FROM "ChatMessage" m WHERE m."workspaceId"=${w} AND m."conversationId"=c.id AND m.kind='MESSAGE' AND m.sender='CUSTOMER' AND m."createdAt">coalesce(c."agentReadAt",'epoch'::timestamp)) AS unread
-      FROM "ChatConversation" c WHERE c."workspaceId"=${w} AND c.id=ANY(${chats.map((c) => c.id)})`;
+      FROM "ChatConversation" c WHERE c."workspaceId"=${w} AND c.id=ANY(${chats.map((c) => c.id)}::text[])`
+      : [];
     const counts = await tx.chatConversation.groupBy({
       by: ["status"],
       where: {
@@ -413,6 +440,8 @@ export async function send(
     await event(tx, s, sender.id, input.kind.toLowerCase(), c.id, {
       messageId: m.id,
     });
+  if (input.kind === "MESSAGE" && sender.role === "AGENT" && c.practiceKey)
+    await advancePractice(tx, s, c);
   return m;
 }
 const envelope = z.object({
@@ -432,6 +461,10 @@ export async function mutate(ctx: Identity, raw: unknown) {
     const staff = () => need(ctx.staff, "Supervisor permission required");
     const admin = () =>
       need(ctx.admin, "CRM administrator permission required");
+    if (b.action === "load_practice") {
+      staff();
+      return seedPractice(tx, s, json(cfg), a.id);
+    }
     if (b.action === "initialize") {
       admin();
       await tx.chatSettings.upsert({
@@ -696,6 +729,84 @@ export async function mutate(ctx: Identity, raw: unknown) {
         c.agentId === a.id,
         "Only the current agent can perform this action",
       );
+    if (b.action === "claim_practice") {
+      need(
+        c.practiceKey && c.status === "QUEUED",
+        "This practice chat has already been started",
+        409,
+      );
+      const count = await tx.chatConversation.count({
+        where: {
+          workspaceId: w,
+          agentId: a.id,
+          status: { in: ["ASSIGNED", "ACTIVE"] },
+        },
+      });
+      need(
+        count < cfg.capacity,
+        "Close an active conversation before starting another practice chat",
+        409,
+      );
+      if (ctx.staff)
+        await tx.member.upsert({
+          where: { workspaceId_userId: { workspaceId: w, userId: a.id } },
+          create: { ...s, userId: a.id, role: "AGENT" },
+          update: {},
+        });
+      need(
+        await tx.member.findFirst({
+          where: { workspaceId: w, userId: a.id, active: true },
+        }),
+        "Active membership required",
+      );
+      const prior = await tx.chatAgentState.findUnique({
+        where: { workspaceId_userId: { workspaceId: w, userId: a.id } },
+      });
+      await tx.chatAgentState.upsert({
+        where: { workspaceId_userId: { workspaceId: w, userId: a.id } },
+        create: {
+          ...s,
+          userId: a.id,
+          name: a.name,
+          roll: ctx.user.studentRoll || "",
+          status: "BUSY",
+        },
+        update: {
+          status: "BUSY",
+          statusAt: now,
+          heartbeatAt: now,
+          lastAssignedAt: now,
+        },
+      });
+      if (prior?.status !== "BUSY")
+        await event(tx, s, a.id, "availability", null, {
+          status: "BUSY",
+          reason: "selected_practice",
+        });
+      await tx.chatConversation.update({
+        where: { workspaceId_id: { workspaceId: w, id: c.id } },
+        data: {
+          agentId: a.id,
+          status: "ACTIVE",
+          practiceStartedAt: c.practiceStartedAt || now,
+          queueAt: c.practiceStartedAt ? c.queueAt : now,
+          unansweredAt: c.unansweredAt || now,
+          assignedAt: now,
+          acceptedAt: now,
+        },
+      });
+      await tx.chatAssignment.create({
+        data: {
+          ...s,
+          conversationId: c.id,
+          agentId: a.id,
+          startedAt: now,
+          acceptedAt: now,
+        },
+      });
+      await event(tx, s, a.id, "accepted", c.id, { practice: true });
+      return { ok: true };
+    }
     if (b.action === "accept") {
       owner();
       need(c.status === "ASSIGNED", "Chat is not awaiting acceptance", 409);

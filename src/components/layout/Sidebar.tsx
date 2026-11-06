@@ -27,6 +27,7 @@ interface NavSection {
 }
 
 const teacherAdminTopNavItems: NavItem[] = [
+    { href: "/dashboard/live-chat", label: "Live Chat Training", icon: "\uD83D\uDCAC", permission: "crm_supervisor", feature: "live_chat" },
     { href: "/dashboard/incubation", label: "Business Incubation", icon: "🌱", permission: "business_incubation", feature: "business_incubation" },
     { href: "/dashboard/crm", label: "Customer Service CRM", icon: "\uD83C\uDFA7", permission: "crm_supervisor", feature: "crm" },
     { href: "/dashboard/crm/settings", label: "CRM Settings", icon: "\u2699\uFE0F", permission: "crm_admin", feature: "crm" },
@@ -116,6 +117,7 @@ const teacherAdminNavSections: NavSection[] = [
 ];
 
 const studentNavItems: NavItem[] = [
+    { href: "/student-dashboard/live-chat", label: "Live Chat Training", icon: "\uD83D\uDCAC", permission: null, feature: "live_chat" },
     { href: "/student-dashboard/incubation", label: "Business Incubation", icon: "🌱", permission: null, feature: "business_incubation" },
     { href: "/student-dashboard/crm", label: "Customer Service CRM", icon: "\uD83C\uDFA7", permission: null, feature: "crm" },
     { href: "/student-dashboard", label: "Dashboard", icon: "🏠", permission: null },
@@ -217,6 +219,7 @@ export default function Sidebar({ variant }: SidebarProps = {}) {
 
     // Filter helper function
     const isNavItemAllowed = (item: NavItem) => {
+        if (item.feature === "live_chat" && (loading || features.live_chat !== true || features.crm !== true)) return false;
         if (item.feature === "crm" && (loading || features.crm !== true)) return false;
         if (loading) return true; // show all while loading
         if (item.feature && Object.keys(features).length > 0) {
@@ -224,7 +227,7 @@ export default function Sidebar({ variant }: SidebarProps = {}) {
         }
         if (isStudent) return true;
         if (!item.permission) return true; // dashboard — always visible
-        return hasPermission(item.permission);
+        return hasPermission(item.permission) || (item.feature === "live_chat" && hasPermission("crm_admin"));
     };
 
     // Filter top nav items
@@ -341,7 +344,7 @@ export default function Sidebar({ variant }: SidebarProps = {}) {
                             return (
                                 <li key={item.href}>
                                     <Link
-                                        href={item.href} target={item.href === '/student-dashboard/crm' ? '_blank' : undefined} rel={item.href === '/student-dashboard/crm' ? 'noopener noreferrer' : undefined}
+                                        href={item.href} target={['/student-dashboard/crm','/student-dashboard/live-chat'].includes(item.href) ? '_blank' : undefined} rel={['/student-dashboard/crm','/student-dashboard/live-chat'].includes(item.href) ? 'noopener noreferrer' : undefined}
                                         prefetch={true}
                                         onClick={() => {
                                             setIsMobileMenuOpen(false);
@@ -421,7 +424,7 @@ export default function Sidebar({ variant }: SidebarProps = {}) {
                                                     return (
                                                         <li key={item.href}>
                                                             <Link
-                                                                href={item.href} target={item.href === '/student-dashboard/crm' ? '_blank' : undefined} rel={item.href === '/student-dashboard/crm' ? 'noopener noreferrer' : undefined}
+                                                                href={item.href} target={['/student-dashboard/crm','/student-dashboard/live-chat'].includes(item.href) ? '_blank' : undefined} rel={['/student-dashboard/crm','/student-dashboard/live-chat'].includes(item.href) ? 'noopener noreferrer' : undefined}
                                                                 prefetch={true}
                                                                 onClick={() => {
                                                                     setIsMobileMenuOpen(false);

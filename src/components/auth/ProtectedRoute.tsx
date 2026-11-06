@@ -72,7 +72,8 @@ export default function ProtectedRoute({ children, minimalLoading = false }: { c
     // Unregistered dashboard pages are Super Admin only (see getRequiredPermission).
     const denied = requiredPermission === UNREGISTERED_PAGE
         ? userProfile.role !== "super_admin"
-        : requiredPermission !== null && !hasPermission(requiredPermission);
+        : requiredPermission !== null && !hasPermission(requiredPermission) &&
+          !((pathname === "/dashboard/live-chat" || pathname?.startsWith("/dashboard/live-chat/")) && hasPermission("crm_admin"));
     if (denied) {
         return (
             <div className="flex items-center justify-center min-h-[60vh]">
