@@ -1,6 +1,6 @@
 # Business Incubation — Competition integration verification
 
-Date: 2026-11-06, Asia/Dhaka. Branch: `feature/incubation-competitions-v2`, based on main `ab8a271`. Worktree: `asm-portal-v2-incubation`.
+Date: 2026-11-06, Asia/Dhaka. Branch: `feature/incubation-competitions-v2`, started from main `ab8a271`; latest main `0619687` integrated into this feature branch. Worktree: `asm-portal-v2-incubation`.
 
 Implementation and the web/native database checks below are complete. Final production-container startup/restart validation remains pending because the local Docker Desktop engine became unavailable during image unpacking. This revision has not been merged, pushed, migrated in production, or deployed.
 

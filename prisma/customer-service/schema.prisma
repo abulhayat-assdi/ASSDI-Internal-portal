@@ -86,6 +86,11 @@ model ChatCustomerSession {
 }
 
 model ChatConversation {
+  practiceKey String?
+  practiceStep Int @default(0)
+  practiceStartedAt DateTime?
+  practiceScript Json?
+  @@unique([workspaceId, practiceKey])
   id String @id @default(uuid())
   courseId String
   workspaceId String

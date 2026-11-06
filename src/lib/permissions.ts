@@ -142,6 +142,8 @@ export function getRequiredPermission(pathname: string): PermissionKey | typeof 
     if(pathname==='/dashboard/competitions/create' || (/^\/dashboard\/competitions\/[^/]+$/.test(pathname) && !['groups','corrections'].includes(pathname.split('/').pop()!)))return 'competitions_view';
     if (pathname !== "/dashboard" && !pathname.startsWith("/dashboard/")) return null;
 
+    if (matchesPath(pathname, "/dashboard/live-chat")) return "crm_supervisor";
+
     const entries = (Object.entries(PERMISSION_META) as [PermissionKey, PermissionMeta][])
         .sort((a, b) => b[1].path.length - a[1].path.length);
     for (const [key, meta] of entries) {

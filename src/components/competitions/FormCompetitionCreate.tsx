@@ -30,7 +30,7 @@ export default function CreateCompetitionPage() {
   const [batchName, setBatchName] = useState("");
   const [fields, setFields] = useState<FormField[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   const [templates, setTemplates] = useState<{ id: string, name: string, schema: any }[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
 
@@ -84,13 +84,13 @@ export default function CreateCompetitionPage() {
         { id: "field_rating", type: "rating", label: "Overall Team Performance", required: true, options: [], validation: "none", mapping: "none" },
         { id: "field_sector", type: "dropdown", label: "Which sector showed the highest interest today?", required: true, options: ["Retail", "Manufacturing", "IT/Software", "Education", "Healthcare", "Finance", "Small Business"], validation: "none", mapping: "none" },
         { id: "field_summary", type: "long_text", label: "Brief summary of today's experience", placeholder: "আজকের অভিজ্ঞতা সংক্ষেপে লিখুন...", required: true, options: [], validation: "none", mapping: "none" },
-        { 
-          id: "field_company_details", 
-          type: "repeater", 
-          label: "Company Details Visited", 
-          required: true, 
-          options: [], 
-          validation: "none", 
+        {
+          id: "field_company_details",
+          type: "repeater",
+          label: "Company Details Visited",
+          required: true,
+          options: [],
+          validation: "none",
           mapping: "none",
           subFields: [
             { id: "sub_name", type: "short_text", label: "Company Name", placeholder: "কোম্পানির নাম", required: true, options: [], validation: "none", mapping: "none" },
@@ -172,7 +172,7 @@ export default function CreateCompetitionPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!title.trim()) {
       toast.error("Competition Title is required!");
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -199,7 +199,7 @@ export default function CreateCompetitionPage() {
         return;
       }
     }
-    
+
     setIsSubmitting(true);
     try {
       const res = await fetch("/api/competitions", {
@@ -236,7 +236,7 @@ export default function CreateCompetitionPage() {
       <div className="mb-6 flex gap-4 items-end bg-gray-50 p-4 rounded-lg border border-gray-200">
         <div className="flex-1">
           <label className="block text-sm font-medium text-gray-700 mb-1">Load Template</label>
-          <select 
+          <select
             className="w-full border rounded-md p-2 bg-white"
             value={selectedTemplateId}
             onChange={(e) => setSelectedTemplateId(e.target.value)}
@@ -247,7 +247,7 @@ export default function CreateCompetitionPage() {
             ))}
           </select>
         </div>
-        <button 
+        <button
           type="button"
           onClick={handleApplyTemplate}
           className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
@@ -261,10 +261,10 @@ export default function CreateCompetitionPage() {
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1">Competition Title <span className="text-red-500">*</span></label>
-            <input 
+            <input
               ref={titleInputRef}
-              required 
-              type="text" 
+              required
+              type="text"
               className="w-full border rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none"
               value={title} onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Battle of Cups"
@@ -272,11 +272,11 @@ export default function CreateCompetitionPage() {
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Batch Name <span className="text-red-500">*</span></label>
-            <select 
+            <select
               ref={batchSelectRef}
-              required 
+              required
               className="w-full border rounded-md p-2 bg-white focus:ring-2 focus:ring-blue-500 outline-none"
-              value={batchName} 
+              value={batchName}
               onChange={(e) => setBatchName(e.target.value)}
             >
               <option value="">-- Select Batch --</option>
@@ -287,7 +287,7 @@ export default function CreateCompetitionPage() {
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Description (Optional)</label>
-            <textarea 
+            <textarea
               className="w-full border rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none"
               value={description} onChange={(e) => setDescription(e.target.value)}
             />
@@ -303,22 +303,22 @@ export default function CreateCompetitionPage() {
               </button>
             </div>
           </div>
-          
+
           {fields.map((field, index) => (
             <div key={field.id} className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 relative">
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => removeField(field.id)}
                 className="absolute top-4 right-4 text-red-500 hover:text-red-700"
               >
                 Delete
               </button>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 pr-12">
                 <div>
                   <label className="block text-sm font-medium mb-1">Question Label</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     className="w-full border rounded-md p-2 text-sm"
                     value={field.label}
                     onChange={(e) => updateField(field.id, { label: e.target.value })}
@@ -326,8 +326,8 @@ export default function CreateCompetitionPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Placeholder Text</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     className="w-full border rounded-md p-2 text-sm"
                     placeholder="e.g. আজকে কত কাপ সেল হয়েছে?"
                     value={field.placeholder || ''}
@@ -336,7 +336,7 @@ export default function CreateCompetitionPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Type</label>
-                  <select 
+                  <select
                     className="w-full border rounded-md p-2 text-sm"
                     value={field.type}
                     onChange={(e) => updateField(field.id, { type: e.target.value as FieldType })}
@@ -357,8 +357,8 @@ export default function CreateCompetitionPage() {
                 <div className="mb-4 bg-gray-50 p-4 border rounded-md">
                   <div className="flex justify-between items-center mb-2">
                     <label className="block text-sm font-medium">Sub-fields</label>
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       onClick={() => {
                         const updatedField = { ...field };
                         updatedField.subFields = updatedField.subFields || [];
@@ -373,9 +373,9 @@ export default function CreateCompetitionPage() {
                   {field.subFields?.map((subField, subIndex) => (
                     <div key={subField.id} className="grid grid-cols-12 gap-2 mb-2 items-center">
                       <div className="col-span-4">
-                        <input 
-                          type="text" 
-                          placeholder="Label" 
+                        <input
+                          type="text"
+                          placeholder="Label"
                           className="w-full border rounded p-1 text-sm"
                           value={subField.label}
                           onChange={(e) => {
@@ -386,9 +386,9 @@ export default function CreateCompetitionPage() {
                         />
                       </div>
                       <div className="col-span-3">
-                        <input 
-                          type="text" 
-                          placeholder="Placeholder" 
+                        <input
+                          type="text"
+                          placeholder="Placeholder"
                           className="w-full border rounded p-1 text-sm"
                           value={subField.placeholder || ''}
                           onChange={(e) => {
@@ -399,7 +399,7 @@ export default function CreateCompetitionPage() {
                         />
                       </div>
                       <div className="col-span-2">
-                        <select 
+                        <select
                           className="w-full border rounded p-1 text-sm"
                           value={subField.type}
                           onChange={(e) => {
@@ -413,7 +413,7 @@ export default function CreateCompetitionPage() {
                         </select>
                       </div>
                       <div className="col-span-2">
-                        <select 
+                        <select
                           className="w-full border rounded p-1 text-sm"
                           value={subField.validation}
                           onChange={(e) => {
@@ -428,8 +428,8 @@ export default function CreateCompetitionPage() {
                         </select>
                       </div>
                       <div className="col-span-1 text-right">
-                        <button 
-                          type="button" 
+                        <button
+                          type="button"
                           onClick={() => {
                             const newSub = [...(field.subFields || [])];
                             newSub.splice(subIndex, 1);
@@ -451,8 +451,8 @@ export default function CreateCompetitionPage() {
               {(field.type === 'dropdown' || field.type === 'mcq' || field.type === 'multi_select') && (
                 <div className="mb-4">
                   <label className="block text-sm font-medium mb-1">Options (comma separated)</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     className="w-full border rounded-md p-2"
                     value={field.options.join(', ')}
                     onChange={(e) => updateField(field.id, { options: e.target.value.split(',').map(s => s.trim()) })}
@@ -463,17 +463,17 @@ export default function CreateCompetitionPage() {
 
               <div className="flex items-center gap-6">
                 <label className="flex items-center gap-2 text-sm">
-                  <input 
-                    type="checkbox" 
-                    checked={field.required} 
+                  <input
+                    type="checkbox"
+                    checked={field.required}
                     onChange={(e) => updateField(field.id, { required: e.target.checked })}
                   />
                   Required
                 </label>
-                
+
                 <label className="flex items-center gap-2 text-sm">
                   Validation:
-                  <select 
+                  <select
                     className="border rounded p-1 text-sm"
                     value={field.validation}
                     onChange={(e) => updateField(field.id, { validation: e.target.value as ValidationType })}
@@ -486,7 +486,7 @@ export default function CreateCompetitionPage() {
 
                 <label className="flex items-center gap-2 text-sm">
                   Mapping (for Reports):
-                  <select 
+                  <select
                     className="border rounded p-1 text-sm"
                     value={field.mapping}
                     onChange={(e) => updateField(field.id, { mapping: e.target.value as MappingType })}
@@ -506,8 +506,8 @@ export default function CreateCompetitionPage() {
             </div>
           ))}
 
-          <button 
-            type="button" 
+          <button
+            type="button"
             onClick={addField}
             className="w-full border-2 border-dashed border-gray-300 rounded-xl p-4 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition"
           >
@@ -516,8 +516,8 @@ export default function CreateCompetitionPage() {
         </div>
 
         <div className="flex justify-end pt-6 border-t">
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             disabled={isSubmitting}
             className="bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-8 py-3 rounded-lg font-bold shadow-lg transition flex items-center gap-2"
           >

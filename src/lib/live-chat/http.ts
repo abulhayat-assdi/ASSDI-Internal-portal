@@ -31,7 +31,35 @@ export function failure(e: unknown) {
     );
   if ((e as { code?: string })?.code === "P2025")
     return response({ error: "Record not found" }, 404);
-  console.error("[Live Chat]", e instanceof Error ? e.name : "Unknown failure");
+  const code = (e as { code?: string })?.code;
+  const databaseCode = (e as { meta?: { code?: string } })?.meta?.code;
+  console.error("[Live Chat]", {
+    name: e instanceof Error ? e.name : "Unknown failure",
+    code,
+    databaseCode,
+  });
+  if (
+    ["P2021", "P2022", "P1010"].includes(code || "") ||
+    (code === "P2010" &&
+      ["42P01", "42703", "42501"].includes(databaseCode || ""))
+  )
+    return response(
+      {
+        error:
+          "Live Chat setup is incomplete. Please contact your course administrator. / লাইভ চ্যাট সেটআপ সম্পূর্ণ হয়নি। কোর্স প্রশাসকের সঙ্গে যোগাযোগ করুন।",
+        code: "CHAT_DATABASE_SETUP_REQUIRED",
+      },
+      503,
+    );
+  if (["P1001", "P1002", "P2024"].includes(code || ""))
+    return response(
+      {
+        error:
+          "Live Chat cannot connect to its database right now. Please retry shortly.",
+        code: "CHAT_DATABASE_CONNECTION",
+      },
+      503,
+    );
   return response(
     { error: "Live Chat is temporarily unavailable. Please retry." },
     503,

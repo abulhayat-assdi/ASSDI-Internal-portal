@@ -34,6 +34,12 @@ describe("dashboard page permissions", () => {
         expect(unregistered).toEqual([]);
     });
 
+    it("standalone Live Chat uses the existing CRM supervisor permission", () => {
+        expect(getRequiredPermission("/dashboard/live-chat")).toBe("crm_supervisor");
+        expect(getRequiredPermission("/dashboard/live-chat/unknown")).toBe("crm_supervisor");
+        expect(getRequiredPermission("/dashboard/live-chat-other")).toBe(UNREGISTERED_PAGE);
+    });
+
     it("Admin Panel no longer covers other admin pages", () => {
         expect(getRequiredPermission("/dashboard/admin")).toBe("admin_panel");
         expect(getRequiredPermission("/dashboard/admin/cv-manager")).toBe("admin_cv");

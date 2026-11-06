@@ -1163,7 +1163,7 @@ export default function CrmApp({
         </div>
         <p className="crm-nav-label">WORKSPACE</p>
         <nav aria-label="CRM">
-          {liveChatEnabled && <a href={(staff ? "/dashboard/crm" : "/student-dashboard/crm") + "/live-chat?workspaceId=" + encodeURIComponent(workspace)} style={{display:"block",padding:"12px",color:"inherit"}}>Live Chat Training ↗</a>}
+          {liveChatEnabled && <a href={(staff ? "/dashboard/live-chat" : "/student-dashboard/live-chat") + "?workspaceId=" + encodeURIComponent(workspace)} style={{display:"block",padding:"12px",color:"inherit"}}>Live Chat Training ↗</a>}
           {nav.map((n) => {
             const Icon = icons[n] || ClipboardList;
             return (

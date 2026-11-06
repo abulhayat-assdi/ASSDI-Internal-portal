@@ -60,6 +60,7 @@ async function dispatch(tx, s, config = DEFAULTS, excluded = []) {
   });
   const counts = new Map(workload.map((c) => [c.agentId, c._count]));
   for (const c of waiting) {
+    if (c.practiceKey && !config.practiceAutoAssign) continue;
     const session = c.sessionId
       ? await tx.chatTrainingSession.findUnique({
           where: {
@@ -86,7 +87,14 @@ async function dispatch(tx, s, config = DEFAULTS, excluded = []) {
     counts.set(selected.userId, (counts.get(selected.userId) || 0) + 1);
     await tx.chatConversation.update({
       where: { workspaceId_id: { workspaceId: s.workspaceId, id: c.id } },
-      data: { agentId: selected.userId, status: "ASSIGNED", assignedAt: now },
+      data: {
+        agentId: selected.userId,
+        status: "ASSIGNED",
+        assignedAt: now,
+        ...(c.practiceKey && !c.practiceStartedAt
+          ? { practiceStartedAt: now, queueAt: now, unansweredAt: now }
+          : {}),
+      },
     });
     await tx.chatAssignment.create({
       data: {
@@ -177,6 +185,7 @@ async function tick(tx, s, options = {}) {
       where: { workspaceId: s.workspaceId, id: c.customerSessionId },
     });
     if (
+      !c.practiceKey &&
       customer &&
       +now - +customer.heartbeatAt > policy.disconnectSeconds * 1000
     ) {
@@ -236,6 +245,7 @@ async function tick(tx, s, options = {}) {
         reason: "session_or_batch_ended",
       });
     } else if (
+      !c.practiceKey &&
       customer &&
       +now - +customer.heartbeatAt > policy.closeSeconds * 1000
     ) {
@@ -292,6 +302,7 @@ async function tick(tx, s, options = {}) {
       });
     } else if (
       c.status === "QUEUED" &&
+      (!c.practiceKey || c.practiceStartedAt) &&
       +now - +c.queueAt > policy.queueSeconds * 1000
     ) {
       await tx.chatConversation.update({

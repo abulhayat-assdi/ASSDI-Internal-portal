@@ -2,7 +2,7 @@
 
 তারিখ: ২০২৬-১১-০৬। অবস্থা: **Revision বাস্তবায়িত; web/native database পরীক্ষা পাস। স্থানীয় Docker engine recovery-এর পরে শেষ container startup/restart যাচাই বাকি।**
 
-Branch: `feature/incubation-competitions-v2`, worktree: `asm-portal-v2-incubation`। বর্তমান main `ab8a271` থেকে শুরু; এই revision main-এ merge/push/deploy করা হয়নি।
+Branch: `feature/incubation-competitions-v2`, worktree: `asm-portal-v2-incubation`। main `ab8a271` থেকে শুরু; সর্বশেষ main `0619687` feature branch-এ অন্তর্ভুক্ত; এই revision main-এ merge/push/deploy করা হয়নি।
 
 এই revision-এর ভিত্তি main-এর `6de1bc9` এবং ব্যবহারকারীর deployed portal-এর দুইটি screenshot। আগের অনুমোদিত হিসাব ও operational requirements বহাল থাকবে; নিচের UI, ownership ও access design আগের একই-workspace design-কে প্রতিস্থাপন করবে। Android app আলাদা পরবর্তী কাজ।
 
