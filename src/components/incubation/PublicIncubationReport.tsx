@@ -1,4 +1,5 @@
 "use client";
+import ResultsCard from "./ResultsCard";
 import { useEffect, useState } from "react";
 import {
   AreaChart,
@@ -289,6 +290,17 @@ export default function PublicIncubationReport({ token }: { token: string }) {
                   </ResponsiveContainer>
                 </div>
               </section>
+              {data.results && (
+                <div style={{ marginTop: 18 }}>
+                  <ResultsCard
+                    published={{
+                      snapshot: { asOf: data.results.asOf, ranking: data.results.ranking },
+                      note: data.results.note,
+                      publishedAt: data.results.publishedAt,
+                    }}
+                  />
+                </div>
+              )}
               <section className="inc-card" style={{ marginTop: 18 }}>
                 <h2>টিমভিত্তিক ফলাফল</h2>
                 <div className="inc-table-wrap">

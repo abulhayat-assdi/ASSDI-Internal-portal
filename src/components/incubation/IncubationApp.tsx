@@ -68,6 +68,8 @@ import "./incubation.css";
 import RecordSnapshot from "./RecordSnapshot";
 import BulkSheetEditor from "./BulkSheetEditor";
 import MonitorPanel from "./MonitorPanel";
+import ResultsCard from "./ResultsCard";
+import { rankTeams } from "@/lib/incubation/results";
 import NotificationBell from "./NotificationBell";
 import {
   FieldCorrectionEditor,
@@ -378,6 +380,27 @@ export default function IncubationApp({
       return { report: null, reportError: (e as Error).message };
     }
   }, [bundle, filters, products]);
+  const liveRanking = useMemo(() => {
+    if (!bundle?.manager || !bundle?.records || bundle?.member) return [];
+    try {
+      const full = buildReport(bundle.records, products, bundle.teams, {});
+      return rankTeams(
+        full.summaries
+          .filter(
+            (s) => bundle.teams.find((t: Row) => t.id === s.teamId)?.active || s.revenue !== 0,
+          )
+          .map((s) => ({
+            teamId: s.teamId,
+            teamName: s.teamName,
+            revenue: s.revenue,
+            netProfit: s.netProfit,
+            grossProfit: s.grossProfit,
+          })),
+      );
+    } catch {
+      return [];
+    }
+  }, [bundle, products]);
   const records = useMemo(
     () =>
       bundle?.records?.filter(
@@ -3442,6 +3465,15 @@ export default function IncubationApp({
           )}
           {tab === "reports" && (
             <>
+              {bundle.manager && (
+                <ResultsCard
+                  published={bundle.results}
+                  live={liveRanking}
+                  busy={busy}
+                  onPublish={(note) => act("publish_results", { note })}
+                  onWithdraw={() => act("withdraw_results", {})}
+                />
+              )}
               {filtersUI}
               <Field name="ব্যক্তি — শুধু মাঠের কাজ, FGD ও Insights">
                 <select

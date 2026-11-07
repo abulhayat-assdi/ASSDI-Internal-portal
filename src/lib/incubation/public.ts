@@ -58,6 +58,13 @@ export async function publicReport(
           },
         }),
       ]);
+    const published = await tx.incubationResult.findFirst({
+      where: { programId: p.id, withdrawnAt: null },
+      orderBy: { publishedAt: "desc" },
+    });
+    const snapshot = published?.snapshot as
+      | { asOf: string; ranking: { rank: number; teamName: string; revenue: number; netProfit: number }[] }
+      | undefined;
     const report = buildReport(
       records.map((r) => ({ ...r, data: r.data as EntryData })),
       products,
@@ -98,6 +105,20 @@ export async function publicReport(
         stockValue: report.totals.stockValue,
       },
       trend: report.trend,
+      results: snapshot
+        ? {
+            metric: published!.metric,
+            asOf: snapshot.asOf,
+            publishedAt: published!.publishedAt.toISOString(),
+            note: published!.note,
+            ranking: snapshot.ranking.map((r) => ({
+              rank: r.rank,
+              teamName: r.teamName,
+              revenue: r.revenue,
+              netProfit: r.netProfit,
+            })),
+          }
+        : null,
       filters,
       generatedAt: new Date().toISOString(),
     };

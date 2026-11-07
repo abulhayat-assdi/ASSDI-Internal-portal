@@ -752,3 +752,6 @@
 .inc-bell-panel small { color: #6a7b73; font-size: 11px; }
 .inc-link { background: none; border: 0; color: #26704f; font-weight: 700; cursor: pointer; padding: 0; }
 .inc-muted { color: #6a7b73; margin: 8px 0 0; }
+.inc-results { margin-bottom: 16px; }
+.inc-results h2 { display: flex; align-items: center; gap: 6px; }
+.inc-own-row td { background: #e5f2e9; font-weight: 700; }

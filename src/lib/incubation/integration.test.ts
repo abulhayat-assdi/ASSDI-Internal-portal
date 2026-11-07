@@ -760,6 +760,26 @@ describe("real migration and transactional incubation workflows", () => {
     expect(memberView.monitor!.some((i: any) => i.kind === "missing_sales")).toBe(false);
   });
 
+  it("publishes a frozen revenue ranking, shows it to students and the public link, and can withdraw it", async () => {
+    await expect(send(lead, "publish_results", {})).rejects.toThrow(/প্রকাশ/);
+    await send(manager, "publish_results", { note: "Week 1" });
+    const staff = await api.overview(manager, programId);
+    const ranking = (staff.results!.snapshot as any).ranking as any[];
+    expect(staff.results!.metric).toBe("revenue");
+    expect(ranking[0].rank).toBe(1);
+    for (let i = 1; i < ranking.length; i++) expect(ranking[i - 1].revenue).toBeGreaterThanOrEqual(ranking[i].revenue);
+    // Republishing replaces the previous snapshot instead of keeping two current ones.
+    await send(manager, "publish_results", {});
+    expect(await prisma.incubationResult.count({ where: { programId, withdrawnAt: null } })).toBe(1);
+    expect((await api.overview(target, programId)).results).not.toBeNull();
+    await send(manager, "withdraw_results", { note: "Recount" });
+    expect((await api.overview(target, programId)).results).toBeNull();
+    const actions = (await prisma.incubationAudit.findMany({ where: { programId, action: { startsWith: "results." } } })).map(
+      (a) => a.action,
+    );
+    expect(actions.sort()).toEqual(["results.published", "results.published", "results.withdrawn"]);
+  });
+
   it("refuses to send a program with entries back to draft, and cancelling needs a reason", async () => {
     const current = await prisma.incubationProgram.findUniqueOrThrow({ where: { id: programId } });
     expect(current.status).toBe("active");

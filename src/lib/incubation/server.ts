@@ -19,6 +19,8 @@ import {
 } from "./lifecycle";
 import { withCourseContext } from "@/lib/db";
 import { buildMonitor, issuesFor } from "./monitor";
+import { buildReport } from "./report";
+import { RESULT_METRIC, rankTeams } from "./results";
 import {
   calculateLedger,
   FINANCIAL_KINDS,
@@ -711,6 +713,11 @@ export async function overview(actor: Actor, programId?: string) {
       manager,
       supervisor,
       monitor,
+      results: await tx.incubationResult.findFirst({
+        where: { programId, withdrawnAt: null },
+        orderBy: { publishedAt: "desc" },
+        select: { id: true, metric: true, snapshot: true, note: true, publishedAt: true, publishedByName: true },
+      }),
       batches,
       teams,
       transferTeams: member && !member.isLead ? [] : transferTeams,
@@ -940,7 +947,13 @@ export async function command(actor: Actor, input: unknown) {
       body.programId,
       true,
     );
-    insist(!isProgramLocked(program.status), lockedMessage(program.status), 409);
+    // Results are a frozen read of final figures, so they may be published after closing.
+    const resultsAction = ["publish_results", "withdraw_results"].includes(body.action);
+    insist(
+      !isProgramLocked(program.status) || (resultsAction && program.status === "closed"),
+      lockedMessage(program.status),
+      409,
+    );
     const pid = program.id;
     if (["team", "catalog", "sprint", "share"].includes(body.action))
       insist(manager, "প্রশাসকের অনুমতি প্রয়োজন।", 403);
@@ -1195,6 +1208,63 @@ export async function command(actor: Actor, input: unknown) {
           });
       await audit(tx, actor, pid, "sprint.saved", item.id, before, item);
       return item;
+    }
+    if (resultsAction) {
+      insist(manager, "শুধু প্রশাসক/শিক্ষক ফলাফল প্রকাশ করতে পারবেন।", 403);
+      const v = z.object({ note: z.string().trim().max(1000).default("") }).parse(p);
+      const current = await tx.incubationResult.findFirst({
+        where: { programId: pid, withdrawnAt: null },
+        orderBy: { publishedAt: "desc" },
+      });
+      if (current)
+        await tx.incubationResult.update({
+          where: { id: current.id },
+          data: { withdrawnAt: new Date() },
+        });
+      if (body.action === "withdraw_results") {
+        insist(current, "প্রকাশিত কোনো ফলাফল নেই।", 404);
+        await audit(tx, actor, pid, "results.withdrawn", current.id, current, null, v.note);
+        return { ok: true };
+      }
+      const [teams, records, products] = await Promise.all([
+        tx.incubationTeam.findMany({
+          where: { programId: pid },
+          select: { id: true, name: true, batchName: true, active: true },
+        }),
+        tx.incubationRecord.findMany({ where: { programId: pid, status: "posted" } }),
+        tx.incubationCatalog.findMany({ where: { programId: pid, kind: "product" } }),
+      ]);
+      const report = buildReport(
+        records.map((r) => ({ ...r, data: r.data as EntryData })),
+        products,
+        teams,
+      );
+      const ranking = rankTeams(
+        report.summaries
+          .filter((s) => teams.find((t) => t.id === s.teamId)?.active || s.revenue !== 0)
+          .map((s) => ({
+            teamId: s.teamId,
+            teamName: s.teamName,
+            revenue: s.revenue,
+            netProfit: s.netProfit,
+            grossProfit: s.grossProfit,
+          })),
+      );
+      insist(ranking.length, "ফলাফল প্রকাশের মতো কোনো টিম নেই।");
+      const snapshot = { metric: RESULT_METRIC, asOf: todayDhaka(), ranking };
+      const result = await tx.incubationResult.create({
+        data: {
+          courseId: actor.courseId,
+          programId: pid,
+          metric: RESULT_METRIC,
+          snapshot: json(snapshot),
+          note: v.note,
+          publishedBy: actor.id,
+          publishedByName: actor.displayName,
+        },
+      });
+      await audit(tx, actor, pid, "results.published", result.id, current, snapshot, v.note);
+      return { id: result.id };
     }
     if (body.action === "share") {
       const enable = z.boolean().parse(p.enabled),

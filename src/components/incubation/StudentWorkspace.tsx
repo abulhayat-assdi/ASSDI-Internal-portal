@@ -1,5 +1,6 @@
 "use client";
 import MonitorPanel from "./MonitorPanel";
+import ResultsCard from "./ResultsCard";
 import NotificationBell from "./NotificationBell";
 import { useState, useEffect, type ReactNode } from "react";
 import Link from "next/link";
@@ -298,6 +299,9 @@ export default function StudentWorkspace({
         <>
           {(b.monitor?.length ?? 0) > 0 && (
             <MonitorPanel issues={b.monitor} title="জরুরি — এখনই করুন" />
+          )}
+          {b.results && (
+            <ResultsCard published={b.results} highlightTeamId={b.member?.teamId} />
           )}
           <section className="inc-card">
             <h2>আজকের দায়িত্ব</h2>
