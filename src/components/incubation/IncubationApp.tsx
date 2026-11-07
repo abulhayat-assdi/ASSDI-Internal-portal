@@ -2820,6 +2820,7 @@ export default function IncubationApp({
                   <BulkSheetEditor
                     records={records.filter((r: Row) => r.kind === sheet)}
                     products={products}
+                    teams={bundle.teams}
                     programId={programId}
                     onSaved={() => load()}
                     onError={setError}

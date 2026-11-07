@@ -2,9 +2,11 @@
 import { useMemo, useState } from "react";
 import { X, Table2 } from "lucide-react";
 import RecordSnapshot from "./RecordSnapshot";
+import { KIND_LABELS, type RecordKind } from "@/lib/incubation/domain";
 interface Props {
   records: any[];
   products: any[];
+  teams?: { id: string; name: string }[];
   programId: string;
   onSaved: () => void;
   onError: (s: string) => void;
@@ -21,6 +23,7 @@ const columns = [
 export default function BulkSheetEditor({
   records,
   products,
+  teams = [],
   programId,
   onSaved,
   onError,
@@ -30,7 +33,10 @@ export default function BulkSheetEditor({
     [preview, setPreview] = useState(false),
     [reason, setReason] = useState(""),
     [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [search, setSearch] = useState("");
+  const teamName = (id: string) => teams.find((t) => t.id === id)?.name || "—";
+  const productName = (id: string) => products.find((p) => p.id === id)?.name || "";
   const originals = useMemo(
     () => new Map(records.map((r) => [r.id, r])),
     [records],
@@ -256,9 +262,20 @@ export default function BulkSheetEditor({
                 </>
               ) : (
                 <div className="inc-table-wrap">
+                  <input
+                    type="search"
+                    placeholder="টিম, পণ্য, নোট বা জমাদাতা খুঁজুন"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    style={{ marginBottom: 8, width: "100%", maxWidth: 360 }}
+                  />
                   <table>
                     <thead>
                       <tr>
+                        <th>টিম</th>
+                        <th>ধরন</th>
+                        <th>জমাদাতা</th>
+                        <th>ID</th>
                         {[
                           "তারিখ",
                           "পণ্য",
@@ -273,8 +290,35 @@ export default function BulkSheetEditor({
                       </tr>
                     </thead>
                     <tbody>
-                      {rows.map((r, i) => (
-                        <tr key={`${r.recordId}-${r.lineIndex}`}>
+                      {rows.map((r, i) => {
+                        const old = originals.get(r.recordId);
+                        const needle = search.trim().toLowerCase();
+                        if (
+                          needle &&
+                          ![
+                            teamName(old?.teamId),
+                            old?.enteredByName,
+                            productName(r.productId),
+                            r.note,
+                            r.date,
+                          ]
+                            .join(" ")
+                            .toLowerCase()
+                            .includes(needle)
+                        )
+                          return null;
+                        const dirty = changes.some((c) => c.recordId === r.recordId);
+                        return (
+                        <tr
+                          key={`${r.recordId}-${r.lineIndex}`}
+                          style={dirty ? { background: "#fff7e0" } : undefined}
+                        >
+                          <td>{teamName(old?.teamId)}</td>
+                          <td>{KIND_LABELS[old?.kind as RecordKind] || old?.kind}</td>
+                          <td>{old?.enteredByName}</td>
+                          <td title={r.recordId}>
+                            <code>{String(r.recordId).slice(0, 8)}</code>
+                          </td>
                           {columns.map((key, col) => (
                             <td
                               key={key}
@@ -326,7 +370,8 @@ export default function BulkSheetEditor({
                             </td>
                           ))}
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
