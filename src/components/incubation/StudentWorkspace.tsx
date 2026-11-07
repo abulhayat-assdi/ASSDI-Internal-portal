@@ -1,6 +1,7 @@
 "use client";
 import MonitorPanel from "./MonitorPanel";
 import ResultsCard from "./ResultsCard";
+import { STATUS_LABELS } from "@/lib/incubation/lifecycle";
 import NotificationBell from "./NotificationBell";
 import { useState, useEffect, type ReactNode } from "react";
 import Link from "next/link";
@@ -228,7 +229,7 @@ export default function StudentWorkspace({
           <span className="inc-role">{lead ? "টিম লিডার" : "টিম সদস্য"}</span>
         </div>
         <p className="inc-eyebrow" style={{ marginTop: 22 }}>
-          BUSINESS INCUBATION · {b.state}
+          BUSINESS INCUBATION · {STATUS_LABELS[b.state] || b.state}
         </p>
         <h1>{lead ? "আমাদের টিম পরিচালনা" : "আমার কাজ"}</h1>
         <p>
