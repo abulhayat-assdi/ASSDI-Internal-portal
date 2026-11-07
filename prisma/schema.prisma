@@ -246,6 +246,7 @@ model Course {
   competitionSubmissions   CompetitionSubmission[]
   competitionGroups        CompetitionGroup[]
   competitionCorrections   CompetitionCorrectionRequest[]
+  competitionRevisions     CompetitionSubmissionRevision[]
   competitionProducts      CompetitionProduct[]
   competitionProcurements  CompetitionProcurement[]
   typingExams              TypingExam[]
@@ -1873,6 +1874,28 @@ model CompetitionGroup {
   @@index([competitionId])
   @@index([courseId])
   @@map("competition_groups")
+}
+
+// Append-only change history for form-competition responses edited from the
+// staff grid. No FK to the submission, so a deleted row keeps its history.
+model CompetitionSubmissionRevision {
+  id            String   @id @default(uuid())
+  courseId      String   @map("course_id")
+  competitionId String   @map("competition_id")
+  submissionId  String   @map("submission_id")
+  action        String // created | updated | deleted
+  before        Json?
+  after         Json?
+  actorId       String   @map("actor_id")
+  actorName     String   @map("actor_name")
+  source        String   @default("grid")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([competitionId, createdAt])
+  @@index([submissionId])
+  @@map("competition_submission_revisions")
 }
 
 // ============================================================
