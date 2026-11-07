@@ -124,7 +124,7 @@ export default function BulkDataGrid({ competition, onClose, onSuccess }: BulkDa
         .then((data) => {
           if (Array.isArray(data)) setStudents(data);
         })
-        .catch(() => toast.error("শিক্ষার্থীর তালিকা আনা যায়নি; নাম হাতে লিখতে হবে।"));
+        .catch(() => toast.error("Could not load the student list; enter names manually."));
     }
   }, [competition, flatten]);
 
@@ -212,7 +212,7 @@ export default function BulkDataGrid({ competition, onClose, onSuccess }: BulkDa
 
   const handleDeleteRow = (rowIndex: number) => {
     const row = activeRows[rowIndex];
-    if (row?.id && !window.confirm(`Roll ${row.rollNumber || "?"}-এর এই row মুছে ফেলবেন? সেভ করলে তবেই মুছবে।`)) return;
+    if (row?.id && !window.confirm(`Delete the row for roll ${row.rollNumber || "?"}? It is removed when you save.`)) return;
     if (row?.id) setDeletedIds((d) => [...d, row.id!]);
     clearError(row?._key);
     updateRows(activeTab, (prev) => prev.filter((_, i) => i !== rowIndex));
@@ -252,7 +252,7 @@ export default function BulkDataGrid({ competition, onClose, onSuccess }: BulkDa
     TABS.reduce((n, tab) => n + grids[tab].filter((r) => isRowDirty(r, tab)).length, 0) + deletedIds.length;
 
   const handleClose = () => {
-    if (dirtyCount > 0 && !window.confirm("সেভ না করা পরিবর্তন আছে। সেগুলো বাদ দিয়ে বন্ধ করবেন?")) return;
+    if (dirtyCount > 0 && !window.confirm("You have unsaved changes. Close and discard them?")) return;
     onClose();
   };
 
@@ -265,8 +265,8 @@ export default function BulkDataGrid({ competition, onClose, onSuccess }: BulkDa
         if (!hasRoll(row)) {
           if (row.id) {
             setActiveTab(tab);
-            setRowErrors(new Map([[row._key, "পুরোনো row-এর Roll Number ফাঁকা করা যাবে না। মুছতে চাইলে 🗑️ ব্যবহার করুন।"]]));
-            toast.error("একটি পুরোনো row-এর Roll Number ফাঁকা। কিছুই সেভ হয়নি।");
+            setRowErrors(new Map([[row._key, "An existing row cannot have an empty roll number. Use 🗑️ to delete it."]]));
+            toast.error("An existing row has an empty roll number. Nothing was saved.");
             return;
           }
           continue;
@@ -285,7 +285,7 @@ export default function BulkDataGrid({ competition, onClose, onSuccess }: BulkDa
     }
 
     if (payload.length === 0 && deletedIds.length === 0) {
-      toast("কোনো পরিবর্তন নেই।");
+      toast("No changes to save.");
       return;
     }
 
@@ -298,7 +298,7 @@ export default function BulkDataGrid({ competition, onClose, onSuccess }: BulkDa
       setRowErrors(map);
       const first = refs[errors[0]?.index];
       if (first) setActiveTab(first.tab);
-      toast.error(`${errors.length}টি row-এ সমস্যা আছে। লাল row-গুলো দেখুন — কিছুই সেভ হয়নি।`, { duration: 6000 });
+      toast.error(`${errors.length} row(s) have errors. Check the red rows — nothing was saved.`, { duration: 6000 });
     };
 
     const local = normaliseBulkRows(schema, payload);
@@ -316,15 +316,15 @@ export default function BulkDataGrid({ competition, onClose, onSuccess }: BulkDa
       });
       const out = await res.json().catch(() => ({}));
       if (res.ok && out.success) {
-        toast.success(`সেভ হয়েছে — নতুন ${out.created ?? 0}, বদল ${out.updated ?? 0}, মুছে ${out.deleted ?? 0}`);
+        toast.success(`Saved — ${out.created ?? 0} added, ${out.updated ?? 0} updated, ${out.deleted ?? 0} deleted`);
         onSuccess();
       } else if (Array.isArray(out.rowErrors) && out.rowErrors.length) {
         showErrors(out.rowErrors);
       } else {
-        toast.error(out.error || "সেভ করা যায়নি। কিছুই বদলানো হয়নি।");
+        toast.error(out.error || "Could not save. Nothing was changed.");
       }
     } catch {
-      toast.error("নেটওয়ার্ক সমস্যা — সেভ হয়েছে কি না নিশ্চিত নয়। পেজ রিফ্রেশ করে দেখুন।");
+      toast.error("Network problem — the save may not have completed. Refresh the page to check.");
     } finally {
       setIsSaving(false);
     }
@@ -354,24 +354,24 @@ export default function BulkDataGrid({ competition, onClose, onSuccess }: BulkDa
               📋 Manage Responses & Results — {competition.title}
             </h2>
             <p className="text-xs text-slate-300">
-              Excel থেকে paste করা যায়। শুধু বদলানো row সেভ হয়; একটিতেও ভুল থাকলে কিছুই সেভ হবে না। * চিহ্নিত ঘর বাধ্যতামূলক।
+              Paste from Excel. Only changed rows are saved; if any row has an error, nothing is saved. * marks required fields.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {dirtyCount > 0 && (
               <span className="px-2 py-1 rounded-lg bg-amber-400 text-slate-900 text-xs font-bold">
-                {dirtyCount}টি অসংরক্ষিত পরিবর্তন
+                {dirtyCount} unsaved change(s)
               </span>
             )}
             <button onClick={handleClose} className="px-4 py-2 border border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 text-xs font-semibold rounded-lg">
-              বন্ধ করুন
+              Close
             </button>
             <button
               onClick={handleSave}
               disabled={isSaving || dirtyCount === 0}
               className="px-5 py-2 bg-emerald-500 text-slate-950 font-black rounded-lg hover:bg-emerald-400 disabled:opacity-50 text-xs shadow-md transition"
             >
-              {isSaving ? "সেভ হচ্ছে..." : "Save / Update Responses"}
+              {isSaving ? "Saving..." : "Save / Update Responses"}
             </button>
           </div>
         </div>
@@ -398,14 +398,14 @@ export default function BulkDataGrid({ competition, onClose, onSuccess }: BulkDa
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Roll / নাম / টিম খুঁজুন"
+            placeholder="Search roll, name or team"
             className="sm:ml-auto w-full sm:w-64 px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white"
           />
         </div>
 
         {errorList.length > 0 && (
           <div className="px-4 py-2 bg-red-50 border-b border-red-200 text-xs text-red-800 max-h-28 overflow-auto shrink-0">
-            <b>কিছুই সেভ হয়নি। নিচের row-গুলো ঠিক করুন:</b>
+            <b>Nothing was saved. Fix these rows:</b>
             <ul className="list-disc ml-5">
               {errorList.slice(0, 20).map(([key, msg]) => {
                 const tab: Tab = grids.team.some((r) => r._key === key) ? "team" : "individual";
@@ -425,7 +425,7 @@ export default function BulkDataGrid({ competition, onClose, onSuccess }: BulkDa
             <thead className="sticky top-0 z-20">
               <tr className={activeTab === "team" ? "bg-slate-900" : "bg-blue-950"}>
                 <th className="sticky left-0 z-30 w-10 px-2 py-2 text-center text-xs font-bold text-white border border-slate-700 bg-slate-800">#</th>
-                <th className="w-12 px-2 py-2 text-center text-xs font-bold text-white border border-slate-700">মুছুন</th>
+                <th className="w-12 px-2 py-2 text-center text-xs font-bold text-white border border-slate-700">Delete</th>
                 {activeColumns.map((col) => (
                   <th key={col.key} className="px-3 py-2 text-left text-xs font-bold text-white border border-slate-700 min-w-[120px]">
                     {col.label}
@@ -442,7 +442,7 @@ export default function BulkDataGrid({ competition, onClose, onSuccess }: BulkDa
                       {index + 1}
                     </td>
                     <td className="px-1 py-1 border border-slate-200 text-center">
-                      <button type="button" onClick={() => handleDeleteRow(index)} title="Row মুছুন" className="text-red-500 hover:text-red-700 hover:bg-red-50 text-xs p-1 rounded transition">
+                      <button type="button" onClick={() => handleDeleteRow(index)} title="Delete row" className="text-red-500 hover:text-red-700 hover:bg-red-50 text-xs p-1 rounded transition">
                         🗑️
                       </button>
                     </td>
@@ -468,15 +468,15 @@ export default function BulkDataGrid({ competition, onClose, onSuccess }: BulkDa
 
         <div className="p-3 bg-white border-t border-slate-200 flex flex-wrap justify-between items-center gap-2 shrink-0">
           <span className="text-xs text-slate-600 font-bold">
-            {activeTab === "team" ? "Team-wise" : "Individual"} sheet — {counts[activeTab]}টি তথ্যসহ row
-            {needle && ` (খোঁজার ফলে ${visible.filter((v) => hasRoll(v.row)).length}টি দেখানো হচ্ছে)`}
+            {activeTab === "team" ? "Team-wise" : "Individual"} sheet — {counts[activeTab]} row(s) with data
+            {needle && ` (showing ${visible.filter((v) => hasRoll(v.row)).length} matching)`}
           </span>
           <div className="flex gap-2">
             <button type="button" onClick={() => handleAddRow(1)} className="px-3 py-1.5 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 text-xs shadow transition">
-              ➕ নতুন row
+              ➕ Add row
             </button>
             <button type="button" onClick={() => handleAddRow(5)} className="px-3 py-1.5 bg-slate-700 text-white font-bold rounded-lg hover:bg-slate-800 text-xs shadow transition">
-              ➕ ৫টি নতুন row
+              ➕ Add 5 rows
             </button>
           </div>
         </div>

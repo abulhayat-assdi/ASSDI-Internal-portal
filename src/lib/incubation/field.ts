@@ -113,18 +113,18 @@ export async function fieldCommand(actor: Actor, input: unknown) {
     );
     insist(
       member && actor.role === "student",
-      "মাঠ সেশন শিক্ষার্থীর নিজের অ্যাকাউন্ট থেকে করতে হবে।",
+      "Field sessions must be started from the student's own account.",
       403,
     );
     insist(
       body.action !== "checkin" || isIncubationRunning(program),
-      "প্রোগ্রাম সক্রিয় নেই।",
+      "The program is not running.",
     );
     const captured = new Date(body.position.capturedAt),
       now = new Date();
     insist(
       Math.abs(now.getTime() - captured.getTime()) <= 120000,
-      "নতুন GPS অবস্থান নিন; পুরোনো অবস্থান গ্রহণযোগ্য নয়।",
+      "Take a fresh GPS location; old locations are not accepted.",
     );
     const cfg = settingsSchema.parse(program.settings);
     await tx.incubationPosition.deleteMany({
@@ -140,7 +140,7 @@ export async function fieldCommand(actor: Actor, input: unknown) {
       where: { userId: actor.id, courseId: actor.courseId, checkOut: null },
     });
     if (body.action === "checkin") {
-      insist(!session, "আগের খোলা সেশন শেষ করুন।", 409);
+      insist(!session, "Check out of your open session first.", 409);
       insist(
         body.areaId &&
           (await tx.incubationCatalog.findFirst({
@@ -151,7 +151,7 @@ export async function fieldCommand(actor: Actor, input: unknown) {
               active: true,
             },
           })),
-        "ব্রড এরিয়া বাছুন।",
+        "Select an area.",
       );
       const [products, records, fields] = await Promise.all([
         tx.incubationCatalog.findMany({
@@ -181,7 +181,7 @@ export async function fieldCommand(actor: Actor, input: unknown) {
           q = scaled(l.quantity, 3);
         insist(
           p && p.active && q > 0 && (p.fractional || q % 1000 === 0),
-          "পণ্য ও পরিমাণ সঠিক নয়।",
+          "Invalid product or quantity.",
         );
         requested.set(p.id, (requested.get(p.id) || 0) + q);
       }
@@ -207,7 +207,7 @@ export async function fieldCommand(actor: Actor, input: unknown) {
             (ledger.stocks[`${member.teamId}|${productId}`]?.quantity || 0) -
               reserved -
               transferring,
-          "অন্য সদস্য বা হস্তান্তরের জন্য রাখা পণ্য বাদ দিয়ে টিমে পর্যাপ্ত স্টক নেই।",
+          "Not enough team stock after items held by other members or pending transfers.",
         );
       }
       session = await tx.incubationFieldSession.create({
@@ -233,7 +233,7 @@ export async function fieldCommand(actor: Actor, input: unknown) {
         session &&
           session.programId === program.id &&
           session.teamId === member.teamId,
-        "আপনার খোলা সেশন পাওয়া যায়নি।",
+        "Your open session was not found.",
         404,
       );
       if (body.action === "checkout") {
@@ -247,7 +247,7 @@ export async function fieldCommand(actor: Actor, input: unknown) {
                 active: true,
               },
             })),
-          "ফেরার ব্রড এরিয়া নির্বাচন করুন।",
+          "Select the area you are returning from.",
         );
         // Never trap a user in ongoing tracking: record an exceeded cap as an audited exception.
         const capExceeded =
@@ -263,7 +263,7 @@ export async function fieldCommand(actor: Actor, input: unknown) {
                 uploadedBy: actor.id,
               },
             }),
-            "নিজের প্রমাণ ফাইল নির্বাচন করুন।",
+            "Select your own proof file.",
           );
         session = await tx.incubationFieldSession.update({
           where: { id: session.id },
@@ -358,14 +358,14 @@ export async function fieldCorrectionCommand(actor: Actor, input: unknown) {
         });
       insist(
         old && old.version === version,
-        "সেশন পরিবর্তিত হয়েছে; নতুন করে অনুরোধ দিন।",
+        "The session has changed; submit a new request.",
         409,
       );
       insist(
         Date.parse(v.checkOut) > Date.parse(v.checkIn) &&
           Date.parse(v.checkOut) <= Date.now() &&
           todayDhaka(new Date(v.checkIn)) >= program.startDate,
-        "শুরু/শেষ সময় সঠিক নয়।",
+        "The check-in/check-out times are not valid.",
       );
       const areas = await tx.incubationCatalog.count({
         where: {
@@ -376,7 +376,7 @@ export async function fieldCorrectionCommand(actor: Actor, input: unknown) {
       });
       insist(
         areas === new Set([v.startAreaId, v.endAreaId]).size,
-        "বৈধ ব্রড এরিয়া বাছুন।",
+        "Select a valid area.",
       );
       const changed = await tx.incubationFieldSession.update({
         where: { id: old.id },
@@ -422,14 +422,14 @@ export async function fieldCorrectionCommand(actor: Actor, input: unknown) {
       const old = await tx.incubationFieldSession.findFirst({
         where: { id: v.sessionId, programId: program.id },
       });
-      insist(old, "সেশন পাওয়া যায়নি।", 404);
+      insist(old, "Session not found.", 404);
       insist(
         actor.role !== "student" || old.userId === actor.id,
-        "শুধু নিজের মাঠের তথ্য সংশোধন করুন।",
+        "You can only correct your own field sessions.",
         403,
       );
-      insist(old.checkOut, "খোলা সেশন আগে শেষ করতে হবে।");
-      insist(old.version === v.version, "সেশন পরিবর্তিত হয়েছে।", 409);
+      insist(old.checkOut, "Check out of the session first.");
+      insist(old.version === v.version, "The session has changed.", 409);
       if (isManager(actor))
         return apply(old.id, v.version, v.proposed, v.reason);
       const request = await tx.incubationFieldCorrection.create({
@@ -456,7 +456,7 @@ export async function fieldCorrectionCommand(actor: Actor, input: unknown) {
     }
     insist(
       actor.role !== "student" && isSupervisor(actor),
-      "অনুমোদনের অধিকার নেই।",
+      "You are not allowed to review this.",
       403,
     );
     const v = z
@@ -471,7 +471,7 @@ export async function fieldCorrectionCommand(actor: Actor, input: unknown) {
       });
     insist(
       request && request.status === "pending",
-      "অনুরোধ ইতিমধ্যে পর্যালোচিত হয়েছে।",
+      "This request has already been reviewed.",
       409,
     );
     if (!v.approve)

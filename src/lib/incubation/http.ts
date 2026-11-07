@@ -17,7 +17,7 @@ export function failure(error: unknown) {
       { status: 400 },
     );
   if (error instanceof SyntaxError)
-    return NextResponse.json({ error: "সঠিক JSON ডাটা দিন।" }, { status: 400 });
+    return NextResponse.json({ error: "Send valid JSON data." }, { status: 400 });
   if (
     typeof error === "object" &&
     error &&
@@ -25,12 +25,12 @@ export function failure(error: unknown) {
     error.code === "P2002"
   )
     return NextResponse.json(
-      { error: "একই তথ্য ইতিমধ্যে আছে। রিফ্রেশ করে দেখুন।" },
+      { error: "This already exists. Refresh and check." },
       { status: 409 },
     );
   console.error("Incubation request failed", error);
   return NextResponse.json(
-    { error: "কাজটি সম্পন্ন হয়নি। আবার চেষ্টা করুন।" },
+    { error: "The action could not be completed. Please try again." },
     { status: 500 },
   );
 }

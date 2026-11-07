@@ -75,11 +75,11 @@ export async function POST(
         )
       : [];
     if (rows.length + deletedIds.length === 0) {
-      return NextResponse.json({ error: "সেভ করার মতো কোনো পরিবর্তন নেই।" }, { status: 400 });
+      return NextResponse.json({ error: "There are no changes to save." }, { status: 400 });
     }
     if (rows.length > MAX_ROWS_PER_SAVE) {
       return NextResponse.json(
-        { error: `একবারে সর্বোচ্চ ${MAX_ROWS_PER_SAVE}টি row সেভ করা যায়।` },
+        { error: `You can save at most ${MAX_ROWS_PER_SAVE} rows at a time.` },
         { status: 400 },
       );
     }
@@ -92,7 +92,7 @@ export async function POST(
 
       const { rows: changed, errors } = normaliseBulkRows(competition.schema, rows);
       if (errors.length) {
-        throw new BulkSaveError("কিছু row-এ ভুল আছে। লাল row ঠিক করে আবার সেভ করুন।", errors);
+        throw new BulkSaveError("Some rows have errors. Fix the red rows and save again.", errors);
       }
 
       const existing = await tx.competitionSubmission.findMany({
@@ -113,7 +113,7 @@ export async function POST(
 
       const ids = changed.filter((r) => r.id).map((r) => r.id!);
       if (new Set(ids).size !== ids.length || ids.some((id) => deletedIds.includes(id))) {
-        throw new BulkSaveError("একই row একাধিকবার পাঠানো হয়েছে। Grid আবার খুলুন।");
+        throw new BulkSaveError("The same row was sent more than once. Reopen the grid.");
       }
 
       const stale: BulkRowError[] = [];
@@ -122,19 +122,19 @@ export async function POST(
         const current = byId.get(row.id);
         const base = { index: row.index, id: row.id, type: row.type, rollNumber: row.rollNumber };
         if (!current) {
-          stale.push({ ...base, message: "এই row-টি আর নেই (হয়তো অন্য কেউ মুছেছেন)। Grid আবার খুলুন।" });
+          stale.push({ ...base, message: "This row no longer exists (someone may have deleted it). Reopen the grid." });
         } else if (row.expected !== undefined && row.expected !== stableStringify(current.data)) {
-          stale.push({ ...base, message: "Grid খোলার পর অন্য কেউ এই row বদলেছেন। Grid আবার খুলে পরিবর্তন করুন।" });
+          stale.push({ ...base, message: "Someone else changed this row after you opened the grid. Reopen the grid and edit again." });
         }
       }
       if (deletedIds.some((id) => !byId.has(id))) {
-        throw new BulkSaveError("মুছতে চাওয়া কিছু row আর নেই। Grid আবার খুলুন।", [], 409);
+        throw new BulkSaveError("Some rows you deleted no longer exist. Reopen the grid.", [], 409);
       }
-      if (stale.length) throw new BulkSaveError("কিছু row পুরোনো হয়ে গেছে।", stale, 409);
+      if (stale.length) throw new BulkSaveError("Some rows are out of date.", stale, 409);
 
       const duplicates = findDuplicateDays(competition.schema, existing, changed, deletedIds);
       if (duplicates.length) {
-        throw new BulkSaveError("একই দিনের একাধিক রিপোর্ট হয়ে যাচ্ছে।", duplicates);
+        throw new BulkSaveError("This would create more than one report for the same day.", duplicates);
       }
 
       // Keep the team link the student portal uses, when the name matches a group.
@@ -190,7 +190,7 @@ export async function POST(
               groupId: sameTeam && current.groupId ? current.groupId : groupIdFor(row.teamName),
             },
           });
-          if (res.count !== 1) throw new BulkSaveError("একটি row সেভ করা যায়নি। Grid আবার খুলুন।", [], 409);
+          if (res.count !== 1) throw new BulkSaveError("A row could not be saved. Reopen the grid.", [], 409);
           updated++;
           revisions.push({
             courseId,
@@ -231,7 +231,7 @@ export async function POST(
     }
     console.error("Error managing bulk submissions:", error);
     return NextResponse.json(
-      { error: "সেভ করা যায়নি। কিছুই বদলানো হয়নি — আবার চেষ্টা করুন।" },
+      { error: "Could not save. Nothing was changed — please try again." },
       { status: 500 },
     );
   }

@@ -57,7 +57,7 @@ export default function NotificationBell({ programId }: { programId?: string }) 
     <div className="inc-bell" ref={box}>
       <button
         className="inc-btn"
-        aria-label={`রিমাইন্ডার${unread ? ` (${unread}টি নতুন)` : ""}`}
+        aria-label={`Reminders${unread ? ` (${unread} new)` : ""}`}
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
       >
@@ -65,22 +65,22 @@ export default function NotificationBell({ programId }: { programId?: string }) 
         {unread > 0 && <span className="inc-bell-count">{unread}</span>}
       </button>
       {open && (
-        <div className="inc-bell-panel" role="dialog" aria-label="রিমাইন্ডার">
+        <div className="inc-bell-panel" role="dialog" aria-label="Reminders">
           <div className="inc-row inc-between">
-            <b>রিমাইন্ডার</b>
+            <b>Reminders</b>
             {unread > 0 && (
               <button className="inc-link" onClick={markAll}>
-                সব পড়া হয়েছে
+                Mark all as read
               </button>
             )}
           </div>
           {items.length === 0 ? (
-            <p className="inc-muted">কোনো রিমাইন্ডার নেই।</p>
+            <p className="inc-muted">No reminders.</p>
           ) : (
             <ul>
               {items.map((n) => (
                 <li key={n.id} className={n.readAt ? "" : "unread"}>
-                  <small>{new Date(n.createdAt).toLocaleString("bn-BD", { timeZone: "Asia/Dhaka" })}</small>
+                  <small>{new Date(n.createdAt).toLocaleString("en-GB", { timeZone: "Asia/Dhaka" })}</small>
                   <b>{n.title}</b>
                   <p>{n.body}</p>
                 </li>

@@ -95,7 +95,7 @@ export function buildMonitor(input: MonitorInput): MonitorIssue[] {
         kind: "no_lead",
         severity: "high",
         audience: ["staff"],
-        text: `${team.name}: টিম লিডার নির্ধারিত নেই — কেউ আর্থিক এন্ট্রি দিতে পারবে না।`,
+        text: `${team.name}: no team lead assigned — nobody can submit financial entries.`,
       });
     }
     if (!running) continue;
@@ -107,7 +107,7 @@ export function buildMonitor(input: MonitorInput): MonitorIssue[] {
         severity: "medium",
         audience: ["staff"],
         date: today,
-        text: `${team.name}: আজকের জন্য কোনো sprint/category নির্ধারিত নেই।`,
+        text: `${team.name}: no sprint/category assigned for today.`,
       });
     }
     if (program.settings.salesReminder !== false && yesterday >= program.startDate) {
@@ -126,7 +126,7 @@ export function buildMonitor(input: MonitorInput): MonitorIssue[] {
           severity: "medium",
           audience: ["lead", "staff"],
           date: yesterday,
-          text: `${team.name}: ${yesterday} তারিখের কোনো বিক্রির এন্ট্রি নেই। আজকের মধ্যে জমা দিন; বিক্রি না হলে শিক্ষককে জানান।`,
+          text: `${team.name}: no sales entry for ${yesterday}. Submit it today, or tell your teacher if there were no sales.`,
         });
       }
     }
@@ -144,7 +144,7 @@ export function buildMonitor(input: MonitorInput): MonitorIssue[] {
           severity: "low",
           audience: ["lead", "staff"],
           date: today,
-          text: `${team.name}: গত ${every} দিনে কোনো FGD জমা হয়নি।`,
+          text: `${team.name}: no FGD submitted in the last ${every} days.`,
         });
       }
     }
@@ -163,7 +163,7 @@ export function buildMonitor(input: MonitorInput): MonitorIssue[] {
       teamName: teamName.get(s.teamId),
       userId: s.userId,
       date: day,
-      text: `${s.userName}: ${day} তারিখের মাঠ সেশনের check-out এখনো বাকি।`,
+      text: `${s.userName}: field session from ${day} is not checked out yet.`,
     });
   }
 
@@ -175,7 +175,7 @@ export function buildMonitor(input: MonitorInput): MonitorIssue[] {
       severity: "medium",
       audience: ["staff"],
       count: late,
-      text: `${late}টি দেরিতে জমা দেওয়া এন্ট্রি অনুমোদনের অপেক্ষায়।`,
+      text: `${late} late submission(s) pending approval.`,
     });
   }
   for (const r of input.records) {
@@ -188,7 +188,7 @@ export function buildMonitor(input: MonitorInput): MonitorIssue[] {
       teamId: r.targetTeamId,
       teamName: teamName.get(r.targetTeamId),
       date: r.date,
-      text: `${teamName.get(r.teamId) ?? "অন্য টিম"} থেকে পণ্য হস্তান্তর গ্রহণের অপেক্ষায় (${r.date})।`,
+      text: `Transfer from ${teamName.get(r.teamId) ?? "another team"} waiting to be accepted (${r.date}).`,
     });
   }
   const corrections = input.pendingCorrections + input.pendingFieldCorrections;
@@ -199,7 +199,7 @@ export function buildMonitor(input: MonitorInput): MonitorIssue[] {
       severity: "medium",
       audience: ["staff"],
       count: corrections,
-      text: `${corrections}টি সংশোধনের অনুরোধ পর্যালোচনার অপেক্ষায়।`,
+      text: `${corrections} correction request(s) waiting for review.`,
     });
   }
 

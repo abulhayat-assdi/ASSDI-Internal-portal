@@ -11,7 +11,7 @@ export async function GET(
     const courseId = req.headers.get("x-course-id");
     if (!courseId)
       return NextResponse.json(
-        { error: "কোর্সের নিজস্ব ঠিকানা থেকে রিপোর্ট খুলুন।" },
+        { error: "Open the report from the course's own address." },
         { status: 404 },
       );
     const { token } = await params,

@@ -83,7 +83,7 @@ describe("normaliseBulkRows", () => {
     expect(errors.map((e) => e.index)).toEqual([0, 1, 2, 3]);
     expect(errors[0].message).toContain("Total Cups Sold");
     expect(errors[1].message).toContain("Total Cups Sold is required");
-    expect(errors[2].message).toContain("Team Name");
+    expect(errors[2].message).toContain("Team name");
   });
 
   it("validates repeater sub-fields and keeps every item", () => {

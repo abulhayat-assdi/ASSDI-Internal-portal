@@ -29,7 +29,7 @@ export function buildReport(
     (!filters.from || validDate(filters.from)) &&
       (!filters.to || validDate(filters.to)) &&
       (!filters.from || !filters.to || filters.from <= filters.to),
-    "রিপোর্টের তারিখের সীমা সঠিক নয়।",
+    "The report date range is not valid.",
   );
   const productScope = !!(filters.categoryId || filters.productId);
   const selected = new Set(

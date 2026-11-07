@@ -19,7 +19,7 @@ export async function GET(
       const f = await tx.incubationAttachment.findFirst({
         where: { id, courseId: actor.courseId },
       });
-      insist(f, "ফাইল পাওয়া যায়নি।", 404);
+      insist(f, "File not found.", 404);
       const { member } = await accessProgram(tx, actor, f.programId);
       const linked = member
         ? await tx.incubationRecord.findFirst({
@@ -38,7 +38,7 @@ export async function GET(
           (member.isLead && f.teamId === member.teamId) ||
           f.uploadedBy === actor.id ||
           (member.isLead && linked),
-        "এই ফাইলের অনুমতি নেই।",
+        "You do not have access to this file.",
         403,
       );
       return f;
@@ -49,7 +49,7 @@ export async function GET(
           path.join(process.cwd(), "storage"),
       ),
       absolute = path.resolve(base, file.path);
-    insist(absolute.startsWith(base + path.sep), "অবৈধ ফাইল পাথ।", 403);
+    insist(absolute.startsWith(base + path.sep), "Invalid file path.", 403);
     const data = await readFile(absolute);
     return new NextResponse(data, {
       headers: {

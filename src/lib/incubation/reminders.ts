@@ -120,7 +120,7 @@ export async function runIncubationReminders(today = todayDhaka()) {
               userId,
               eventKey: `${program.id}:digest:${today}`,
               kind: "digest",
-              title: `${program.name}: আজকের করণীয় (${staffIssues.length})`,
+              title: `${program.name}: today's actions (${staffIssues.length})`,
               body: staffIssues.map((i) => `• ${i.text}`).join("\n"),
               link: staffLink,
             });
@@ -173,18 +173,18 @@ async function emailDigests(
       if (!u.email?.includes("@") || !items.length) continue;
       const html = renderEmail({
         courseName: course.name,
-        heading: "Business Incubation — আজকের করণীয়",
+        heading: "Business Incubation — today's actions",
         bodyHtml: items
           .map(
             (i) =>
               `<p style="margin:0 0 6px;"><b>${escapeHtml(i.title)}</b></p><p style="margin:0 0 14px;white-space:pre-line;">${escapeHtml(i.body)}</p>`,
           )
           .join(""),
-        ctaLabel: "পোর্টালে দেখুন",
+        ctaLabel: "Open the portal",
         ctaUrl: `https://${course.slug}.${base}${items[0].link}`,
       });
       try {
-        if (await sendMail({ courseName: course.name, subject: `Business Incubation রিমাইন্ডার — ${today}`, html, to: [u.email] })) {
+        if (await sendMail({ courseName: course.name, subject: `Business Incubation reminder — ${today}`, html, to: [u.email] })) {
           sent++;
           await withCourseContext({ courseId: course.id, isSuperAdmin: false }, (tx) =>
             tx.incubationNotification.updateMany({

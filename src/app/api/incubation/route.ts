@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
       : req.nextUrl.searchParams.get("programId");
     if (cid && !pid)
       return NextResponse.json(
-        { error: "Competition পাওয়া যায়নি।" },
+        { error: "Competition not found." },
         { status: 404 },
       );
     return NextResponse.json(await overview(actor as Actor, pid || undefined));
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
     if (!actor?.courseId)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     if (Number(req.headers.get("content-length")) > 1_000_000)
-      return NextResponse.json({ error: "ডাটা অনেক বড়।" }, { status: 413 });
+      return NextResponse.json({ error: "The request is too large." }, { status: 413 });
     return NextResponse.json(await command(actor as Actor, await req.json()));
   } catch (e) {
     return failure(e);

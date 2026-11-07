@@ -1,4 +1,5 @@
 "use client";
+import { numericOnly } from "./numeric";
 import { useRouter } from "next/navigation";
 import StudentWorkspace from "./StudentWorkspace";
 import {
@@ -39,6 +40,7 @@ import {
   BookOpen,
   History,
   Table2,
+  Filter,
   RefreshCw,
   X,
   Check,
@@ -65,8 +67,9 @@ import {
   transitionNeedsReason,
 } from "@/lib/incubation/lifecycle";
 import "./incubation.css";
+import "./incubation-glass.css";
 import RecordSnapshot from "./RecordSnapshot";
-import BulkSheetEditor from "./BulkSheetEditor";
+import DataSheetManager from "./DataSheetManager";
 import MonitorPanel from "./MonitorPanel";
 import ResultsCard from "./ResultsCard";
 import { rankTeams } from "@/lib/incubation/results";
@@ -155,21 +158,21 @@ function Badge({ value }: { value: string }) {
     <span className={`inc-status ${value}`}>
       {(
         {
-          posted: "জমা হয়েছে",
-          pending: "অনুমোদনের অপেক্ষায়",
-          transfer_pending: "গ্রহণের অপেক্ষায়",
-          approved: "অনুমোদিত",
-          rejected: "প্রত্যাখ্যাত",
-          void: "বাতিল",
-          active: "চলমান",
-          draft: "খসড়া",
-          closing: "হিসাব মেলানো",
-          closed: "সমাপ্ত",
-          archived: "আর্কাইভ",
-          cancelled: "বাতিল",
-          scheduled: "আসন্ন",
-          running: "চলমান",
-          ended: "সময় শেষ",
+          posted: "Posted",
+          pending: "Pending approval",
+          transfer_pending: "Waiting for acceptance",
+          approved: "Approved",
+          rejected: "Rejected",
+          void: "Void",
+          active: "Active",
+          draft: "Draft",
+          closing: "Closing",
+          closed: "Closed",
+          archived: "Archived",
+          cancelled: "Cancelled",
+          scheduled: "Upcoming",
+          running: "Running",
+          ended: "Ended",
         } as Row
       )[value] || value}
     </span>
@@ -222,11 +225,11 @@ function GridTable({
               ))}
           </tbody>
         </table>
-        {!rows.length && <Empty title="এই তালিকায় এখনো ডাটা নেই" />}
+        {!rows.length && <Empty title="No data in this list yet" />}
       </div>
       <div className="inc-pager">
         <span>
-          {rows.length} রেকর্ড • পৃষ্ঠা {current + 1}/
+          {rows.length} records • page {current + 1}/
           {Math.max(1, Math.ceil(rows.length / pageSize))}
         </span>
         <div className="inc-row">
@@ -235,14 +238,14 @@ function GridTable({
             disabled={current === 0}
             onClick={() => setPage(current - 1)}
           >
-            আগের
+            Previous
           </button>
           <button
             className="inc-btn"
             disabled={(current + 1) * pageSize >= rows.length}
             onClick={() => setPage(current + 1)}
           >
-            পরের
+            Next
           </button>
         </div>
       </div>
@@ -268,6 +271,7 @@ export default function IncubationApp({
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
     [editor, setEditor] = useState<Editor | null>(null),
+    [sheetOpen, setSheetOpen] = useState(false),
     [filters, setFilters] = useState<ReportFilters>({}),
     [sheet, setSheet] = useState("sale"),
     [search, setSearch] = useState(""),
@@ -333,7 +337,7 @@ export default function IncubationApp({
         setShare(
           r.token ? `${location.origin}/incubation/report/${r.token}` : "",
         );
-      setMessage("পরিবর্তন সংরক্ষিত হয়েছে।");
+      setMessage("Changes saved.");
       await load();
       return r;
     } catch (e) {
@@ -360,7 +364,7 @@ export default function IncubationApp({
       bundle?.catalog?.filter((c: Row) => c.kind === "category") || [],
     areas = bundle?.catalog?.filter((c: Row) => c.kind === "area") || [];
   const teamName = (id: string) =>
-    bundle?.teams?.find((t: Row) => t.id === id)?.name || "অন্য টিম";
+    bundle?.teams?.find((t: Row) => t.id === id)?.name || "Other team";
   const productName = (id: string) =>
     products.find((p: Row) => p.id === id)?.name || id;
   const { report, reportError } = useMemo(() => {
@@ -437,7 +441,7 @@ export default function IncubationApp({
   );
   const gps = () =>
     new Promise<Row>((resolve, reject) => {
-      if (!navigator.geolocation) return reject(Error("এই ডিভাইসে GPS নেই।"));
+      if (!navigator.geolocation) return reject(Error("This device has no GPS."));
       navigator.geolocation.getCurrentPosition(
         (p) =>
           resolve({
@@ -446,7 +450,7 @@ export default function IncubationApp({
             accuracy: p.coords.accuracy,
             capturedAt: new Date(p.timestamp).toISOString(),
           }),
-        () => reject(Error("GPS পাওয়া যায়নি। Location চালু করে অনুমতি দিন।")),
+        () => reject(Error("Could not get GPS. Turn on location and allow access.")),
         { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
       );
     });
@@ -471,7 +475,7 @@ export default function IncubationApp({
         d = await r.json();
       if (!r.ok) throw Error(d.error);
       setMessage(
-        action === "checkin" ? "মাঠ সেশন শুরু হয়েছে।" : "মাঠ সেশন শেষ হয়েছে।",
+        action === "checkin" ? "Field session started." : "Field session ended.",
       );
       if (action === "checkout")
         setFieldForm({
@@ -717,8 +721,8 @@ export default function IncubationApp({
       setEditor(null);
       setMessage(
         editor.type === "correct" && !bundle?.manager
-          ? "সংশোধন অনুরোধ পাঠানো হয়েছে।"
-          : "সফলভাবে সংরক্ষিত হয়েছে।",
+          ? "Correction request sent."
+          : "Saved successfully.",
       );
       if (editor.type === "program" && !programId)
         router.push("/dashboard/competitions/" + result.competitionId);
@@ -795,29 +799,30 @@ export default function IncubationApp({
       {message && (
         <div role="status" className="inc-notice inc-row inc-between">
           {message}
-          <button aria-label="বন্ধ করুন" onClick={() => setMessage("")}>
+          <button aria-label="Close" onClick={() => setMessage("")}>
             <X size={14} />
           </button>
         </div>
       )}
     </>
   );
-  const filtersUI = (
+  const filterCount = Object.values(filters).filter(Boolean).length;
+  const filtersPanel = (
     <div className="inc-filters">
-      <Field name="ব্যাচ">
+      <Field name="Batch">
         <select
           value={filters.batchName || ""}
           onChange={(e) =>
             setFilters({ ...filters, batchName: e.target.value, teamId: "" })
           }
         >
-          <option value="">সব ব্যাচ</option>
+          <option value="">All batches</option>
           {bundle?.program?.batchNames.map((n: string) => (
             <option key={n}>{n}</option>
           ))}
         </select>
       </Field>
-      <Field name="স্প্রিন্ট">
+      <Field name="Sprint">
         <select
           value={
             bundle?.sprints?.find(
@@ -845,7 +850,7 @@ export default function IncubationApp({
             );
           }}
         >
-          <option value="">কাস্টম সময় / সব</option>
+          <option value="">Custom dates / all</option>
           {bundle?.sprints?.map((s: Row) => (
             <option key={s.id} value={s.id}>
               {teamName(s.teamId)} • {s.startDate}–{s.endDate}
@@ -853,29 +858,29 @@ export default function IncubationApp({
           ))}
         </select>
       </Field>
-      <Field name="শুরু">
+      <Field name="Start">
         <input
-          aria-label="শুরুর তারিখ"
+          aria-label="Start date"
           type="date"
           value={filters.from || ""}
           onChange={(e) => setFilters({ ...filters, from: e.target.value })}
         />
       </Field>
-      <Field name="শেষ">
+      <Field name="End">
         <input
-          aria-label="শেষ তারিখ"
+          aria-label="End date"
           type="date"
           value={filters.to || ""}
           min={filters.from}
           onChange={(e) => setFilters({ ...filters, to: e.target.value })}
         />
       </Field>
-      <Field name="টিম">
+      <Field name="Team">
         <select
           value={filters.teamId || ""}
           onChange={(e) => setFilters({ ...filters, teamId: e.target.value })}
         >
-          <option value="">সব টিম</option>
+          <option value="">All teams</option>
           {bundle?.teams?.map((t: Row) => (
             <option key={t.id} value={t.id}>
               {t.name}
@@ -883,7 +888,7 @@ export default function IncubationApp({
           ))}
         </select>
       </Field>
-      <Field name="ক্যাটাগরি">
+      <Field name="Category">
         <select
           value={filters.categoryId || ""}
           onChange={(e) =>
@@ -894,7 +899,7 @@ export default function IncubationApp({
             })
           }
         >
-          <option value="">সব ক্যাটাগরি</option>
+          <option value="">All categories</option>
           {categories.map((t: Row) => (
             <option key={t.id} value={t.id}>
               {t.name}
@@ -902,14 +907,14 @@ export default function IncubationApp({
           ))}
         </select>
       </Field>
-      <Field name="পণ্য">
+      <Field name="Product">
         <select
           value={filters.productId || ""}
           onChange={(e) =>
             setFilters({ ...filters, productId: e.target.value })
           }
         >
-          <option value="">সব পণ্য</option>
+          <option value="">All products</option>
           {products
             .filter(
               (p: Row) =>
@@ -922,12 +927,12 @@ export default function IncubationApp({
             ))}
         </select>
       </Field>
-      <Field name="ব্রড এরিয়া">
+      <Field name="Area">
         <select
           value={filters.areaId || ""}
           onChange={(e) => setFilters({ ...filters, areaId: e.target.value })}
         >
-          <option value="">সব এলাকা</option>
+          <option value="">All areas</option>
           {areas.map((a: Row) => (
             <option key={a.id} value={a.id}>
               {a.name}
@@ -938,23 +943,32 @@ export default function IncubationApp({
       <button
         className="inc-btn"
         onClick={() => setFilters({})}
-        title="ফিল্টার রিসেট"
+        title="Reset filters"
       >
         <RefreshCw size={15} />
       </button>
     </div>
+  );
+  const filtersUI = (
+    <details className="inc-filterbox" open={filterCount > 0}>
+      <summary>
+        <Filter size={15} /> Filters
+        {filterCount > 0 && <span className="inc-filter-active">{filterCount} on</span>}
+      </summary>
+      {filtersPanel}
+    </details>
   );
   const recordsTable = (rows: Row[]) => (
     <GridTable
       rows={rows}
       columns={[
         {
-          title: "তারিখ / জমার সময়",
+          title: "Date / submitted",
           render: (r) => (
             <>
               <b>{r.date}</b>
               <div className="inc-sub">
-                দিন{" "}
+                Day{" "}
                 {Math.floor(
                   (Date.parse(r.date) - Date.parse(bundle?.program.startDate)) /
                     86400000,
@@ -965,7 +979,7 @@ export default function IncubationApp({
           ),
         },
         {
-          title: "টিম",
+          title: "Team",
           render: (r) => (
             <>
               {teamName(r.teamId)}
@@ -976,7 +990,7 @@ export default function IncubationApp({
           ),
         },
         {
-          title: "তথ্য",
+          title: "Details",
           render: (r) => (
             <div className="wrap">
               {r.data.lines?.map((l: Row, i: number) => (
@@ -992,7 +1006,7 @@ export default function IncubationApp({
           ),
         },
         {
-          title: "ভাউচার",
+          title: "Voucher",
           render: (r) =>
             r.data.voucherId ? (
               <a
@@ -1006,19 +1020,19 @@ export default function IncubationApp({
               "—"
             ),
         },
-        { title: "অবস্থা", render: (r) => <Badge value={r.status} /> },
+        { title: "Status", render: (r) => <Badge value={r.status} /> },
         {
-          title: "সংশোধন",
+          title: "Corrections",
           render: (r) => (
             <div className="inc-row">
-              <span className="inc-sub">{Math.max(0, r.version - 1)} বার</span>
+              <span className="inc-sub">{Math.max(0, r.version - 1)}×</span>
               {r.status === "posted" &&
                 (bundle?.manager ||
                   bundle?.member?.isLead ||
                   (!FINANCIAL_KINDS.includes(r.kind) &&
                     r.enteredBy === bundle?.actor?.id)) && (
                   <button className="inc-btn" onClick={() => editRecord(r)}>
-                    {bundle?.manager ? "এডিট" : "অনুরোধ"}
+                    {bundle?.manager ? "Edit" : "Correction request"}
                   </button>
                 )}
             </div>
@@ -1032,7 +1046,7 @@ export default function IncubationApp({
       ? [
           ...bundle.teams.flatMap((t: Row) => [
             ...(!t.members.some((m: Row) => m.isLead)
-              ? [{ team: t.name, issue: "টিম লিডার নেই" }]
+              ? [{ team: t.name, issue: "No team lead" }]
               : []),
             ...(!bundle.sprints.some(
               (sp: Row) =>
@@ -1040,7 +1054,7 @@ export default function IncubationApp({
                 sp.startDate <= todayDhaka() &&
                 sp.endDate >= todayDhaka(),
             )
-              ? [{ team: t.name, issue: "আজকের sprint নেই" }]
+              ? [{ team: t.name, issue: "No sprint today" }]
               : []),
           ]),
           ...bundle.ledger.summaries.flatMap((v: Row) => [
@@ -1048,7 +1062,7 @@ export default function IncubationApp({
               ? [
                   {
                     team: teamName(v.teamId),
-                    issue: "ক্যাশ হিসাব ঋণাত্মক: " + money(v.cash),
+                    issue: "Cash balance is negative: " + money(v.cash),
                   },
                 ]
               : []),
@@ -1057,7 +1071,7 @@ export default function IncubationApp({
                   {
                     team: teamName(v.teamId),
                     issue:
-                      "বিক্রির মূল্য ও পাওয়া টাকা পার্থক্য: " +
+                      "Difference between sales value and cash received: " +
                       money(v.variance),
                   },
                 ]
@@ -1066,7 +1080,7 @@ export default function IncubationApp({
               ? [
                   {
                     team: teamName(v.teamId),
-                    issue: "গণনার সময় ক্যাশের অমিল: " + money(v.cashDifference),
+                    issue: "Cash count mismatch: " + money(v.cashDifference),
                   },
                 ]
               : []),
@@ -1075,7 +1089,7 @@ export default function IncubationApp({
                   {
                     team: teamName(v.teamId),
                     issue:
-                      "মূল ফান্ড ফেরত বাকি: " + money(v.principalOutstanding),
+                      "Principal outstanding: " + money(v.principalOutstanding),
                   },
                 ]
               : []),
@@ -1084,7 +1098,7 @@ export default function IncubationApp({
             .filter((f: Row) => !f.checkOut)
             .map((f: Row) => ({
               team: teamName(f.teamId),
-              issue: f.userName + " — checkout বাকি: " + stamp(f.checkIn),
+              issue: f.userName + " — check-out pending since " + stamp(f.checkIn),
             })),
           ...bundle.records
             .filter((r: Row) =>
@@ -1114,22 +1128,22 @@ export default function IncubationApp({
                 <h2 style={{ margin: "6px 0 0" }}>
                   {
                     {
-                      program: "প্রোগ্রাম সেটআপ",
-                      team: "টিম তৈরি / সম্পাদনা",
-                      catalog: "ক্যাটালগ",
-                      sprint: "স্প্রিন্ট ও ক্যাটাগরি",
+                      program: "Program setup",
+                      team: "Create / edit team",
+                      catalog: "Catalog",
+                      sprint: "Sprint and category",
                       record: label(editor.data.kind),
                       correct: bundle?.manager
-                        ? "ডাটা সম্পাদনা"
-                        : "সংশোধন অনুরোধ",
-                      review: "অনুরোধ পর্যালোচনা",
+                        ? "Edit data"
+                        : "Correction request",
+                      review: "Review request",
                     }[editor.type]
                   }
                 </h2>
               </div>
               <button
                 type="button"
-                aria-label="ফর্ম বন্ধ করুন"
+                aria-label="Close form"
                 className="inc-btn"
                 disabled={busy}
                 onClick={() => setEditor(null)}
@@ -1146,14 +1160,14 @@ export default function IncubationApp({
               {editor.type === "program" && (
                 <>
                   <div className="inc-form-grid">
-                    <Field name="প্রোগ্রামের নাম">
+                    <Field name="Program name">
                       <input
                         required
                         value={editor.data.name}
                         onChange={(e) => setValue("name", e.target.value)}
                       />
                     </Field>
-                    <Field name="অবস্থা">
+                    <Field name="Status">
                       <select
                         value={editor.data.status}
                         onChange={(e) => setValue("status", e.target.value)}
@@ -1171,7 +1185,7 @@ export default function IncubationApp({
                         ))}
                       </select>
                     </Field>
-                    <Field name="শুরুর তারিখ">
+                    <Field name="Start date">
                       <input
                         required
                         type="date"
@@ -1179,7 +1193,7 @@ export default function IncubationApp({
                         onChange={(e) => setValue("startDate", e.target.value)}
                       />
                     </Field>
-                    <Field name="শেষের তারিখ (ঐচ্ছিক)">
+                    <Field name="End date (optional)">
                       <input
                         type="date"
                         min={editor.data.startDate}
@@ -1188,7 +1202,7 @@ export default function IncubationApp({
                       />
                     </Field>
                   </div>
-                  <Field name="বিবরণ">
+                  <Field name="Description">
                     <textarea
                       value={editor.data.description}
                       onChange={(e) => setValue("description", e.target.value)}
@@ -1196,8 +1210,8 @@ export default function IncubationApp({
                   </Field>
                   {editor.data.id && isProgramLocked(bundle?.program?.status || "") && (
                     <div className="inc-notice">
-                      এই প্রোগ্রাম এখন &quot;{STATUS_LABELS[bundle?.program?.status] || bundle?.program?.status}&quot;।
-                      শুধু অবস্থা বদলানো যাবে; অন্য তথ্য বদলাতে আগে কারণসহ আবার চালু করুন।
+                      This program is &quot;{STATUS_LABELS[bundle?.program?.status] || bundle?.program?.status}&quot;.
+                      Only the status can be changed. To edit anything else, reopen it with a reason first.
                     </div>
                   )}
                   {(editor.data.status === "closed" ||
@@ -1206,8 +1220,8 @@ export default function IncubationApp({
                     <Field
                       name={
                         editor.data.status === "closed"
-                          ? "অসম্পূর্ণ হিসাব থাকলে বন্ধ করার ব্যাখ্যা"
-                          : "অবস্থা বদলের কারণ (বাধ্যতামূলক)"
+                          ? "Reason for closing with unsettled balances"
+                          : "Reason for the status change (required)"
                       }
                     >
                       <textarea
@@ -1217,7 +1231,7 @@ export default function IncubationApp({
                     </Field>
                   )}
                   <div className="inc-form-grid">
-                    <Field name="ব্যাচ নির্বাচন">
+                    <Field name="Batches">
                       <div className="inc-checklist">
                         {(
                           bundle?.batches ||
@@ -1257,7 +1271,7 @@ export default function IncubationApp({
                           ))}
                       </div>
                     </Field>
-                    <Field name="সমন্বয়কারী শিক্ষক (সব শিক্ষক পরিচালনা করতে পারবেন)">
+                    <Field name="Coordinating staff (all teachers can manage)">
                       <div className="inc-checklist">
                         {bundle?.staff?.map((s: Row) => (
                           <label key={s.id}>
@@ -1283,18 +1297,19 @@ export default function IncubationApp({
                   </div>
                   <div className="inc-form-grid">
                     {[
-                      ["sprintDays", "স্প্রিন্টের দিন (নিজে দিন)", true],
-                      ["maxFieldHours", "মাঠের সর্বোচ্চ ঘণ্টা (ঐচ্ছিক)", false],
+                      ["sprintDays", "Sprint length (days)", true],
+                      ["maxFieldHours", "Max field hours (optional)", false],
                       [
                         "trackingMinutes",
-                        "পেজ খোলা থাকলে GPS আপডেটের মিনিট",
+                        "GPS update interval while page is open (minutes)",
                         true,
                       ],
-                      ["retentionDays", "GPS ইতিহাস সংরক্ষণের দিন", true],
+                      ["retentionDays", "Keep GPS history for (days)", true],
                     ].map(([key, title, required]) => (
                       <Field key={String(key)} name={String(title)}>
                         <input
-                          type="number"
+                          type="text"
+                          inputMode={key === "maxFieldHours" ? "decimal" : "numeric"}
                           min={key === "maxFieldHours" ? 0.25 : 1}
                           max={
                             key === "trackingMinutes"
@@ -1311,7 +1326,7 @@ export default function IncubationApp({
                           onChange={(e) =>
                             setValue("settings", {
                               ...editor.data.settings,
-                              [String(key)]: e.target.value,
+                              [String(key)]: numericOnly(e.target.value, key === "maxFieldHours"),
                             })
                           }
                         />
@@ -1329,15 +1344,15 @@ export default function IncubationApp({
                         })
                       }
                     />
-                    শুধু নির্ধারিত স্প্রিন্টের ক্যাটাগরিতে কেনা যাবে
+                    Purchases only in the team's current sprint category
                   </label>
                   <div className="inc-form-grid">
                     {[
-                      ["sessions", "বিক্রির session"],
+                      ["sessions", "Sales sessions"],
                       ["segments", "Customer segments"],
-                      ["objections", "প্রধান objections"],
+                      ["objections", "Common objections"],
                     ].map(([key, title]) => (
-                      <Field key={key} name={title + " (প্রতি লাইনে একটি)"}>
+                      <Field key={key} name={title + " (one per line)"}>
                         <textarea
                           value={(editor.data.settings[key] || []).join("\n")}
                           onChange={(e) =>
@@ -1350,7 +1365,7 @@ export default function IncubationApp({
                       </Field>
                     ))}
                   </div>
-                  <Field name="বাধ্যতামূলক FGD finding/action সংখ্যা">
+                  <Field name="Required FGD findings / actions">
                     <select
                       value={editor.data.settings.fgdRequiredCount || 1}
                       onChange={(e) =>
@@ -1378,7 +1393,7 @@ export default function IncubationApp({
                         })
                       }
                     />
-                    বিক্রির session বাধ্যতামূলক
+                    Sales session is required
                   </label>
                   <label className="inc-row">
                     <input
@@ -1391,7 +1406,7 @@ export default function IncubationApp({
                         })
                       }
                     />
-                    Insight-এ “কেন কিনেছে” বাধ্যতামূলক
+                    “Why they bought” is required in insights
                   </label>
                   <label className="inc-row">
                     <input
@@ -1404,23 +1419,24 @@ export default function IncubationApp({
                         })
                       }
                     />
-                    আগের দিনের বিক্রির এন্ট্রি না থাকলে লিডার ও শিক্ষককে রিমাইন্ডার দিন
+                    Remind the team lead and staff when yesterday's sales are missing
                   </label>
-                  <Field name="FGD রিমাইন্ডার: প্রতি কত দিনে অন্তত একটি FGD (ফাঁকা = বন্ধ)">
+                  <Field name="FGD reminder: at least one FGD every N days (blank = off)">
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
                       min={1}
                       max={30}
                       value={editor.data.settings.fgdEveryDays ?? ""}
                       onChange={(e) =>
                         setValue("settings", {
                           ...editor.data.settings,
-                          fgdEveryDays: e.target.value,
+                          fgdEveryDays: numericOnly(e.target.value, false),
                         })
                       }
                     />
                   </Field>
-                  <Field name="খরচের ধরন (প্রতি লাইনে একটি)">
+                  <Field name="Expense types (one per line)">
                     <textarea
                       value={editor.data.settings.expenseTypes.join("\n")}
                       onChange={(e) =>
@@ -1432,14 +1448,14 @@ export default function IncubationApp({
                     />
                   </Field>
                   <div className="inc-notice">
-                    কেনার ভাউচার সবসময় বাধ্যতামূলক। আজ/আগামীকালের পরে আগের দিনের
-                    জমা অনুমোদনের জন্য যাবে। লাভ টিমের কাছে থাকবে।
+                    A voucher is always required for purchases. Entries for older dates (after the
+                    next day) go for approval. Profit stays with the team.
                   </div>
                 </>
               )}
               {editor.type === "team" && (
                 <>
-                  <Field name="ব্যাচ">
+                  <Field name="Batch">
                     <select
                       required
                       value={editor.data.batchName || ""}
@@ -1459,14 +1475,14 @@ export default function IncubationApp({
                         )
                       }
                     >
-                      <option value="">ব্যাচ বাছুন</option>
+                      <option value="">Select batch</option>
                       {bundle?.program.batchNames.map((n: string) => (
                         <option key={n}>{n}</option>
                       ))}
                     </select>
                   </Field>
                   {!editor.data.id && (
-                    <Field name="আগের Competition গ্রুপ থেকে কপি (ঐচ্ছিক)">
+                    <Field name="Copy from a previous competition group (optional)">
                       <select
                         value=""
                         onChange={(e) => {
@@ -1506,7 +1522,7 @@ export default function IncubationApp({
                         }}
                       >
                         <option value="">
-                          গ্রুপ বাছুন—পরে সদস্য ও লিডার যাচাই করুন
+                          Select a group, then check members and team lead
                         </option>
                         {bundle?.groupTemplates
                           ?.filter(
@@ -1520,14 +1536,14 @@ export default function IncubationApp({
                       </select>
                     </Field>
                   )}
-                  <Field name="টিমের নাম">
+                  <Field name="Team name">
                     <input
                       required
                       value={editor.data.name}
                       onChange={(e) => setValue("name", e.target.value)}
                     />
                   </Field>
-                  <Field name="বিদ্যমান শিক্ষার্থী থেকে সদস্য নির্বাচন">
+                  <Field name="Select members from enrolled students">
                     <div className="inc-checklist">
                       {bundle?.roster
                         ?.filter(
@@ -1562,19 +1578,19 @@ export default function IncubationApp({
                                 }}
                               />
                               {s.batchName} · {s.roll} · {s.name}
-                              {taken && " (অন্য টিমে আছে)"}
+                              {taken && " (in another team)"}
                             </label>
                           );
                         })}
                     </div>
                   </Field>
-                  <Field name="টিম লিডার">
+                  <Field name="Team lead">
                     <select
                       required
                       value={editor.data.leadId || ""}
                       onChange={(e) => setValue("leadId", e.target.value)}
                     >
-                      <option value="">সদস্য থেকে বাছুন</option>
+                      <option value="">Select from members</option>
                       {bundle?.roster
                         ?.filter((s: Row) =>
                           editor.data.studentIds.includes(s.id),
@@ -1592,13 +1608,13 @@ export default function IncubationApp({
                       checked={editor.data.active}
                       onChange={(e) => setValue("active", e.target.checked)}
                     />
-                    সক্রিয় টিম
+                    Active team
                   </label>
                 </>
               )}
               {editor.type === "catalog" && (
                 <>
-                  <Field name="নাম">
+                  <Field name="Name">
                     <input
                       required
                       value={editor.data.name}
@@ -1607,13 +1623,13 @@ export default function IncubationApp({
                   </Field>
                   {editor.data.kind === "product" && (
                     <>
-                      <Field name="ক্যাটাগরি">
+                      <Field name="Category">
                         <select
                           required
                           value={editor.data.parentId || ""}
                           onChange={(e) => setValue("parentId", e.target.value)}
                         >
-                          <option value="">বাছুন</option>
+                          <option value="">Select</option>
                           {categories.map((c: Row) => (
                             <option key={c.id} value={c.id}>
                               {c.name}
@@ -1621,14 +1637,14 @@ export default function IncubationApp({
                           ))}
                         </select>
                       </Field>
-                      <Field name="ভ্যারিয়েন্ট (ঐচ্ছিক)">
+                      <Field name="Variant (optional)">
                         <input
                           value={editor.data.variant || ""}
                           onChange={(e) => setValue("variant", e.target.value)}
-                          placeholder="যেমন: 100g / লাল / বড়"
+                          placeholder="e.g. 100g / red / large"
                         />
                       </Field>
-                      <Field name="একক">
+                      <Field name="Unit">
                         <input
                           required
                           value={editor.data.unit}
@@ -1644,7 +1660,7 @@ export default function IncubationApp({
                             setValue("fractional", e.target.checked)
                           }
                         />
-                        ভগ্নাংশ পরিমাণ দেওয়া যাবে
+                        Allow fractional quantities
                       </label>
                     </>
                   )}
@@ -1654,14 +1670,14 @@ export default function IncubationApp({
                       checked={editor.data.active}
                       onChange={(e) => setValue("active", e.target.checked)}
                     />
-                    সক্রিয়
+                    Active
                   </label>
                 </>
               )}
               {editor.type === "sprint" && (
                 <>
                   <div className="inc-form-grid">
-                    <Field name="টিম">
+                    <Field name="Team">
                       <select
                         required
                         value={editor.data.teamId}
@@ -1674,13 +1690,13 @@ export default function IncubationApp({
                         ))}
                       </select>
                     </Field>
-                    <Field name="ক্যাটাগরি">
+                    <Field name="Category">
                       <select
                         required
                         value={editor.data.categoryId}
                         onChange={(e) => setValue("categoryId", e.target.value)}
                       >
-                        <option value="">বাছুন</option>
+                        <option value="">Select</option>
                         {categories.map((c: Row) => (
                           <option key={c.id} value={c.id}>
                             {c.name}
@@ -1688,7 +1704,7 @@ export default function IncubationApp({
                         ))}
                       </select>
                     </Field>
-                    <Field name="শুরু">
+                    <Field name="Start">
                       <input
                         required
                         type="date"
@@ -1715,7 +1731,7 @@ export default function IncubationApp({
                         }}
                       />
                     </Field>
-                    <Field name="শেষ">
+                    <Field name="End">
                       <input
                         required
                         type="date"
@@ -1738,8 +1754,8 @@ export default function IncubationApp({
                       setValue("endDate", d.toISOString().slice(0, 10));
                     }}
                   >
-                    প্রোগ্রামের {bundle?.program.settings.sprintDays} দিন
-                    অনুযায়ী শেষ তারিখ দিন
+                    Set end date from the program's {bundle?.program.settings.sprintDays}-day
+                    sprint length
                   </button>
                 </>
               )}
@@ -1748,9 +1764,9 @@ export default function IncubationApp({
                   <div className={editor.original ? "inc-form-grid" : ""}>
                     {editor.original && (
                       <aside className="inc-old">
-                        <h3>আগের তথ্য — অপরিবর্তনযোগ্য</h3>
+                        <h3>Current values — read only</h3>
                         <dl>
-                          <dt>তারিখ / ধরন</dt>
+                          <dt>Date / type</dt>
                           <dd>
                             {editor.original.date} ·{" "}
                             {label(editor.original.kind)}
@@ -1762,12 +1778,12 @@ export default function IncubationApp({
                                 <dd>
                                   {l.quantity} × ৳{l.unitPrice || 0}
                                   {l.cash !== undefined &&
-                                    ` / পাওয়া ৳${l.cash}`}
+                                    ` / received ৳${l.cash}`}
                                 </dd>
                               </div>
                             ),
                           )}
-                          <dt>টাকা / কারণ / নোট</dt>
+                          <dt>Amount / reason / note</dt>
                           <dd>
                             {editor.original.data.amount || ""}
                             <br />
@@ -1791,14 +1807,14 @@ export default function IncubationApp({
                               products={products}
                             />
                           </dd>
-                          <dt>সংস্করণ</dt>
+                          <dt>Version</dt>
                           <dd>{editor.original.version}</dd>
                         </dl>
                       </aside>
                     )}
                     <div style={{ display: "grid", gap: 16 }}>
                       <div className="inc-form-grid">
-                        <Field name="টিম">
+                        <Field name="Team">
                           <select
                             required
                             disabled={student || editor.type === "correct"}
@@ -1812,7 +1828,7 @@ export default function IncubationApp({
                             ))}
                           </select>
                         </Field>
-                        <Field name="ব্যবসার তারিখ">
+                        <Field name="Business date">
                           <input
                             type="date"
                             required
@@ -1834,12 +1850,12 @@ export default function IncubationApp({
                         <div className="inc-lines">
                           <h3>
                             {editor.original
-                              ? "সংশোধিত পণ্যের তথ্য"
-                              : "পণ্যের তথ্য"}
+                              ? "Corrected product lines"
+                              : "Product lines"}
                           </h3>
                           {editor.data.data.lines?.map((l: Row, i: number) => (
                             <div className="inc-line" key={i}>
-                              <Field name="পণ্য / ভ্যারিয়েন্ট">
+                              <Field name="Product / variant">
                                 <select
                                   required
                                   value={l.productId}
@@ -1858,7 +1874,7 @@ export default function IncubationApp({
                                     )
                                   }
                                 >
-                                  <option value="">পণ্য বাছুন</option>
+                                  <option value="">Select product</option>
                                   {products
                                     .filter(
                                       (p: Row) =>
@@ -1883,7 +1899,7 @@ export default function IncubationApp({
                                         {p.variant ? " · " + p.variant : ""} (
                                         {p.unit})
                                         {editor.data.kind === "sale"
-                                          ? " · উপলব্ধ " +
+                                          ? " · available " +
                                             ((bundle?.ledger?.stocks[
                                               editor.data.teamId + "|" + p.id
                                             ]?.quantity || 0) -
@@ -1896,10 +1912,11 @@ export default function IncubationApp({
                                     ))}
                                 </select>
                               </Field>
-                              <Field name="পরিমাণ">
+                              <Field name="Quantity">
                                 <input
                                   required
-                                  type="number"
+                                  type="text"
+                                  inputMode="decimal"
                                   step="0.001"
                                   min="0.001"
                                   value={l.quantity}
@@ -1909,7 +1926,7 @@ export default function IncubationApp({
                                       editor.data.data.lines.map(
                                         (x: Row, j: number) =>
                                           i === j
-                                            ? { ...x, quantity: e.target.value }
+                                            ? { ...x, quantity: numericOnly(e.target.value, true) }
                                             : x,
                                       ),
                                     )
@@ -1920,19 +1937,20 @@ export default function IncubationApp({
                                 <Field
                                   name={
                                     editor.data.kind === "sale"
-                                      ? "বিক্রয় মূল্য / একক"
+                                      ? "Unit price"
                                       : editor.data.kind === "customer_refund"
-                                        ? "রিফান্ড / একক"
+                                        ? "Refund per unit"
                                         : editor.data.kind ===
                                               "supplier_return" ||
                                             editor.data.kind === "transfer"
-                                          ? "ফেরত মূল্য / একক"
-                                          : "ক্রয় মূল্য / একক"
+                                          ? "Return price per unit"
+                                          : "Purchase price per unit"
                                   }
                                 >
                                   <input
                                     required
-                                    type="number"
+                                    type="text"
+                                    inputMode="decimal"
                                     min="0"
                                     step="0.01"
                                     value={l.unitPrice || ""}
@@ -1944,7 +1962,7 @@ export default function IncubationApp({
                                             i === j
                                               ? {
                                                   ...x,
-                                                  unitPrice: e.target.value,
+                                                  unitPrice: numericOnly(e.target.value, true),
                                                 }
                                               : x,
                                         ),
@@ -1954,12 +1972,13 @@ export default function IncubationApp({
                                 </Field>
                               )}
                               {editor.data.kind === "sale" && (
-                                <Field name="পাওয়া টাকা (ঐচ্ছিক)">
+                                <Field name="Cash received (optional)">
                                   <input
-                                    type="number"
+                                    type="text"
+                                    inputMode="decimal"
                                     min="0"
                                     step="0.01"
-                                    placeholder="ফাঁকা = মোট"
+                                    placeholder="Blank = full amount"
                                     value={l.cash ?? ""}
                                     onChange={(e) =>
                                       setData(
@@ -1967,7 +1986,7 @@ export default function IncubationApp({
                                         editor.data.data.lines.map(
                                           (x: Row, j: number) =>
                                             i === j
-                                              ? { ...x, cash: e.target.value }
+                                              ? { ...x, cash: numericOnly(e.target.value, true) }
                                               : x,
                                         ),
                                       )
@@ -1977,7 +1996,7 @@ export default function IncubationApp({
                               )}
                               <button
                                 type="button"
-                                aria-label="পণ্যের লাইন মুছুন"
+                                aria-label="Remove product line"
                                 className="inc-btn"
                                 onClick={() =>
                                   setData(
@@ -2008,12 +2027,12 @@ export default function IncubationApp({
                             }
                           >
                             <Plus size={14} />
-                            আরেকটি পণ্য
+                            Add another product
                           </button>
                         </div>
                       )}
                       {editor.data.kind === "transfer" && (
-                        <Field name="গ্রহণকারী টিম">
+                        <Field name="Receiving team">
                           <select
                             required
                             value={editor.data.targetTeamId || ""}
@@ -2022,7 +2041,7 @@ export default function IncubationApp({
                             }
                             disabled={editor.type === "correct"}
                           >
-                            <option value="">টিম বাছুন</option>
+                            <option value="">Select team</option>
                             {(bundle?.transferTeams || bundle?.teams)
                               ?.filter((t: Row) => t.id !== editor.data.teamId)
                               .map((t: Row) => (
@@ -2035,7 +2054,7 @@ export default function IncubationApp({
                       )}
                       {editor.data.kind === "customer_refund" && (
                         <>
-                          <Field name="মূল বিক্রির রেকর্ড">
+                          <Field name="Original sale">
                             <select
                               required
                               value={editor.data.data.sourceId || ""}
@@ -2043,7 +2062,7 @@ export default function IncubationApp({
                                 setData("sourceId", e.target.value)
                               }
                             >
-                              <option value="">বিক্রি বাছুন</option>
+                              <option value="">Select sale</option>
                               {bundle?.records
                                 ?.filter(
                                   (r: Row) =>
@@ -2072,18 +2091,18 @@ export default function IncubationApp({
                                 setData("saleable", e.target.checked)
                               }
                             />
-                            ফেরত পণ্য বিক্রিযোগ্য স্টকে ফিরবে
+                            Returned goods go back to saleable stock
                           </label>
                         </>
                       )}
                       {["sale", "insight"].includes(editor.data.kind) && (
-                        <Field name="ব্রড এরিয়া">
+                        <Field name="Area">
                           <select
                             required={editor.data.kind === "sale"}
                             value={editor.data.data.areaId || ""}
                             onChange={(e) => setData("areaId", e.target.value)}
                           >
-                            <option value="">বাছুন</option>
+                            <option value="">Select</option>
                             {areas.map((a: Row) => (
                               <option key={a.id} value={a.id}>
                                 {a.name}
@@ -2095,20 +2114,21 @@ export default function IncubationApp({
                       {["expense", "fund", "repayment", "cash_count"].includes(
                         editor.data.kind,
                       ) && (
-                        <Field name="টাকার পরিমাণ">
+                        <Field name="Amount (BDT)">
                           <input
                             required
-                            type="number"
+                            type="text"
+                            inputMode="decimal"
                             min="0"
                             step="0.01"
                             value={editor.data.data.amount || ""}
-                            onChange={(e) => setData("amount", e.target.value)}
+                            onChange={(e) => setData("amount", numericOnly(e.target.value, true))}
                           />
                         </Field>
                       )}
                       {editor.data.kind === "sale" && (
                         <div className="inc-form-grid">
-                          <Field name="প্রোগ্রামের দিন">
+                          <Field name="Program day">
                             <input
                               readOnly
                               value={
@@ -2122,7 +2142,7 @@ export default function IncubationApp({
                               }
                             />
                           </Field>
-                          <Field name="বিক্রির session">
+                          <Field name="Sales session">
                             <select
                               required={
                                 !!bundle?.program.settings.sessionsRequired
@@ -2132,7 +2152,7 @@ export default function IncubationApp({
                                 setData("session", e.target.value)
                               }
                             >
-                              <option value="">বাছুন / প্রযোজ্য নয়</option>
+                              <option value="">Select / not applicable</option>
                               {(bundle?.program.settings.sessions || []).map(
                                 (v: string) => (
                                   <option key={v}>{v}</option>
@@ -2143,7 +2163,7 @@ export default function IncubationApp({
                         </div>
                       )}
                       {editor.data.kind === "fund" && (
-                        <Field name="ফান্ডের রাউন্ড / reference">
+                        <Field name="Funding round / reference">
                           <input
                             value={editor.data.data.round || ""}
                             onChange={(e) => setData("round", e.target.value)}
@@ -2151,7 +2171,7 @@ export default function IncubationApp({
                         </Field>
                       )}
                       {editor.data.kind === "expense" && (
-                        <Field name="খরচের ধরন">
+                        <Field name="Expense type">
                           <select
                             required
                             value={editor.data.data.expenseType || ""}
@@ -2159,7 +2179,7 @@ export default function IncubationApp({
                               setData("expenseType", e.target.value)
                             }
                           >
-                            <option value="">বাছুন</option>
+                            <option value="">Select</option>
                             {bundle?.program.settings.expenseTypes.map(
                               (s: string) => (
                                 <option key={s}>{s}</option>
@@ -2215,10 +2235,10 @@ export default function IncubationApp({
                         ))}
                       {editor.data.kind === "insight" &&
                         [
-                          ["segment", "সেরা customer segment"],
-                          ["objections", "প্রধান আপত্তি"],
-                          ["whyBought", "কেন কিনেছে"],
-                          ["bestArea", "সেরা বিক্রির এলাকা"],
+                          ["segment", "Best customer segment"],
+                          ["objections", "Top objections"],
+                          ["whyBought", "Why they bought"],
+                          ["bestArea", "Best selling area"],
                         ].map(([key, title]) => (
                           <Field key={key} name={title}>
                             {["segment", "objections"].includes(key) &&
@@ -2232,7 +2252,7 @@ export default function IncubationApp({
                                 value={editor.data.data[key] || ""}
                                 onChange={(e) => setData(key, e.target.value)}
                               >
-                                <option value="">বাছুন</option>
+                                <option value="">Select</option>
                                 {bundle?.program.settings[
                                   key === "segment" ? "segments" : "objections"
                                 ].map((v: string) => (
@@ -2255,8 +2275,8 @@ export default function IncubationApp({
                         <Field
                           name={
                             editor.data.kind === "purchase"
-                              ? "ভাউচার (বাধ্যতামূলক)"
-                              : "ভাউচার / প্রমাণ (ঐচ্ছিক)"
+                              ? "Voucher (required)"
+                              : "Voucher / proof (optional)"
                           }
                         >
                           <input
@@ -2270,19 +2290,19 @@ export default function IncubationApp({
                               rel="noreferrer"
                               href={`/api/incubation/files/${editor.data.data.voucherId}`}
                             >
-                              ✓ আপলোড হয়েছে • দেখুন
+                              ✓ Uploaded • view
                             </a>
                           )}
                         </Field>
                       )}
-                      <Field name="কারণ / টাকার পার্থক্যের ব্যাখ্যা">
+                      <Field name="Reason / explanation of cash difference">
                         <textarea
                           required={editor.data.kind === "repayment"}
                           value={editor.data.data.reason || ""}
                           onChange={(e) => setData("reason", e.target.value)}
                         />
                       </Field>
-                      <Field name="নোট">
+                      <Field name="Note">
                         <textarea
                           value={editor.data.data.note || ""}
                           onChange={(e) => setData("note", e.target.value)}
@@ -2292,7 +2312,7 @@ export default function IncubationApp({
                   </div>
                   {editor.type === "correct" && (
                     <>
-                      <Field name="কেন সংশোধন প্রয়োজন (বাধ্যতামূলক)">
+                      <Field name="Why is a correction needed? (required)">
                         <textarea
                           required
                           minLength={3}
@@ -2306,7 +2326,7 @@ export default function IncubationApp({
                           checked={editor.data.void}
                           onChange={(e) => setValue("void", e.target.checked)}
                         />
-                        এই এন্ট্রি বাতিলের অনুরোধ (ইতিহাস সংরক্ষিত থাকবে)
+                        Request to void this entry (history is kept)
                       </label>
                     </>
                   )}
@@ -2316,7 +2336,7 @@ export default function IncubationApp({
                 <>
                   <div className="inc-form-grid">
                     <section className="inc-old">
-                      <h3>আগের / জমা তথ্য</h3>
+                      <h3>Current / submitted values</h3>
                       <p>
                         {editor.original?.date} ·{" "}
                         {label(editor.original?.kind || "")}
@@ -2328,7 +2348,7 @@ export default function IncubationApp({
                     </section>
                     {editor.data.comparison && (
                       <section className="inc-old">
-                        <h3>প্রস্তাবিত সংশোধন</h3>
+                        <h3>Proposed correction</h3>
                         <RecordSnapshot
                           record={editor.data.comparison}
                           products={products}
@@ -2340,18 +2360,18 @@ export default function IncubationApp({
                   editor.data.status !== "approved" &&
                   editor.data.status !== "rejected" ? (
                     <>
-                      <Field name="সিদ্ধান্ত">
+                      <Field name="Decision">
                         <select
                           value={String(editor.data.approve)}
                           onChange={(e) =>
                             setValue("approve", e.target.value === "true")
                           }
                         >
-                          <option value="true">অনুমোদন / গ্রহণ</option>
-                          <option value="false">প্রত্যাখ্যান</option>
+                          <option value="true">Approve / accept</option>
+                          <option value="false">Reject</option>
                         </select>
                       </Field>
-                      <Field name="পর্যালোচনার নোট">
+                      <Field name="Review note">
                         <textarea
                           required
                           minLength={3}
@@ -2361,7 +2381,7 @@ export default function IncubationApp({
                       </Field>
                       {editor.data.reviewType === "accept_transfer" &&
                         editor.data.approve && (
-                          <Field name="গ্রহণের ভাউচার / হস্তান্তর প্রমাণ (বাধ্যতামূলক)">
+                          <Field name="Receipt voucher / transfer proof (required)">
                             <input
                               type="file"
                               required={!editor.data.data?.voucherId}
@@ -2370,13 +2390,13 @@ export default function IncubationApp({
                                 uploadEditor(e.target.files?.[0])
                               }
                             />
-                            {editor.data.data?.voucherId && "✓ আপলোড হয়েছে"}
+                            {editor.data.data?.voucherId && "✓ Uploaded"}
                           </Field>
                         )}
                     </>
                   ) : (
                     <p className="inc-sub">
-                      অনুরোধের অবস্থা: {editor.data.status || "pending"}
+                      Request status: {editor.data.status || "pending"}
                     </p>
                   )}
                 </>
@@ -2389,7 +2409,7 @@ export default function IncubationApp({
                 disabled={busy}
                 onClick={() => setEditor(null)}
               >
-                বন্ধ করুন
+                Close
               </button>
               {!(
                 editor.type === "review" &&
@@ -2403,10 +2423,10 @@ export default function IncubationApp({
                 >
                   <Check size={16} />
                   {busy
-                    ? "সংরক্ষণ হচ্ছে…"
+                    ? "Saving…"
                     : editor.type === "correct" && !bundle?.manager
-                      ? "অনুরোধ পাঠান"
-                      : "সংরক্ষণ করুন"}
+                      ? "Send request"
+                      : "Save"}
                 </button>
               )}
             </div>
@@ -2419,27 +2439,27 @@ export default function IncubationApp({
     <div className="inc-kpis">
       {[
         {
-          title: "মোট বিক্রি",
+          title: "Total sales",
           value: report.totals.revenue,
-          sub: "নির্বাচিত সময়ের নিট বিক্রয়মূল্য",
+          sub: "Net sales value for the selected period",
           icon: ChartNoAxesCombined,
         },
         {
-          title: "নিট লাভ / ক্ষতি",
+          title: "Net profit / loss",
           value: report.totals.netProfit,
-          sub: "বিক্রিত পণ্যের খরচ ও অন্যান্য খরচ বাদে",
+          sub: "After cost of goods sold and other expenses",
           icon: Wallet,
         },
         {
-          title: "স্টকের মূল্য",
+          title: "Stock value",
           value: report.totals.stockValue,
-          sub: "শেষ তারিখে ক্রয়মূল্য অনুযায়ী",
+          sub: "At cost on the end date",
           icon: Package,
         },
         {
-          title: "হাতে থাকার হিসাব",
+          title: "Cash in hand",
           value: report.totals.cash,
-          sub: "শেষ তারিখ পর্যন্ত হিসাবকৃত ক্যাশ",
+          sub: "Calculated cash up to the end date",
           icon: Wallet,
         },
       ].map((k, i) => (
@@ -2498,8 +2518,8 @@ export default function IncubationApp({
             <h1>{bundle?.program?.name || "Business Incubation"}</h1>
             <p className="inc-sub">
               {bundle?.program
-                ? `${bundle.program.startDate} থেকে ${bundle.program.endDate || "চলমান"} • ${bundle.member ? `${teamName(bundle.member.teamId)} — ${bundle.member.isLead ? "টিম লিডার" : "সদস্য"}` : "প্রোগ্রাম পরিচালনা ও ব্যবসার অন্তর্দৃষ্টি"}`
-                : "দল গড়ুন। বাজার বুঝুন। বাস্তব অভিজ্ঞতায় ব্যবসা শিখুন।"}
+                ? `${bundle.program.startDate} to ${bundle.program.endDate || "ongoing"} • ${bundle.member ? `${teamName(bundle.member.teamId)} — ${bundle.member.isLead ? "Team lead" : "Member"}` : "Program management and business insights"}`
+                : "Build a team. Understand the market. Learn business by doing it."}
             </p>
           </div>
           <div className="inc-row">
@@ -2510,15 +2530,20 @@ export default function IncubationApp({
                   onClick={() => router.push("/dashboard/competitions")}
                 >
                   <ArrowLeft size={15} />
-                  প্রোগ্রাম
+                  Programs
                 </button>
                 {bundle?.program && <Badge value={bundle.program.status} />}
                 <NotificationBell programId={programId} />
+                {bundle?.manager && (
+                  <button className="inc-btn" onClick={() => setSheetOpen(true)}>
+                    <Table2 size={16} /> Manage data
+                  </button>
+                )}
                 <button
                   className="inc-btn"
                   disabled={busy || loading}
                   onClick={() => load()}
-                  title="রিফ্রেশ"
+                  title="Refresh"
                 >
                   <RefreshCw size={16} />
                 </button>
@@ -2532,7 +2557,7 @@ export default function IncubationApp({
                   }
                 >
                   <Plus size={17} />
-                  নতুন প্রোগ্রাম
+                  New program
                 </button>
               )
             )}
@@ -2553,9 +2578,9 @@ export default function IncubationApp({
             className="inc-row inc-between"
             style={{ margin: "25px 0 16px" }}
           >
-            <h2>আপনার প্রোগ্রামসমূহ</h2>
+            <h2>Your programs</h2>
             <span className="inc-sub">
-              {bundle.programs?.length || 0}টি প্রোগ্রাম
+              {bundle.programs?.length || 0} programs
             </span>
           </div>
           <div className="inc-grid">
@@ -2573,7 +2598,7 @@ export default function IncubationApp({
                 </div>
                 <h2>{p.name}</h2>
                 <p className="inc-sub">
-                  {p.description || "টিম, স্টক ও ব্যবসার ফলাফল এক জায়গায়।"}
+                  {p.description || "Teams, stock and business results in one place."}
                 </p>
                 <div className="inc-row inc-between" style={{ marginTop: 20 }}>
                   <small>
@@ -2588,10 +2613,10 @@ export default function IncubationApp({
           </div>
           {!bundle.programs?.length && (
             <div className="inc-card">
-              <Empty title="নতুন অভিজ্ঞতার শুরু এখানেই">
+              <Empty title="Start a new program here">
                 {bundle.manager
-                  ? "নতুন প্রোগ্রাম তৈরি করে ব্যাচ, টিম ও ক্যাটাগরি নির্ধারণ করুন। কোনো পুরোনো তথ্য আমদানি করা হবে না।"
-                  : "আপনার ব্যাচের প্রোগ্রাম চালু হলে এখানে দেখা যাবে।"}
+                  ? "Create a program, then set its batches, teams and categories. No old data is imported."
+                  : "Your batch's program will appear here once it starts."}
               </Empty>
             </div>
           )}
@@ -2599,17 +2624,17 @@ export default function IncubationApp({
       )}
       {programId && bundle?.program && (
         <>
-          <nav className="inc-tabs" aria-label="Business Incubation বিভাগ">
+          <nav className="inc-tabs" aria-label="Business Incubation sections">
             {[
-              ["overview", "ড্যাশবোর্ড", ChartNoAxesCombined],
-              ["entries", "ডাটা শিট", Table2],
-              ["field", "মাঠ ও GPS", MapPin],
-              ["learning", "FGD ও Insights", BookOpen],
-              ["reviews", "অনুরোধ", ClipboardCheck],
-              ["reports", "রিপোর্ট", FileText],
-              ["reconcile", "হিসাব যাচাই", ClipboardCheck],
-              ["history", "ইতিহাস", History],
-              ...(bundle.manager ? [["setup", "সেটআপ", Settings2]] : []),
+              ["overview", "Dashboard", ChartNoAxesCombined],
+              ["entries", "Data sheets", Table2],
+              ["field", "Field & GPS", MapPin],
+              ["learning", "FGD & insights", BookOpen],
+              ["reviews", "Requests", ClipboardCheck],
+              ["reports", "Reports", FileText],
+              ["reconcile", "Reconciliation", ClipboardCheck],
+              ["history", "History", History],
+              ...(bundle.manager ? [["setup", "Setup", Settings2]] : []),
             ].map(([key, title, Icon]: any) => (
               <button
                 key={key}
@@ -2626,8 +2651,8 @@ export default function IncubationApp({
           </nav>
           {bundle.program.status === "draft" && (
             <div className="inc-notice">
-              প্রোগ্রামটি খসড়া অবস্থায় আছে। টিম, পণ্য ও স্প্রিন্ট প্রস্তুত করে
-              সেটআপ থেকে সক্রিয় করুন।
+              This program is a draft. Set up teams, products and sprints, then
+              activate it from Setup.
             </div>
           )}
           {tab === "overview" && (
@@ -2638,16 +2663,16 @@ export default function IncubationApp({
                 <>
                   {report?.productScope && (
                     <div className="inc-notice">
-                      পণ্য/ক্যাটাগরি ফিল্টারে পণ্যবিহীন খরচ ও ফান্ড অন্তর্ভুক্ত
-                      নয়। পূর্ণ ক্যাশ ও নিট লাভ দেখতে সব ক্যাটাগরি বাছুন।
+                      Product/category filters leave out expenses and funding that have no
+                      product. Choose all categories to see full cash and net profit.
                     </div>
                   )}
                   {kpis}
                   <div className="inc-grid">
                     <section className="inc-card">
                       <div className="inc-row inc-between">
-                        <h2>বিক্রির অগ্রগতি</h2>
-                        <span className="inc-sub">দিন অনুযায়ী • টাকা</span>
+                        <h2>Sales trend</h2>
+                        <span className="inc-sub">By day • BDT</span>
                       </div>
                       {report?.trend.length ? (
                         <div className="inc-chart">
@@ -2693,7 +2718,7 @@ export default function IncubationApp({
                               <Area
                                 isAnimationActive={false}
                                 dataKey="revenue"
-                                name="বিক্রি"
+                                name="Sales"
                                 stroke="#1a8564"
                                 fill="url(#incRevenue)"
                                 strokeWidth={3}
@@ -2702,11 +2727,11 @@ export default function IncubationApp({
                           </ResponsiveContainer>
                         </div>
                       ) : (
-                        <Empty title="বিক্রির তথ্য জমা হলে চার্ট দেখা যাবে" />
+                        <Empty title="The chart appears once sales are recorded" />
                       )}
                     </section>
                     <section className="inc-card">
-                      <h2>টিমের তুলনামূলক ফলাফল</h2>
+                      <h2>Team comparison</h2>
                       {report?.summaries.some((s) => s.revenue) ? (
                         <div className="inc-chart">
                           <ResponsiveContainer width="100%" height="100%">
@@ -2726,7 +2751,7 @@ export default function IncubationApp({
                               <Bar
                                 isAnimationActive={false}
                                 dataKey="profit"
-                                name="নিট লাভ"
+                                name="Net profit"
                                 fill="#538d6d"
                                 radius={[5, 5, 0, 0]}
                               />
@@ -2734,13 +2759,13 @@ export default function IncubationApp({
                           </ResponsiveContainer>
                         </div>
                       ) : (
-                        <Empty title="টিমের ফলাফল এখানে দেখা যাবে" />
+                        <Empty title="Team results will appear here" />
                       )}
                     </section>
                   </div>
                   <div className="inc-grid" style={{ marginTop: 18 }}>
                     <section className="inc-card">
-                      <h2>বর্তমান দায়িত্ব</h2>
+                      <h2>Current assignments</h2>
                       <div className="inc-timeline">
                         {bundle.sprints
                           .filter(
@@ -2765,45 +2790,45 @@ export default function IncubationApp({
                           ))}
                         {!bundle.sprints.length && (
                           <p className="inc-sub">
-                            এখনো স্প্রিন্ট নির্ধারণ করা হয়নি।
+                            No sprints have been set yet.
                           </p>
                         )}
                       </div>
                     </section>
                     <section className="inc-card">
-                      <h2>হিসাব ও মনোযোগের বিষয়</h2>
+                      <h2>Accounts to watch</h2>
                       <div className="inc-steps">
                         <div className="inc-step">
-                          <b>১</b>
+                          <b>1</b>
                           <div>
-                            প্রতিষ্ঠানে মূল ফান্ড ফেরত বাকি
+                            Principal outstanding to the institution
                             <strong style={{ display: "block", marginTop: 5 }}>
                               {money(report?.totals.principalOutstanding || 0)}
                             </strong>
                           </div>
                         </div>
                         <div className="inc-step">
-                          <b>২</b>
+                          <b>2</b>
                           <div>
-                            বিক্রির মূল্য ও পাওয়া টাকার পার্থক্য
+                            Sales value vs cash received
                             <strong style={{ display: "block", marginTop: 5 }}>
                               {money(report?.totals.variance || 0)}
                             </strong>
                           </div>
                         </div>
                         <div className="inc-step">
-                          <b>৩</b>
+                          <b>3</b>
                           <div>
-                            অপেক্ষায় থাকা অনুরোধ
+                            Requests waiting
                             <strong style={{ display: "block", marginTop: 5 }}>
-                              {pending}টি
+                              {pending}
                             </strong>
                           </div>
                         </div>
                       </div>
                       <p className="inc-sub" style={{ marginTop: 20 }}>
-                        মূল ফান্ড ফেরতের পর লাভ টিমের কাছেই থাকবে। ক্যাশের
-                        পার্থক্য কারণসহ মিলিয়ে নিতে হবে।
+                        After the principal is repaid, profit stays with the team. Cash
+                        differences must be reconciled with a reason.
                       </p>
                     </section>
                   </div>
@@ -2816,19 +2841,20 @@ export default function IncubationApp({
               {filtersUI}
               {exportButtons(sheet)}
               {bundle.manager && (
-                <div style={{ marginBottom: 15 }}>
-                  <BulkSheetEditor
-                    records={records.filter((r: Row) => r.kind === sheet)}
-                    products={products}
-                    teams={bundle.teams}
-                    programId={programId}
-                    onSaved={() => load()}
-                    onError={setError}
-                  />
+                <div className="inc-card inc-row inc-between" style={{ marginBottom: 15 }}>
+                  <div>
+                    <h2 style={{ margin: 0 }}>Edit data like a spreadsheet</h2>
+                    <p className="inc-sub" style={{ margin: "4px 0 0" }}>
+                      Open every team-wise and individual sheet, edit cells, add or delete rows, and save in one go.
+                    </p>
+                  </div>
+                  <button className="inc-btn primary" onClick={() => setSheetOpen(true)}>
+                    <Table2 size={16} /> Manage data
+                  </button>
                 </div>
               )}
               <div className="inc-row inc-between" style={{ marginBottom: 16 }}>
-                <h2>রেসপন্স ও লেনদেনের শিট</h2>
+                <h2>Entries and transactions</h2>
                 {(!student || (bundle.member?.isLead && sheet !== "fund")) && (
                   <button
                     className="inc-btn primary"
@@ -2842,7 +2868,7 @@ export default function IncubationApp({
                     }
                   >
                     <Plus size={16} />
-                    নতুন এন্ট্রি
+                    New entry
                   </button>
                 )}
               </div>
@@ -2860,13 +2886,13 @@ export default function IncubationApp({
                   className={`inc-btn ${sheet === "inventory" ? "primary" : ""}`}
                   onClick={() => setSheet("inventory")}
                 >
-                  স্টক
+                  Stock
                 </button>
               </div>
               <div className="inc-row" style={{ marginBottom: 15 }}>
                 <Search size={16} />
                 <input
-                  placeholder="পণ্য, টিম, তারিখ বা নোট খুঁজুন…"
+                  placeholder="Search product, team, date or note…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   style={{ maxWidth: 400 }}
@@ -2876,18 +2902,18 @@ export default function IncubationApp({
                 <GridTable
                   rows={report?.inventory || []}
                   columns={[
-                    { title: "টিম", render: (r) => r.teamName },
-                    { title: "পণ্য", render: (r) => r.productName },
-                    { title: "একক", render: (r) => r.unit },
-                    { title: "কেনা", render: (r) => r.procured / 1000 },
-                    { title: "বিক্রি", render: (r) => r.sold / 1000 },
-                    { title: "ফেরত", render: (r) => r.returned / 1000 },
-                    { title: "নষ্ট", render: (r) => r.damaged / 1000 },
+                    { title: "Team", render: (r) => r.teamName },
+                    { title: "Product", render: (r) => r.productName },
+                    { title: "Unit", render: (r) => r.unit },
+                    { title: "Bought", render: (r) => r.procured / 1000 },
+                    { title: "Sold", render: (r) => r.sold / 1000 },
+                    { title: "Returned", render: (r) => r.returned / 1000 },
+                    { title: "Damaged", render: (r) => r.damaged / 1000 },
                     {
-                      title: "অবশিষ্ট",
+                      title: "Remaining",
                       render: (r) => <b>{r.quantity / 1000}</b>,
                     },
-                    { title: "মূল্য", render: (r) => money(r.value) },
+                    { title: "Value", render: (r) => money(r.value) },
                   ]}
                 />
               ) : (
@@ -2912,7 +2938,7 @@ export default function IncubationApp({
           {tab === "learning" && (
             <>
               <div className="inc-row inc-between" style={{ marginBottom: 18 }}>
-                <h2>মাঠের অভিজ্ঞতা থেকে শেখা</h2>
+                <h2>Learning from the field</h2>
                 <div className="inc-row">
                   <button
                     className="inc-btn primary"
@@ -2931,12 +2957,12 @@ export default function IncubationApp({
                 </div>
               </div>
               {filtersUI}
-              <Field name="ব্যক্তিভিত্তিক FGD / Insights">
+              <Field name="FGD / insights by person">
                 <select
                   value={personId}
                   onChange={(e) => setPersonId(e.target.value)}
                 >
-                  <option value="">সব সদস্য</option>
+                  <option value="">All members</option>
                   {Array.from(
                     new Map<string, string>(
                       (bundle.records as Row[])
@@ -2989,10 +3015,10 @@ export default function IncubationApp({
                       ) : (
                         <dl>
                           {[
-                            ["সেরা সেগমেন্ট", r.data.segment],
-                            ["আপত্তি", r.data.objections],
-                            ["কেন কিনেছে", r.data.whyBought],
-                            ["সেরা এলাকা", r.data.bestArea],
+                            ["Best segment", r.data.segment],
+                            ["Objections", r.data.objections],
+                            ["Why they bought", r.data.whyBought],
+                            ["Best area", r.data.bestArea],
                           ].map(([k, v]) => (
                             <div key={k}>
                               <dt className="inc-sub">{k}</dt>
@@ -3007,7 +3033,7 @@ export default function IncubationApp({
                           style={{ marginTop: 12 }}
                           onClick={() => editRecord(r)}
                         >
-                          সংশোধন
+                          Correct
                         </button>
                       )}
                     </section>
@@ -3015,7 +3041,7 @@ export default function IncubationApp({
               </div>
               {!records.some((r: Row) =>
                 ["fgd", "insight"].includes(r.kind),
-              ) && <Empty title="আপনার প্রথম FGD বা Insight জমা দিন" />}
+              ) && <Empty title="No FGD or insight yet" />}
             </>
           )}
           {tab === "field" && (
@@ -3026,12 +3052,12 @@ export default function IncubationApp({
                 onError={setError}
               />
               {filtersUI}
-              <Field name="ব্যক্তিভিত্তিক মাঠের কাজ">
+              <Field name="Field work by person">
                 <select
                   value={personId}
                   onChange={(e) => setPersonId(e.target.value)}
                 >
-                  <option value="">সব সদস্য</option>
+                  <option value="">All members</option>
                   {Array.from(
                     new Map<string, string>(
                       (bundle.fields as Row[]).map((f: Row) => [
@@ -3048,21 +3074,21 @@ export default function IncubationApp({
               </Field>
               {exportButtons("field")}
               <div className="inc-notice">
-                ওয়েবসাইটে GPS check-in/out ও পেজ খোলা থাকলে আপডেট চলে। ফোন লক
-                অবস্থার tracking-এর Android অ্যাপের পরিকল্পনা আলাদা রয়েছে; এখানে
-                locked-screen tracking চালু হয়েছে বলে দেখানো হচ্ছে না।
+                On the website, GPS check-in/out and updates work while the page is open.
+                Tracking with the phone locked is planned for the Android app; it is
+                not shown as active here.
               </div>
               {student && (
                 <section className="inc-card" style={{ marginBottom: 20 }}>
                   <div className="inc-row inc-between">
                     <h2>
-                      {ownField ? "আপনার মাঠ সেশন চলছে" : "মাঠে কাজ শুরু করুন"}
+                      {ownField ? "Your field session is running" : "Start field work"}
                     </h2>
                     {ownField && <Badge value="active" />}
                   </div>
                   <div className="inc-form-grid">
                     <Field
-                      name={ownField ? "ফেরার ব্রড এরিয়া" : "কাজের ব্রড এরিয়া"}
+                      name={ownField ? "Return area" : "Work area"}
                     >
                       <select
                         value={fieldForm.areaId}
@@ -3070,7 +3096,7 @@ export default function IncubationApp({
                           setFieldForm({ ...fieldForm, areaId: e.target.value })
                         }
                       >
-                        <option value="">নির্বাচন করুন</option>
+                        <option value="">Select</option>
                         {areas
                           .filter((a: Row) => a.active)
                           .map((a: Row) => (
@@ -3081,16 +3107,17 @@ export default function IncubationApp({
                       </select>
                     </Field>
                     {ownField && (
-                      <Field name="হাঁটার স্টেপ">
+                      <Field name="Steps walked">
                         <input
-                          type="number"
+                          type="text"
+                          inputMode="numeric"
                           min="0"
                           max="200000"
                           value={fieldForm.steps}
                           onChange={(e) =>
                             setFieldForm({
                               ...fieldForm,
-                              steps: e.target.value,
+                              steps: numericOnly(e.target.value, false),
                             })
                           }
                         />
@@ -3099,7 +3126,7 @@ export default function IncubationApp({
                   </div>
                   {!ownField && (
                     <div style={{ margin: "15px 0" }}>
-                      <h3>সঙ্গে নেওয়া পণ্য</h3>
+                      <h3>Products carried</h3>
                       {fieldForm.carried.map((l: Row, i: number) => (
                         <div
                           className="inc-row"
@@ -3121,7 +3148,7 @@ export default function IncubationApp({
                               })
                             }
                           >
-                            <option value="">পণ্য বাছুন</option>
+                            <option value="">Select product</option>
                             {products.map((p: Row) => (
                               <option key={p.id} value={p.id}>
                                 {p.name}
@@ -3130,7 +3157,8 @@ export default function IncubationApp({
                           </select>
                           <input
                             style={{ flex: 1 }}
-                            type="number"
+                            type="text"
+                            inputMode="decimal"
                             min="0.001"
                             step="0.001"
                             value={l.quantity}
@@ -3140,7 +3168,7 @@ export default function IncubationApp({
                                 carried: fieldForm.carried.map(
                                   (x: Row, j: number) =>
                                     i === j
-                                      ? { ...x, quantity: e.target.value }
+                                      ? { ...x, quantity: numericOnly(e.target.value, true) }
                                       : x,
                                 ),
                               })
@@ -3175,12 +3203,12 @@ export default function IncubationApp({
                         }
                       >
                         <Plus size={15} />
-                        পণ্য যোগ করুন
+                        Add product
                       </button>
                     </div>
                   )}
                   {ownField && (
-                    <Field name="Pedometer প্রমাণ (ঐচ্ছিক)">
+                    <Field name="Pedometer proof (optional)">
                       <input
                         type="file"
                         accept="image/jpeg,image/png,image/webp,application/pdf"
@@ -3211,10 +3239,10 @@ export default function IncubationApp({
                   >
                     <MapPin size={16} />
                     {busy
-                      ? "GPS ও সেশন যাচাই হচ্ছে…"
+                      ? "Checking GPS and session…"
                       : ownField
-                        ? "Check-out করুন"
-                        : "GPS দিয়ে Check-in করুন"}
+                        ? "Check out"
+                        : "Check in with GPS"}
                   </button>
                 </section>
               )}
@@ -3237,7 +3265,7 @@ export default function IncubationApp({
                 )}
                 columns={[
                   {
-                    title: "শিক্ষার্থী",
+                    title: "Student",
                     render: (r) => (
                       <>
                         <b>{r.userName}</b>
@@ -3245,9 +3273,9 @@ export default function IncubationApp({
                       </>
                     ),
                   },
-                  { title: "শুরু", render: (r) => stamp(r.checkIn) },
+                  { title: "Start", render: (r) => stamp(r.checkIn) },
                   {
-                    title: "শেষ / ঘণ্টা",
+                    title: "End / hours",
                     render: (r) =>
                       r.checkOut ? (
                         <>
@@ -3257,21 +3285,21 @@ export default function IncubationApp({
                             (Date.parse(r.checkOut) - Date.parse(r.checkIn)) /
                             3600000
                           ).toFixed(2)}{" "}
-                          ঘণ্টা
+                          hours
                         </>
                       ) : (
                         <Badge value="active" />
                       ),
                   },
                   {
-                    title: "ব্রড এরিয়া",
+                    title: "Area",
                     render: (r) =>
                       areas.find((a: Row) => a.id === r.startAreaId)?.name ||
                       "—",
                   },
-                  { title: "স্টেপ", render: (r) => r.steps },
+                  { title: "Steps", render: (r) => r.steps },
                   {
-                    title: "সর্বশেষ GPS",
+                    title: "Latest GPS",
                     render: (r) => {
                       const p = r.pings?.[0];
                       return p ? (
@@ -3285,7 +3313,7 @@ export default function IncubationApp({
                           <small>
                             ±{p.accuracy}m{" "}
                             {Date.now() - Date.parse(p.capturedAt) > 600000
-                              ? "• পুরোনো"
+                              ? "• stale"
                               : ""}
                           </small>
                         </a>
@@ -3295,7 +3323,7 @@ export default function IncubationApp({
                     },
                   },
                   {
-                    title: "ইতিহাস",
+                    title: "History",
                     render: (r) => (
                       <button
                         className="inc-btn"
@@ -3312,7 +3340,7 @@ export default function IncubationApp({
                           }
                         }}
                       >
-                        দেখুন
+                        View
                       </button>
                     ),
                   },
@@ -3320,13 +3348,13 @@ export default function IncubationApp({
               />
               {positionHistory.length > 0 && (
                 <section className="inc-card" style={{ marginTop: 16 }}>
-                  <h2>অবস্থানের ইতিহাস</h2>
+                  <h2>Location history</h2>
                   <GridTable
                     rows={positionHistory}
                     columns={[
-                      { title: "সময়", render: (r) => stamp(r.capturedAt) },
+                      { title: "Time", render: (r) => stamp(r.capturedAt) },
                       {
-                        title: "অবস্থান",
+                        title: "Location",
                         render: (r) => (
                           <a
                             href={`https://www.google.com/maps?q=${r.latitude},${r.longitude}`}
@@ -3352,15 +3380,15 @@ export default function IncubationApp({
                 onError={setError}
               />
               <div className="inc-notice">
-                অনুমোদন না হওয়া পর্যন্ত আগের তথ্য কার্যকর থাকে। অনুমোদনের সময়
-                স্টক ও সংশ্লিষ্ট হিসাব আবার যাচাই হয়।
+                The current values stay in effect until approval. On approval,
+                stock and related accounts are checked again.
               </div>
-              <h2>সংশোধন অনুরোধ</h2>
+              <h2>Correction requests</h2>
               <GridTable
                 rows={bundle.corrections}
                 columns={[
                   {
-                    title: "টিম / রেকর্ড",
+                    title: "Team / entry",
                     render: (r) => (
                       <>
                         {teamName(
@@ -3372,17 +3400,17 @@ export default function IncubationApp({
                       </>
                     ),
                   },
-                  { title: "আবেদনকারী", render: (r) => r.requestedByName },
+                  { title: "Requested by", render: (r) => r.requestedByName },
                   {
-                    title: "কারণ",
+                    title: "Reason",
                     render: (r) => <div className="wrap">{r.reason}</div>,
                   },
                   {
-                    title: "অবস্থা",
+                    title: "Status",
                     render: (r) => <Badge value={r.status} />,
                   },
                   {
-                    title: "তুলনা / পর্যালোচনা",
+                    title: "Compare / review",
                     render: (r) => (
                       <button
                         className="inc-btn"
@@ -3400,13 +3428,13 @@ export default function IncubationApp({
                           })
                         }
                       >
-                        বিস্তারিত
+                        Details
                       </button>
                     ),
                   },
                 ]}
               />
-              <h2 style={{ marginTop: 26 }}>দেরিতে জমা ও টিমে হস্তান্তর</h2>
+              <h2 style={{ marginTop: 26 }}>Late submissions and transfers</h2>
               <GridTable
                 rows={bundle.records.filter((r: Row) =>
                   ["pending", "transfer_pending", "rejected"].includes(
@@ -3414,19 +3442,19 @@ export default function IncubationApp({
                   ),
                 )}
                 columns={[
-                  { title: "তারিখ", render: (r) => r.date },
-                  { title: "টিম", render: (r) => teamName(r.teamId) },
-                  { title: "ধরন", render: (r) => label(r.kind) },
+                  { title: "Date", render: (r) => r.date },
+                  { title: "Team", render: (r) => teamName(r.teamId) },
+                  { title: "Type", render: (r) => label(r.kind) },
                   {
-                    title: "কারণ",
+                    title: "Reason",
                     render: (r) => <div className="wrap">{r.data.reason}</div>,
                   },
                   {
-                    title: "অবস্থা",
+                    title: "Status",
                     render: (r) => <Badge value={r.status} />,
                   },
                   {
-                    title: "পর্যালোচনা",
+                    title: "Review",
                     render: (r) =>
                       r.status !== "rejected" &&
                       ((r.status === "pending" && !student) ||
@@ -3454,7 +3482,7 @@ export default function IncubationApp({
                             })
                           }
                         >
-                          পর্যালোচনা
+                          Review
                         </button>
                       ) : (
                         "—"
@@ -3476,12 +3504,12 @@ export default function IncubationApp({
                 />
               )}
               {filtersUI}
-              <Field name="ব্যক্তি — শুধু মাঠের কাজ, FGD ও Insights">
+              <Field name="Person — field work, FGD and insights only">
                 <select
                   value={personId}
                   onChange={(e) => setPersonId(e.target.value)}
                 >
-                  <option value="">সব সদস্য</option>
+                  <option value="">All members</option>
                   {Array.from(
                     new Map<string, string>([
                       ...bundle.fields.map((f: Row) => [f.userId, f.userName]),
@@ -3497,7 +3525,7 @@ export default function IncubationApp({
                 </select>
               </Field>
               <div className="inc-row inc-between" style={{ marginBottom: 18 }}>
-                <h2>ব্যবসার রিপোর্ট</h2>
+                <h2>Business report</h2>
                 <div className="inc-row">
                   <button
                     className="inc-btn"
@@ -3522,25 +3550,25 @@ export default function IncubationApp({
                 <GridTable
                   rows={report?.summaries || []}
                   columns={[
-                    { title: "টিম", render: (r) => <b>{r.teamName}</b> },
-                    { title: "বিক্রি", render: (r) => money(r.revenue) },
-                    { title: "খরচ", render: (r) => money(r.expenses) },
+                    { title: "Team", render: (r) => <b>{r.teamName}</b> },
+                    { title: "Sales", render: (r) => money(r.revenue) },
+                    { title: "Expenses", render: (r) => money(r.expenses) },
                     {
-                      title: "লাভ / ক্ষতি",
+                      title: "Profit / loss",
                       render: (r) => (
                         <b className={r.netProfit < 0 ? "inc-negative" : ""}>
                           {money(r.netProfit)}
                         </b>
                       ),
                     },
-                    { title: "ক্যাশ", render: (r) => money(r.cash) },
-                    { title: "স্টক", render: (r) => money(r.stockValue) },
+                    { title: "Cash", render: (r) => money(r.cash) },
+                    { title: "Stock", render: (r) => money(r.stockValue) },
                     {
-                      title: "মূল ফান্ড বাকি",
+                      title: "Principal outstanding",
                       render: (r) => money(r.principalOutstanding),
                     },
                     {
-                      title: "ক্যাশের পার্থক্য",
+                      title: "Cash difference",
                       render: (r) => money(r.variance),
                     },
                   ]}
@@ -3548,11 +3576,11 @@ export default function IncubationApp({
               )}
               {bundle.manager && (
                 <section className="inc-card" style={{ marginTop: 20 }}>
-                  <h2>পাবলিক রিপোর্ট শেয়ার</h2>
+                  <h2>Share public report</h2>
                   <p className="inc-sub">
-                    প্রকাশ করলে টিমভিত্তিক ফলাফল ও চার্ট দেখা যাবে। GPS,
-                    ব্যক্তিগত তথ্য, ভাউচার ও সংশোধনের ইতিহাস পাবলিক হবে না। নতুন
-                    লিংক তৈরি করলে পুরোনো লিংক বন্ধ হয়ে যাবে।
+                    Publishing shows team results and charts. GPS, personal
+                    details, vouchers and correction history are never public. Creating
+                    a new link turns off the old one.
                   </p>
                   <div className="inc-row" style={{ margin: "15px 0" }}>
                     <button
@@ -3562,8 +3590,8 @@ export default function IncubationApp({
                     >
                       <ExternalLink size={15} />
                       {bundle.program.publicEnabled
-                        ? "নতুন লিংক তৈরি"
-                        : "প্রকাশ করুন"}
+                        ? "Create new link"
+                        : "Publish"}
                     </button>
                     {bundle.program.publicEnabled && (
                       <button
@@ -3571,7 +3599,7 @@ export default function IncubationApp({
                         disabled={busy}
                         onClick={() => act("share", { enabled: false })}
                       >
-                        পাবলিক লিংক বন্ধ করুন
+                        Turn off public link
                       </button>
                     )}
                   </div>
@@ -3585,7 +3613,7 @@ export default function IncubationApp({
                         style={{ marginLeft: 12 }}
                         onClick={() => navigator.clipboard.writeText(share)}
                       >
-                        কপি
+                        Copy
                       </button>
                     </div>
                   )}
@@ -3595,16 +3623,16 @@ export default function IncubationApp({
           )}
           {tab === "reconcile" && (
             <section className="inc-card">
-              <h2>Reconciliation ও করণীয়</h2>
+              <h2>Reconciliation & actions</h2>
               <p className="inc-sub">
-                স্টক ও লাভ source records থেকে গণনা হয়। ক্যাশ গণনা তার সেই সময়ের
-                expected balance-এর সঙ্গে মেলে।
+                Stock and profit are calculated from source records. A cash count is compared
+                with the expected balance at that time.
               </p>
               <GridTable
                 rows={reconciliation}
                 columns={[
-                  { title: "টিম", render: (r) => r.team },
-                  { title: "যাচাই / করণীয়", render: (r) => r.issue },
+                  { title: "Team", render: (r) => r.team },
+                  { title: "Check / action", render: (r) => r.issue },
                 ]}
               />
             </section>
@@ -3613,18 +3641,18 @@ export default function IncubationApp({
             <GridTable
               rows={bundle.history}
               columns={[
-                { title: "সময়", render: (r) => stamp(r.createdAt) },
-                { title: "কে", render: (r) => r.actorName },
-                { title: "কাজ", render: (r) => r.action },
+                { title: "Time", render: (r) => stamp(r.createdAt) },
+                { title: "Who", render: (r) => r.actorName },
+                { title: "Action", render: (r) => r.action },
                 {
-                  title: "কারণ",
+                  title: "Reason",
                   render: (r) => <div className="wrap">{r.reason || "—"}</div>,
                 },
                 {
-                  title: "আগে / পরে",
+                  title: "Before / after",
                   render: (r) => (
                     <details>
-                      <summary>পরিবর্তন দেখুন</summary>
+                      <summary>View changes</summary>
                       <div
                         style={{
                           whiteSpace: "pre-wrap",
@@ -3632,9 +3660,9 @@ export default function IncubationApp({
                           fontSize: 11,
                         }}
                       >
-                        <b>আগে:</b>
+                        <b>Before:</b>
                         <pre>{JSON.stringify(r.before, null, 2)}</pre>
-                        <b>পরে:</b>
+                        <b>After:</b>
                         <pre>{JSON.stringify(r.after, null, 2)}</pre>
                       </div>
                     </details>
@@ -3647,7 +3675,7 @@ export default function IncubationApp({
             <div className="inc-grid">
               <section className="inc-card">
                 <div className="inc-row inc-between">
-                  <h2>প্রোগ্রাম ও নিয়ম</h2>
+                  <h2>Program and rules</h2>
                   <button
                     className="inc-btn"
                     onClick={() =>
@@ -3666,24 +3694,24 @@ export default function IncubationApp({
                     }
                   >
                     <Settings2 size={15} />
-                    এডিট
+                    Edit
                   </button>
                 </div>
                 <p>{bundle.program.description}</p>
                 <p className="inc-sub">
-                  ব্যাচ: {bundle.program.batchNames.join(" · ")}
+                  Batches: {bundle.program.batchNames.join(" · ")}
                   <br />
-                  স্প্রিন্ট: {bundle.program.settings.sprintDays} দিন
+                  Sprint: {bundle.program.settings.sprintDays} days
                   <br />
-                  মাঠে সর্বোচ্চ সময়:{" "}
-                  {bundle.program.settings.maxFieldHours ?? "নির্ধারিত নয়"}
+                  Max field time:{" "}
+                  {bundle.program.settings.maxFieldHours ?? "Not set"}
                   <br />
-                  কেনার ভাউচার: বাধ্যতামূলক
+                  Purchase voucher: required
                 </p>
               </section>
               <section className="inc-card">
                 <div className="inc-row inc-between">
-                  <h2>টিম ও সদস্য</h2>
+                  <h2>Teams and members</h2>
                   <button
                     className="inc-btn primary"
                     onClick={() =>
@@ -3699,7 +3727,7 @@ export default function IncubationApp({
                     }
                   >
                     <Plus size={15} />
-                    টিম
+                    Add team
                   </button>
                 </div>
                 {bundle.teams.map((t: Row) => (
@@ -3714,7 +3742,7 @@ export default function IncubationApp({
                     <div>
                       <b>{t.name}</b>
                       <p className="inc-sub">
-                        {t.members.length} সদস্য · লিডার:{" "}
+                        {t.members.length} members · Team lead:{" "}
                         {t.members.find((m: Row) => m.isLead)?.name || "—"}
                       </p>
                     </div>
@@ -3735,7 +3763,7 @@ export default function IncubationApp({
                         })
                       }
                     >
-                      এডিট
+                      Edit
                     </button>
                   </div>
                 ))}
@@ -3746,9 +3774,9 @@ export default function IncubationApp({
                     <h2>
                       {
                         {
-                          category: "ক্যাটাগরি",
-                          product: "পণ্য ও একক",
-                          area: "ব্রড এরিয়া",
+                          category: "Categories",
+                          product: "Products and units",
+                          area: "Areas",
                         }[kind]
                       }
                     </h2>
@@ -3769,7 +3797,7 @@ export default function IncubationApp({
                       }
                     >
                       <Plus size={15} />
-                      যোগ করুন
+                      Add
                     </button>
                   </div>
                   {bundle.catalog
@@ -3786,7 +3814,7 @@ export default function IncubationApp({
                         <span>
                           {c.name}{" "}
                           {!c.active && (
-                            <small className="inc-sub">(নিষ্ক্রিয়)</small>
+                            <small className="inc-sub">(inactive)</small>
                           )}{" "}
                           {kind === "product" && (
                             <small className="inc-sub"> · {c.unit}</small>
@@ -3798,7 +3826,7 @@ export default function IncubationApp({
                             setEditor({ type: "catalog", data: { ...c } })
                           }
                         >
-                          এডিট
+                          Edit
                         </button>
                       </div>
                     ))}
@@ -3806,7 +3834,7 @@ export default function IncubationApp({
               ))}
               <section className="inc-card">
                 <div className="inc-row inc-between">
-                  <h2>ক্যাটাগরি রোটেশন</h2>
+                  <h2>Category rotation</h2>
                   <button
                     className="inc-btn primary"
                     onClick={() =>
@@ -3822,7 +3850,7 @@ export default function IncubationApp({
                     }
                   >
                     <Plus size={15} />
-                    স্প্রিন্ট
+                    Add sprint
                   </button>
                 </div>
                 <div className="inc-timeline" style={{ marginTop: 20 }}>
@@ -3844,7 +3872,7 @@ export default function IncubationApp({
                           setEditor({ type: "sprint", data: { ...s } })
                         }
                       >
-                        এডিট
+                        Edit
                       </button>
                     </div>
                   ))}
@@ -3853,6 +3881,17 @@ export default function IncubationApp({
             </div>
           )}
         </>
+      )}
+      {sheetOpen && bundle?.manager && (
+        <DataSheetManager
+          bundle={bundle}
+          onClose={() => setSheetOpen(false)}
+          onSave={async (payload) => {
+            const out = await send("sheet_save", payload);
+            await load();
+            return out;
+          }}
+        />
       )}
       {editorUI}
     </div>

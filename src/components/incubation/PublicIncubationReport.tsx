@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import { Sprout, Download } from "lucide-react";
 import "./incubation.css";
+import "./incubation-glass.css";
 export default function PublicIncubationReport({ token }: { token: string }) {
   const [data, setData] = useState<any>(null),
     [error, setError] = useState(""),
@@ -57,11 +58,11 @@ export default function PublicIncubationReport({ token }: { token: string }) {
         <div className="inc-eyebrow">ASSDI · BUSINESS INCUBATION</div>
         <h1>{data?.program.name || "Business Incubation Report"}</h1>
         <p className="inc-sub">
-          {data?.program.description || "টিমের বাস্তব ব্যবসার ফলাফল"}
+          {data?.program.description || "Real business results by team"}
         </p>
         <div className="inc-row">
           <Sprout size={18} />
-          <small>প্রকাশিত ব্যবসার রিপোর্ট</small>
+          <small>Published business report</small>
         </div>
       </header>
       {error && (
@@ -74,12 +75,12 @@ export default function PublicIncubationReport({ token }: { token: string }) {
         </div>
       )}
       {!data && !error ? (
-        <p style={{ padding: 40 }}>রিপোর্ট লোড হচ্ছে…</p>
+        <p style={{ padding: 40 }}>Loading report…</p>
       ) : data ? (
         <>
           <div className="inc-filters" style={{ marginTop: 20 }}>
             <label className="inc-field">
-              ব্যাচ
+              Batch
               <select
                 value={filters.batchName}
                 onChange={(e) =>
@@ -90,7 +91,7 @@ export default function PublicIncubationReport({ token }: { token: string }) {
                   })
                 }
               >
-                <option value="">সব ব্যাচ</option>
+                <option value="">All batches</option>
                 {Array.from(
                   new Set<string>(data.teams.map((t: any) => t.batchName)),
                 )
@@ -101,7 +102,7 @@ export default function PublicIncubationReport({ token }: { token: string }) {
               </select>
             </label>
             <label className="inc-field">
-              স্প্রিন্ট
+              Sprint
               <select
                 value={
                   data.sprints.find(
@@ -137,7 +138,7 @@ export default function PublicIncubationReport({ token }: { token: string }) {
                   );
                 }}
               >
-                <option value="">কাস্টম সময় / সব</option>
+                <option value="">Custom dates / all</option>
                 {data.sprints.map((s: any) => (
                   <option key={s.id} value={s.id}>
                     {data.teams.find((t: any) => t.id === s.teamId)?.name} •{" "}
@@ -148,7 +149,7 @@ export default function PublicIncubationReport({ token }: { token: string }) {
             </label>
             {["from", "to"].map((k) => (
               <label className="inc-field" key={k}>
-                {k === "from" ? "শুরু" : "শেষ"}
+                {k === "from" ? "From" : "To"}
                 <input
                   type="date"
                   value={(filters as any)[k]}
@@ -159,14 +160,14 @@ export default function PublicIncubationReport({ token }: { token: string }) {
               </label>
             ))}
             <label className="inc-field">
-              টিম
+              Team
               <select
                 value={filters.teamId}
                 onChange={(e) =>
                   setFilters({ ...filters, teamId: e.target.value })
                 }
               >
-                <option value="">সব টিম</option>
+                <option value="">All teams</option>
                 {data.teams.map((t: any) => (
                   <option key={t.id} value={t.id}>
                     {t.name}
@@ -175,7 +176,7 @@ export default function PublicIncubationReport({ token }: { token: string }) {
               </select>
             </label>
             <label className="inc-field">
-              ক্যাটাগরি
+              Category
               <select
                 value={filters.categoryId}
                 onChange={(e) =>
@@ -186,7 +187,7 @@ export default function PublicIncubationReport({ token }: { token: string }) {
                   })
                 }
               >
-                <option value="">সব ক্যাটাগরি</option>
+                <option value="">All categories</option>
                 {data.categories.map((c: any) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -195,14 +196,14 @@ export default function PublicIncubationReport({ token }: { token: string }) {
               </select>
             </label>
             <label className="inc-field">
-              পণ্য
+              Product
               <select
                 value={filters.productId}
                 onChange={(e) =>
                   setFilters({ ...filters, productId: e.target.value })
                 }
               >
-                <option value="">সব পণ্য</option>
+                <option value="">All products</option>
                 {data.products
                   .filter(
                     (p: any) =>
@@ -216,14 +217,14 @@ export default function PublicIncubationReport({ token }: { token: string }) {
               </select>
             </label>
             <label className="inc-field">
-              ব্রড এরিয়া
+              Area
               <select
                 value={filters.areaId}
                 onChange={(e) =>
                   setFilters({ ...filters, areaId: e.target.value })
                 }
               >
-                <option value="">সব এলাকা</option>
+                <option value="">All areas</option>
                 {data.areas.map((a: any) => (
                   <option key={a.id} value={a.id}>
                     {a.name}
@@ -232,7 +233,7 @@ export default function PublicIncubationReport({ token }: { token: string }) {
               </select>
             </label>
           </div>
-          {loading && <p role="status">রিপোর্ট আপডেট হচ্ছে…</p>}
+          {loading && <p role="status">Updating report…</p>}
           {!error && !loading && (
             <>
               <div
@@ -252,10 +253,10 @@ export default function PublicIncubationReport({ token }: { token: string }) {
               </div>
               <div className="inc-kpis">
                 {[
-                  ["নিট বিক্রি", "revenue"],
-                  ["পরিচালন খরচ", "expenses"],
-                  ["নিট লাভ / ক্ষতি", "netProfit"],
-                  ["স্টকের মূল্য", "stockValue"],
+                  ["Net sales", "revenue"],
+                  ["Operating expenses", "expenses"],
+                  ["Net profit / loss", "netProfit"],
+                  ["Stock value", "stockValue"],
                 ].map(([title, key]) => (
                   <div className="inc-kpi" key={key}>
                     <label>{title}</label>
@@ -272,7 +273,7 @@ export default function PublicIncubationReport({ token }: { token: string }) {
                 ))}
               </div>
               <section className="inc-card">
-                <h2>দিন অনুযায়ী বিক্রি</h2>
+                <h2>Daily sales</h2>
                 <div className="inc-chart">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={data.trend}>
@@ -282,7 +283,7 @@ export default function PublicIncubationReport({ token }: { token: string }) {
                       <Tooltip />
                       <Area
                         dataKey="revenue"
-                        name="বিক্রি (৳)"
+                        name="Sales (BDT)"
                         stroke="#248264"
                         fill="#dceddf"
                       />
@@ -302,18 +303,18 @@ export default function PublicIncubationReport({ token }: { token: string }) {
                 </div>
               )}
               <section className="inc-card" style={{ marginTop: 18 }}>
-                <h2>টিমভিত্তিক ফলাফল</h2>
+                <h2>Results by team</h2>
                 <div className="inc-table-wrap">
                   <table>
                     <thead>
                       <tr>
                         {[
-                          "টিম",
-                          "নিট বিক্রি",
-                          "খরচ",
-                          "মোট লাভ",
-                          "নিট লাভ / ক্ষতি",
-                          "স্টক",
+                          "Team",
+                          "Net sales",
+                          "Expenses",
+                          "Gross profit",
+                          "Net profit / loss",
+                          "Stock",
                         ].map((h) => (
                           <th key={h}>{h}</th>
                         ))}
@@ -344,11 +345,11 @@ export default function PublicIncubationReport({ token }: { token: string }) {
                 className="inc-sub"
                 style={{ textAlign: "center", marginTop: 20 }}
               >
-                তথ্য প্রস্তুত:{" "}
+                Generated:{" "}
                 {new Date(data.generatedAt).toLocaleString("en-GB", {
                   timeZone: "Asia/Dhaka",
                 })}{" "}
-                • সব টাকার হিসাব BDT
+                • All amounts in BDT
               </p>
             </>
           )}

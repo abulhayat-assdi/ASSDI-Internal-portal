@@ -1,0 +1,625 @@
+/* ======================================================================
+   v3 glass theme — loaded after incubation.css and overrides it.
+   Calm gradient backdrop, frosted cards, one clear accent, larger text.
+   ====================================================================== */
+.inc {
+  --ink: #12302a;
+  --muted: #5b716a;
+  --green: #0f7a5c;
+  --line: rgba(18, 48, 42, 0.1);
+  --glass: rgba(255, 255, 255, 0.66);
+  --glass-strong: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(255, 255, 255, 0.75);
+  --shadow: 0 8px 30px rgba(16, 60, 48, 0.08);
+  font-family: var(--font-geist-sans), "Segoe UI", system-ui, sans-serif;
+  background:
+    radial-gradient(900px 500px at 0% 0%, #d8f3e8 0%, transparent 60%),
+    radial-gradient(700px 500px at 100% 10%, #e3ecff 0%, transparent 55%),
+    radial-gradient(800px 600px at 50% 100%, #fdf3e2 0%, transparent 60%),
+    #f4f8f6;
+  font-size: 14px;
+}
+.inc-card,
+.inc-kpi,
+.inc-filters,
+.inc-table-wrap,
+.inc-empty {
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+}
+.inc-card {
+  border-radius: 18px;
+}
+.inc-kpi {
+  border-radius: 16px;
+}
+.inc-kpi.feature {
+  background: linear-gradient(135deg, rgba(209, 242, 227, 0.85), rgba(255, 255, 255, 0.7));
+  border-color: rgba(15, 122, 92, 0.2);
+}
+.inc-kpi label {
+  font-size: 13px;
+  font-weight: 600;
+}
+.inc-kpi {
+  min-width: 0;
+}
+.inc-kpi strong {
+  font-size: clamp(18px, 4.6vw, 28px);
+  overflow-wrap: anywhere;
+}
+.inc-head {
+  background: linear-gradient(125deg, rgba(10, 61, 48, 0.96), rgba(15, 110, 84, 0.92) 65%, rgba(56, 133, 104, 0.9));
+  box-shadow: 0 14px 40px rgba(10, 61, 48, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.inc-head .inc-btn {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(8px);
+}
+.inc-head .inc-btn:hover {
+  background: rgba(255, 255, 255, 0.26);
+}
+.inc-head .inc-status {
+  background: rgba(255, 255, 255, 0.92);
+}
+.inc-btn {
+  background: var(--glass-strong);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+.inc-btn:hover {
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(16, 60, 48, 0.1);
+}
+.inc-btn.primary {
+  background: var(--green);
+  border-color: var(--green);
+  color: #fff;
+}
+.inc-btn.primary:hover {
+  background: #0c6a4f;
+}
+.inc-tabs {
+  gap: 6px;
+  padding: 6px;
+  margin: 18px 0 20px;
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: var(--shadow);
+}
+.inc-tabs button {
+  font-size: 14px;
+  padding: 10px 16px;
+  color: #3f564f;
+  border-radius: 11px;
+}
+.inc-tabs button:hover {
+  background: rgba(255, 255, 255, 0.75);
+  color: var(--ink);
+}
+.inc-tabs button.active {
+  background: var(--green);
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(15, 122, 92, 0.28);
+}
+.inc-tabs button.active .inc-count {
+  background: #fff;
+  color: var(--green);
+}
+.inc input:not([type="checkbox"]),
+.inc select,
+.inc textarea {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(18, 48, 42, 0.16);
+  font-size: 14px;
+  border-radius: 10px;
+}
+.inc table {
+  font-size: 13.5px;
+}
+.inc th {
+  background: rgba(232, 243, 237, 0.95);
+  color: #3f5a51;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: none;
+}
+.inc td {
+  border-top: 1px solid rgba(18, 48, 42, 0.07);
+}
+.inc tbody tr:hover {
+  background: rgba(255, 255, 255, 0.6);
+}
+.inc-status {
+  font-size: 11px;
+  padding: 4px 9px;
+  border-radius: 999px;
+}
+.inc-notice {
+  border-radius: 12px;
+}
+.inc-field {
+  font-size: 13px;
+}
+
+/* Collapsible filters */
+.inc-filterbox {
+  margin-bottom: 18px;
+}
+.inc-filterbox > summary {
+  list-style: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border-radius: 11px;
+  background: var(--glass-strong);
+  border: 1px solid var(--line);
+  font-weight: 650;
+  font-size: 13.5px;
+}
+.inc-filterbox > summary::-webkit-details-marker {
+  display: none;
+}
+.inc-filterbox[open] > summary {
+  margin-bottom: 10px;
+}
+.inc-filter-active {
+  background: var(--green);
+  color: #fff;
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 11px;
+}
+
+/* Section header with a one-line explanation */
+.inc-section-title {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 6px 0 14px;
+}
+.inc-section-title h2 {
+  margin: 0;
+}
+.inc-section-title p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ---------------- Manage data (full-screen sheet) ---------------- */
+.ds-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: 14px;
+  background: rgba(10, 30, 25, 0.45);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  font-family: var(--font-geist-sans), "Segoe UI", system-ui, sans-serif;
+  color: #12302a;
+}
+.ds-shell {
+  width: min(1700px, 100%);
+  height: min(94vh, 100%);
+  display: flex;
+  flex-direction: column;
+  border-radius: 20px;
+  overflow: hidden;
+  background: rgba(248, 252, 250, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+}
+.ds-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 16px 20px;
+  background: linear-gradient(125deg, #0a3d30, #0f6e54);
+  color: #fff;
+}
+.ds-title h2 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 750;
+}
+.ds-title p {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: #cdeadd;
+}
+.ds-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.ds-pill {
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.ds-pill.warn {
+  background: #ffd66b;
+  color: #3a2c00;
+}
+.ds-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(18, 48, 42, 0.14);
+  background: rgba(255, 255, 255, 0.92);
+  color: #12302a;
+  font-weight: 650;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+.ds-btn:hover {
+  background: #fff;
+}
+.ds-btn.ghost {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.35);
+}
+.ds-btn.primary {
+  background: #0f7a5c;
+  border-color: #0f7a5c;
+  color: #fff;
+}
+.ds-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.ds-groups {
+  display: flex;
+  gap: 8px;
+  padding: 14px 20px 0;
+}
+.ds-groups button {
+  padding: 10px 18px;
+  border-radius: 12px;
+  border: 1px solid rgba(18, 48, 42, 0.14);
+  background: rgba(255, 255, 255, 0.75);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  color: #3f564f;
+}
+.ds-groups button.active {
+  background: #0f7a5c;
+  color: #fff;
+  border-color: #0f7a5c;
+  box-shadow: 0 6px 16px rgba(15, 122, 92, 0.28);
+}
+.ds-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 12px 20px;
+  overflow-x: auto;
+  border-bottom: 1px solid rgba(18, 48, 42, 0.08);
+}
+.ds-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(18, 48, 42, 0.12);
+  background: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
+  font-weight: 650;
+  color: #3f564f;
+  cursor: pointer;
+}
+.ds-tabs button span {
+  background: rgba(15, 122, 92, 0.12);
+  color: #0f7a5c;
+  border-radius: 999px;
+  padding: 0 7px;
+  font-size: 11.5px;
+}
+.ds-tabs button.active {
+  background: #e3f4ec;
+  border-color: #0f7a5c;
+  color: #0a4f3b;
+}
+.ds-toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 12px 20px;
+}
+.ds-toolbar select {
+  border: 1px solid rgba(18, 48, 42, 0.16);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 13.5px;
+  background: #fff;
+}
+.ds-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 10px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid rgba(18, 48, 42, 0.16);
+}
+.ds-search input {
+  border: 0;
+  padding: 8px 10px 8px 0;
+  font-size: 13.5px;
+  width: 280px;
+  max-width: 60vw;
+  outline: 0;
+}
+.ds-spacer {
+  flex: 1;
+}
+.ds-hint {
+  font-size: 12.5px;
+  color: #5b716a;
+}
+.ds-banner {
+  margin: 0 20px 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.ds-banner.error {
+  background: #fde8e4;
+  color: #8c2f1d;
+  border: 1px solid #f6c8bd;
+}
+.ds-banner.ok {
+  background: #e3f4ec;
+  color: #0a4f3b;
+  border: 1px solid #bfe3d2;
+}
+.ds-grid-wrap {
+  flex: 1;
+  overflow: auto;
+  margin: 0 20px;
+  border-radius: 14px;
+  border: 1px solid rgba(18, 48, 42, 0.12);
+  background: #fff;
+}
+.ds-grid {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: max-content;
+  min-width: 100%;
+  font-size: 13.5px;
+}
+.ds-grid th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #0f3d31;
+  color: #fff;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 10px;
+  white-space: nowrap;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+}
+.ds-grid th b {
+  color: #ffd66b;
+}
+.ds-grid td {
+  border-bottom: 1px solid #e8efeb;
+  border-right: 1px solid #eef3f0;
+  padding: 0;
+  height: 38px;
+  background: #fff;
+}
+.ds-grid tr:nth-child(even) td {
+  background: #fafcfb;
+}
+.ds-grid input,
+.ds-grid select {
+  width: 100%;
+  height: 38px;
+  border: 0;
+  padding: 0 10px;
+  font-size: 13.5px;
+  background: transparent;
+  color: #12302a;
+  outline: 0;
+}
+.ds-grid input:focus,
+.ds-grid select:focus {
+  box-shadow: inset 0 0 0 2px #0f7a5c;
+  background: #f2fbf7;
+}
+.ds-grid select:disabled {
+  color: #12302a;
+  opacity: 1;
+}
+.ds-grid td.num input,
+.ds-grid td.num .ds-ro {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.ds-grid .ds-ro {
+  display: block;
+  padding: 0 10px;
+  color: #5b716a;
+  line-height: 38px;
+  white-space: nowrap;
+}
+.ds-grid .ds-sticky {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+.ds-grid th.ds-sticky {
+  z-index: 3;
+}
+.ds-grid .ds-num {
+  width: 46px;
+  text-align: center;
+  font-size: 12px;
+  color: #5b716a;
+  font-weight: 700;
+  background: #f1f6f3 !important;
+}
+.ds-grid th.ds-num {
+  color: #fff;
+  background: #0a3328 !important;
+}
+.ds-grid .ds-del {
+  width: 40px;
+  text-align: center;
+}
+.ds-grid .ds-del button {
+  border: 0;
+  background: transparent;
+  color: #c0442c;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+}
+.ds-grid .ds-del button:hover {
+  background: #fde8e4;
+}
+.ds-grid tr.dirty td {
+  background: #fff8e1 !important;
+}
+.ds-grid tr.new td {
+  background: #f1fbf6 !important;
+}
+.ds-grid tr.error td {
+  background: #fdecea !important;
+}
+.ds-grid tr.error .ds-num {
+  background: #f6c8bd !important;
+  color: #8c2f1d;
+}
+.ds-empty {
+  text-align: center;
+  padding: 30px !important;
+  color: #5b716a;
+  height: auto !important;
+}
+.ds-errors {
+  margin: 10px 14px;
+  color: #8c2f1d;
+  font-size: 13px;
+}
+.ds-bottom {
+  display: flex;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid rgba(18, 48, 42, 0.08);
+  background: rgba(255, 255, 255, 0.75);
+}
+.ds-reason {
+  flex: 1;
+  border: 1px solid rgba(18, 48, 42, 0.18);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+@media (max-width: 700px) {
+  .ds-overlay {
+    padding: 0;
+  }
+  .ds-shell {
+    height: 100vh;
+    border-radius: 0;
+  }
+  .ds-bottom {
+    flex-direction: column;
+  }
+  .ds-search input {
+    width: 100%;
+  }
+}
+
+/* The sheet renders inside .inc, so reset the page's form styles for it. */
+.ds-overlay .ds-title h2 {
+  color: #fff;
+}
+.ds-overlay .ds-grid input:not([type="checkbox"]),
+.ds-overlay .ds-grid select {
+  width: 100%;
+  height: 38px;
+  border: 0;
+  border-radius: 0;
+  padding: 0 10px;
+  background: transparent;
+  box-shadow: none;
+  font-size: 13.5px;
+  color: #12302a;
+}
+.ds-overlay .ds-grid input:not([type="checkbox"]):focus,
+.ds-overlay .ds-grid select:focus {
+  box-shadow: inset 0 0 0 2px #0f7a5c;
+  background: #f2fbf7;
+}
+.ds-overlay .ds-grid td {
+  padding: 0;
+  border-top: 0;
+  vertical-align: middle;
+}
+.ds-overlay .ds-grid th {
+  text-transform: none;
+  letter-spacing: 0;
+}
+.ds-overlay .ds-grid tbody tr:hover td {
+  background: #f4faf7;
+}
+.ds-overlay .ds-toolbar select,
+.ds-overlay .ds-search input:not([type="checkbox"]),
+.ds-overlay .ds-reason {
+  width: auto;
+  min-width: 0;
+}
+.ds-overlay .ds-search input:not([type="checkbox"]) {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  width: 280px;
+}
+.ds-overlay .ds-reason:not([type="checkbox"]) {
+  flex: 1;
+}
+
+/* Links styled as buttons in the dark header (e.g. "Competitions" back link). */
+.inc .inc-head a.inc-btn {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+.inc .inc-head a.inc-btn:hover {
+  background: rgba(255, 255, 255, 0.26);
+}

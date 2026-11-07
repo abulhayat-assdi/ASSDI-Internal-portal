@@ -656,7 +656,7 @@ describe("real migration and transactional incubation workflows", () => {
     };
     await expect(
       api.command(manager, { action: "program", payload: { ...base, status: "closed" } }),
-    ).rejects.toThrow(/খসড়া বা সক্রিয়/);
+    ).rejects.toThrow(/Draft or Active/);
     const created = (await api.command(manager, {
       action: "program",
       payload: { ...base, status: "draft" },
@@ -669,7 +669,7 @@ describe("real migration and transactional incubation workflows", () => {
       });
     await save("active");
     // Skipping straight from active to archived is not a valid move.
-    await expect(save("archived")).rejects.toThrow(/সরাসরি/);
+    await expect(save("archived")).rejects.toThrow(/directly/);
     await save("closed");
     const teamPayload = {
       name: "Late team",
@@ -679,22 +679,22 @@ describe("real migration and transactional incubation workflows", () => {
     };
     await expect(
       api.command(manager, { action: "team", programId: created.id, payload: teamPayload }),
-    ).rejects.toThrow(/পরিবর্তন করা যাবে না/);
+    ).rejects.toThrow(/nothing can be changed/);
     await expect(
       api.command(manager, {
         action: "catalog",
         programId: created.id,
         payload: { kind: "area", name: "X", parentId: null, unit: "piece", fractional: false, active: true },
       }),
-    ).rejects.toThrow(/পরিবর্তন করা যাবে না/);
+    ).rejects.toThrow(/nothing can be changed/);
     // A locked program cannot be edited by re-saving it with the same status.
-    await expect(save("closed", undefined, { name: "Renamed" })).rejects.toThrow(/পরিবর্তন করা যাবে না/);
+    await expect(save("closed", undefined, { name: "Renamed" })).rejects.toThrow(/nothing can be changed/);
     await save("archived");
     expect(
       (await prisma.incubationProgram.findUniqueOrThrow({ where: { id: created.id } })).name,
     ).toBe("Lifecycle program");
     // Reopening needs a reason and is audited.
-    await expect(save("closed")).rejects.toThrow(/কারণ/);
+    await expect(save("closed")).rejects.toThrow(/reason/);
     await save("closed", "Correcting a missed sale");
     await save("closing", "Correcting a missed sale");
     await api.command(manager, { action: "team", programId: created.id, payload: teamPayload });
@@ -721,7 +721,7 @@ describe("real migration and transactional incubation workflows", () => {
     expect(after.map((m) => [m.id, m.studentId, m.isLead])).toEqual(before.map((m) => [m.id, m.studentId, m.isLead]));
     await expect(
       api.command(manager, { action: "team", programId, payload: { ...payload, active: false } }),
-    ).rejects.toThrow(/নিষ্ক্রিয়/);
+    ).rejects.toThrow(/deactivating/);
     expect((await prisma.incubationTeam.findUniqueOrThrow({ where: { id: teamA } })).active).toBe(true);
   });
 
@@ -761,7 +761,7 @@ describe("real migration and transactional incubation workflows", () => {
   });
 
   it("publishes a frozen revenue ranking, shows it to students and the public link, and can withdraw it", async () => {
-    await expect(send(lead, "publish_results", {})).rejects.toThrow(/প্রকাশ/);
+    await expect(send(lead, "publish_results", {})).rejects.toThrow(/publish results/);
     await send(manager, "publish_results", { note: "Week 1" });
     const staff = await api.overview(manager, programId);
     const ranking = (staff.results!.snapshot as any).ranking as any[];
@@ -778,6 +778,73 @@ describe("real migration and transactional incubation workflows", () => {
       (a) => a.action,
     );
     expect(actions.sort()).toEqual(["results.published", "results.published", "results.withdrawn"]);
+  });
+
+  it("sheet_save adds, edits and deletes rows atomically and names the failing row", async () => {
+    const before = await prisma.incubationRecord.count({ where: { programId } });
+    const today = todayDhaka();
+    // One bad row (unknown expense type) rolls back the valid rows too.
+    await expect(
+      send(manager, "sheet_save", {
+        reason: "Paper records",
+        creates: [
+          { key: "ok-1", kind: "expense", teamId: teamA, date: today, data: { amount: "10", expenseType: "Transport" } },
+          { key: "bad-1", kind: "expense", teamId: teamA, date: today, data: { amount: "10", expenseType: "Nope" } },
+        ],
+      }),
+    ).rejects.toThrow(/^\[\[bad-1\]\]/);
+    expect(await prisma.incubationRecord.count({ where: { programId } })).toBe(before);
+    // Overselling stock fails the final ledger check and saves nothing.
+    await expect(
+      send(manager, "sheet_save", {
+        reason: "Paper records",
+        creates: [
+          { key: "s1", kind: "sale", teamId: teamA, date: today, data: { lines: [{ productId: product, quantity: "999999", unitPrice: "1" }], areaId: area } },
+        ],
+      }),
+    ).rejects.toThrow();
+    expect(await prisma.incubationRecord.count({ where: { programId } })).toBe(before);
+
+    const expense = await prisma.incubationRecord.findFirstOrThrow({
+      where: { programId, kind: "expense", status: "posted" },
+      orderBy: { createdAt: "asc" },
+    });
+    const victim = await prisma.incubationRecord.findFirstOrThrow({
+      where: { programId, kind: "expense", status: "posted", NOT: { id: expense.id } },
+    }).catch(async () =>
+      prisma.incubationRecord.create({
+        data: {
+          courseId: "course-a",
+          programId,
+          teamId: teamA,
+          kind: "expense",
+          date: today,
+          data: { amount: "1", expenseType: "Transport" },
+          requestKey: "sheet-victim",
+          requestHash: "x",
+          enteredBy: "manager",
+          enteredByName: "Manager",
+        },
+      }),
+    );
+    const out = await send(manager, "sheet_save", {
+      reason: "Paper records",
+      creates: [
+        { key: "e1", kind: "expense", teamId: teamA, date: today, data: { amount: "25", expenseType: "Transport", note: "Rickshaw" } },
+        { key: "f1", kind: "fgd", teamId: teamA, date: today, data: { findings: ["Price matters", "", ""], actions: ["Offer combo", "", ""] } },
+      ],
+      updates: [{ key: "u1", recordId: expense.id, version: expense.version, date: expense.date, data: { ...(expense.data as object), amount: "77" } }],
+      voids: [{ recordId: victim.id, version: victim.version }],
+    });
+    expect(out).toEqual({ created: 2, updated: 1, voided: 1 });
+    expect(((await prisma.incubationRecord.findUniqueOrThrow({ where: { id: expense.id } })).data as any).amount).toBe("77");
+    expect((await prisma.incubationRecord.findUniqueOrThrow({ where: { id: victim.id } })).status).toBe("void");
+    const actions = (
+      await prisma.incubationAudit.findMany({ where: { programId, action: { startsWith: "record.sheet_" } } })
+    ).map((a) => a.action);
+    expect(actions).toEqual(expect.arrayContaining(["record.sheet_created", "record.sheet_corrected", "record.sheet_voided"]));
+    // Students cannot use the sheet.
+    await expect(send(lead, "sheet_save", { reason: "x x x", voids: [] })).rejects.toThrow();
   });
 
   it("refuses to send a program with entries back to draft, and cancelling needs a reason", async () => {
@@ -798,10 +865,10 @@ describe("real migration and transactional incubation workflows", () => {
         programId,
         payload: { ...payload, status: "draft", reason: "test" },
       }),
-    ).rejects.toThrow(/খসড়ায় ফেরানো যায় না/);
+    ).rejects.toThrow(/cannot go back to Draft/);
     await expect(
       api.command(manager, { action: "program", programId, payload: { ...payload, status: "cancelled" } }),
-    ).rejects.toThrow(/কারণ/);
+    ).rejects.toThrow(/reason/);
   });
 
   it("audit history cannot be overwritten even by a direct database update", async () => {

@@ -51,6 +51,12 @@ Branch: `feature/incubation-v3` (worktree `asm-portal-v2-incubation-v3`), main `
 ### ডাটা শিট এডিটর
 - টিম, ধরন, জমাদাতা ও record ID কলাম; খোঁজার ঘর; বদলানো row হাইলাইট।
 
+### UI redesign ও ইংরেজি (২০২৬-১১-০৭, ব্যবহারকারীর review-এর পরে)
+- পুরো Business Incubation (admin, teacher, student), Competitions hub, Battle of Cups grid, public report, server error, রিমাইন্ডার ও PDF/Excel লেবেল এখন ইংরেজিতে। শুধু ডাটা (যেমন পণ্য/এলাকার নাম) যেমন লেখা হয়েছে তেমনই থাকে।
+- Glass ধাঁচের পরিষ্কার নকশা (`incubation-glass.css`): হালকা gradient পটভূমি, frosted card, স্পষ্ট pill-tab, বড় ও পড়ার মতো লেখা; filter এখন "Filters" বোতামের ভেতরে।
+- সংখ্যার ঘরে (পরিমাণ, দাম, টাকা, steps, settings) শুধু সংখ্যা লেখা যায় — অক্ষর টাইপ বা paste হয় না; বাংলা অঙ্ক ইংরেজি হয়ে যায়।
+- **Manage data** (নতুন, পুরোনো শিট এডিটরের জায়গায়): Battle of Cups-এর মতো full-screen শিট — "Team-wise data" (Sales, Purchases, Expenses, Supplier returns, Damage, Customer refunds, Transfers, Funding, Principal repayments, Cash counts) ও "Individual data" (FGD, Market insights)। Cell এডিট, Add row / Add 5 rows, row মুছে ফেলা (history-তে void হিসেবে থাকে), Excel paste, খোঁজা ও টিম filter। সেভ একসাথে (`sheet_save`): একটিও ভুল হলে কিছুই সেভ হয় না, ভুল row লাল হয়ে "Sales, row 1: …" দেখায়। নতুন Purchase (voucher লাগে), Customer refund ও Transfer (অন্য এন্ট্রির সঙ্গে যুক্ত) entry form থেকে যোগ করতে হয়; এগুলোর বিদ্যমান row শিটে এডিট করা যায়।
+
 ## ২. Database migration (সবই additive)
 | Migration | কাজ |
 |---|---|

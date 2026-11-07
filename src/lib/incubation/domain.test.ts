@@ -111,7 +111,7 @@ describe("incubation accounting", () => {
         ],
         products,
       ),
-    ).toThrow(/স্টকের/));
+    ).toThrow(/available stock/));
   it("rejects a historical negative stock even if today's balance is positive", () =>
     expect(() =>
       calculateLedger(
@@ -202,7 +202,7 @@ describe("incubation accounting", () => {
         ],
         products,
       ),
-    ).toThrow(/কারণ/));
+    ).toThrow(/reason/));
   it("principal repayment does not reduce profit", () => {
     const l = calculateLedger(
       [

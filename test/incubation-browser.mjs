@@ -73,14 +73,14 @@ await admin.p.screenshot({
   fullPage: true,
 });
 await admin.p.goto(c.origin + "/dashboard/competitions/" + c.competitionId);
-await admin.p.getByRole("button", { name: "সেটআপ", exact: true }).waitFor();
+await admin.p.getByRole("button", { name: "Setup", exact: true }).waitFor();
 await admin.p.screenshot({
   path: ".incubation-test/admin-workspace.png",
   fullPage: true,
 });
-await admin.p.getByRole("button", { name: "হিসাব যাচাই", exact: true }).click();
+await admin.p.getByRole("button", { name: "Reconciliation", exact: true }).click();
 await admin.p
-  .getByRole("heading", { name: "Reconciliation ও করণীয়" })
+  .getByRole("heading", { name: "Reconciliation & actions" })
   .waitFor();
 await admin.ctx.close();
 
@@ -99,16 +99,16 @@ await member.p.goto(
   c.origin + "/student-dashboard/competitions/" + c.competitionId,
 );
 await member.p
-  .getByRole("heading", { name: "আমার কাজ", exact: true })
+  .getByRole("heading", { name: "My work", exact: true })
   .waitFor();
 assert.equal(
   await member.p
-    .getByRole("button", { name: "বিক্রি এন্ট্রি", exact: true })
+    .getByRole("button", { name: "Add sale", exact: true })
     .count(),
   0,
 );
 assert.equal(
-  await member.p.getByRole("button", { name: "সেটআপ", exact: true }).count(),
+  await member.p.getByRole("button", { name: "Setup", exact: true }).count(),
   0,
 );
 await member.p.screenshot({
@@ -122,30 +122,30 @@ assert.equal(
   false,
 );
 await member.p
-  .getByRole("button", { name: "আমার মাঠের কাজ", exact: true })
+  .getByRole("button", { name: "My field work", exact: true })
   .click();
 await member.p
-  .getByLabel("কাজের ব্রড এরিয়া", { exact: true })
+  .getByLabel("Work area", { exact: true })
   .selectOption(c.areaId);
 if (
   await member.p
-    .getByRole("button", { name: "Check-out করুন", exact: true })
+    .getByRole("button", { name: "Check out", exact: true })
     .count()
 ) {
   await member.p
-    .getByRole("button", { name: "Check-out করুন", exact: true })
+    .getByRole("button", { name: "Check out", exact: true })
     .click();
   await member.p
-    .getByRole("heading", { name: "মাঠে কাজ শুরু করুন", exact: true })
+    .getByRole("heading", { name: "Start field work", exact: true })
     .waitFor();
 }
 await member.p
-  .getByRole("button", { name: "GPS দিয়ে Check-in করুন", exact: true })
+  .getByRole("button", { name: "Check in with GPS", exact: true })
   .click();
 await member.p
-  .getByRole("heading", { name: "আপনার মাঠ সেশন চলছে", exact: true })
+  .getByRole("heading", { name: "Your field session is running", exact: true })
   .waitFor();
-await member.p.getByLabel("হাঁটার স্টেপ", { exact: true }).fill("3456");
+await member.p.getByLabel("Steps walked", { exact: true }).fill("3456");
 const proofResponse = member.p.waitForResponse(
   (r) =>
     r.url().includes("/api/incubation/files") &&
@@ -162,10 +162,10 @@ await member.p.getByLabel("Pedometer proof", { exact: true }).setInputFiles({
 const proofResult = await proofResponse;
 assert.equal(proofResult.status(), 200, await proofResult.text());
 await member.p
-  .getByRole("button", { name: "Check-out করুন", exact: true })
+  .getByRole("button", { name: "Check out", exact: true })
   .click();
 await member.p
-  .getByRole("heading", { name: "মাঠে কাজ শুরু করুন", exact: true })
+  .getByRole("heading", { name: "Start field work", exact: true })
   .waitFor();
 await member.p.screenshot({
   path: ".incubation-test/member-field.png",
@@ -178,30 +178,30 @@ await lead.p.goto(
   c.origin + "/student-dashboard/competitions/" + c.competitionId,
 );
 await lead.p
-  .getByRole("heading", { name: "আমাদের টিম পরিচালনা", exact: true })
+  .getByRole("heading", { name: "Manage our team", exact: true })
   .waitFor();
 await lead.p.screenshot({
   path: ".incubation-test/leader-home.png",
   fullPage: true,
 });
 await lead.p
-  .getByRole("button", { name: "বিক্রি এন্ট্রি", exact: true })
+  .getByRole("button", { name: "Add sale", exact: true })
   .click();
 const sale = lead.p.locator("form.inc-modal");
 await sale
-  .getByLabel("পণ্য / ভ্যারিয়েন্ট", { exact: true })
+  .getByLabel("Product / variant", { exact: true })
   .selectOption(c.productId);
-await sale.getByLabel("পরিমাণ", { exact: true }).fill("1");
-await sale.getByLabel("বিক্রয় মূল্য / একক", { exact: true }).fill("150");
-await sale.getByLabel("ব্রড এরিয়া", { exact: true }).selectOption(c.areaId);
+await sale.getByLabel("Quantity", { exact: true }).fill("1");
+await sale.getByLabel("Unit price", { exact: true }).fill("150");
+await sale.getByLabel("Area", { exact: true }).selectOption(c.areaId);
 if (
   (await sale
-    .getByLabel("বিক্রির session", { exact: true })
+    .getByLabel("Sales session", { exact: true })
     .locator("option")
     .count()) > 1
 )
   await sale
-    .getByLabel("বিক্রির session", { exact: true })
+    .getByLabel("Sales session", { exact: true })
     .selectOption({ index: 1 });
 await lead.p.screenshot({
   path: ".incubation-test/leader-sale.png",
@@ -210,20 +210,20 @@ await lead.p.screenshot({
 const submitted = lead.p.waitForResponse(
   (r) => r.url().endsWith("/api/incubation") && r.request().method() === "POST",
 );
-await sale.getByRole("button", { name: "সংরক্ষণ করুন", exact: true }).click();
+await sale.getByRole("button", { name: "Save", exact: true }).click();
 assert.equal((await submitted).status(), 200);
 await sale.waitFor({ state: "hidden" });
-await lead.p.getByRole("button", { name: "মাঠ ও টিম", exact: true }).click();
+await lead.p.getByRole("button", { name: "Field & team", exact: true }).click();
 const memberRow = lead.p
   .getByRole("row")
   .filter({ hasText: "Team Member" })
   .first();
 await memberRow.waitFor();
 await memberRow
-  .getByRole("button", { name: "GPS ইতিহাস", exact: true })
+  .getByRole("button", { name: "GPS history", exact: true })
   .click();
 await lead.p
-  .getByRole("link", { name: "মানচিত্রে দেখুন", exact: true })
+  .getByRole("link", { name: "View on map", exact: true })
   .first()
   .waitFor();
 assert.ok(
@@ -243,40 +243,40 @@ await lead.ctx.close();
 
 const teacher = await account(c.teacherToken);
 await teacher.p.goto(c.origin + "/dashboard/competitions/" + c.competitionId);
-await teacher.p.getByRole("button", { name: "সেটআপ", exact: true }).waitFor();
-await teacher.p.getByRole("button", { name: "সেটআপ", exact: true }).click();
+await teacher.p.getByRole("button", { name: "Setup", exact: true }).waitFor();
+await teacher.p.getByRole("button", { name: "Setup", exact: true }).click();
 await teacher.p.screenshot({
   path: ".incubation-test/teacher-setup.png",
   fullPage: true,
 });
 await teacher.p.goto(c.origin + "/dashboard/competitions/create");
 await teacher.p
-  .getByRole("button", { name: "Incubation তৈরি করুন", exact: true })
+  .getByRole("button", { name: "Create incubation program", exact: true })
   .click();
 const setup = teacher.p.locator("form.inc-modal");
 await setup
-  .getByLabel("প্রোগ্রামের নাম", { exact: true })
+  .getByLabel("Program name", { exact: true })
   .fill("Browser verified teacher draft");
 await setup
   .getByRole("checkbox", { name: "Sales Batch 12", exact: true })
   .check();
-await setup.getByLabel("স্প্রিন্টের দিন (নিজে দিন)", { exact: true }).fill("3");
-await setup.getByRole("button", { name: "সংরক্ষণ করুন", exact: true }).click();
+await setup.getByLabel("Sprint length (days)", { exact: true }).fill("3");
+await setup.getByRole("button", { name: "Save", exact: true }).click();
 await teacher.p.waitForURL(/\/dashboard\/competitions\/[a-f0-9-]+$/);
 await teacher.p
   .getByRole("heading", { name: "Browser verified teacher draft", exact: true })
   .waitFor();
-await teacher.p.getByRole("button", { name: "সেটআপ", exact: true }).click();
-await teacher.p.getByRole("button", { name: "টিম", exact: true }).click();
+await teacher.p.getByRole("button", { name: "Setup", exact: true }).click();
+await teacher.p.getByRole("button", { name: "Add team", exact: true }).click();
 const teamEditor = teacher.p.locator("form.inc-modal");
 await teamEditor
-  .getByLabel("ব্যাচ", { exact: true })
+  .getByLabel("Batch", { exact: true })
   .selectOption("Sales Batch 12");
 await teamEditor
-  .getByLabel("আগের Competition গ্রুপ থেকে কপি (ঐচ্ছিক)", { exact: true })
+  .getByLabel("Copy from a previous competition group (optional)", { exact: true })
   .selectOption({ index: 1 });
 assert.equal(
-  await teamEditor.getByLabel("টিম লিডার", { exact: true }).inputValue(),
+  await teamEditor.getByLabel("Team lead", { exact: true }).inputValue(),
   "student-1",
 );
 assert.equal(
@@ -287,7 +287,7 @@ const teamSaved = teacher.p.waitForResponse(
   (r) => r.url().endsWith("/api/incubation") && r.request().method() === "POST",
 );
 await teamEditor
-  .getByRole("button", { name: "সংরক্ষণ করুন", exact: true })
+  .getByRole("button", { name: "Save", exact: true })
   .click();
 assert.equal((await teamSaved).status(), 200);
 await teamEditor.waitFor({ state: "hidden" });
@@ -297,9 +297,9 @@ const pub = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 pub.on("pageerror", (e) => errors.push(e.message));
 await pub.goto(c.origin + "/incubation/report/" + c.publicToken);
 await pub
-  .getByRole("heading", { name: "টিমভিত্তিক ফলাফল", exact: true })
+  .getByRole("heading", { name: "Results by team", exact: true })
   .waitFor();
-for (const name of ["সেটআপ", "এডিট", "সংরক্ষণ করুন", "সংশোধন অনুরোধ"])
+for (const name of ["Setup", "Edit", "Save", "Correction request"])
   assert.equal(await pub.getByRole("button", { name, exact: true }).count(), 0);
 await pub.screenshot({
   path: ".incubation-test/public-read-only.png",

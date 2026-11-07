@@ -118,7 +118,7 @@ function normaliseAnswer(field: any, value: unknown): [unknown, string | null] {
         if (isBlank(v)) continue;
         if (isNumberField(sub)) {
           const n = normaliseNumber(v);
-          if (n === null) return [undefined, `${field.label} [${i + 1}] - ${sub.label}: সংখ্যা দিন ("${v}" গ্রহণযোগ্য নয়)।`];
+          if (n === null) return [undefined, `${field.label} [${i + 1}] - ${sub.label}: enter a number ("${v}" is not valid).`];
           item[sub.id] = n;
         } else {
           item[sub.id] = String(v).trim();
@@ -131,11 +131,11 @@ function normaliseAnswer(field: any, value: unknown): [unknown, string | null] {
   if (isBlank(value)) return [undefined, null];
   if (field.type === "date") {
     const d = normaliseDate(value);
-    return d ? [d, null] : [undefined, `${field.label}: তারিখ YYYY-MM-DD বা DD/MM/YYYY আকারে দিন ("${value}" গ্রহণযোগ্য নয়)।`];
+    return d ? [d, null] : [undefined, `${field.label}: enter the date as YYYY-MM-DD or DD/MM/YYYY ("${value}" is not valid).`];
   }
   if (isNumberField(field)) {
     const n = normaliseNumber(value);
-    if (n === null) return [undefined, `${field.label}: সংখ্যা দিন ("${value}" গ্রহণযোগ্য নয়)।`];
+    if (n === null) return [undefined, `${field.label}: enter a number ("${value}" is not valid).`];
     return [field.type === "rating" ? Number(n) : n, null];
   }
   return [typeof value === "string" ? value.trim() : value, null];
@@ -156,10 +156,10 @@ export function normaliseBulkRows(
     const rollNumber = asciiDigits(String(row?.rollNumber ?? "")).trim();
     const fail = (message: string) => errors.push({ index, id: row?.id, type, rollNumber, message });
 
-    if (row?.type !== "team" && row?.type !== "individual") return fail("Row-এর ধরন (team/individual) পাওয়া যায়নি।");
-    if (!rollNumber) return fail("Roll Number দিন।");
+    if (row?.type !== "team" && row?.type !== "individual") return fail("Row type (team/individual) is missing.");
+    if (!rollNumber) return fail("Enter a roll number.");
     const teamName = type === "team" ? String(row.teamName ?? "").trim() : "";
-    if (type === "team" && !teamName) return fail("Team-wise sheet-এ Team Name দিতে হবে।");
+    if (type === "team" && !teamName) return fail("Team name is required on the team-wise sheet.");
 
     const data: Record<string, unknown> = {};
     for (const field of fields) {
@@ -243,8 +243,8 @@ export function findDuplicateDays(
         rollNumber: row.rollNumber,
         message:
           row.type === "team"
-            ? `${row.teamName}-এর ${row.reportDate} তারিখের রিপোর্ট আগেই আছে। একই দিনের দুইটি row রাখা যাবে না।`
-            : `Roll ${row.rollNumber}-এর ${row.reportDate} তারিখের রিপোর্ট আগেই আছে। একই দিনের দুইটি row রাখা যাবে না।`,
+            ? `${row.teamName} already has a report for ${row.reportDate}. Only one row per day is allowed.`
+            : `Roll ${row.rollNumber} already has a report for ${row.reportDate}. Only one row per day is allowed.`,
       });
     }
   }

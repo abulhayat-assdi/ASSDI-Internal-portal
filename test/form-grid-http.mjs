@@ -75,7 +75,7 @@ assert.equal(first.reportDate, "2026-10-11");
 // 3. A second report for the same team and day is refused.
 r = await bulk({ submissions: [team({ field_date: "2026-10-11", field_day: "1", field_sales: "5" }, { teamName: " team-1 " })] });
 assert.equal(r.status, 400);
-assert.match(r.body.rowErrors[0].message, /আগেই আছে/);
+assert.match(r.body.rowErrors[0].message, /already has a report/);
 
 // 4. An edit based on stale data is refused with 409.
 r = await bulk({

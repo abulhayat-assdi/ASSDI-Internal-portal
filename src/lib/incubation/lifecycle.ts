@@ -5,15 +5,15 @@ export const PROGRAM_STATUSES = ["draft", "active", "closing", "closed", "archiv
 export type ProgramStatus = (typeof PROGRAM_STATUSES)[number];
 
 export const STATUS_LABELS: Record<string, string> = {
-  draft: "খসড়া",
-  active: "সক্রিয়",
-  scheduled: "আসন্ন",
-  running: "চলমান",
-  ended: "সময় শেষ",
-  closing: "হিসাব মেলানো চলছে",
-  closed: "বন্ধ",
-  archived: "আর্কাইভ",
-  cancelled: "বাতিল",
+  draft: "Draft",
+  active: "Active",
+  scheduled: "Upcoming",
+  running: "Running",
+  ended: "Ended",
+  closing: "Closing",
+  closed: "Closed",
+  archived: "Archived",
+  cancelled: "Cancelled",
 };
 
 /**
@@ -50,21 +50,21 @@ export function transitionNeedsReason(from: string, to: string) {
   return NEEDS_REASON.has(`${from}>${to}`);
 }
 
-/** Returns a Bangla error message, or null when the change is allowed. */
+/** Returns an error message, or null when the change is allowed. */
 export function checkTransition(from: string, to: string, reason = ""): string | null {
   if (from === to) return null;
   if (!allowedTransitions(from).includes(to as ProgramStatus)) {
-    return `"${STATUS_LABELS[from] ?? from}" থেকে সরাসরি "${STATUS_LABELS[to] ?? to}" করা যায় না।`;
+    return `A program cannot move directly from "${STATUS_LABELS[from] ?? from}" to "${STATUS_LABELS[to] ?? to}".`;
   }
   if (transitionNeedsReason(from, to) && reason.trim().length < 3) {
-    return `"${STATUS_LABELS[from] ?? from}" থেকে "${STATUS_LABELS[to] ?? to}" করতে কারণ লিখুন।`;
+    return `Enter a reason to move from "${STATUS_LABELS[from] ?? from}" to "${STATUS_LABELS[to] ?? to}".`;
   }
   return null;
 }
 
 /** Error shown when anything is written to a closed/archived/cancelled program. */
 export function lockedMessage(status: string) {
-  return `এই প্রোগ্রাম "${STATUS_LABELS[status] ?? status}" অবস্থায় আছে, তাই কোনো পরিবর্তন করা যাবে না। প্রয়োজনে প্রশাসক কারণসহ প্রোগ্রাম আবার চালু করবেন।`;
+  return `This program is "${STATUS_LABELS[status] ?? status}", so nothing can be changed. Staff can reopen it with a reason if needed.`;
 }
 
 export function incubationState(

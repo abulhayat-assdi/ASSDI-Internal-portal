@@ -39,7 +39,7 @@ export default function ResultsCard({
     <section className="inc-card inc-results">
       <div className="inc-row inc-between">
         <h2>
-          <Medal size={18} /> {manage ? "র‍্যাংকিং (বিক্রির আয় অনুযায়ী)" : "প্রকাশিত ফলাফল"}
+          <Medal size={18} /> {manage ? "Ranking (by revenue)" : "Published results"}
         </h2>
         {manage && (
           <div className="inc-row">
@@ -47,19 +47,19 @@ export default function ResultsCard({
               className="inc-btn primary"
               disabled={busy || !rows.length}
               onClick={() => {
-                const note = window.prompt("ফলাফলের সঙ্গে নোট (ঐচ্ছিক), যেমন: সপ্তাহ ১ / চূড়ান্ত ফলাফল") ?? null;
+                const note = window.prompt("Optional note to show with the results, e.g. Week 1 / Final results") ?? null;
                 if (note !== null) onPublish!(note);
               }}
             >
-              {published ? "নতুন করে প্রকাশ করুন" : "ফলাফল প্রকাশ করুন"}
+              {published ? "Publish again" : "Publish results"}
             </button>
             {published && (
               <button
                 className="inc-btn"
                 disabled={busy}
-                onClick={() => window.confirm("প্রকাশিত ফলাফল প্রত্যাহার করবেন?") && onWithdraw?.()}
+                onClick={() => window.confirm("Withdraw the published results?") && onWithdraw?.()}
               >
-                প্রত্যাহার
+                Withdraw results
               </button>
             )}
           </div>
@@ -67,24 +67,24 @@ export default function ResultsCard({
       </div>
       <p className="inc-muted">
         {manage
-          ? "চলমান হিসাব — সব posted এন্ট্রি থেকে। গ্রাহক refund বাদ দিয়ে বিক্রির আয়; অন্য টিমে হস্তান্তর বিক্রি নয়। আয় সমান হলে নিট লাভ বেশি যার, সে আগে।"
-          : `${published!.snapshot.asOf} পর্যন্ত হিসাব${published!.note ? ` · ${published!.note}` : ""}`}
+          ? "Live standings from all posted entries. Revenue is sales minus customer refunds; transfers to other teams are not sales. If revenue is equal, higher net profit ranks first."
+          : `As of ${published!.snapshot.asOf}${published!.note ? ` · ${published!.note}` : ""}`}
       </p>
       {manage && published && (
         <p className="inc-notice">
-          প্রকাশিত: {new Date(published.publishedAt).toLocaleString("bn-BD", { timeZone: "Asia/Dhaka" })}
+          Published: {new Date(published.publishedAt).toLocaleString("en-GB", { timeZone: "Asia/Dhaka" })}
           {published.publishedByName ? ` — ${published.publishedByName}` : ""}
-          {published.note ? ` · ${published.note}` : ""} (শিক্ষার্থী ও public লিংকে এটিই দেখা যায়)
+          {published.note ? ` · ${published.note}` : ""} (this is what students and the public link see)
         </p>
       )}
       <div className="inc-table-wrap">
         <table>
           <thead>
             <tr>
-              <th>স্থান</th>
-              <th>টিম</th>
-              <th style={{ textAlign: "right" }}>বিক্রির আয়</th>
-              <th style={{ textAlign: "right" }}>নিট লাভ</th>
+              <th>Rank</th>
+              <th>Team</th>
+              <th style={{ textAlign: "right" }}>Revenue</th>
+              <th style={{ textAlign: "right" }}>Net profit</th>
             </tr>
           </thead>
           <tbody>

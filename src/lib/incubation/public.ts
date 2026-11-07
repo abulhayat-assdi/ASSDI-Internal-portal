@@ -9,7 +9,7 @@ export async function publicReport(
   token: string,
   filters: ReportFilters = {},
 ) {
-  insist(/^[a-f0-9]{64}$/.test(token), "রিপোর্ট পাওয়া যায়নি।", 404);
+  insist(/^[a-f0-9]{64}$/.test(token), "Report not found.", 404);
   return withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
     const course = await tx.course.findUnique({
       where: { id: courseId },
@@ -17,7 +17,7 @@ export async function publicReport(
     });
     insist(
       course && isFeatureEnabled(course.settings, "business_incubation"),
-      "রিপোর্ট পাওয়া যায়নি।",
+      "Report not found.",
       404,
     );
     const p = await tx.incubationProgram.findFirst({
@@ -26,7 +26,7 @@ export async function publicReport(
         publicTokenHash: createHash("sha256").update(token).digest("hex"),
       },
     });
-    insist(p, "রিপোর্ট পাওয়া যায়নি বা লিংক বন্ধ করা হয়েছে।", 404);
+    insist(p, "Report not found or the link has been revoked.", 404);
     const [teams, records, products, categories, areas, sprints] =
       await Promise.all([
         tx.incubationTeam.findMany({

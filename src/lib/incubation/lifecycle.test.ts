@@ -5,11 +5,11 @@ it("allows only listed status changes and requires reasons for reopening", () =>
   expect(checkTransition("active", "closing")).toBeNull();
   expect(checkTransition("closing", "closed")).toBeNull();
   expect(checkTransition("closed", "archived")).toBeNull();
-  expect(checkTransition("draft", "archived")).toMatch(/সরাসরি/);
-  expect(checkTransition("archived", "active")).toMatch(/সরাসরি/);
-  expect(checkTransition("closed", "closing")).toMatch(/কারণ/);
+  expect(checkTransition("draft", "archived")).toMatch(/directly/);
+  expect(checkTransition("archived", "active")).toMatch(/directly/);
+  expect(checkTransition("closed", "closing")).toMatch(/reason/);
   expect(checkTransition("closed", "closing", "missed sale")).toBeNull();
-  expect(checkTransition("active", "cancelled", "")).toMatch(/কারণ/);
+  expect(checkTransition("active", "cancelled", "")).toMatch(/reason/);
   expect(checkTransition("closed", "closed")).toBeNull();
   expect(["closed", "archived", "cancelled"].every(isProgramLocked)).toBe(true);
   expect(["draft", "active", "closing"].some(isProgramLocked)).toBe(false);
