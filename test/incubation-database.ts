@@ -95,6 +95,12 @@ export async function startIncubationTestDatabase(
       "utf8",
     ),
   );
+  await db.exec(
+    readFileSync(
+      "prisma/migrations/202611070003_incubation_notifications_results/migration.sql",
+      "utf8",
+    ),
+  );
   const server = new PGLiteSocketServer({
     db,
     host: "127.0.0.1",

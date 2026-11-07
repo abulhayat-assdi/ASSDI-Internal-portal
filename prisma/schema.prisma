@@ -294,6 +294,8 @@ model IncubationProgram {
   fields IncubationFieldSession[]
   attachments IncubationAttachment[]
   audit IncubationAudit[]
+  notifications IncubationNotification[]
+  results IncubationResult[]
   @@unique([id, courseId])
   @@index([courseId, status])
   @@unique([competitionId, courseId])
@@ -511,6 +513,42 @@ model IncubationAudit {
   program IncubationProgram @relation(fields: [programId, courseId], references: [id, courseId], onDelete: Restrict)
   @@index([programId, createdAt])
   @@map("incubation_audit")
+}
+
+model IncubationNotification {
+  id String @id @default(uuid())
+  courseId String @map("course_id")
+  programId String @map("program_id")
+  userId String @map("user_id")
+  eventKey String @map("event_key")
+  kind String
+  title String
+  body String
+  link String @default("")
+  createdAt DateTime @default(now()) @map("created_at")
+  readAt DateTime? @map("read_at")
+  emailedAt DateTime? @map("emailed_at")
+  program IncubationProgram @relation(fields: [programId, courseId], references: [id, courseId], onDelete: Restrict)
+  @@unique([userId, eventKey], map: "incubation_notifications_user_event_key")
+  @@index([userId, readAt], map: "incubation_notifications_user_read_idx")
+  @@index([programId, createdAt], map: "incubation_notifications_program_created_idx")
+  @@map("incubation_notifications")
+}
+
+model IncubationResult {
+  id String @id @default(uuid())
+  courseId String @map("course_id")
+  programId String @map("program_id")
+  metric String
+  snapshot Json
+  note String @default("")
+  publishedBy String @map("published_by")
+  publishedByName String @map("published_by_name")
+  publishedAt DateTime @default(now()) @map("published_at")
+  withdrawnAt DateTime? @map("withdrawn_at")
+  program IncubationProgram @relation(fields: [programId, courseId], references: [id, courseId], onDelete: Restrict)
+  @@index([programId, publishedAt], map: "incubation_results_program_idx")
+  @@map("incubation_results")
 }
 
 // ============================================================

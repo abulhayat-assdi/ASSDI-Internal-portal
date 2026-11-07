@@ -18,6 +18,7 @@ import {
   PROGRAM_STATUSES,
 } from "./lifecycle";
 import { withCourseContext } from "@/lib/db";
+import { buildMonitor, issuesFor } from "./monitor";
 import {
   calculateLedger,
   FINANCIAL_KINDS,
@@ -86,6 +87,8 @@ export const settingsSchema = z
     objections: z.array(text).max(50).default([]),
     fgdRequiredCount: z.number().int().min(1).max(3).default(1),
     whyBoughtRequired: z.boolean().default(false),
+    salesReminder: z.boolean().default(true),
+    fgdEveryDays: z.number().int().min(1).max(30).nullable().default(null),
   })
   .strict();
 export const isManager = (a: JWTPayload) =>
@@ -644,6 +647,24 @@ export async function overview(actor: Actor, programId?: string) {
         : r,
     );
     const computed = await ledger(tx, programId);
+    const monitor = issuesFor(
+      buildMonitor({
+        today: todayDhaka(),
+        program: { ...program, settings: settingsSchema.parse(program.settings) },
+        teams,
+        sprints,
+        records,
+        sessions: fields,
+        pendingCorrections: corrections.filter((c) => c.status === "pending").length,
+        pendingFieldCorrections: fieldCorrections.filter((c) => c.status === "pending").length,
+      }),
+      {
+        staff: !member,
+        teamId: member?.teamId,
+        isLead: member?.isLead,
+        userId: actor.id,
+      },
+    );
     const permittedProducts = new Set(
       member
         ? records
@@ -689,6 +710,7 @@ export async function overview(actor: Actor, programId?: string) {
       member,
       manager,
       supervisor,
+      monitor,
       batches,
       teams,
       transferTeams: member && !member.isLead ? [] : transferTeams,

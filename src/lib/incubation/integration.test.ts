@@ -232,7 +232,7 @@ describe("real migration and transactional incubation workflows", () => {
     const policies = await fixture.db.query(
       "SELECT tablename FROM pg_policies WHERE tablename LIKE 'incubation_%'",
     );
-    expect(policies.rows).toHaveLength(12);
+    expect(policies.rows).toHaveLength(14);
     expect(await prisma.incubationRecord.count()).toBe(0);
   });
   it("requires a purchase voucher and restricts financial entries to the lead", async () => {
@@ -723,6 +723,41 @@ describe("real migration and transactional incubation workflows", () => {
       api.command(manager, { action: "team", programId, payload: { ...payload, active: false } }),
     ).rejects.toThrow(/নিষ্ক্রিয়/);
     expect((await prisma.incubationTeam.findUniqueOrThrow({ where: { id: teamA } })).active).toBe(true);
+  });
+
+  it("daily reminders notify leads and staff once, and the overview shows each viewer their own list", async () => {
+    const { runIncubationReminders } = await import("./reminders");
+    const first = await runIncubationReminders();
+    expect(first.created).toBeGreaterThan(0);
+    expect(first.emailed).toBe(0);
+    // Team B (lead "target") has never recorded a sale, so yesterday is missing.
+    const forLead = await prisma.incubationNotification.findMany({ where: { userId: "target", programId } });
+    expect(forLead.some((n) => n.kind === "missing_sales")).toBe(true);
+    const digest = await prisma.incubationNotification.findFirst({
+      where: { userId: "manager", programId, kind: "digest" },
+    });
+    expect(digest?.body).toContain("Team B");
+    // Only the team's current lead is chased for team sales, never other members.
+    const teamAMembers = await prisma.incubationMember.findMany({ where: { teamId: teamA } });
+    const nonLeadRolls = teamAMembers.filter((m) => !m.isLead).map((m) => m.roll);
+    const nonLeadUsers = await prisma.user.findMany({ where: { studentRoll: { in: nonLeadRolls } } });
+    expect(nonLeadUsers.length).toBeGreaterThan(0);
+    expect(
+      await prisma.incubationNotification.count({
+        where: { userId: { in: nonLeadUsers.map((u) => u.id) }, programId, kind: "missing_sales" },
+      }),
+    ).toBe(0);
+    // A second run on the same day creates nothing new.
+    expect((await runIncubationReminders()).created).toBe(0);
+
+    const staffView = await api.overview(manager, programId);
+    expect(staffView.monitor.some((i: any) => i.kind === "missing_sales" && i.teamId === teamB)).toBe(true);
+    const leadView = await api.overview(target, programId);
+    expect(leadView.monitor.length).toBeGreaterThan(0);
+    expect(leadView.monitor.every((i: any) => i.teamId === teamB)).toBe(true);
+    const nonLead = [lead, member].find((a) => nonLeadUsers.some((u) => u.id === a.id))!;
+    const memberView = await api.overview(nonLead, programId);
+    expect(memberView.monitor.some((i: any) => i.kind === "missing_sales")).toBe(false);
   });
 
   it("refuses to send a program with entries back to draft, and cancelling needs a reason", async () => {

@@ -34,6 +34,7 @@ export async function register() {
     const url = `http://127.0.0.1:${port}/api/cron/attendance-alerts`;
     const cleanupUrl = `http://127.0.0.1:${port}/api/cron/deployment-cleanup`;
     const incubationRetentionUrl = `http://127.0.0.1:${port}/api/cron/incubation-retention`;
+    const incubationRemindersUrl = `http://127.0.0.1:${port}/api/cron/incubation-reminders`;
 
     let lastRunDate: string | null = null;
 
@@ -71,6 +72,14 @@ export async function register() {
             if (!res.ok) console.error(`[cron] incubation retention returned ${res.status}`);
         } catch (error) {
             console.error('[cron] incubation retention failed:', error instanceof Error ? error.message : error);
+        }
+        try {
+            const res = await fetch(incubationRemindersUrl, { method: 'POST', headers: { 'x-cron-secret': secret } });
+            const body = res.ok ? ((await res.json()) as { created: number; emailed: number }) : null;
+            if (body) console.info(`[cron] incubation reminders: ${body.created} notification(s), ${body.emailed} email(s)`);
+            else console.error(`[cron] incubation reminders returned ${res.status}`);
+        } catch (error) {
+            console.error('[cron] incubation reminders failed:', error instanceof Error ? error.message : error);
         }
     };
 

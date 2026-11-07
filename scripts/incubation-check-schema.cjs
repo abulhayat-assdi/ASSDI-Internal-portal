@@ -13,6 +13,8 @@ const tables = [
   "positions",
   "attachments",
   "audit",
+  "notifications",
+  "results",
 ].map((n) => "incubation_" + n);
 async function check() {
   if (!process.env.DATABASE_URL)
