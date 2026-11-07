@@ -25,6 +25,9 @@ const ALLOWED_MIME_TYPES = [
   "application/x-zip-compressed",
   "text/html",
   "image/svg+xml",
+  "text/markdown",
+  "text/x-markdown",
+  "text/plain",
 ];
 
 const ALLOWED_EXTENSIONS = new Set([
@@ -33,6 +36,7 @@ const ALLOWED_EXTENSIONS = new Set([
   ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
   ".html", ".htm", ".svg",
   ".zip",
+  ".md", ".markdown",
 ]);
 
 // Max file size: 100MB
@@ -59,7 +63,7 @@ export async function POST(request: NextRequest) {
     const mimeOk = ALLOWED_MIME_TYPES.includes(file.type) || file.type === "" || file.type === "application/octet-stream";
     if (!ALLOWED_EXTENSIONS.has(ext) || !mimeOk) {
       return NextResponse.json(
-        { error: `এই ফাইল টাইপ গ্রহণযোগ্য নয় (${ext || file.type || "unknown"})। অনুমোদিত: ছবি (JPG, PNG, WEBP), PDF, Word, Excel, PowerPoint, HTML, SVG, ZIP।` },
+        { error: `এই ফাইল টাইপ গ্রহণযোগ্য নয় (${ext || file.type || "unknown"})। অনুমোদিত: ছবি (JPG, PNG, WEBP), PDF, Word, Excel, PowerPoint, HTML, SVG, ZIP, Markdown (.md)।` },
         { status: 400 }
       );
     }

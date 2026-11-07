@@ -420,7 +420,7 @@ export default function HomeworkSubmissionPage() {
                                         ref={fileInputRef}
                                         onChange={handleFileChange}
                                         multiple
-                                        accept=".jpg,.jpeg,.png,.gif,.webp,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.html,.htm,.zip,.csv,.txt"
+                                        accept=".jpg,.jpeg,.png,.gif,.webp,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.html,.htm,.zip,.csv,.txt,.md,.markdown"
                                         className="hidden"
                                     />
                                     <div className="flex flex-col items-center gap-2 pointer-events-none">
@@ -439,7 +439,7 @@ export default function HomeworkSubmissionPage() {
                                                 একাধিক ফাইল সিলেক্ট করা যাবে · সর্বোচ্চ {MAX_TOTAL_SIZE_MB}MB
                                             </p>
                                             <p className="text-xs text-gray-400 mt-0.5">
-                                                ছবি, PDF, Word, Excel, PowerPoint, HTML, SVG, ZIP
+                                                ছবি, PDF, Word, Excel, PowerPoint, HTML, SVG, ZIP, Markdown (.md)
                                             </p>
                                         </div>
                                     </div>

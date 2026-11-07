@@ -61,6 +61,16 @@ describe("verifyFileSignature", () => {
 });
 
 describe("verifyHomeworkFile", () => {
+    it("accepts Markdown notes, including ones that discuss SQL", () => {
+        expect(verifyHomeworkFile(Buffer.from("# নোট\n\n- point one\n"), "notes.md")).toBeNull();
+        expect(verifyHomeworkFile(Buffer.from("```sql\nDROP TABLE users;\n```"), "README.MARKDOWN")).toBeNull();
+    });
+
+    it("rejects empty or binary Markdown files", () => {
+        expect(verifyHomeworkFile(Buffer.alloc(0), "a.md")).toMatch(/খালি/);
+        expect(verifyHomeworkFile(PNG, "a.md")).toMatch(/do not match/);
+    });
+
     const page = (body: string) => Buffer.from(`<!doctype html><html><body>${body}</body></html>`);
 
     it("accepts an ordinary landing page, scripts and all", () => {
