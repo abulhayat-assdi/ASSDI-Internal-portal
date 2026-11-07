@@ -15,7 +15,7 @@ const tables = [
   "audit",
   "notifications",
   "results",
-].map((n) => "incubation_" + n);
+].map((n) => "incubation_" + n).concat(["competition_submission_revisions"]);
 async function check() {
   if (!process.env.DATABASE_URL)
     throw Error("DATABASE_URL is required for the schema readiness check");
@@ -31,6 +31,19 @@ async function check() {
       if (!row || !row.relrowsecurity || !row.relforcerowsecurity)
         throw Error(`Incubation schema/RLS missing: ${name}`);
     }
+    // The app connects as the runtime role; every feature table must be usable by it.
+    const privileges = await client.query(
+      "SELECT t FROM unnest($1::text[]) AS t WHERE NOT has_table_privilege(current_user, t, 'SELECT,INSERT,UPDATE,DELETE')",
+      [tables],
+    );
+    if (privileges.rows.length)
+      throw Error(
+        `Runtime role ${"cannot read/write: " + privileges.rows.map((r) => r.t).join(", ")}`,
+      );
+    const softDelete = await client.query(
+      "SELECT count(*)::int AS n FROM information_schema.columns WHERE table_schema='public' AND table_name='incubation_programs' AND column_name IN ('deleted_at','deleted_by','delete_reason')",
+    );
+    if (softDelete.rows[0].n !== 3) throw Error("Incubation program soft-delete columns are missing");
     const columns = await client.query(
       "SELECT table_name,column_name,is_nullable FROM information_schema.columns WHERE table_schema='public' AND ((table_name='incubation_programs' AND column_name='competition_id') OR (table_name='competitions' AND column_name='kind') OR (table_name='incubation_catalog' AND column_name='variant'))",
     );

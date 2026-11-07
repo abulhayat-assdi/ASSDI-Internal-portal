@@ -1,7 +1,6 @@
 # Business Incubation v3 — পরিবর্তন, ব্যবহার ও যাচাই
 
-Branch: `feature/incubation-v3` (worktree `asm-portal-v2-incubation-v3`), main `f3a4da9` থেকে শুরু।
-অবস্থা: বাস্তবায়ন ও স্থানীয় যাচাই সম্পন্ন; ব্যবহারকারীর review-এর অপেক্ষায়। main-এ merge, push, production migration বা deployment ব্যবহারকারীর আলাদা অনুমোদন ছাড়া হবে না।
+অবস্থা: main-এ merge হয়েছে (`cb2b8ce`, ২০২৬-১১-০৭)। পরের অডিট-সংশোধন `fix/incubation-audit` branch-এ (নিচে §৭)। Push ও production deployment ব্যবহারকারী করবেন।
 
 ব্যবহারকারীর সিদ্ধান্ত (২০২৬-১১-০৭): Application/Screening/Judge/Mentor (Track B) এখন নয়; Form competition grid সংশোধন P0; ranking-এর মানদণ্ড Revenue; রিমাইন্ডার In-app + Email।
 
@@ -75,8 +74,8 @@ Branch: `feature/incubation-v3` (worktree `asm-portal-v2-incubation-v3`), main `
 ## ৩. চালু করার আগে (প্রশাসক)
 1. Deploy-এর আগে database ও `/app/storage` backup।
 2. `CRON_SECRET` (১৬+ অক্ষর) সেট থাকতে হবে, নইলে দৈনিক রিমাইন্ডার চলবে না। একাধিক instance হলে `DISABLE_INTERNAL_CRON=1` দিয়ে external scheduler থেকে `POST /api/cron/incubation-reminders` (`x-cron-secret` header) ডাকুন।
-3. **সময়:** internal scheduler container-এর ঘড়িতে সকাল ৭টার পরে চলে। Container-এ TZ সেট নেই (UTC), তাই এখন বাংলাদেশ সময় দুপুর ১টার পরে চলবে। সকালে চাইলে container-এ `TZ=Asia/Dhaka` দিন — এতে attendance alert-ও সকাল ৭টায় সরবে।
-4. Email চাইলে course settings-এ email notifications চালু ও SMTP ঠিক রাখুন।
+3. **সময়:** Business Incubation রিমাইন্ডার এখন container-এর ঘড়ি যা-ই হোক, বাংলাদেশ সময় সকাল ৭টার পরে চলে (অডিট-সংশোধন)। Server চালুর ১ মিনিট পরেই প্রথম যাচাই হয়। অন্য দৈনিক কাজ (attendance alert ইত্যাদি) আগের মতো container-এর ঘড়িতে চলে; `TZ` বদলানোর দরকার নেই।
+4. Email চাইলে course settings-এ email notifications চালু রাখুন এবং SMTP env দিন: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`। Email-এর লিংকের জন্য `BASE_DOMAIN` (যেমন `tasm-skill.asf.bd`) সঠিক থাকতে হবে।
 5. প্রোগ্রাম setup-এ রিমাইন্ডার settings দেখে নিন; প্রতিটি টিমে লিডার ও sprint আছে কিনা "আজকের করণীয়"-তে দেখুন।
 
 ## ৪. Rollback
@@ -106,3 +105,20 @@ Branch: `feature/incubation-v3` (worktree `asm-portal-v2-incubation-v3`), main `
 - Milestone/deadline table, সাপ্তাহিক/মাসিক রিপোর্ট preset, audit history-তে field diff।
 - `IncubationApp.tsx` / `server.ts` বিভাজন (refactor)।
 - Overview/export-এ pagination এবং ledger caching (record হাজার ছাড়ালে)।
+
+## ৭. প্রি-লঞ্চ অডিট ও সংশোধন (২০২৬-১১-০৭, branch `fix/incubation-audit`)
+তিনটি স্বাধীন review (server যুক্তি, UI, deploy/performance) — প্রতিটি ফলাফল কোডে যাচাই করে সংশোধন:
+
+| গুরুত্ব | সমস্যা | সমাধান |
+|---|---|---|
+| উচ্চ | Student dashboard থেকে লিংকে ক্লিক করে workspace-এ গেলে GPS check-in কাজ করত না (Permissions-Policy শুধু direct load-এ) | পুরো `/student-dashboard`-এ location অনুমতি; browser-এ click-through করে যাচাই |
+| উচ্চ | Manage data শিট খোলা থাকলে ৬০ সেকেন্ডের auto-refresh অসংরক্ষিত এডিট মুছে দিত | শিট/ফর্ম খোলা থাকলে refresh বন্ধ; ৭০ সেকেন্ড অপেক্ষা করে যাচাই |
+| উচ্চ | লিডার sale-এ অন্য টিম (`targetTeamId`) জুড়ে দিলে সেই টিমের রিপোর্ট ভেঙে যেত | শুধু transfer-এ receiving team থাকে |
+| উচ্চ | Battle of Cups grid-এ row এডিট করলে `absentRolls` (অনুপস্থিতি) মুছে যেত; filter অবস্থায় paste লুকানো row-এ পড়ত | লুকানো ডাটা রক্ষা; paste শুধু দৃশ্যমান row-এ; dropdown/multi-select যাচাই |
+| মাঝারি | তারিখ বদলালে পুরোনো এন্ট্রি আর সংশোধন করা যেত না; ভুলে যাওয়া check-out আটকে থাকত; বন্ধ প্রোগ্রামের public link বন্ধ করা যেত না; pending কাজ রেখে close করা যেত | তারিখ-সীমা যাচাই; staff "Force check-out"; link সবসময় বন্ধ করা যায়; close-এর আগে pending গণনা |
+| মাঝারি | শিট: অপরিবর্তিত লেখা "changed" দেখাত; ভুলের row চিহ্নিত হতো না; দুবার Save-এ duplicate | সব ঠিক করা হয়েছে |
+| নিম্ন | রিমাইন্ডার UTC দুপুর ১টায়; check-out রিমাইন্ডার একবারই; deleted প্রোগ্রামের রিমাইন্ডার bell-এ | বাংলাদেশ সময় সকাল ৭টা; প্রতিদিন; লুকানো |
+| নিম্ন | Readiness gate runtime role-এর অনুমতি দেখত না; dashboard সব audit history লোড করত | Gate-এ অনুমতি যাচাই; screen-এ সর্বশেষ ৫০০ (export-এ সব) |
+
+**জেনে রাখুন (নকশাগত সিদ্ধান্ত, বদলানো হয়নি):** course-এর প্রত্যেক শিক্ষক সব Business Incubation পরিচালনা করতে পারেন (আগের অনুমোদিত নীতি); প্রোগ্রামের "staff" তালিকা শুধু কে দৈনিক রিমাইন্ডার পাবেন তা ঠিক করে। SMTP email একে একে যায় — অনেক প্রাপক হলে রিমাইন্ডার পাঠাতে কয়েক মিনিট লাগতে পারে।
+

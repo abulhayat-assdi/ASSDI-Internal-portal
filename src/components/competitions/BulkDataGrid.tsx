@@ -26,6 +26,12 @@ let keySeed = 0;
 const newKey = () => `r${++keySeed}`;
 const blankRows = (n: number): Row[] => Array.from({ length: n }, () => ({ _key: newKey() }));
 const hasRoll = (r: Row) => String(r.rollNumber ?? "").trim() !== "";
+/** Number cells: digits (Bangla digits converted), one decimal point, commas and a leading minus only. */
+const numberText = (v: string) => {
+  const ascii = String(v ?? "").replace(/[০-৯]/g, (d) => String("০১২৩৪৫৬৭৮৯".indexOf(d)));
+  const kept = ascii.replace(/[^0-9.,-]/g, "");
+  return (kept.startsWith("-") ? "-" : "") + kept.replace(/-/g, "");
+};
 
 export default function BulkDataGrid({ competition, onClose, onSuccess }: BulkDataGridProps) {
   const schema: any[] = useMemo(
@@ -95,7 +101,7 @@ export default function BulkDataGrid({ competition, onClose, onSuccess }: BulkDa
             });
           }
         } else if (val !== undefined && val !== null) {
-          row[field.id] = String(val);
+          row[field.id] = Array.isArray(val) ? val.join(", ") : String(val);
         }
       }
       return row;
@@ -164,7 +170,7 @@ export default function BulkDataGrid({ competition, onClose, onSuccess }: BulkDa
   };
 
   const handlePaste = useCallback(
-    (e: React.ClipboardEvent<HTMLInputElement>, startRowIndex: number, startColKey: string) => {
+    (e: React.ClipboardEvent<HTMLInputElement>, order: number[], allowGrow: boolean, startColKey: string) => {
       const text = e.clipboardData.getData("Text");
       if (!text || (!text.includes("\t") && !text.includes("\n"))) return; // single value: normal paste
       e.preventDefault();
@@ -173,15 +179,18 @@ export default function BulkDataGrid({ competition, onClose, onSuccess }: BulkDa
       if (startCol === -1) return;
       updateRows(activeTab, (prev) => {
         const next = [...prev];
+        const baseLength = next.length;
         lines.forEach((line, li) => {
-          const target = startRowIndex + li;
-          if (target >= MAX_ROWS) return;
+          // Paste follows the rows on screen; while a search hides rows, it never
+          // spills into rows the user cannot see.
+          const target = li < order.length ? order[li] : allowGrow ? baseLength + (li - order.length) : -1;
+          if (target < 0 || target >= MAX_ROWS) return;
           while (next.length <= target) next.push({ _key: newKey() });
           let row = { ...next[target] };
           line.split("\t").forEach((cell, ci) => {
             const col = activeColumns[startCol + ci];
             if (!col) return;
-            row = { ...row, [col.key]: cell.trim() };
+            row = { ...row, [col.key]: col.numeric ? numberText(cell) : cell.trim() };
             if (col.key === "rollNumber") {
               const name = nameForRoll(cell);
               if (name) row.studentName = name;
@@ -200,7 +209,8 @@ export default function BulkDataGrid({ competition, onClose, onSuccess }: BulkDa
     clearError(activeRows[rowIndex]?._key);
     updateRows(activeTab, (prev) => {
       const next = [...prev];
-      const row = { ...next[rowIndex], [colKey]: value };
+      const col = activeColumns.find((c) => c.key === colKey);
+      const row = { ...next[rowIndex], [colKey]: col?.numeric ? numberText(value) : value };
       if (colKey === "rollNumber") {
         const name = nameForRoll(value);
         if (name) row.studentName = name;
@@ -455,7 +465,10 @@ export default function BulkDataGrid({ competition, onClose, onSuccess }: BulkDa
                           value={row[col.key] ?? ""}
                           placeholder={col.type === "date" ? "YYYY-MM-DD" : undefined}
                           onChange={(e) => handleChange(index, col.key, e.target.value)}
-                          onPaste={(e) => handlePaste(e, index, col.key)}
+                          onPaste={(e) => {
+                            const order = visible.map((v) => v.index);
+                            handlePaste(e, order.slice(order.indexOf(index)), !needle, col.key);
+                          }}
                         />
                       </td>
                     ))}

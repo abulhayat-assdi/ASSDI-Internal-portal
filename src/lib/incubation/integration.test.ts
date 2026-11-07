@@ -903,6 +903,82 @@ describe("real migration and transactional incubation workflows", () => {
     expect(await prisma.incubationAudit.count({ where: { programId: created.id, action: "program.deleted" } })).toBe(1);
   });
 
+  it("audit fixes: transfer-only target team, safe date edits, closing checks, link revoke, force check-out, sheet retries", async () => {
+    // Only a transfer may name a receiving team: anything else is stored without one,
+    // so it can never appear in (and break) the other team's records.
+    const stray = await send(manager, "record", {
+      teamId: teamA,
+      targetTeamId: teamB,
+      kind: "expense",
+      date: todayDhaka(),
+      requestKey: crypto.randomUUID(),
+      data: { amount: "5", expenseType: "Transport" },
+    });
+    expect(stray.targetTeamId).toBeNull();
+
+    const created = (await api.command(manager, {
+      action: "program",
+      payload: { name: "Audit lab", description: "", startDate: "2026-01-01", endDate: null, batchNames: ["Batch 1"], staffIds: [], settings, status: "active" },
+    })) as any;
+    const pid2 = created.id;
+    const t = (await api.command(manager, {
+      action: "team",
+      programId: pid2,
+      payload: { name: "Audit team", studentIds: ["s-target"], leadId: "s-target", active: true },
+    })) as any;
+    await api.command(manager, {
+      action: "record",
+      programId: pid2,
+      payload: { teamId: t.id, kind: "expense", date: "2026-01-05", requestKey: crypto.randomUUID(), data: { amount: "5", expenseType: "Transport" } },
+    });
+    const base = { name: "Audit lab", description: "", endDate: null, batchNames: ["Batch 1"], staffIds: [], settings };
+    // Moving the start date past an existing entry is refused.
+    await expect(
+      api.command(manager, { action: "program", programId: pid2, payload: { ...base, startDate: "2026-02-01", status: "active" } }),
+    ).rejects.toThrow(/outside the program/);
+    // A late student entry stays pending; closing with it pending needs a reason.
+    const late = (await api.command(target, {
+      action: "record",
+      programId: pid2,
+      payload: { teamId: t.id, kind: "expense", date: "2026-01-10", requestKey: crypto.randomUUID(), data: { amount: "3", expenseType: "Transport", reason: "Paper log" } },
+    })) as any;
+    expect(late.status).toBe("pending");
+    await expect(
+      api.command(manager, { action: "program", programId: pid2, payload: { ...base, startDate: "2026-01-01", status: "closed" } }),
+    ).rejects.toThrow(/still need action/);
+    await api.command(manager, {
+      action: "program",
+      programId: pid2,
+      payload: { ...base, startDate: "2026-01-01", status: "closed", reason: "Closing early for the audit test" },
+    });
+    // A closed program cannot publish a new public link but can always revoke it.
+    await expect(api.command(manager, { action: "share", programId: pid2, payload: { enabled: true } })).rejects.toThrow();
+    await api.command(manager, { action: "share", programId: pid2, payload: { enabled: false } });
+
+    // Staff can close a session a student forgot to check out.
+    const position = { latitude: 23.8, longitude: 90.4, accuracy: 15, capturedAt: new Date().toISOString() };
+    const open = (await field.fieldCommand(target, { action: "checkin", programId, position, areaId: area })) as any;
+    await expect(
+      field.fieldCorrectionCommand(target, { action: "field_force_checkout", programId, payload: { sessionId: open.session.id, reason: "forgot" } }),
+    ).rejects.toThrow();
+    const closed = (await field.fieldCorrectionCommand(manager, {
+      action: "field_force_checkout",
+      programId,
+      payload: { sessionId: open.session.id, reason: "Forgot to check out" },
+    })) as any;
+    expect(closed.checkOut).not.toBeNull();
+
+    // A retried sheet save does not add the same new row twice; bad dates name the row.
+    const row = { key: "n-retry-1", kind: "expense", teamId: teamA, date: todayDhaka(), data: { amount: "4", expenseType: "Transport" } };
+    const before = await prisma.incubationRecord.count({ where: { programId } });
+    expect((await send(manager, "sheet_save", { reason: "Retry check", creates: [row] })).created).toBe(1);
+    expect((await send(manager, "sheet_save", { reason: "Retry check", creates: [row] })).created).toBe(0);
+    expect(await prisma.incubationRecord.count({ where: { programId } })).toBe(before + 1);
+    await expect(
+      send(manager, "sheet_save", { reason: "Bad date", creates: [{ ...row, key: "n-bad-date", date: "07/11/2026" }] }),
+    ).rejects.toThrow(/^\[\[n-bad-date\]\]/);
+  });
+
   it("refuses to send a program with entries back to draft, and cancelling needs a reason", async () => {
     const current = await prisma.incubationProgram.findUniqueOrThrow({ where: { id: programId } });
     expect(current.status).toBe("active");

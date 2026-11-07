@@ -55,8 +55,8 @@ const CREATABLE = ["sale", "expense", "supplier_return", "damage", "fund", "repa
 const NEEDS_REASON = ["supplier_return", "damage", "customer_refund", "transfer"];
 
 const USER_FIELDS = ["productId", "quantity", "unitPrice", "cash", "amount", "expenseType", "round", "note", "reason", "f1", "a1", "segment", "objections", "whyBought", "bestArea"];
-let seed = 0;
-const newKey = () => `n${++seed}`;
+/** Globally unique, so a retried save can be recognised on the server. */
+const newKey = () => `n-${crypto.randomUUID()}`;
 const stable = (v: unknown): string =>
   Array.isArray(v)
     ? `[${v.map(stable).join(",")}]`
@@ -199,7 +199,9 @@ export default function DataSheetManager({
         (settings.segments || []).length
           ? { key: "segment", label: "Customer segment", type: "select", width: 180, required: true, recordLevel: true, options: settings.segments.map((s: string) => ({ value: s, label: s })) }
           : { key: "segment", label: "Customer segment", type: "text", width: 180, required: true, recordLevel: true },
-        { key: "objections", label: "Top objections", type: "text", width: 220, required: true, recordLevel: true },
+        (settings.objections || []).length
+          ? { key: "objections", label: "Top objections", type: "select", width: 220, required: true, recordLevel: true, options: settings.objections.map((s: string) => ({ value: s, label: s })) }
+          : { key: "objections", label: "Top objections", type: "text", width: 220, required: true, recordLevel: true },
         { key: "whyBought", label: "Why they bought", type: "text", width: 220, required: !!settings.whyBoughtRequired, recordLevel: true },
         { key: "bestArea", label: "Best area", type: "text", width: 160, required: true, recordLevel: true },
       ];
@@ -334,11 +336,19 @@ export default function DataSheetManager({
   const dataFor = (k: string, list: SheetRow[], original?: Row) => {
     const head = list[0];
     const base: Row = original ? JSON.parse(JSON.stringify(original.data || {})) : {};
+    // Text cells: keep the stored value when the cell was not edited (stored text may
+    // carry spaces); trim only what the user actually changed.
     const set = (field: string, value: any) => {
-      if (value === "" || value === undefined) delete base[field];
-      else base[field] = value;
+      const before = original?.data?.[field];
+      if (typeof value === "string" && before !== undefined && value === String(before)) {
+        base[field] = before;
+        return;
+      }
+      const v = typeof value === "string" ? value.trim() : value;
+      if (v === "" || v === undefined) delete base[field];
+      else base[field] = v;
     };
-    set("note", head.note?.trim());
+    set("note", head.note);
     if (LINE_KINDS.includes(k)) {
       const lines = original ? [...(base.lines || [])] : [];
       for (const r of list) {
@@ -356,11 +366,11 @@ export default function DataSheetManager({
         set("areaId", head.areaId);
         set("session", head.session);
       }
-      if (k === "sale" || NEEDS_REASON.includes(k)) set("reason", head.reason?.trim());
+      if (k === "sale" || NEEDS_REASON.includes(k)) set("reason", head.reason);
     } else if (AMOUNT_KINDS.includes(k)) {
       set("amount", head.amount);
       if (k === "expense") set("expenseType", head.expenseType);
-      if (k === "fund") set("round", head.round?.trim());
+      if (k === "fund") set("round", head.round);
     } else if (k === "fgd") {
       // Drop blank trailing entries so an untouched FGD stays byte-identical.
       const compact = (prefix: string) => {
@@ -379,7 +389,7 @@ export default function DataSheetManager({
       if (!original || !same(original.data?.findings, findings)) base.findings = findings;
       if (!original || !same(original.data?.actions, actions)) base.actions = actions;
     } else {
-      for (const f of ["segment", "objections", "whyBought", "bestArea"]) set(f, head[f]?.trim());
+      for (const f of ["segment", "objections", "whyBought", "bestArea"]) set(f, head[f]);
     }
     return base;
   };
@@ -438,6 +448,14 @@ export default function DataSheetManager({
         for (const c of kcols) {
           if (c.required && (r[c.key] === undefined || String(r[c.key]).trim() === "")) {
             localErrors[r.key] = `${c.label} is required.`;
+            break;
+          }
+          if (c.type === "date" && r[c.key] && !/^\d{4}-\d{2}-\d{2}$/.test(String(r[c.key]))) {
+            localErrors[r.key] = `${c.label} must be a date (YYYY-MM-DD).`;
+            break;
+          }
+          if (c.type === "text" && String(r[c.key] ?? "").length > (c.key === "note" ? 5000 : c.key === "reason" || c.key === "objections" || c.key === "whyBought" ? 2000 : 500)) {
+            localErrors[r.key] = `${c.label} is too long.`;
             break;
           }
           if (c.type === "number" && r[c.key] !== "" && r[c.key] !== undefined && !/^\d+(\.\d+)?$/.test(String(r[c.key]))) {

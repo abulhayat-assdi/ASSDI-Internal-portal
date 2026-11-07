@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const body = await req.json();
     return NextResponse.json(
-      await (["field_correct", "field_review"].includes(body.action)
+      await (["field_correct", "field_review", "field_force_checkout"].includes(body.action)
         ? fieldCorrectionCommand(a as Actor, body)
         : fieldCommand(a as Actor, body)),
     );

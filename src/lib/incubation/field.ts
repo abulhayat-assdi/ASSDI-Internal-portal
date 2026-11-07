@@ -337,7 +337,7 @@ const fieldChanges = z
 export async function fieldCorrectionCommand(actor: Actor, input: unknown) {
   const body = z
     .object({
-      action: z.enum(["field_correct", "field_review"]),
+      action: z.enum(["field_correct", "field_review", "field_force_checkout"]),
       programId: z.string(),
       payload: z.record(z.string(), z.unknown()),
     })
@@ -345,6 +345,22 @@ export async function fieldCorrectionCommand(actor: Actor, input: unknown) {
   return featureTx(actor, async (tx) => {
     const { program } = await accessProgram(tx, actor, body.programId, true),
       p = body.payload;
+    if (body.action === "field_force_checkout") {
+      // Staff close a session the student forgot to end (allowed in any program state,
+      // otherwise the student's next check-in anywhere stays blocked).
+      insist(isManager(actor), "Only staff can close another person's field session.", 403);
+      const v = z.object({ sessionId: z.string(), reason: z.string().trim().min(3).max(2000) }).parse(p);
+      const session = await tx.incubationFieldSession.findFirst({
+        where: { id: v.sessionId, programId: program.id, checkOut: null },
+      });
+      insist(session, "Open session not found.", 404);
+      const closed = await tx.incubationFieldSession.update({
+        where: { id: session.id },
+        data: { checkOut: new Date(), endAreaId: session.startAreaId, version: { increment: 1 } },
+      });
+      await audit(tx, actor, program.id, "field.force_checkout", session.id, session, closed, v.reason);
+      return closed;
+    }
     insist(!isProgramLocked(program.status), lockedMessage(program.status), 409);
     insist(
       actor.role !== "student" || body.action !== "field_correct" || isIncubationRunning(program),

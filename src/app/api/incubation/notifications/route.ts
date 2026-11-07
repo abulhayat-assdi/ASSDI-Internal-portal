@@ -12,7 +12,8 @@ export async function GET(req: NextRequest) {
     const actor = await getSessionUser(req);
     if (!actor?.courseId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const programId = req.nextUrl.searchParams.get("programId") || undefined;
-    const where = { userId: actor.id, ...(programId ? { programId } : {}) };
+    // Reminders of a deleted program are hidden (they would link to a 404).
+    const where = { userId: actor.id, program: { deletedAt: null }, ...(programId ? { programId } : {}) };
     const [items, unread] = await featureTx(actor as Actor, (tx) =>
       Promise.all([
         tx.incubationNotification.findMany({

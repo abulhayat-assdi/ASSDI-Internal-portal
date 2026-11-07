@@ -55,11 +55,12 @@ export default function StudentWorkspace({
   onAccept: (r: R) => void;
   onField: (k: string) => void;
   fieldForm: R;
-  setFieldForm: (f: R) => void;
+  setFieldForm: React.Dispatch<React.SetStateAction<R>>;
   onUpload: (file: File, teamId: string) => Promise<R>;
   onError: (s: string) => void;
   children: ReactNode;
 }) {
+  const [uploading, setUploading] = useState(false);
   const [tab, setTab] = useState("home"),
     [sheet, setSheet] = useState("sale"),
     [from, setFrom] = useState(""),
@@ -650,14 +651,17 @@ export default function StudentWorkspace({
                     type="file"
                     accept="image/*,application/pdf"
                     onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setUploading(true);
                       try {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          const a = await onUpload(file, b.member.teamId);
-                          setF({ ...f, proofId: a.id });
-                        }
+                        const a = await onUpload(file, b.member.teamId);
+                        // Functional update: keep anything typed while the photo uploaded.
+                        setF((x: R) => ({ ...x, proofId: a.id }));
                       } catch (e) {
                         onError((e as Error).message);
+                      } finally {
+                        setUploading(false);
                       }
                     }}
                   />
@@ -666,7 +670,7 @@ export default function StudentWorkspace({
             )}
             <button
               className="inc-btn primary"
-              disabled={busy || !f.areaId || (!own && !running)}
+              disabled={busy || uploading || !f.areaId || (!own && !running)}
               onClick={() => onField(own ? "checkout" : "checkin")}
             >
               {busy
@@ -771,11 +775,13 @@ export default function StudentWorkspace({
               </div>
             )}
           </section>
-          <FieldCorrectionEditor
-            bundle={b}
-            onSaved={refresh}
-            onError={onError}
-          />
+          {running && (
+            <FieldCorrectionEditor
+              bundle={b}
+              onSaved={refresh}
+              onError={onError}
+            />
+          )}
         </>
       )}
       {tab === "learning" && (
@@ -861,12 +867,16 @@ export default function StudentWorkspace({
                       ?.map((l: R) => name(l.productId) + " × " + l.quantity)
                       .join(", ")}
                   </p>
-                  <button
-                    className="inc-btn primary"
-                    onClick={() => onAccept(r)}
-                  >
-                    Accept with voucher / reject
-                  </button>
+                  {running ? (
+                    <button
+                      className="inc-btn primary"
+                      onClick={() => onAccept(r)}
+                    >
+                      Accept with voucher / reject
+                    </button>
+                  ) : (
+                    <p className="inc-sub">Entries are closed — your teacher can accept or reject this transfer.</p>
+                  )}
                 </div>
               ))}
           {b.records
