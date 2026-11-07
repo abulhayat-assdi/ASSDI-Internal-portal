@@ -1,5 +1,20 @@
 import { it, expect } from "vitest";
-import { incubationState } from "./lifecycle";
+import { checkTransition, incubationState, isProgramLocked } from "./lifecycle";
+it("allows only listed status changes and requires reasons for reopening", () => {
+  expect(checkTransition("draft", "active")).toBeNull();
+  expect(checkTransition("active", "closing")).toBeNull();
+  expect(checkTransition("closing", "closed")).toBeNull();
+  expect(checkTransition("closed", "archived")).toBeNull();
+  expect(checkTransition("draft", "archived")).toMatch(/directly/);
+  expect(checkTransition("archived", "active")).toMatch(/directly/);
+  expect(checkTransition("closed", "closing")).toMatch(/reason/);
+  expect(checkTransition("closed", "closing", "missed sale")).toBeNull();
+  expect(checkTransition("active", "cancelled", "")).toMatch(/reason/);
+  expect(checkTransition("closed", "closed")).toBeNull();
+  expect(["closed", "archived", "cancelled"].every(isProgramLocked)).toBe(true);
+  expect(["draft", "active", "closing"].some(isProgramLocked)).toBe(false);
+  expect(incubationState({ status: "cancelled", startDate: "2026-01-01" })).toBe("cancelled");
+});
 it("distinguishes scheduled, running, ended and explicit closed/draft programs by business date", () => {
   const p = {
     status: "active",

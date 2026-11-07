@@ -190,7 +190,7 @@ export async function pdf(data: ExportData) {
             {sheet.rows.some((r) => typeof r["Net Profit"] === "number") && (
               <View style={{ marginVertical: 15 }}>
                 <Text style={styles.note}>
-                  টিমভিত্তিক নিট লাভ / ক্ষতি (BDT)
+                  Net profit / loss by team (BDT)
                 </Text>
                 {sheet.rows.slice(0, 12).map((r, i) => {
                   const value = Number(r["Net Profit"] || 0),

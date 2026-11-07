@@ -192,3 +192,18 @@ export function procurementByTeam(entries: ProcurementLike[]): (ProcurementTotal
 }
 
 export const formatTaka = (n: number) => `৳${roundMoney(n).toLocaleString("en-US")}`;
+
+
+/**
+ * A form competition is "running" only while switched on and inside its
+ * dates (Asia/Dhaka); switched off means ended regardless of dates.
+ */
+export function formState(
+  c: { isActive: boolean; startDate: Date | string; endDate: Date | string | null },
+  today = toReportDate(),
+) {
+  if (!c.isActive) return "ended";
+  if (toReportDate(c.startDate) > today) return "scheduled";
+  if (c.endDate && toReportDate(c.endDate) < today) return "ended";
+  return "running";
+}

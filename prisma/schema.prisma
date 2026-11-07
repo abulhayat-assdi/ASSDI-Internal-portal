@@ -246,6 +246,7 @@ model Course {
   competitionSubmissions   CompetitionSubmission[]
   competitionGroups        CompetitionGroup[]
   competitionCorrections   CompetitionCorrectionRequest[]
+  competitionRevisions     CompetitionSubmissionRevision[]
   competitionProducts      CompetitionProduct[]
   competitionProcurements  CompetitionProcurement[]
   typingExams              TypingExam[]
@@ -279,6 +280,9 @@ model IncubationProgram {
   staffIds Json @default("[]") @map("staff_ids")
   settings Json @default("{}")
   publicTokenHash String? @unique @map("public_token_hash")
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy String? @map("deleted_by")
+  deleteReason String? @map("delete_reason")
   createdBy String @map("created_by")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -293,6 +297,8 @@ model IncubationProgram {
   fields IncubationFieldSession[]
   attachments IncubationAttachment[]
   audit IncubationAudit[]
+  notifications IncubationNotification[]
+  results IncubationResult[]
   @@unique([id, courseId])
   @@index([courseId, status])
   @@unique([competitionId, courseId])
@@ -510,6 +516,42 @@ model IncubationAudit {
   program IncubationProgram @relation(fields: [programId, courseId], references: [id, courseId], onDelete: Restrict)
   @@index([programId, createdAt])
   @@map("incubation_audit")
+}
+
+model IncubationNotification {
+  id String @id @default(uuid())
+  courseId String @map("course_id")
+  programId String @map("program_id")
+  userId String @map("user_id")
+  eventKey String @map("event_key")
+  kind String
+  title String
+  body String
+  link String @default("")
+  createdAt DateTime @default(now()) @map("created_at")
+  readAt DateTime? @map("read_at")
+  emailedAt DateTime? @map("emailed_at")
+  program IncubationProgram @relation(fields: [programId, courseId], references: [id, courseId], onDelete: Restrict)
+  @@unique([userId, eventKey], map: "incubation_notifications_user_event_key")
+  @@index([userId, readAt], map: "incubation_notifications_user_read_idx")
+  @@index([programId, createdAt], map: "incubation_notifications_program_created_idx")
+  @@map("incubation_notifications")
+}
+
+model IncubationResult {
+  id String @id @default(uuid())
+  courseId String @map("course_id")
+  programId String @map("program_id")
+  metric String
+  snapshot Json
+  note String @default("")
+  publishedBy String @map("published_by")
+  publishedByName String @map("published_by_name")
+  publishedAt DateTime @default(now()) @map("published_at")
+  withdrawnAt DateTime? @map("withdrawn_at")
+  program IncubationProgram @relation(fields: [programId, courseId], references: [id, courseId], onDelete: Restrict)
+  @@index([programId, publishedAt], map: "incubation_results_program_idx")
+  @@map("incubation_results")
 }
 
 // ============================================================
@@ -1873,6 +1915,28 @@ model CompetitionGroup {
   @@index([competitionId])
   @@index([courseId])
   @@map("competition_groups")
+}
+
+// Append-only change history for form-competition responses edited from the
+// staff grid. No FK to the submission, so a deleted row keeps its history.
+model CompetitionSubmissionRevision {
+  id            String   @id @default(uuid())
+  courseId      String   @map("course_id")
+  competitionId String   @map("competition_id")
+  submissionId  String   @map("submission_id")
+  action        String // created | updated | deleted
+  before        Json?
+  after         Json?
+  actorId       String   @map("actor_id")
+  actorName     String   @map("actor_name")
+  source        String   @default("grid")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([competitionId, createdAt])
+  @@index([submissionId])
+  @@map("competition_submission_revisions")
 }
 
 // ============================================================

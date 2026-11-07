@@ -9,8 +9,19 @@ import { z } from "zod";
 import type { JWTPayload } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 import { isFeatureEnabled } from "@/lib/features";
-import { isIncubationRunning, incubationState } from "./lifecycle";
+import {
+  checkTransition,
+  incubationState,
+  isIncubationRunning,
+  isProgramLocked,
+  lockedMessage,
+  PROGRAM_STATUSES,
+} from "./lifecycle";
 import { withCourseContext } from "@/lib/db";
+import { buildMonitor, issuesFor } from "./monitor";
+import { buildReport } from "./report";
+import { RESULT_METRIC, rankTeams } from "./results";
+import { sheetSave } from "./sheet";
 import {
   calculateLedger,
   FINANCIAL_KINDS,
@@ -31,7 +42,7 @@ const json = (v: unknown) =>
   JSON.parse(JSON.stringify(v)) as Prisma.InputJsonValue;
 const text = z.string().trim().min(1).max(500);
 const id = z.string().min(1).max(100);
-const day = z.string().refine(validDate, "সঠিক তারিখ দিন।");
+const day = z.string().refine(validDate, "Enter a valid date.");
 const numberText = z.union([z.string(), z.number()]).transform(String);
 const entryDataSchema = z
   .object({
@@ -79,6 +90,8 @@ export const settingsSchema = z
     objections: z.array(text).max(50).default([]),
     fgdRequiredCount: z.number().int().min(1).max(3).default(1),
     whyBoughtRequired: z.boolean().default(false),
+    salesReminder: z.boolean().default(true),
+    fgdEveryDays: z.number().int().min(1).max(30).nullable().default(null),
   })
   .strict();
 export const isManager = (a: JWTPayload) =>
@@ -99,12 +112,12 @@ export async function featureTx<T>(actor: Actor, fn: (tx: Tx) => Promise<T>) {
       });
       insist(
         course && isFeatureEnabled(course.settings, "business_incubation"),
-        "এই কোর্সে Business Incubation চালু নেই।",
+        "Business Incubation is not enabled for this course.",
         403,
       );
       insist(
         actor.role === "student" || isSupervisor(actor),
-        "এই কাজের অনুমতি নেই।",
+        "You do not have permission for this action.",
         403,
       );
       return fn(tx);
@@ -137,12 +150,12 @@ export async function accessProgram(
   const program = await tx.incubationProgram.findUnique({
     where: { id: programId, courseId: actor.courseId },
   });
-  insist(program, "প্রোগ্রাম পাওয়া যায়নি।", 404);
+  insist(program && !program.deletedAt, "Program not found.", 404);
   let member = null;
   if (actor.role === "student") {
     insist(
       program.status !== "draft",
-      "এই competition এখনো প্রকাশ করা হয়নি।",
+      "This competition has not been published yet.",
       403,
     );
     const student = await studentIdentity(tx, actor);
@@ -156,18 +169,18 @@ export async function accessProgram(
       member &&
         member.team.active &&
         (program.batchNames as string[]).includes(member.batchName),
-      "এই প্রোগ্রামের সক্রিয় টিমে আপনাকে যুক্ত করা হয়নি।",
+      "You have not been added to an active team in this program.",
       403,
     );
   } else
     insist(
       isManager(actor) || (program.staffIds as string[]).includes(actor.id),
-      "এই প্রোগ্রামের তত্ত্বাবধানের অনুমতি নেই।",
+      "You do not have permission to supervise this program.",
       403,
     );
   return { program, member };
 }
-async function audit(
+export async function audit(
   tx: Tx,
   a: Actor,
   pid: string,
@@ -220,7 +233,7 @@ async function ledger(
   for (const [key, q] of Object.entries(reserved))
     insist(
       (computed.stocks[key]?.quantity || 0) >= q,
-      "গ্রহণের অপেক্ষায় থাকা টিম হস্তান্তরের জন্য পর্যাপ্ত স্টক রাখতে হবে।",
+      "Keep enough stock for transfers that are waiting to be accepted.",
     );
   return { ...computed, reserved };
 }
@@ -231,19 +244,19 @@ function financialAccess(
   kind: string,
 ) {
   if (actor.role !== "student") {
-    insist(isSupervisor(actor), "অনুমতি নেই।", 403);
+    insist(isSupervisor(actor), "Permission denied.", 403);
     return;
   }
   insist(
     member?.teamId === teamId,
-    "শুধু নিজের টিমের এন্ট্রি দেওয়া যাবে।",
+    "You can only submit entries for your own team.",
     403,
   );
   if (FINANCIAL_KINDS.includes(kind as RecordKind))
-    insist(member.isLead, "শুধু টিম লিডার আর্থিক এন্ট্রি দিতে পারবেন।", 403);
+    insist(member.isLead, "Only the team lead can submit financial entries.", 403);
   insist(
     kind !== "fund",
-    "ফান্ড প্রদান প্রতিষ্ঠানের অনুমোদিত কর্মী নথিভুক্ত করবেন।",
+    "Funding is recorded by authorised staff only.",
     403,
   );
 }
@@ -262,7 +275,7 @@ async function validateData(
       r.date >= program.startDate &&
       r.date <= todayDhaka() &&
       (!program.endDate || r.date <= program.endDate),
-    "তারিখ প্রোগ্রামের সময়সীমার মধ্যে হতে হবে; ভবিষ্যতের এন্ট্রি দেওয়া যাবে না।",
+    "The date must be within the program period; future dates are not allowed.",
   );
   const team = await tx.incubationTeam.findFirst({
     where: {
@@ -271,7 +284,7 @@ async function validateData(
       ...(r.id === "new" ? { active: true } : {}),
     },
   });
-  insist(team, "সক্রিয় টিম নির্বাচন করুন।");
+  insist(team, "Select an active team.");
   if (d.voucherId) {
     const asset = await tx.incubationAttachment.findFirst({
       where: {
@@ -286,10 +299,10 @@ async function validateData(
         ],
       },
     });
-    insist(asset, "এই টিমের বৈধ ভাউচার নির্বাচন করুন।");
+    insist(asset, "Select a valid voucher for this team.");
   }
   if (r.kind === "purchase")
-    insist(d.voucherId, "কেনার ভাউচার আপলোড বাধ্যতামূলক।");
+    insist(d.voucherId, "A voucher upload is required for purchases.");
   if (
     ["supplier_return", "transfer", "damage", "customer_refund"].includes(
       r.kind,
@@ -297,7 +310,7 @@ async function validateData(
   )
     insist(
       (d.reason || "").trim().length >= 3,
-      "ফেরত/নষ্ট/রিফান্ডের কারণ লিখুন।",
+      "Enter a reason for the return, damage or refund.",
     );
   if (
     [
@@ -309,7 +322,7 @@ async function validateData(
       "customer_refund",
     ].includes(r.kind)
   ) {
-    insist(d.lines?.length, "অন্তত একটি পণ্য দিন।");
+    insist(d.lines?.length, "Add at least one product.");
     const prods = await tx.incubationCatalog.findMany({
       where: {
         programId: program.id,
@@ -319,8 +332,8 @@ async function validateData(
     });
     for (const l of d.lines) {
       const p = prods.find((p) => p.id === l.productId);
-      insist(p, "পণ্য পাওয়া যায়নি।");
-      insist(scaled(l.quantity, 3) > 0, "পরিমাণ শূন্য হতে পারবে না।");
+      insist(p, "Product not found.");
+      insist(scaled(l.quantity, 3) > 0, "Quantity must be greater than zero.");
       if (r.kind !== "damage") scaled(l.unitPrice);
     }
     if (r.kind === "purchase" && cfg.enforceCategory) {
@@ -334,7 +347,7 @@ async function validateData(
       });
       insist(
         sprint && prods.every((p) => p.parentId === sprint.categoryId),
-        "ওই তারিখের নির্ধারিত ক্যাটাগরির পণ্যই কেনা যাবে।",
+        "Only products from the category assigned for that date can be purchased.",
       );
     }
   }
@@ -344,12 +357,12 @@ async function validateData(
         (await tx.incubationCatalog.findFirst({
           where: { id: d.areaId, programId: program.id, kind: "area" },
         })),
-      "ব্রড এরিয়া নির্বাচন করুন।",
+      "Select an area.",
     );
   if (r.kind === "expense")
     insist(
       cfg.expenseTypes.includes(d.expenseType || ""),
-      "খরচের ধরন নির্বাচন করুন।",
+      "Select an expense type.",
     );
   if (["expense", "fund", "repayment", "cash_count"].includes(r.kind))
     scaled(d.amount);
@@ -366,7 +379,7 @@ async function validateData(
             date: { lte: r.date },
           },
         })),
-      "এই টিমের মূল বিক্রি নির্বাচন করুন।",
+      "Select the original sale from this team.",
     );
   if (r.kind === "transfer")
     insist(
@@ -375,19 +388,19 @@ async function validateData(
         (await tx.incubationTeam.findFirst({
           where: { id: r.targetTeamId, programId: program.id, active: true },
         })),
-      "গ্রহণকারী টিম নির্বাচন করুন।",
+      "Select the receiving team.",
     );
   const settings = settingsSchema.parse(program.settings);
   if (r.kind === "sale")
     insist(
       !settings.sessionsRequired ||
         (!!d.session && settings.sessions.includes(d.session)),
-      "বিক্রির session নির্বাচন করুন।",
+      "Select a sales session.",
     );
   if (d.session && settings.sessions.length)
     insist(
       settings.sessions.includes(d.session),
-      "সঠিক session নির্বাচন করুন।",
+      "Select a valid session.",
     );
   if (r.kind === "fgd")
     insist(
@@ -399,7 +412,7 @@ async function validateData(
         d.actions
           .slice(0, settings.fgdRequiredCount)
           .filter((v) => v.length >= 3).length === settings.fgdRequiredCount,
-      `FGD-তে অন্তত ${settings.fgdRequiredCount}টি finding ও action দিন।`,
+      `Enter at least ${settings.fgdRequiredCount} finding(s) and action(s) for the FGD.`,
     );
   if (r.kind === "insight")
     insist(
@@ -407,17 +420,17 @@ async function validateData(
         d.objections &&
         d.bestArea &&
         (!settings.whyBoughtRequired || d.whyBought),
-      "Insights-এর সব তথ্য দিন।",
+      "Fill in all market insight fields.",
     );
   if (r.kind === "insight") {
     insist(
       !settings.segments.length || settings.segments.includes(d.segment || ""),
-      "সঠিক customer segment নির্বাচন করুন।",
+      "Select a valid customer segment.",
     );
     insist(
       !settings.objections.length ||
         settings.objections.includes(d.objections || ""),
-      "সঠিক objection নির্বাচন করুন।",
+      "Select a valid objection.",
     );
   }
   return d;
@@ -431,6 +444,7 @@ export async function overview(actor: Actor, programId?: string) {
     const programs = await tx.incubationProgram.findMany({
       where: {
         courseId: actor.courseId,
+        deletedAt: null,
         ...(actor.role === "student"
           ? {
               status: { not: "draft" },
@@ -637,6 +651,24 @@ export async function overview(actor: Actor, programId?: string) {
         : r,
     );
     const computed = await ledger(tx, programId);
+    const monitor = issuesFor(
+      buildMonitor({
+        today: todayDhaka(),
+        program: { ...program, settings: settingsSchema.parse(program.settings) },
+        teams,
+        sprints,
+        records,
+        sessions: fields,
+        pendingCorrections: corrections.filter((c) => c.status === "pending").length,
+        pendingFieldCorrections: fieldCorrections.filter((c) => c.status === "pending").length,
+      }),
+      {
+        staff: !member,
+        teamId: member?.teamId,
+        isLead: member?.isLead,
+        userId: actor.id,
+      },
+    );
     const permittedProducts = new Set(
       member
         ? records
@@ -682,6 +714,12 @@ export async function overview(actor: Actor, programId?: string) {
       member,
       manager,
       supervisor,
+      monitor,
+      results: await tx.incubationResult.findFirst({
+        where: { programId, withdrawnAt: null },
+        orderBy: { publishedAt: "desc" },
+        select: { id: true, metric: true, snapshot: true, note: true, publishedAt: true, publishedByName: true },
+      }),
       batches,
       teams,
       transferTeams: member && !member.isLead ? [] : transferTeams,
@@ -762,7 +800,7 @@ export async function command(actor: Actor, input: unknown) {
     const p = body.payload,
       manager = isManager(actor);
     if (body.action === "program") {
-      insist(manager, "শুধু প্রশাসক প্রোগ্রাম তৈরি/পরিবর্তন করতে পারবেন।", 403);
+      insist(manager, "Only staff can create or change programs.", 403);
       const values = z
         .object({
           name: text,
@@ -772,12 +810,12 @@ export async function command(actor: Actor, input: unknown) {
           batchNames: z.array(text).min(1),
           staffIds: z.array(id),
           settings: settingsSchema,
-          status: z.enum(["draft", "active", "closing", "closed", "archived"]),
+          status: z.enum(PROGRAM_STATUSES),
         })
         .parse(p);
       insist(
         !values.endDate || values.endDate >= values.startDate,
-        "শেষ তারিখ শুরুর পরে হতে হবে।",
+        "The end date must be after the start date.",
       );
       const known = await tx.batchStudent.findMany({
         where: {
@@ -789,7 +827,7 @@ export async function command(actor: Actor, input: unknown) {
       });
       insist(
         values.batchNames.every((n) => known.some((b) => b.batchName === n)),
-        "বিদ্যমান ব্যাচ নির্বাচন করুন।",
+        "Select existing batches.",
       );
       const staff = await tx.user.count({
         where: {
@@ -801,11 +839,33 @@ export async function command(actor: Actor, input: unknown) {
       });
       insist(
         staff === new Set(values.staffIds).size,
-        "কোর্সের বৈধ শিক্ষক/প্রশাসক নির্বাচন করুন।",
+        "Select valid teachers or admins from this course.",
       );
       const before = body.programId
         ? (await accessProgram(tx, actor, body.programId, true)).program
         : null;
+      const reason = String(p.reason || "").trim();
+      if (!before)
+        insist(
+          values.status === "draft" || values.status === "active",
+          "Create a new program as Draft or Active.",
+        );
+      if (before) {
+        insist(
+          !isProgramLocked(before.status) || values.status !== before.status,
+          lockedMessage(before.status),
+          409,
+        );
+        const transitionError = checkTransition(before.status, values.status, reason);
+        insist(!transitionError, transitionError ?? "");
+        if (before.status === "active" && values.status === "draft") {
+          const used = await tx.incubationRecord.count({ where: { programId: before.id } });
+          insist(
+            used === 0,
+            "A program with entries cannot go back to Draft. Use 'Closing' or 'Cancelled' instead.",
+          );
+        }
+      }
       if (before && values.status === "closed" && before.status !== "closed") {
         const balances = await ledger(tx, before.id);
         const unresolved = balances.summaries.some(
@@ -817,13 +877,17 @@ export async function command(actor: Actor, input: unknown) {
         );
         insist(
           !unresolved || String(p.reason || "").trim().length >= 3,
-          "স্টক/মূল ফান্ড/ক্যাশের অসম্পূর্ণ হিসাব স্বীকার করে বন্ধ করার কারণ লিখুন।",
+          "Stock, principal or cash is not fully settled. Enter a reason to close anyway.",
         );
       }
       const result = before
         ? await tx.incubationProgram.update({
             where: { id: before.id },
-            data: { ...values, settings: json(values.settings) },
+            // Between two locked states (e.g. closed → archived) only the status moves.
+            data:
+              isProgramLocked(before.status) && isProgramLocked(values.status)
+                ? { status: values.status }
+                : { ...values, settings: json(values.settings) },
           })
         : await tx.incubationProgram.create({
             data: {
@@ -866,24 +930,70 @@ export async function command(actor: Actor, input: unknown) {
         tx,
         actor,
         result.id,
-        before ? "program.updated" : "program.created",
+        !before
+          ? "program.created"
+          : before.status !== result.status
+            ? `program.status.${before.status}>${result.status}`
+            : "program.updated",
         result.id,
         before,
         result,
-        String(p.reason || ""),
+        reason,
       );
       return { id: result.id, competitionId: result.competitionId };
     }
-    insist(body.programId, "প্রোগ্রাম নির্বাচন করুন।");
+    insist(body.programId, "Select a program.");
     const { program, member } = await accessProgram(
       tx,
       actor,
       body.programId,
       true,
     );
+    if (body.action === "delete_program") {
+      insist(manager, "Only staff can delete a program.", 403);
+      const v = z
+        .object({ confirmName: z.string(), reason: z.string().trim().min(3).max(2000) })
+        .parse(p);
+      insist(
+        v.confirmName.trim() === program.name.trim(),
+        "Type the program name exactly to confirm deletion.",
+      );
+      // Soft delete: hidden everywhere, records and audit history are kept.
+      const deleted = await tx.incubationProgram.update({
+        where: { id: program.id },
+        data: {
+          deletedAt: new Date(),
+          deletedBy: actor.id,
+          deleteReason: v.reason,
+          publicTokenHash: null,
+        },
+      });
+      await tx.competition.update({
+        where: { id: program.competitionId },
+        data: { isActive: false },
+      });
+      await audit(tx, actor, program.id, "program.deleted", program.id, program, deleted, v.reason);
+      return { ok: true };
+    }
+    // After the end date (or before the start) students can no longer add or change anything;
+    // staff keep full control until the program is closed.
+    if (actor.role === "student")
+      insist(
+        isIncubationRunning(program) ||
+          !["record", "correct", "accept_transfer"].includes(body.action),
+        "Entries for this program are closed. Contact your teacher if something needs to change.",
+        409,
+      );
+    // Results are a frozen read of final figures, so they may be published after closing.
+    const resultsAction = ["publish_results", "withdraw_results"].includes(body.action);
+    insist(
+      !isProgramLocked(program.status) || (resultsAction && program.status === "closed"),
+      lockedMessage(program.status),
+      409,
+    );
     const pid = program.id;
     if (["team", "catalog", "sprint", "share"].includes(body.action))
-      insist(manager, "প্রশাসকের অনুমতি প্রয়োজন।", 403);
+      insist(manager, "Staff permission is required.", 403);
     if (body.action === "team") {
       const v = z
         .object({
@@ -905,11 +1015,11 @@ export async function command(actor: Actor, input: unknown) {
       insist(
         students.length === new Set(v.studentIds).size &&
           students.some((s) => s.id === v.leadId),
-        "বৈধ সদস্য ও তাদের মধ্য থেকে লিডার নির্বাচন করুন।",
+        "Select valid members and choose the lead from them.",
       );
       insist(
         new Set(students.map((s) => s.batchName)).size === 1,
-        "একটি টিমে একই ব্যাচের সদস্য নির্বাচন করুন।",
+        "All members of a team must be from the same batch.",
       );
       const before = v.id
         ? await tx.incubationTeam.findFirst({
@@ -917,13 +1027,13 @@ export async function command(actor: Actor, input: unknown) {
             include: { members: true },
           })
         : null;
-      insist(!v.id || before, "টিম পাওয়া যায়নি।");
+      insist(!v.id || before, "Team not found.");
       if (before)
         insist(
           !(await tx.incubationFieldSession.findFirst({
             where: { teamId: before.id, checkOut: null },
           })),
-          "খোলা মাঠ সেশন শেষ করে সদস্য পরিবর্তন করুন।",
+          "End the open field sessions before changing members.",
         );
       const conflicts = await tx.incubationMember.count({
         where: {
@@ -934,13 +1044,21 @@ export async function command(actor: Actor, input: unknown) {
       });
       insist(
         !conflicts,
-        "একজন শিক্ষার্থী একই প্রোগ্রামে একাধিক টিমে থাকতে পারবেন না।",
+        "A student cannot be in more than one team in the same program.",
         409,
       );
+      if (before?.active && !v.active) {
+        const own = (await ledger(tx, pid)).summaries.find((x) => x.teamId === before.id);
+        insist(
+          !own || (own.stockValue === 0 && own.cash === 0 && own.principalOutstanding === 0),
+          "This team still holds stock, cash or principal. Settle its accounts before deactivating it.",
+          409,
+        );
+      }
       if (before && before.batchName !== students[0].batchName)
         insist(
           !(await tx.incubationRecord.count({ where: { teamId: before.id } })),
-          "লেনদেন থাকা টিমের ব্যাচ বদলানো যাবে না; নতুন টিম তৈরি করুন।",
+          "A team with transactions cannot change batch; create a new team instead.",
         );
       const team = before
         ? await tx.incubationTeam.update({
@@ -960,18 +1078,39 @@ export async function command(actor: Actor, input: unknown) {
               courseId: actor.courseId,
             },
           });
-      await tx.incubationMember.deleteMany({ where: { teamId: team.id } });
+      // Keep existing member rows (and their ids); only add/remove the difference.
+      // Leads are cleared first so the one-lead-per-team index never sees two.
+      const keep = new Set(students.map((s) => s.id));
+      const existingIds = new Set((before?.members ?? []).map((m) => m.studentId));
+      await tx.incubationMember.updateMany({
+        where: { teamId: team.id, isLead: true },
+        data: { isLead: false },
+      });
+      await tx.incubationMember.deleteMany({
+        where: { teamId: team.id, studentId: { notIn: [...keep] } },
+      });
+      for (const s of students.filter((x) => existingIds.has(x.id)))
+        await tx.incubationMember.updateMany({
+          where: { teamId: team.id, studentId: s.id },
+          data: { name: s.name, roll: s.roll, batchName: s.batchName },
+        });
       await tx.incubationMember.createMany({
-        data: students.map((s) => ({
-          courseId: actor.courseId,
-          programId: pid,
-          teamId: team.id,
-          studentId: s.id,
-          name: s.name,
-          roll: s.roll,
-          batchName: s.batchName,
-          isLead: s.id === v.leadId,
-        })),
+        data: students
+          .filter((s) => !existingIds.has(s.id))
+          .map((s) => ({
+            courseId: actor.courseId,
+            programId: pid,
+            teamId: team.id,
+            studentId: s.id,
+            name: s.name,
+            roll: s.roll,
+            batchName: s.batchName,
+            isLead: false,
+          })),
+      });
+      await tx.incubationMember.updateMany({
+        where: { teamId: team.id, studentId: v.leadId },
+        data: { isLead: true },
       });
       await audit(tx, actor, pid, "team.saved", team.id, before, {
         ...team,
@@ -999,7 +1138,7 @@ export async function command(actor: Actor, input: unknown) {
             (await tx.incubationCatalog.findFirst({
               where: { id: v.parentId, programId: pid, kind: "category" },
             })),
-          "পণ্যের ক্যাটাগরি নির্বাচন করুন।",
+          "Select the product category.",
         );
       else v.parentId = null;
       if (v.kind !== "product") v.variant = "";
@@ -1013,7 +1152,7 @@ export async function command(actor: Actor, input: unknown) {
           id: { not: v.id || "__new__" },
         },
       });
-      insist(!duplicate, "একই নাম ও variant-এর আইটেম আগে থেকেই আছে।");
+      insist(!duplicate, "An item with the same name and variant already exists.");
       const before = v.id
         ? await tx.incubationCatalog.findFirst({
             where: { id: v.id, programId: pid },
@@ -1021,7 +1160,7 @@ export async function command(actor: Actor, input: unknown) {
         : null;
       insist(
         !v.id || (before && before.kind === v.kind),
-        "ক্যাটালগ আইটেম পাওয়া যায়নি।",
+        "Catalog item not found.",
       );
       if (
         before?.kind === "product" &&
@@ -1035,7 +1174,7 @@ export async function command(actor: Actor, input: unknown) {
         >`SELECT EXISTS(SELECT 1 FROM incubation_records WHERE program_id=${pid} AND (data->'lines') @> ${JSON.stringify([{ productId: before.id }])}::jsonb) AS used`;
         insist(
           !used[0]?.used,
-          "লেনদেন থাকা পণ্যের ক্যাটাগরি/একক বদলাবেন না। নতুন পণ্য তৈরি করুন; নাম ও সক্রিয়তা এডিট করা যাবে।",
+          "Do not change the category or unit of a product with transactions. Create a new product; name and active status can still be edited.",
         );
       }
       const { id: unused, ...data } = v;
@@ -1061,13 +1200,13 @@ export async function command(actor: Actor, input: unknown) {
         v.endDate >= v.startDate &&
           v.startDate >= program.startDate &&
           (!program.endDate || v.endDate <= program.endDate),
-        "স্প্রিন্টের তারিখ সঠিক নয়।",
+        "The sprint dates are not valid.",
       );
       insist(
         await tx.incubationTeam.findFirst({
           where: { id: v.teamId, programId: pid },
         }),
-        "টিম পাওয়া যায়নি।",
+        "Team not found.",
       );
       insist(
         await tx.incubationCatalog.findFirst({
@@ -1078,7 +1217,7 @@ export async function command(actor: Actor, input: unknown) {
             active: true,
           },
         }),
-        "ক্যাটাগরি পাওয়া যায়নি।",
+        "Category not found.",
       );
       insist(
         !(await tx.incubationSprint.findFirst({
@@ -1090,14 +1229,14 @@ export async function command(actor: Actor, input: unknown) {
             ...(v.id ? { id: { not: v.id } } : {}),
           },
         })),
-        "একই টিমের স্প্রিন্টের তারিখ মিলে যাচ্ছে।",
+        "This team's sprints overlap.",
       );
       const before = v.id
         ? await tx.incubationSprint.findFirst({
             where: { id: v.id, programId: pid },
           })
         : null;
-      insist(!v.id || before, "স্প্রিন্ট পাওয়া যায়নি।");
+      insist(!v.id || before, "Sprint not found.");
       const { id: unused, ...data } = v;
       const item = before
         ? await tx.incubationSprint.update({ where: { id: before.id }, data })
@@ -1106,6 +1245,63 @@ export async function command(actor: Actor, input: unknown) {
           });
       await audit(tx, actor, pid, "sprint.saved", item.id, before, item);
       return item;
+    }
+    if (resultsAction) {
+      insist(manager, "Only staff can publish results.", 403);
+      const v = z.object({ note: z.string().trim().max(1000).default("") }).parse(p);
+      const current = await tx.incubationResult.findFirst({
+        where: { programId: pid, withdrawnAt: null },
+        orderBy: { publishedAt: "desc" },
+      });
+      if (current)
+        await tx.incubationResult.update({
+          where: { id: current.id },
+          data: { withdrawnAt: new Date() },
+        });
+      if (body.action === "withdraw_results") {
+        insist(current, "There are no published results.", 404);
+        await audit(tx, actor, pid, "results.withdrawn", current.id, current, null, v.note);
+        return { ok: true };
+      }
+      const [teams, records, products] = await Promise.all([
+        tx.incubationTeam.findMany({
+          where: { programId: pid },
+          select: { id: true, name: true, batchName: true, active: true },
+        }),
+        tx.incubationRecord.findMany({ where: { programId: pid, status: "posted" } }),
+        tx.incubationCatalog.findMany({ where: { programId: pid, kind: "product" } }),
+      ]);
+      const report = buildReport(
+        records.map((r) => ({ ...r, data: r.data as EntryData })),
+        products,
+        teams,
+      );
+      const ranking = rankTeams(
+        report.summaries
+          .filter((s) => teams.find((t) => t.id === s.teamId)?.active || s.revenue !== 0)
+          .map((s) => ({
+            teamId: s.teamId,
+            teamName: s.teamName,
+            revenue: s.revenue,
+            netProfit: s.netProfit,
+            grossProfit: s.grossProfit,
+          })),
+      );
+      insist(ranking.length, "There are no teams to rank.");
+      const snapshot = { metric: RESULT_METRIC, asOf: todayDhaka(), ranking };
+      const result = await tx.incubationResult.create({
+        data: {
+          courseId: actor.courseId,
+          programId: pid,
+          metric: RESULT_METRIC,
+          snapshot: json(snapshot),
+          note: v.note,
+          publishedBy: actor.id,
+          publishedByName: actor.displayName,
+        },
+      });
+      await audit(tx, actor, pid, "results.published", result.id, current, snapshot, v.note);
+      return { id: result.id };
     }
     if (body.action === "share") {
       const enable = z.boolean().parse(p.enabled),
@@ -1131,8 +1327,8 @@ export async function command(actor: Actor, input: unknown) {
     }
     if (body.action === "record") {
       insist(
-        isIncubationRunning(program),
-        "এন্ট্রির জন্য প্রোগ্রাম সক্রিয় থাকতে হবে।",
+        actor.role !== "student" || isIncubationRunning(program),
+        "The program must be running to accept entries.",
       );
       const v = z
         .object({
@@ -1171,7 +1367,7 @@ export async function command(actor: Actor, input: unknown) {
       if (prior) {
         insist(
           prior.requestHash === hash,
-          "একই request দিয়ে ভিন্ন ডাটা দেওয়া যাবে না।",
+          "This request was already used with different data.",
           409,
         );
         return prior;
@@ -1202,7 +1398,7 @@ export async function command(actor: Actor, input: unknown) {
       if (late)
         insist(
           (d.reason || "").trim().length >= 3,
-          "পুরোনো তারিখে জমা দেওয়ার কারণ লিখুন।",
+          "Enter a reason for submitting an earlier date.",
         );
       const record = await tx.incubationRecord.create({
         data: {
@@ -1237,27 +1433,27 @@ export async function command(actor: Actor, input: unknown) {
       const r = await tx.incubationRecord.findFirst({
         where: { id: v.recordId, programId: pid },
       });
-      insist(r, "রেকর্ড পাওয়া যায়নি।", 404);
+      insist(r, "Record not found.", 404);
       if (body.action === "review_late") {
         insist(
           actor.role !== "student" && isSupervisor(actor),
-          "শিক্ষক/অ্যাডমিনের অনুমতি প্রয়োজন।",
+          "Teacher or admin permission is required.",
           403,
         );
         insist(
           r.status === "pending",
-          "অনুরোধটি ইতিমধ্যে পর্যালোচিত হয়েছে।",
+          "This request has already been reviewed.",
           409,
         );
       } else {
         insist(
           r.status === "transfer_pending",
-          "হস্তান্তর ইতিমধ্যে পর্যালোচিত হয়েছে।",
+          "This transfer has already been reviewed.",
           409,
         );
         insist(
           manager || (member?.isLead && member.teamId === r.targetTeamId),
-          "গ্রহণকারী টিম লিডারের অনুমতি প্রয়োজন।",
+          "Only the receiving team lead can accept this.",
           403,
         );
         if (v.approve)
@@ -1270,7 +1466,7 @@ export async function command(actor: Actor, input: unknown) {
                   OR: [{ teamId: r.targetTeamId }, { teamId: null }],
                 },
               })),
-            "হস্তান্তরের ভাউচার/প্রমাণ আপলোড করুন।",
+            "Upload the transfer voucher or proof.",
           );
       }
       if (v.approve) await validateData(tx, program, r);
@@ -1308,10 +1504,10 @@ export async function command(actor: Actor, input: unknown) {
       const r = await tx.incubationRecord.findFirst({
         where: { id: v.recordId, programId: pid, status: "posted" },
       });
-      insist(r, "কার্যকর রেকর্ড পাওয়া যায়নি।", 404);
+      insist(r, "Active record not found.", 404);
       insist(
         r.version === v.version,
-        "রেকর্ড পরিবর্তিত হয়েছে। রিফ্রেশ করে আবার দিন।",
+        "This record has changed. Refresh and try again.",
         409,
       );
       financialAccess(actor, member, r.teamId, r.kind);
@@ -1321,7 +1517,7 @@ export async function command(actor: Actor, input: unknown) {
       )
         insist(
           r.enteredBy === actor.id,
-          "শুধু নিজের ব্যক্তিগত এন্ট্রি সংশোধন করতে পারবেন।",
+          "You can only correct your own entries.",
           403,
         );
       const proposed = {
@@ -1361,7 +1557,7 @@ export async function command(actor: Actor, input: unknown) {
         !(await tx.incubationCorrection.findFirst({
           where: { recordId: r.id, status: "pending" },
         })),
-        "এই রেকর্ডের সংশোধন অনুরোধ অপেক্ষায় আছে।",
+        "A correction request for this record is already pending.",
         409,
       );
       const request = await tx.incubationCorrection.create({
@@ -1389,8 +1585,25 @@ export async function command(actor: Actor, input: unknown) {
       );
       return request;
     }
+    if (body.action === "sheet_save") {
+      insist(manager, "Only staff can edit sheets.", 403);
+      return sheetSave(
+        {
+          tx,
+          actor,
+          program,
+          entrySchema: entryDataSchema,
+          validate: (r) => validateData(tx, program, r),
+          recompute: () => ledger(tx, pid),
+          audit: (action, entityId, before, after, reason) =>
+            audit(tx, actor, pid, action, entityId, before, after, reason),
+          json,
+        },
+        p,
+      );
+    }
     if (body.action === "bulk_correct") {
-      insist(manager, "শুধু প্রশাসক শিট এডিট করতে পারবেন।", 403);
+      insist(manager, "Only staff can edit sheets.", 403);
       const v = z
         .object({
           reason: z.string().trim().min(3).max(2000),
@@ -1409,7 +1622,7 @@ export async function command(actor: Actor, input: unknown) {
         .parse(p);
       insist(
         new Set(v.changes.map((c) => c.recordId)).size === v.changes.length,
-        "একই রেকর্ড একাধিকবার দেওয়া হয়েছে।",
+        "The same record was sent more than once.",
       );
       for (const c of v.changes) {
         const old = await tx.incubationRecord.findFirst({
@@ -1417,7 +1630,7 @@ export async function command(actor: Actor, input: unknown) {
         });
         insist(
           old && old.version === c.version,
-          "কোনো রেকর্ড ইতিমধ্যে পরিবর্তিত হয়েছে; পুরো শিট রিফ্রেশ করুন।",
+          "Some records have changed since you opened the sheet; refresh it.",
           409,
         );
         await validateData(tx, program, { ...old, date: c.date, data: c.data });
@@ -1442,7 +1655,7 @@ export async function command(actor: Actor, input: unknown) {
     if (body.action === "review_correction") {
       insist(
         actor.role !== "student" && isSupervisor(actor),
-        "শিক্ষক/অ্যাডমিনের অনুমতি প্রয়োজন।",
+        "Teacher or admin permission is required.",
         403,
       );
       const v = z.object({ id, approve: z.boolean(), reason: text }).parse(p);
@@ -1452,13 +1665,13 @@ export async function command(actor: Actor, input: unknown) {
       });
       insist(
         req && req.status === "pending",
-        "অনুরোধটি ইতিমধ্যে পর্যালোচিত হয়েছে।",
+        "This request has already been reviewed.",
         409,
       );
       if (v.approve) {
         insist(
           req.record.version === req.expectedVersion,
-          "মূল রেকর্ড পরিবর্তিত হয়েছে; এই অনুরোধ বাতিল করে নতুন অনুরোধ দিন।",
+          "The original record has changed; reject this request and submit a new one.",
           409,
         );
         const proposed = req.proposed as unknown as {
@@ -1492,6 +1705,8 @@ export async function command(actor: Actor, input: unknown) {
           req.reason,
         );
       }
+      if (!v.approve)
+        await audit(tx, actor, pid, "correction.rejected", req.recordId, req.record, null, v.reason);
       return tx.incubationCorrection.update({
         where: { id: req.id },
         data: {
@@ -1502,6 +1717,6 @@ export async function command(actor: Actor, input: unknown) {
         },
       });
     }
-    throw new IncubationError("কাজের ধরন সঠিক নয়।");
+    throw new IncubationError("Unknown action.");
   });
 }

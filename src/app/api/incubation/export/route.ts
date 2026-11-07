@@ -13,19 +13,19 @@ export async function GET(req: NextRequest) {
     insist(a?.courseId, "Unauthorized", 401);
     const q = req.nextUrl.searchParams,
       programId = q.get("programId");
-    insist(programId, "প্রোগ্রাম দিন।");
+    insist(programId, "Specify a program.");
     const bundle = await overview(a as Actor, programId);
     const { program, catalog, records, teams, fields } = bundle;
     insist(
       !bundle.member ||
         bundle.member.isLead ||
         ["field", "learning", "fgd", "insight"].includes(q.get("sheet") || ""),
-      "বিস্তারিত আর্থিক রিপোর্ট শুধু টিম লিডার দেখতে পারবেন।",
+      "Only the team lead can download detailed financial reports.",
       403,
     );
     insist(
       program && catalog && records && teams && fields,
-      "রিপোর্ট পাওয়া যায়নি।",
+      "Report not found.",
     );
     const filters = {
       from: q.get("from") || undefined,
@@ -231,7 +231,7 @@ export async function GET(req: NextRequest) {
         })),
     });
     const format = q.get("format");
-    insist(format === "xlsx" || format === "pdf", "সঠিক export format দিন।");
+    insist(format === "xlsx" || format === "pdf", "Choose a valid export format.");
     const scopeNames: Record<string, string[]> = {
       inventory: ["Inventory"],
       learning: ["fgd", "insight"],
@@ -255,7 +255,7 @@ export async function GET(req: NextRequest) {
     };
     insist(
       !filters.sheet || scopeNames[filters.sheet],
-      "সঠিক শিট নির্বাচন করুন।",
+      "Select a valid sheet.",
     );
     const data = {
         title: program.name,

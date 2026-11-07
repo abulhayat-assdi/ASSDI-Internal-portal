@@ -34,13 +34,13 @@ export function FieldCorrectionEditor({
   if (!eligible.length) return null;
   return (
     <section className="inc-card" style={{ marginTop: 20 }}>
-      <h2>মাঠের তথ্য সংশোধন</h2>
+      <h2>Correct a field session</h2>
       <p className="inc-sub">
-        আগের সময়/এলাকা/স্টেপ অপরিবর্তনযোগ্য থাকবে। নতুন তথ্য অনুমোদনের পর
-        কার্যকর হবে। GPS স্থানাঙ্ক হাতে পরিবর্তন করা যায় না।
+        The original times, areas and steps are kept. New values take effect
+        after approval. GPS coordinates cannot be edited.
       </p>
       <label className="inc-field">
-        সেশন
+        Session
         <select
           value={session?.id || ""}
           onChange={(e) => {
@@ -56,7 +56,7 @@ export function FieldCorrectionEditor({
               });
           }}
         >
-          <option value="">সেশন বাছুন</option>
+          <option value="">Select a session</option>
           {eligible.map((f: any) => (
             <option key={f.id} value={f.id}>
               {f.userName} • {local(f.checkIn).replace("T", " ")}
@@ -93,12 +93,12 @@ export function FieldCorrectionEditor({
         >
           <div className="inc-form-grid" style={{ marginTop: 15 }}>
             <aside className="inc-old">
-              <h3>আগের তথ্য</h3>
-              <p>শুরু: {local(session.checkIn).replace("T", " ")}</p>
-              <p>শেষ: {local(session.checkOut).replace("T", " ")}</p>
-              <p>স্টেপ: {session.steps}</p>
+              <h3>Current values</h3>
+              <p>Check in: {local(session.checkIn).replace("T", " ")}</p>
+              <p>Check out: {local(session.checkOut).replace("T", " ")}</p>
+              <p>Steps: {session.steps}</p>
               <p>
-                শুরু/শেষ এলাকা:{" "}
+                Start/end area:{" "}
                 {
                   bundle.catalog.find((a: any) => a.id === session.startAreaId)
                     ?.name
@@ -113,7 +113,7 @@ export function FieldCorrectionEditor({
             <div className="inc-form-grid">
               {["checkIn", "checkOut"].map((k) => (
                 <label key={k} className="inc-field">
-                  {k === "checkIn" ? "নতুন শুরু" : "নতুন শেষ"}
+                  {k === "checkIn" ? "New check in" : "New check out"}
                   <input
                     required
                     type="datetime-local"
@@ -124,7 +124,7 @@ export function FieldCorrectionEditor({
               ))}
               {["startAreaId", "endAreaId"].map((k) => (
                 <label key={k} className="inc-field">
-                  {k === "startAreaId" ? "শুরুর এলাকা" : "শেষের এলাকা"}
+                  {k === "startAreaId" ? "Start area" : "End area"}
                   <select
                     required
                     value={form[k]}
@@ -141,7 +141,7 @@ export function FieldCorrectionEditor({
                 </label>
               ))}
               <label className="inc-field">
-                নতুন স্টেপ
+                New steps
                 <input
                   required
                   type="number"
@@ -154,7 +154,7 @@ export function FieldCorrectionEditor({
             </div>
           </div>
           <label className="inc-field" style={{ marginTop: 14 }}>
-            কারণ
+            Reason
             <textarea
               required
               minLength={3}
@@ -168,10 +168,10 @@ export function FieldCorrectionEditor({
             disabled={busy}
           >
             {busy
-              ? "সংরক্ষণ হচ্ছে…"
+              ? "Saving…"
               : bundle.manager
-                ? "সংশোধন সংরক্ষণ"
-                : "অনুরোধ পাঠান"}
+                ? "Save correction"
+                : "Send request"}
           </button>
         </form>
       )}
@@ -191,9 +191,9 @@ export function FieldCorrectionReviews({
     [busy, setBusy] = useState("");
   return (
     <section style={{ marginTop: 24 }}>
-      <h2>মাঠের তথ্যের সংশোধন অনুরোধ</h2>
+      <h2>Field session correction requests</h2>
       {!bundle.fieldCorrections?.length && (
-        <p className="inc-sub">কোনো অনুরোধ নেই।</p>
+        <p className="inc-sub">No requests.</p>
       )}
       <div className="inc-grid">
         {bundle.fieldCorrections?.map((r: any) => (
@@ -205,8 +205,8 @@ export function FieldCorrectionReviews({
             <p>{r.reason}</p>
             <div className="inc-form-grid">
               {[
-                ["আগে", r.before],
-                ["প্রস্তাবিত", r.proposed],
+                ["Before", r.before],
+                ["Proposed", r.proposed],
               ].map(([title, d]: any) => (
                 <div className="inc-old" key={title}>
                   <b>{title}</b>
@@ -215,15 +215,15 @@ export function FieldCorrectionReviews({
                     <br />
                     {local(d.checkOut).replace("T", " ")}
                   </p>
-                  <p>{d.steps} স্টেপ</p>
+                  <p>{d.steps} steps</p>
                 </div>
               ))}
             </div>
             {bundle.supervisor && r.status === "pending" && (
               <>
                 <textarea
-                  aria-label="মাঠের সংশোধনের পর্যালোচনা নোট"
-                  placeholder="পর্যালোচনার নোট"
+                  aria-label="Review note for field correction"
+                  placeholder="Review note"
                   style={{ marginTop: 12 }}
                   value={notes[r.id] || ""}
                   onChange={(e) =>
@@ -252,7 +252,7 @@ export function FieldCorrectionReviews({
                         }
                       }}
                     >
-                      {approve ? "অনুমোদন" : "প্রত্যাখ্যান"}
+                      {approve ? "Approve" : "Reject"}
                     </button>
                   ))}
                 </div>

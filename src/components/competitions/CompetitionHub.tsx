@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { STATUS_LABELS } from "@/lib/incubation/lifecycle";
 import Link from "next/link";
 import {
   Trophy,
@@ -9,6 +10,7 @@ import {
   ClipboardCheck,
 } from "lucide-react";
 import "@/components/incubation/incubation.css";
+import "@/components/incubation/incubation-glass.css";
 export default function CompetitionHub({
   student = false,
 }: {
@@ -33,9 +35,11 @@ export default function CompetitionHub({
       filter === "all" ||
       (filter === "running"
         ? c.state === "running"
-        : filter === "incubation"
-          ? c.kind === "business_incubation"
-          : ["ended", "closed", "closing", "archived"].includes(c.state)),
+        : filter === "upcoming"
+          ? ["scheduled", "draft"].includes(c.state)
+          : filter === "incubation"
+            ? c.kind === "business_incubation"
+            : ["ended", "closed", "closing", "archived", "cancelled"].includes(c.state)),
   );
   return (
     <main className="inc">
@@ -44,8 +48,8 @@ export default function CompetitionHub({
         <h1>Competitions</h1>
         <p>
           {student
-            ? "আপনার টিম ও দায়িত্ব অনুযায়ী চলমান কাজে যোগ দিন।"
-            : "এক জায়গায় ফর্মভিত্তিক প্রতিযোগিতা ও Business Incubation পরিচালনা করুন।"}
+            ? "Open your running competitions and see your team and role."
+            : "Manage form competitions and Business Incubation in one place."}
         </p>
         {!student && (
           <div className="inc-row">
@@ -75,10 +79,11 @@ export default function CompetitionHub({
       </header>
       <nav className="inc-tabs" aria-label="Competition filter">
         {[
-          ["running", "চলমান"],
-          ["all", "সব"],
+          ["running", "Running"],
+          ["upcoming", "Upcoming / draft"],
+          ["all", "All"],
           ["incubation", "Business Incubation"],
-          ["ended", "শেষ / ইতিহাস"],
+          ["ended", "Ended / history"],
         ].map(([v, l]) => (
           <button
             key={v}
@@ -94,13 +99,15 @@ export default function CompetitionHub({
           {error}
         </p>
       )}
-      {!data && !error && <p role="status">Competitions লোড হচ্ছে…</p>}
+      {!data && !error && <p role="status">Loading competitions…</p>}
       <div className="inc-grid">
         {rows.map((c: any) => (
           <article className="inc-card" key={c.id}>
             <div className="inc-row inc-between">
               <Trophy size={22} />
-              <span className="inc-status">{c.state}</span>
+              <span className={`inc-status ${c.state}`}>
+                {STATUS_LABELS[c.state] || c.state}
+              </span>
             </div>
             <p className="inc-eyebrow" style={{ marginTop: 20 }}>
               {c.kind === "business_incubation"
@@ -115,10 +122,10 @@ export default function CompetitionHub({
                 {c.team
                   ? c.team.name +
                     " · " +
-                    (c.team.role === "leader" ? "টিম লিডার" : "সদস্য")
+                    (c.team.role === "leader" ? "Team lead" : "Member")
                   : c.kind === "business_incubation"
-                    ? "আপনাকে এখনো টিমে যুক্ত করা হয়নি।"
-                    : data.team?.groupName || "টিম নির্ধারিত নেই"}
+                    ? "You have not been added to a team yet."
+                    : data.team?.groupName || "No team assigned"}
               </p>
             )}
             {c.canOpen ? (
@@ -132,11 +139,47 @@ export default function CompetitionHub({
                   (!student && c.kind === "form" ? "/report" : "")
                 }
               >
-                {student ? "আমার কাজ খুলুন" : "পরিচালনা করুন"}
+                {student ? "Open my workspace" : "Manage"}
                 <ArrowUpRight size={16} />
               </Link>
             ) : (
-              <span className="inc-notice">টিমে যুক্ত হলে খুলতে পারবেন</span>
+              <span className="inc-notice">Available once you are added to a team</span>
+            )}
+            {!student && c.kind === "business_incubation" && data?.canCreateIncubation && (
+              <div className="inc-row" style={{ marginTop: 12 }}>
+                <button
+                  className="inc-btn danger"
+                  onClick={async () => {
+                    const typed = window.prompt(
+                      `Delete "${c.title}"?
+
+It will disappear for everyone (students, staff and the public link). Its records stay in the database history.
+
+Type the program name to confirm:`,
+                    );
+                    if (typed === null) return;
+                    const reason = window.prompt("Reason for deleting (for example: created twice by mistake):");
+                    if (!reason) return;
+                    const r = await fetch("/api/incubation", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        action: "delete_program",
+                        programId: c.programId,
+                        payload: { confirmName: typed, reason },
+                      }),
+                    });
+                    if (r.ok)
+                      setData({
+                        ...data,
+                        competitions: data.competitions.filter((v: any) => v.id !== c.id),
+                      });
+                    else setError((await r.json()).error);
+                  }}
+                >
+                  Delete
+                </button>
+              </div>
             )}
             {!student && c.kind === "form" && (
               <div className="inc-row" style={{ marginTop: 12 }}>
@@ -144,7 +187,7 @@ export default function CompetitionHub({
                   className="inc-btn"
                   href={"/dashboard/competitions/" + c.id + "/edit"}
                 >
-                  ফর্ম এডিট
+                  Edit form
                 </Link>
                 <Link
                   className="inc-btn"
@@ -155,7 +198,7 @@ export default function CompetitionHub({
                 <button
                   className="inc-btn danger"
                   onClick={async () => {
-                    if (!window.confirm(c.title + " মুছে ফেলবেন?")) return;
+                    if (!window.confirm("Delete " + c.title + "?")) return;
                     const r = await fetch("/api/competitions/" + c.id, {
                       method: "DELETE",
                     });
@@ -169,7 +212,7 @@ export default function CompetitionHub({
                     else setError((await r.json()).error);
                   }}
                 >
-                  মুছুন
+                  Delete
                 </button>
               </div>
             )}
@@ -179,10 +222,10 @@ export default function CompetitionHub({
       {data && !rows.length && (
         <div className="inc-empty">
           <Trophy />
-          <h2>এই তালিকায় কোনো competition নেই</h2>
+          <h2>No competitions in this list</h2>
           <p>
-            অন্য filter নির্বাচন করুন। নতুন তৈরি করা খসড়া “সব” তালিকায় পাওয়া
-            যাবে।
+            Try another filter. New drafts appear under “Upcoming / draft”
+            and “All”.
           </p>
         </div>
       )}

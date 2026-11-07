@@ -26,16 +26,16 @@ export const FINANCIAL_KINDS: RecordKind[] = [
   "cash_count",
 ];
 export const KIND_LABELS: Record<RecordKind, string> = {
-  purchase: "কেনা",
-  sale: "বিক্রি",
-  supplier_return: "সরবরাহকারীকে ফেরত",
-  transfer: "অন্য টিমে ফেরত",
-  customer_refund: "ক্রেতার ফেরত / রিফান্ড",
-  damage: "নষ্ট পণ্য",
-  expense: "অন্যান্য খরচ",
-  fund: "ফান্ড প্রদান",
-  repayment: "ফান্ড ফেরত",
-  cash_count: "ক্যাশ মিলানো",
+  purchase: "Purchase",
+  sale: "Sale",
+  supplier_return: "Supplier return",
+  transfer: "Transfer to team",
+  customer_refund: "Customer refund",
+  damage: "Damage",
+  expense: "Expense",
+  fund: "Funding",
+  repayment: "Principal repayment",
+  cash_count: "Cash count",
   fgd: "FGD",
   insight: "Market Insights",
 };
@@ -58,11 +58,11 @@ export function scaled(value: unknown, digits = 2): number {
   const s = String(value ?? "").trim();
   insist(
     new RegExp(`^\\d{1,9}(?:\\.\\d{1,${digits}})?$`).test(s),
-    `সঠিক সংখ্যা দিন (সর্বোচ্চ ${digits} দশমিক)।`,
+    `Enter a valid number (up to ${digits} decimal places).`,
   );
   const [a, b = ""] = s.split(".");
   const n = Number(a) * 10 ** digits + Number(b.padEnd(digits, "0"));
-  insist(Number.isSafeInteger(n), "সংখ্যা সীমার বাইরে।");
+  insist(Number.isSafeInteger(n), "Number is out of range.");
   return n;
 }
 export const decimal = (n: number, digits = 2) =>
@@ -70,7 +70,7 @@ export const decimal = (n: number, digits = 2) =>
 function ratio(a: number, b: number, denominator: number) {
   insist(
     [a, b, denominator].every(Number.isSafeInteger) && denominator > 0,
-    "হিসাব সঠিক নয়।",
+    "Invalid amount.",
   );
   const numerator = BigInt(a) * BigInt(b),
     negative = numerator < BigInt(0);
@@ -78,7 +78,7 @@ function ratio(a: number, b: number, denominator: number) {
     ((negative ? -numerator : numerator) +
       BigInt(Math.floor(denominator / 2))) /
     BigInt(denominator);
-  insist(v <= BigInt(Number.MAX_SAFE_INTEGER), "হিসাবের সীমা অতিক্রম করেছে।");
+  insist(v <= BigInt(Number.MAX_SAFE_INTEGER), "Amount exceeds the allowed limit.");
   return Number(negative ? -v : v);
 }
 export const lineTotal = (quantity: unknown, price: unknown) =>
@@ -247,7 +247,7 @@ export function calculateLedger(entries: Entry[], products: Product[]) {
           Object.values(current).every(
             (v) => v === null || Number.isSafeInteger(v),
           ),
-          "হিসাবের সীমা অতিক্রম করেছে।",
+          "Amount exceeds the allowed limit.",
         );
         effects[r.id][teamId] = Object.fromEntries(
           Object.keys(current).map((k) => [
@@ -272,7 +272,7 @@ export function calculateLedger(entries: Entry[], products: Product[]) {
         f.cash -= amount;
         insist(
           f.principalReturned <= f.funding,
-          "মূল ফান্ডের বেশি ফেরত দেখানো যাবে না।",
+          "Repayment cannot exceed the funding received.",
         );
       }
       if (r.kind === "expense") {
@@ -288,7 +288,7 @@ export function calculateLedger(entries: Entry[], products: Product[]) {
     }
     insist(
       d.lines?.length && d.lines.length <= 100,
-      "পণ্যের লাইন দিন (সর্বোচ্চ ১০০)।",
+      "Add product lines (up to 100).",
     );
     let saleTotal = 0,
       saleCash = 0;
@@ -308,25 +308,25 @@ export function calculateLedger(entries: Entry[], products: Product[]) {
     const refundedThisEntry = new Map<string, number>();
     for (const line of d.lines) {
       const p = productMap.get(line.productId);
-      insist(p, "পণ্য পাওয়া যায়নি।");
+      insist(p, "Product not found.");
       const q = scaled(line.quantity, 3);
       insist(
         q > 0 && (p.fractional || q % 1000 === 0),
-        `${p.name}: পরিমাণ ও একক সঠিক নয়।`,
+        `${p.name}: quantity does not match the unit.`,
       );
       const s = stock(r.teamId, p.id);
       if (r.kind === "customer_refund") {
         const original = saleLines.get(d.sourceId || "")?.get(p.id);
         insist(
           original && original.quantity - original.refunded >= q,
-          "মূল বিক্রির অবশিষ্ট পরিমাণের বেশি ফেরত নেওয়া যাবে না।",
+          "Cannot return more than the remaining quantity of the original sale.",
         );
         const amount = lineTotal(line.quantity, line.unitPrice ?? "0");
         const previously = refundedThisEntry.get(p.id) || 0;
         const remainingRefund = original.revenue - original.restored;
         insist(
           amount <= remainingRefund,
-          "মূল বিক্রির অবশিষ্ট টাকার বেশি রিফান্ড দেওয়া যাবে না।",
+          "Cannot refund more than the remaining amount of the original sale.",
         );
         refundedThisEntry.set(p.id, previously + amount);
         const last = original.refunded + q === original.quantity;
@@ -363,7 +363,7 @@ export function calculateLedger(entries: Entry[], products: Product[]) {
       // Sequential mutation also validates repeated product lines in a single form.
       insist(
         s.quantity >= q,
-        `${p.name}: ${r.date}-এ স্টকের বেশি পণ্য বের হচ্ছে (আছে ${decimal(s.quantity, 3)})।`,
+        `${p.name}: more than the available stock on ${r.date} (in stock: ${decimal(s.quantity, 3)}).`,
       );
       const cost = q === s.quantity ? s.value : ratio(s.value, q, s.quantity);
       const margin =
@@ -409,7 +409,7 @@ export function calculateLedger(entries: Entry[], products: Product[]) {
         if (r.kind === "transfer") {
           insist(
             r.targetTeamId && r.targetTeamId !== r.teamId,
-            "গ্রহণকারী টিম সঠিক নয়।",
+            "Invalid receiving team.",
           );
           const dest = stock(r.targetTeamId, p.id),
             destF = finance(r.targetTeamId);
@@ -420,12 +420,12 @@ export function calculateLedger(entries: Entry[], products: Product[]) {
           destF.cash -= amount;
           destF.purchases += amount;
         }
-      } else throw new IncubationError("রেকর্ডের ধরন সঠিক নয়।");
+      } else throw new IncubationError("Invalid record type.");
     }
     if (r.kind === "sale") {
       insist(
         saleTotal === saleCash || (d.reason || "").trim().length >= 3,
-        "বিক্রির টাকা ও পাওয়া টাকা আলাদা হলে কারণ লিখুন।",
+        "Enter a reason when cash received differs from the sale amount.",
       );
       f.variance += saleTotal - saleCash;
       saleLines.set(r.id, sales);

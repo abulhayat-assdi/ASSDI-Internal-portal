@@ -232,7 +232,7 @@ describe("real migration and transactional incubation workflows", () => {
     const policies = await fixture.db.query(
       "SELECT tablename FROM pg_policies WHERE tablename LIKE 'incubation_%'",
     );
-    expect(policies.rows).toHaveLength(12);
+    expect(policies.rows).toHaveLength(14);
     expect(await prisma.incubationRecord.count()).toBe(0);
   });
   it("requires a purchase voucher and restricts financial entries to the lead", async () => {
@@ -644,6 +644,289 @@ describe("real migration and transactional incubation workflows", () => {
     });
     await expect(api.overview(lead, created.id)).rejects.toThrow();
   });
+  it("follows the lifecycle state machine and locks closed, archived and cancelled programs", async () => {
+    const base = {
+      name: "Lifecycle program",
+      description: "",
+      startDate: todayDhaka(),
+      endDate: null,
+      batchNames: ["Batch 1"],
+      staffIds: [],
+      settings,
+    };
+    await expect(
+      api.command(manager, { action: "program", payload: { ...base, status: "closed" } }),
+    ).rejects.toThrow(/Draft or Active/);
+    const created = (await api.command(manager, {
+      action: "program",
+      payload: { ...base, status: "draft" },
+    })) as any;
+    const save = (status: string, reason?: string, extra: Record<string, unknown> = {}) =>
+      api.command(manager, {
+        action: "program",
+        programId: created.id,
+        payload: { ...base, ...extra, status, ...(reason ? { reason } : {}) },
+      });
+    await save("active");
+    // Skipping straight from active to archived is not a valid move.
+    await expect(save("archived")).rejects.toThrow(/directly/);
+    await save("closed");
+    const teamPayload = {
+      name: "Late team",
+      studentIds: ["s-target"],
+      leadId: "s-target",
+      active: true,
+    };
+    await expect(
+      api.command(manager, { action: "team", programId: created.id, payload: teamPayload }),
+    ).rejects.toThrow(/nothing can be changed/);
+    await expect(
+      api.command(manager, {
+        action: "catalog",
+        programId: created.id,
+        payload: { kind: "area", name: "X", parentId: null, unit: "piece", fractional: false, active: true },
+      }),
+    ).rejects.toThrow(/nothing can be changed/);
+    // A locked program cannot be edited by re-saving it with the same status.
+    await expect(save("closed", undefined, { name: "Renamed" })).rejects.toThrow(/nothing can be changed/);
+    await save("archived");
+    expect(
+      (await prisma.incubationProgram.findUniqueOrThrow({ where: { id: created.id } })).name,
+    ).toBe("Lifecycle program");
+    // Reopening needs a reason and is audited.
+    await expect(save("closed")).rejects.toThrow(/reason/);
+    await save("closed", "Correcting a missed sale");
+    await save("closing", "Correcting a missed sale");
+    await api.command(manager, { action: "team", programId: created.id, payload: teamPayload });
+    const audit = await prisma.incubationAudit.findMany({
+      where: { programId: created.id, action: { startsWith: "program.status." } },
+      orderBy: { createdAt: "asc" },
+    });
+    expect(audit.map((a) => a.action)).toEqual([
+      "program.status.draft>active",
+      "program.status.active>closed",
+      "program.status.closed>archived",
+      "program.status.archived>closed",
+      "program.status.closed>closing",
+    ]);
+    expect(audit[3].reason).toBe("Correcting a missed sale");
+  });
+
+  it("re-saving a team keeps member ids, and a team holding money or stock cannot be deactivated", async () => {
+    const before = await prisma.incubationMember.findMany({ where: { teamId: teamA }, orderBy: { studentId: "asc" } });
+    const lead = before.find((m) => m.isLead)!;
+    const payload = { id: teamA, name: "Team A", studentIds: before.map((m) => m.studentId), leadId: lead.studentId };
+    await api.command(manager, { action: "team", programId, payload: { ...payload, active: true } });
+    const after = await prisma.incubationMember.findMany({ where: { teamId: teamA }, orderBy: { studentId: "asc" } });
+    expect(after.map((m) => [m.id, m.studentId, m.isLead])).toEqual(before.map((m) => [m.id, m.studentId, m.isLead]));
+    await expect(
+      api.command(manager, { action: "team", programId, payload: { ...payload, active: false } }),
+    ).rejects.toThrow(/deactivating/);
+    expect((await prisma.incubationTeam.findUniqueOrThrow({ where: { id: teamA } })).active).toBe(true);
+  });
+
+  it("daily reminders notify leads and staff once, and the overview shows each viewer their own list", async () => {
+    const { runIncubationReminders } = await import("./reminders");
+    const first = await runIncubationReminders();
+    expect(first.created).toBeGreaterThan(0);
+    expect(first.emailed).toBe(0);
+    // Team B (lead "target") has never recorded a sale, so yesterday is missing.
+    const forLead = await prisma.incubationNotification.findMany({ where: { userId: "target", programId } });
+    expect(forLead.some((n) => n.kind === "missing_sales")).toBe(true);
+    const digest = await prisma.incubationNotification.findFirst({
+      where: { userId: "manager", programId, kind: "digest" },
+    });
+    expect(digest?.body).toContain("Team B");
+    // Only the team's current lead is chased for team sales, never other members.
+    const teamAMembers = await prisma.incubationMember.findMany({ where: { teamId: teamA } });
+    const nonLeadRolls = teamAMembers.filter((m) => !m.isLead).map((m) => m.roll);
+    const nonLeadUsers = await prisma.user.findMany({ where: { studentRoll: { in: nonLeadRolls } } });
+    expect(nonLeadUsers.length).toBeGreaterThan(0);
+    expect(
+      await prisma.incubationNotification.count({
+        where: { userId: { in: nonLeadUsers.map((u) => u.id) }, programId, kind: "missing_sales" },
+      }),
+    ).toBe(0);
+    // A second run on the same day creates nothing new.
+    expect((await runIncubationReminders()).created).toBe(0);
+
+    const staffView = await api.overview(manager, programId);
+    expect(staffView.monitor!.some((i: any) => i.kind === "missing_sales" && i.teamId === teamB)).toBe(true);
+    const leadView = await api.overview(target, programId);
+    expect(leadView.monitor!.length).toBeGreaterThan(0);
+    expect(leadView.monitor!.every((i: any) => i.teamId === teamB)).toBe(true);
+    const nonLead = [lead, member].find((a) => nonLeadUsers.some((u) => u.id === a.id))!;
+    const memberView = await api.overview(nonLead, programId);
+    expect(memberView.monitor!.some((i: any) => i.kind === "missing_sales")).toBe(false);
+  });
+
+  it("publishes a frozen revenue ranking, shows it to students and the public link, and can withdraw it", async () => {
+    await expect(send(lead, "publish_results", {})).rejects.toThrow(/publish results/);
+    await send(manager, "publish_results", { note: "Week 1" });
+    const staff = await api.overview(manager, programId);
+    const ranking = (staff.results!.snapshot as any).ranking as any[];
+    expect(staff.results!.metric).toBe("revenue");
+    expect(ranking[0].rank).toBe(1);
+    for (let i = 1; i < ranking.length; i++) expect(ranking[i - 1].revenue).toBeGreaterThanOrEqual(ranking[i].revenue);
+    // Republishing replaces the previous snapshot instead of keeping two current ones.
+    await send(manager, "publish_results", {});
+    expect(await prisma.incubationResult.count({ where: { programId, withdrawnAt: null } })).toBe(1);
+    expect((await api.overview(target, programId)).results).not.toBeNull();
+    await send(manager, "withdraw_results", { note: "Recount" });
+    expect((await api.overview(target, programId)).results).toBeNull();
+    const actions = (await prisma.incubationAudit.findMany({ where: { programId, action: { startsWith: "results." } } })).map(
+      (a) => a.action,
+    );
+    expect(actions.sort()).toEqual(["results.published", "results.published", "results.withdrawn"]);
+  });
+
+  it("sheet_save adds, edits and deletes rows atomically and names the failing row", async () => {
+    const before = await prisma.incubationRecord.count({ where: { programId } });
+    const today = todayDhaka();
+    // One bad row (unknown expense type) rolls back the valid rows too.
+    await expect(
+      send(manager, "sheet_save", {
+        reason: "Paper records",
+        creates: [
+          { key: "ok-1", kind: "expense", teamId: teamA, date: today, data: { amount: "10", expenseType: "Transport" } },
+          { key: "bad-1", kind: "expense", teamId: teamA, date: today, data: { amount: "10", expenseType: "Nope" } },
+        ],
+      }),
+    ).rejects.toThrow(/^\[\[bad-1\]\]/);
+    expect(await prisma.incubationRecord.count({ where: { programId } })).toBe(before);
+    // Overselling stock fails the final ledger check and saves nothing.
+    await expect(
+      send(manager, "sheet_save", {
+        reason: "Paper records",
+        creates: [
+          { key: "s1", kind: "sale", teamId: teamA, date: today, data: { lines: [{ productId: product, quantity: "999999", unitPrice: "1" }], areaId: area } },
+        ],
+      }),
+    ).rejects.toThrow();
+    expect(await prisma.incubationRecord.count({ where: { programId } })).toBe(before);
+
+    const expense = await prisma.incubationRecord.findFirstOrThrow({
+      where: { programId, kind: "expense", status: "posted" },
+      orderBy: { createdAt: "asc" },
+    });
+    const victim = await prisma.incubationRecord.findFirstOrThrow({
+      where: { programId, kind: "expense", status: "posted", NOT: { id: expense.id } },
+    }).catch(async () =>
+      prisma.incubationRecord.create({
+        data: {
+          courseId: "course-a",
+          programId,
+          teamId: teamA,
+          kind: "expense",
+          date: today,
+          data: { amount: "1", expenseType: "Transport" },
+          requestKey: "sheet-victim",
+          requestHash: "x",
+          enteredBy: "manager",
+          enteredByName: "Manager",
+        },
+      }),
+    );
+    const out = await send(manager, "sheet_save", {
+      reason: "Paper records",
+      creates: [
+        { key: "e1", kind: "expense", teamId: teamA, date: today, data: { amount: "25", expenseType: "Transport", note: "Rickshaw" } },
+        { key: "f1", kind: "fgd", teamId: teamA, date: today, data: { findings: ["Price matters", "", ""], actions: ["Offer combo", "", ""] } },
+      ],
+      updates: [{ key: "u1", recordId: expense.id, version: expense.version, date: expense.date, data: { ...(expense.data as object), amount: "77" } }],
+      voids: [{ recordId: victim.id, version: victim.version }],
+    });
+    expect(out).toEqual({ created: 2, updated: 1, voided: 1 });
+    expect(((await prisma.incubationRecord.findUniqueOrThrow({ where: { id: expense.id } })).data as any).amount).toBe("77");
+    expect((await prisma.incubationRecord.findUniqueOrThrow({ where: { id: victim.id } })).status).toBe("void");
+    const actions = (
+      await prisma.incubationAudit.findMany({ where: { programId, action: { startsWith: "record.sheet_" } } })
+    ).map((a) => a.action);
+    expect(actions).toEqual(expect.arrayContaining(["record.sheet_created", "record.sheet_corrected", "record.sheet_voided"]));
+    // Students cannot use the sheet.
+    await expect(send(lead, "sheet_save", { reason: "x x x", voids: [] })).rejects.toThrow();
+  });
+
+  it("after the end date only staff can add or change entries; a deleted program disappears", async () => {
+    const yesterday = new Date(Date.now() - 86400000).toLocaleDateString("en-CA", { timeZone: "Asia/Dhaka" });
+    const created = (await api.command(manager, {
+      action: "program",
+      payload: {
+        name: "Ended lab",
+        description: "",
+        startDate: "2026-01-01",
+        endDate: yesterday,
+        batchNames: ["Batch 1"],
+        staffIds: [],
+        settings,
+        status: "active",
+      },
+    })) as any;
+    const team = (await api.command(manager, {
+      action: "team",
+      programId: created.id,
+      payload: { name: "Ended team", studentIds: ["s-target"], leadId: "s-target", active: true },
+    })) as any;
+    const expense = (date: string, key: string) => ({
+      action: "record",
+      programId: created.id,
+      payload: { teamId: team.id, kind: "expense", date, requestKey: key, data: { amount: "5", expenseType: "Transport" } },
+    });
+    // The student (team lead) is shut out once the end date has passed…
+    await expect(api.command(target, expense(yesterday, "student-late"))).rejects.toThrow(/closed|running/);
+    // …but staff can still record and correct.
+    const staffEntry = (await api.command(manager, expense(yesterday, "staff-late"))) as any;
+    expect(staffEntry.status).toBe("posted");
+    await expect(
+      api.command(target, {
+        action: "correct",
+        programId: created.id,
+        payload: { recordId: staffEntry.id, version: 1, date: yesterday, data: { amount: "6", expenseType: "Transport" }, reason: "typo", void: false },
+      }),
+    ).rejects.toThrow(/closed/);
+    expect((await api.overview(manager, created.id)).state).toBe("ended");
+
+    // Deleting needs the exact name and staff rights, then hides the program everywhere.
+    await expect(
+      api.command(target, { action: "delete_program", programId: created.id, payload: { confirmName: "Ended lab", reason: "duplicate" } }),
+    ).rejects.toThrow();
+    await expect(
+      api.command(manager, { action: "delete_program", programId: created.id, payload: { confirmName: "Ended", reason: "duplicate" } }),
+    ).rejects.toThrow(/exactly/);
+    await api.command(manager, { action: "delete_program", programId: created.id, payload: { confirmName: " Ended lab ", reason: "Created twice" } });
+    expect((await api.overview(manager)).programs.some((p: any) => p.id === created.id)).toBe(false);
+    await expect(api.overview(manager, created.id)).rejects.toThrow(/not found/);
+    const row = await prisma.incubationProgram.findUniqueOrThrow({ where: { id: created.id } });
+    expect(row.deletedAt).not.toBeNull();
+    expect(row.deleteReason).toBe("Created twice");
+    expect(await prisma.incubationRecord.count({ where: { programId: created.id } })).toBe(1);
+    expect(await prisma.incubationAudit.count({ where: { programId: created.id, action: "program.deleted" } })).toBe(1);
+  });
+
+  it("refuses to send a program with entries back to draft, and cancelling needs a reason", async () => {
+    const current = await prisma.incubationProgram.findUniqueOrThrow({ where: { id: programId } });
+    expect(current.status).toBe("active");
+    const payload = {
+      name: current.name,
+      description: current.description,
+      startDate: current.startDate,
+      endDate: current.endDate,
+      batchNames: current.batchNames,
+      staffIds: current.staffIds,
+      settings,
+    };
+    await expect(
+      api.command(manager, {
+        action: "program",
+        programId,
+        payload: { ...payload, status: "draft", reason: "test" },
+      }),
+    ).rejects.toThrow(/cannot go back to Draft/);
+    await expect(
+      api.command(manager, { action: "program", programId, payload: { ...payload, status: "cancelled" } }),
+    ).rejects.toThrow(/reason/);
+  });
+
   it("audit history cannot be overwritten even by a direct database update", async () => {
     await expect(
       fixture.db.exec("UPDATE incubation_audit SET reason='changed'"),

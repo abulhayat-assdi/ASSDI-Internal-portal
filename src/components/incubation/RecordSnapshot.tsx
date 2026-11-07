@@ -7,20 +7,20 @@ export default function RecordSnapshot({
 }) {
   const d = record?.data || record || {};
   const fields = [
-    ["টাকা", d.amount],
-    ["কারণ", d.reason],
-    ["নোট", d.note],
-    ["খরচের ধরন", d.expenseType],
-    ["সেগমেন্ট", d.segment],
-    ["আপত্তি", d.objections],
-    ["কেন কিনেছে", d.whyBought],
-    ["সেরা এলাকা", d.bestArea],
+    ["Amount", d.amount],
+    ["Reason", d.reason],
+    ["Note", d.note],
+    ["Expense type", d.expenseType],
+    ["Segment", d.segment],
+    ["Objections", d.objections],
+    ["Why they bought", d.whyBought],
+    ["Best area", d.bestArea],
   ];
   return (
     <dl style={{ fontSize: 12, lineHeight: 1.8 }}>
       {record?.date && (
         <>
-          <dt className="inc-sub">তারিখ</dt>
+          <dt className="inc-sub">Date</dt>
           <dd>{record.date}</dd>
         </>
       )}
@@ -30,8 +30,8 @@ export default function RecordSnapshot({
             {products.find((p) => p.id === l.productId)?.name || l.productId}
           </dt>
           <dd>
-            {l.quantity} × ৳{l.unitPrice || 0}
-            {l.cash !== undefined && ` • পাওয়া ৳${l.cash}`}
+            {l.quantity} × BDT {l.unitPrice || 0}
+            {l.cash !== undefined && ` • received BDT ${l.cash}`}
           </dd>
         </div>
       ))}

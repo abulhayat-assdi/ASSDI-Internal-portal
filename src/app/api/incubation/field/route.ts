@@ -33,12 +33,12 @@ export async function GET(req: NextRequest) {
         const field = await tx.incubationFieldSession.findFirst({
           where: { id: sessionId, programId },
         });
-        insist(field, "সেশন পাওয়া যায়নি।", 404);
+        insist(field, "Session not found.", 404);
         insist(
           actor.role !== "student" ||
             field.userId === actor.id ||
             (!!member?.isLead && field.teamId === member.teamId),
-          "শুধু নিজের অবস্থানের ইতিহাস দেখা যাবে।",
+          "You can only view your own location history.",
           403,
         );
         return {

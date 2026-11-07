@@ -1,4 +1,5 @@
 import "server-only";
+import { formState } from "@/lib/competitions";
 import { withCourseContext } from "@/lib/db";
 import { isFeatureEnabled } from "@/lib/features";
 import { canManageCompetitions } from "@/lib/auth";
@@ -58,6 +59,7 @@ export async function competitionDirectory(actor: Actor, student = false) {
       const programs = isFeatureEnabled(course?.settings, "business_incubation")
         ? await tx.incubationProgram.findMany({
             where: {
+              deletedAt: null,
               ...(student
                 ? {
                     status: { not: "draft" },
@@ -87,13 +89,14 @@ export async function competitionDirectory(actor: Actor, student = false) {
         ...forms.map((c) => ({
           ...c,
           kind: "form",
-          state: c.isActive ? "running" : "ended",
+          state: formState(c),
           batchNames: [c.batchName],
           canOpen: true,
         })),
         ...programs
           .map((p) => ({
             id: p.competitionId,
+            programId: p.id,
             title: p.name,
             description: p.description,
             kind: "business_incubation",

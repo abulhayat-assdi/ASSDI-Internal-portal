@@ -1,4 +1,9 @@
 "use client";
+import { numericOnly } from "./numeric";
+import MonitorPanel from "./MonitorPanel";
+import ResultsCard from "./ResultsCard";
+import { STATUS_LABELS } from "@/lib/incubation/lifecycle";
+import NotificationBell from "./NotificationBell";
 import { useState, useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import {
@@ -84,6 +89,7 @@ export default function StudentWorkspace({
     return p ? [p.name, p.variant].filter(Boolean).join(" · ") : id;
   };
   const canCorrect = (r: R) =>
+    running &&
     r.status === "posted" &&
     r.teamId === b.member.teamId &&
     (["fgd", "insight"].includes(r.kind)
@@ -121,22 +127,22 @@ export default function StudentWorkspace({
   const sheetControls = (
     <div className="inc-toolbar">
       <label className="inc-field">
-        খুঁজুন
+        Search
         <input
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="তারিখ, পণ্য বা জমার তথ্য"
+          placeholder="Date, product or details"
         />
       </label>
       <label className="inc-field">
-        সাজান
+        Sort
         <select value={sort} onChange={(e) => setSort(e.target.value)}>
-          <option value="newest">নতুন তারিখ আগে</option>
-          <option value="oldest">পুরোনো তারিখ আগে</option>
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
         </select>
       </label>
-      <span>{shown.length}টি রেসপন্স</span>
+      <span>{shown.length} entries</span>
     </div>
   );
   const pagination = (
@@ -146,7 +152,7 @@ export default function StudentWorkspace({
         disabled={currentPage === 1}
         onClick={() => setPage(currentPage - 1)}
       >
-        আগের পৃষ্ঠা
+        Previous page
       </button>
       <span>
         {currentPage} / {pages}
@@ -156,7 +162,7 @@ export default function StudentWorkspace({
         disabled={currentPage === pages}
         onClick={() => setPage(currentPage + 1)}
       >
-        পরের পৃষ্ঠা
+        Next page
       </button>
     </div>
   );
@@ -191,22 +197,22 @@ export default function StudentWorkspace({
     </div>
   );
   const actions: [RecordKind, string, any][] = [
-    ["sale", "বিক্রি এন্ট্রি", Wallet],
-    ["purchase", "কেনা এন্ট্রি", ShoppingBag],
-    ["expense", "খরচ এন্ট্রি", FileText],
-    ["supplier_return", "সরবরাহকারীকে ফেরত", Package],
-    ["transfer", "অন্য টিমে হস্তান্তর", Package],
-    ["customer_refund", "ক্রেতার রিফান্ড", Wallet],
-    ["damage", "নষ্ট পণ্য", Package],
-    ["cash_count", "ক্যাশ গণনা", Wallet],
-    ["repayment", "মূল ফান্ড ফেরত", Wallet],
+    ["sale", "Add sale", Wallet],
+    ["purchase", "Add purchase", ShoppingBag],
+    ["expense", "Add expense", FileText],
+    ["supplier_return", "Supplier return", Package],
+    ["transfer", "Transfer to team", Package],
+    ["customer_refund", "Customer refund", Wallet],
+    ["damage", "Damage", Package],
+    ["cash_count", "Cash count", Wallet],
+    ["repayment", "Principal repayment", Wallet],
   ];
   if (!b?.program)
     return (
       <main className="inc">
         <Link href="/student-dashboard/competitions">← Competitions</Link>
         <p role={error ? "alert" : "status"}>
-          {error || "আপনার workspace লোড হচ্ছে…"}
+          {error || "Loading your workspace…"}
         </p>
       </main>
     );
@@ -221,18 +227,19 @@ export default function StudentWorkspace({
           <button className="inc-btn" onClick={refresh}>
             Refresh
           </button>
-          <span className="inc-role">{lead ? "টিম লিডার" : "টিম সদস্য"}</span>
+          <NotificationBell programId={b.program.id} />
+          <span className="inc-role">{lead ? "Team lead" : "Member"}</span>
         </div>
         <p className="inc-eyebrow" style={{ marginTop: 22 }}>
-          BUSINESS INCUBATION · {b.state}
+          BUSINESS INCUBATION · {STATUS_LABELS[b.state] || b.state}
         </p>
-        <h1>{lead ? "আমাদের টিম পরিচালনা" : "আমার কাজ"}</h1>
+        <h1>{lead ? "Manage our team" : "My work"}</h1>
         <p>
           {b.program.name} · <b>{team?.name}</b>
         </p>
         <small>
-          {b.actor.name} · লিডার:{" "}
-          {team?.members?.find((m: R) => m.isLead)?.name || "নির্ধারিত নেই"}
+          {b.actor.name} · Team lead:{" "}
+          {team?.members?.find((m: R) => m.isLead)?.name || "Not assigned"}
         </small>
       </header>
       {error && (
@@ -247,20 +254,22 @@ export default function StudentWorkspace({
       )}
       {!running && (
         <p className="inc-notice">
-          নতুন এন্ট্রি বন্ধ। আপনার পূর্বের তথ্য দেখা ও সংশোধন অনুরোধ করা যাবে।
+          {b.state === "scheduled"
+            ? `This program starts on ${b.program.startDate}. Entries open on that day.`
+            : "Entries are closed for this program. You can still view your team's records; ask your teacher if something needs to change."}
         </p>
       )}
       <nav
         className="inc-tabs"
-        aria-label={lead ? "লিডারের কাজ" : "সদস্যের কাজ"}
+        aria-label={lead ? "Team lead tasks" : "Member tasks"}
       >
         {[
-          ["home", lead ? "আমাদের টিম" : "আজকের কাজ"],
-          ...(lead ? [["finance", "বিক্রি ও হিসাব"]] : []),
-          ["field", lead ? "মাঠ ও টিম" : "আমার মাঠের কাজ"],
-          ["learning", "FGD ও Insights"],
-          ["requests", "আমার অনুরোধ"],
-          ["history", "জমার ইতিহাস"],
+          ["home", lead ? "Our team" : "Today"],
+          ...(lead ? [["finance", "Sales & accounts"]] : []),
+          ["field", lead ? "Field & team" : "My field work"],
+          ["learning", "FGD & insights"],
+          ["requests", "My requests"],
+          ["history", "History"],
         ].map(([k, l]) => (
           <button
             key={k}
@@ -274,7 +283,7 @@ export default function StudentWorkspace({
       {["finance", "learning"].includes(tab) && (
         <div className="inc-form-grid">
           <label className="inc-field">
-            শুরু
+            From
             <input
               type="date"
               value={from}
@@ -282,7 +291,7 @@ export default function StudentWorkspace({
             />
           </label>
           <label className="inc-field">
-            শেষ
+            To
             <input
               type="date"
               value={to}
@@ -293,15 +302,21 @@ export default function StudentWorkspace({
       )}
       {tab === "home" && (
         <>
+          {(b.monitor?.length ?? 0) > 0 && (
+            <MonitorPanel issues={b.monitor} title="Needs attention now" />
+          )}
+          {b.results && (
+            <ResultsCard published={b.results} highlightTeamId={b.member?.teamId} />
+          )}
           <section className="inc-card">
-            <h2>আজকের দায়িত্ব</h2>
+            <h2>Today's tasks</h2>
             {lead && !stock.some((s: R) => s.available > 0) && (
               <p className="inc-notice">
-                টিমের stock এখন খালি। বিক্রির আগে কেনা এন্ট্রি দিন।
+                Your team has no stock. Add a purchase before recording sales.
               </p>
             )}
             <button className="inc-btn" onClick={() => setTab("requests")}>
-              অনুরোধের অবস্থা দেখুন
+              View request status
             </button>
             <p>
               {b.sprints
@@ -317,7 +332,7 @@ export default function StudentWorkspace({
                     "–" +
                     s.endDate,
                 )
-                .join(" / ") || "আজকের স্প্রিন্ট নির্ধারিত নেই—শিক্ষককে জানান।"}
+                .join(" / ") || "No sprint is set for today — tell your teacher."}
             </p>
             <div className="inc-task-grid">
               {lead &&
@@ -334,7 +349,7 @@ export default function StudentWorkspace({
                 ))}
               <button className="inc-task" onClick={() => setTab("field")}>
                 <MapPin />
-                {own ? "মাঠের কাজ শেষ করুন" : "মাঠে কাজ শুরু করুন"}
+                {own ? "Finish field work" : "Start field work"}
               </button>
               <button
                 className="inc-task"
@@ -342,7 +357,7 @@ export default function StudentWorkspace({
                 onClick={() => onRecord("fgd")}
               >
                 <BookOpen />
-                FGD জমা দিন
+                Submit FGD
               </button>
               <button
                 className="inc-task"
@@ -350,17 +365,17 @@ export default function StudentWorkspace({
                 onClick={() => onRecord("insight")}
               >
                 <Plus />
-                Market Insight দিন
+                Add market insight
               </button>
             </div>
           </section>
-          <h2 style={{ marginTop: 22 }}>আমাদের টিমের অবস্থা</h2>
+          <h2 style={{ marginTop: 22 }}>Our team at a glance</h2>
           <div className="inc-kpis">
             {[
-              ["নিট বিক্রি", summary.revenue],
-              ["নিট লাভ / ক্ষতি", summary.netProfit],
-              ["স্টকের মূল্য", summary.stockValue],
-              ["হাতে থাকার হিসাব", summary.cash],
+              ["Net sales", summary.revenue],
+              ["Net profit / loss", summary.netProfit],
+              ["Stock value", summary.stockValue],
+              ["Cash in hand", summary.cash],
             ].map(([l, n]) => (
               <div className="inc-kpi" key={l}>
                 <label>{l}</label>
@@ -369,18 +384,18 @@ export default function StudentWorkspace({
             ))}
           </div>
           <section className="inc-card">
-            <h2>টিমের সদস্য</h2>
+            <h2>Team members</h2>
             <div className="inc-row">
               {team?.members?.map((m: R) => (
                 <span key={m.id} className="inc-status">
                   {m.name}
-                  {m.isLead ? " · লিডার" : ""}
+                  {m.isLead ? " · Team lead" : ""}
                 </span>
               ))}
             </div>
             <p className="inc-sub" style={{ marginTop: 15 }}>
-              অন্য টিমের ব্যক্তিগত হিসাব এখানে দেখা যায় না। নিজের দায়িত্ব
-              অনুযায়ী কাজগুলো সামনে দেওয়া আছে।
+              Other teams' private accounts are not shown here. Your tasks are
+              listed above based on your role.
             </p>
           </section>
         </>
@@ -401,13 +416,13 @@ export default function StudentWorkspace({
             ))}
           </div>
           <section className="inc-card" style={{ marginTop: 20 }}>
-            <h2>নিজের টিমের রেসপন্স</h2>
-            <p>নিজের টিমের পূর্ণ রিপোর্ট:</p>
+            <h2>Our team's entries</h2>
+            <p>Full report for our team:</p>
             {exports("")}
             <div className="inc-toolbar">
               {[
                 ...actions.map(([k, l]) => [k, l]),
-                ["fund", "প্রাপ্ত ফান্ড"],
+                ["fund", "Funding received"],
               ].map(([k, l]) => (
                 <button
                   className={"inc-btn " + (sheet === k ? "primary" : "")}
@@ -424,10 +439,10 @@ export default function StudentWorkspace({
               <table>
                 <thead>
                   <tr>
-                    <th>তারিখ</th>
-                    <th>পণ্য / তথ্য</th>
-                    <th>অবস্থা</th>
-                    <th>কাজ</th>
+                    <th>Date</th>
+                    <th>Product / details</th>
+                    <th>Status</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -436,7 +451,7 @@ export default function StudentWorkspace({
                       <td>
                         {r.date}
                         <small className="inc-sub" style={{ display: "block" }}>
-                          জমা: {time(r.createdAt)}
+                          Submitted: {time(r.createdAt)}
                         </small>
                       </td>
                       <td>
@@ -448,7 +463,7 @@ export default function StudentWorkspace({
                               l.quantity +
                               " @ " +
                               money(Number(l.unitPrice || 0) * 100) +
-                              " · পাওয়া " +
+                              " · received " +
                               money(
                                 Number(
                                   l.cash ??
@@ -470,7 +485,7 @@ export default function StudentWorkspace({
                             rel="noreferrer"
                           >
                             {" "}
-                            · ভাউচার
+                            · Voucher
                           </a>
                         )}
                       </td>
@@ -478,7 +493,7 @@ export default function StudentWorkspace({
                       <td>
                         {canCorrect(r) && (
                           <button className="inc-btn" onClick={() => onEdit(r)}>
-                            সংশোধন অনুরোধ
+                            Correction request
                           </button>
                         )}
                       </td>
@@ -488,19 +503,19 @@ export default function StudentWorkspace({
               </table>
             </div>
             {shown.length === 0 && (
-              <p className="inc-notice">এই ফিল্টারে কোনো রেসপন্স নেই।</p>
+              <p className="inc-notice">No entries match this filter.</p>
             )}
             {pagination}
           </section>
           <section className="inc-card" style={{ marginTop: 20 }}>
-            <h2>পণ্য ও উপলব্ধ stock</h2>
+            <h2>Products and available stock</h2>
             <div className="inc-table-wrap">
               <table>
                 <thead>
                   <tr>
-                    <th>পণ্য / variant</th>
-                    <th>মোট / হস্তান্তরের অপেক্ষায় / উপলব্ধ</th>
-                    <th>মূল্য</th>
+                    <th>Product / variant</th>
+                    <th>Total / reserved for transfer / available</th>
+                    <th>Value</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -523,19 +538,19 @@ export default function StudentWorkspace({
       {tab === "field" && (
         <>
           <section className="inc-card">
-            <h2>{own ? "আপনার মাঠ সেশন চলছে" : "মাঠে কাজ শুরু করুন"}</h2>
+            <h2>{own ? "Your field session is running" : "Start field work"}</h2>
             <p className="inc-sub">
-              ওয়েব পেজ সামনে থাকলে GPS update পাঠায়। ফোন লক অবস্থার tracking-এর
-              Android অ্যাপ পরে যুক্ত হবে।
+              GPS updates are sent while this page is open. Tracking with the phone locked
+              will come with the Android app later.
             </p>
             <label className="inc-field">
-              কাজের ব্রড এরিয়া
+              Work area
               <select
-                aria-label="কাজের ব্রড এরিয়া"
+                aria-label="Work area"
                 value={f.areaId}
                 onChange={(e) => setF({ ...f, areaId: e.target.value })}
               >
-                <option value="">বাছুন</option>
+                <option value="">Select</option>
                 {areas.map((a: R) => (
                   <option key={a.id} value={a.id}>
                     {a.name}
@@ -545,11 +560,11 @@ export default function StudentWorkspace({
             </label>
             {!own && (
               <>
-                <h3>সঙ্গে নেওয়া পণ্য</h3>
+                <h3>Products carried</h3>
                 {(f.carried || []).map((l: R, i: number) => (
                   <div key={i} className="inc-row">
                     <select
-                      aria-label="সঙ্গে নেওয়া পণ্য"
+                      aria-label="Products carried"
                       value={l.productId}
                       onChange={(e) =>
                         setF({
@@ -560,7 +575,7 @@ export default function StudentWorkspace({
                         })
                       }
                     >
-                      <option value="">পণ্য বাছুন</option>
+                      <option value="">Select product</option>
                       {stock
                         .filter((s: R) => s.quantity > 0)
                         .map((s: R) => (
@@ -570,8 +585,9 @@ export default function StudentWorkspace({
                         ))}
                     </select>
                     <input
-                      aria-label="বহনের পরিমাণ"
-                      type="number"
+                      aria-label="Quantity carried"
+                      type="text"
+                      inputMode="decimal"
                       min="0.001"
                       step="0.001"
                       value={l.quantity}
@@ -579,7 +595,7 @@ export default function StudentWorkspace({
                         setF({
                           ...f,
                           carried: f.carried.map((x: R, j: number) =>
-                            i === j ? { ...x, quantity: e.target.value } : x,
+                            i === j ? { ...x, quantity: numericOnly(e.target.value, true) } : x,
                           ),
                         })
                       }
@@ -595,7 +611,7 @@ export default function StudentWorkspace({
                         })
                       }
                     >
-                      সরান
+                      Remove
                     </button>
                   </div>
                 ))}
@@ -611,20 +627,21 @@ export default function StudentWorkspace({
                     })
                   }
                 >
-                  + পণ্য
+                  + Product
                 </button>
               </>
             )}
             {own && (
               <div className="inc-form-grid">
                 <label className="inc-field">
-                  হাঁটার স্টেপ
+                  Steps walked
                   <input
-                    aria-label="হাঁটার স্টেপ"
-                    type="number"
+                    aria-label="Steps walked"
+                    type="text"
+                    inputMode="numeric"
                     min="0"
                     value={f.steps}
-                    onChange={(e) => setF({ ...f, steps: e.target.value })}
+                    onChange={(e) => setF({ ...f, steps: numericOnly(e.target.value, false) })}
                   />
                 </label>
                 <label className="inc-field">
@@ -653,23 +670,23 @@ export default function StudentWorkspace({
               onClick={() => onField(own ? "checkout" : "checkin")}
             >
               {busy
-                ? "GPS যাচাই হচ্ছে…"
+                ? "Checking GPS…"
                 : own
-                  ? "Check-out করুন"
-                  : "GPS দিয়ে Check-in করুন"}
+                  ? "Check out"
+                  : "Check in with GPS"}
             </button>
           </section>
           <section className="inc-card" style={{ marginTop: 20 }}>
-            <h2>{lead ? "টিমের মাঠের কাজ" : "আমার মাঠের ইতিহাস"}</h2>
+            <h2>{lead ? "Team field work" : "My field history"}</h2>
             {exports("field")}
             <div className="inc-table-wrap">
               <table>
                 <thead>
                   <tr>
-                    <th>সদস্য</th>
-                    <th>শুরু / শেষ</th>
-                    <th>স্টেপ</th>
-                    <th>প্রমাণ / GPS</th>
+                    <th>Member</th>
+                    <th>Start / end</th>
+                    <th>Steps</th>
+                    <th>Proof / GPS</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -679,12 +696,12 @@ export default function StudentWorkspace({
                       <td>
                         {time(s.checkIn)}
                         <br />
-                        {s.checkOut ? time(s.checkOut) : "মাঠে আছেন"}
+                        {s.checkOut ? time(s.checkOut) : "In the field"}
                       </td>
                       <td>
                         {s.steps}
                         <small style={{ display: "block" }}>
-                          সঙ্গে:{" "}
+                          Carried:{" "}
                           {(s.carried || [])
                             .map(
                               (l: R) => name(l.productId) + " × " + l.quantity,
@@ -721,7 +738,7 @@ export default function StudentWorkspace({
                             }
                           }}
                         >
-                          GPS ইতিহাস
+                          GPS history
                         </button>
                       </td>
                     </tr>
@@ -732,7 +749,7 @@ export default function StudentWorkspace({
             {positions.length > 0 && (
               <div className="inc-old">
                 <button className="inc-btn" onClick={() => setPositions([])}>
-                  বন্ধ
+                  Close
                 </button>
                 {positions.map((p: R) => (
                   <p key={p.id}>
@@ -747,7 +764,7 @@ export default function StudentWorkspace({
                       target="_blank"
                       rel="noreferrer"
                     >
-                      মানচিত্রে দেখুন
+                      View on map
                     </a>
                   </p>
                 ))}
@@ -769,14 +786,14 @@ export default function StudentWorkspace({
               disabled={!running}
               onClick={() => onRecord("fgd")}
             >
-              FGD জমা দিন
+              Submit FGD
             </button>
             <button
               className="inc-btn"
               disabled={!running}
               onClick={() => onRecord("insight")}
             >
-              Market Insight দিন
+              Add market insight
             </button>
             {exports("learning")}
           </div>
@@ -811,14 +828,14 @@ export default function StudentWorkspace({
                   ) : (
                     <>
                       <p>Segment: {r.data.segment}</p>
-                      <p>আপত্তি: {r.data.objections}</p>
-                      <p>কেন কিনেছে: {r.data.whyBought || "—"}</p>
-                      <p>এলাকা: {r.data.bestArea}</p>
+                      <p>Objections: {r.data.objections}</p>
+                      <p>Why they bought: {r.data.whyBought || "—"}</p>
+                      <p>Area: {r.data.bestArea}</p>
                     </>
                   )}
                   {canCorrect(r) && (
                     <button className="inc-btn" onClick={() => onEdit(r)}>
-                      সংশোধন অনুরোধ
+                      Correction request
                     </button>
                   )}
                 </article>
@@ -828,7 +845,7 @@ export default function StudentWorkspace({
       )}
       {tab === "requests" && (
         <section className="inc-card">
-          <h2>অনুরোধ ও অনুমোদনের অবস্থা</h2>
+          <h2>Requests and approvals</h2>
           {lead &&
             b.records
               .filter(
@@ -839,7 +856,7 @@ export default function StudentWorkspace({
               .map((r: R) => (
                 <div className="inc-old" key={r.id}>
                   <p>
-                    পণ্য গ্রহণের প্রস্তাব:{" "}
+                    Products offered to you:{" "}
                     {r.data.lines
                       ?.map((l: R) => name(l.productId) + " × " + l.quantity)
                       .join(", ")}
@@ -848,7 +865,7 @@ export default function StudentWorkspace({
                     className="inc-btn primary"
                     onClick={() => onAccept(r)}
                   >
-                    ভাউচারসহ গ্রহণ / প্রত্যাখ্যান
+                    Accept with voucher / reject
                   </button>
                 </div>
               ))}
@@ -872,10 +889,10 @@ export default function StudentWorkspace({
       )}
       {tab === "history" && (
         <section className="inc-card">
-          <h2>{lead ? "টিমের জমার ইতিহাস" : "আমার জমার ইতিহাস"}</h2>
+          <h2>{lead ? "Team submission history" : "My submission history"}</h2>
           <div className="inc-form-grid">
             <label className="inc-field">
-              শুরু
+              From
               <input
                 type="date"
                 value={from}
@@ -883,7 +900,7 @@ export default function StudentWorkspace({
               />
             </label>
             <label className="inc-field">
-              শেষ
+              To
               <input
                 type="date"
                 value={to}
@@ -898,17 +915,17 @@ export default function StudentWorkspace({
                 {KIND_LABELS[r.kind as RecordKind]} · {r.date}
               </b>
               <p>
-                {r.enteredByName} · জমা: {time(r.createdAt)} · {r.status}
+                {r.enteredByName} · Submitted: {time(r.createdAt)} · {r.status}
               </p>
               {canCorrect(r) && (
                 <button className="inc-btn" onClick={() => onEdit(r)}>
-                  সংশোধন অনুরোধ
+                  Correction request
                 </button>
               )}
             </div>
           ))}
           {shown.length === 0 && (
-            <p className="inc-notice">এই ফিল্টারে কোনো রেসপন্স নেই।</p>
+            <p className="inc-notice">No entries match this filter.</p>
           )}
           {pagination}
         </section>

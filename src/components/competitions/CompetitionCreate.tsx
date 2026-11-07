@@ -4,6 +4,7 @@ import Link from "next/link";
 import FormCompetitionCreate from "./FormCompetitionCreate";
 import IncubationApp from "@/components/incubation/IncubationApp";
 import "@/components/incubation/incubation.css";
+import "@/components/incubation/incubation-glass.css";
 export default function CompetitionCreate() {
   const [kind, setKind] = useState(""),
     [data, setData] = useState<any>(null);
@@ -26,7 +27,7 @@ export default function CompetitionCreate() {
     <main className="inc">
       <header className="inc-head">
         <h1>Create New Competition</h1>
-        <p>কাজের ধরন নির্বাচন করুন</p>
+        <p>Choose a competition type</p>
       </header>
       <Link
         href="/dashboard/competitions"
@@ -38,26 +39,26 @@ export default function CompetitionCreate() {
       <div className="inc-grid">
         <section className="inc-card">
           <h2>Form-based Competition</h2>
-          <p>Battle of Cups, Corporate Sales অথবা আপনার custom report form।</p>
+          <p>Battle of Cups, Corporate Sales or your own custom report form.</p>
           <button
             className="inc-btn primary"
             disabled={!data?.canCreateForm}
             onClick={() => setKind("form")}
           >
-            ফর্ম তৈরি করুন
+            Create form competition
           </button>
         </section>
         <section className="inc-card">
           <h2>Business Incubation</h2>
           <p>
-            টিম, ক্যাটাগরি রোটেশন, পণ্য, ক্রয়-বিক্রয়, ফান্ড, মাঠের কাজ ও FGD।
+            Teams, category rotation, products, purchases and sales, funding, field work and FGD.
           </p>
           <button
             className="inc-btn primary"
             disabled={!data?.canCreateIncubation}
             onClick={() => setKind("business_incubation")}
           >
-            Incubation তৈরি করুন
+            Create incubation program
           </button>
         </section>
       </div>
