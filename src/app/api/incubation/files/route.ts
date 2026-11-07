@@ -5,7 +5,7 @@ import { mkdir, writeFile, unlink } from "node:fs/promises";
 import { getSessionUser } from "@/lib/auth";
 import { featureTx, accessProgram, audit, type Actor } from "@/lib/incubation/server";
 import { insist } from "@/lib/incubation/domain";
-import { isProgramLocked, lockedMessage } from "@/lib/incubation/lifecycle";
+import { isIncubationRunning, isProgramLocked, lockedMessage } from "@/lib/incubation/lifecycle";
 import { failure } from "@/lib/incubation/http";
 import { verifyFileSignature } from "@/lib/uploadGuard";
 export const runtime = "nodejs";
@@ -36,6 +36,11 @@ export async function POST(req: NextRequest) {
     const result = await featureTx(actor, async (tx) => {
       const { member, program } = await accessProgram(tx, actor, programId);
       insist(!isProgramLocked(program.status), lockedMessage(program.status), 409);
+      insist(
+        actor.role !== "student" || isIncubationRunning(program),
+        "Entries for this program are closed.",
+        409,
+      );
       if (member)
         insist(member.teamId === teamId, "Upload files for your own team only.", 403);
       if (teamId)

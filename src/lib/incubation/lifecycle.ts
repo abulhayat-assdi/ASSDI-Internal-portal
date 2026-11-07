@@ -9,7 +9,8 @@ export const STATUS_LABELS: Record<string, string> = {
   active: "Active",
   scheduled: "Upcoming",
   running: "Running",
-  ended: "Ended",
+  // Past the end date: students can no longer enter anything; staff settle and close.
+  ended: "Closing",
   closing: "Closing",
   closed: "Closed",
   archived: "Archived",

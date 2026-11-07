@@ -23,6 +23,7 @@ export async function publicReport(
     const p = await tx.incubationProgram.findFirst({
       where: {
         courseId,
+        deletedAt: null,
         publicTokenHash: createHash("sha256").update(token).digest("hex"),
       },
     });

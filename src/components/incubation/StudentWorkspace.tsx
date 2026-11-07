@@ -89,6 +89,7 @@ export default function StudentWorkspace({
     return p ? [p.name, p.variant].filter(Boolean).join(" · ") : id;
   };
   const canCorrect = (r: R) =>
+    running &&
     r.status === "posted" &&
     r.teamId === b.member.teamId &&
     (["fgd", "insight"].includes(r.kind)
@@ -253,7 +254,9 @@ export default function StudentWorkspace({
       )}
       {!running && (
         <p className="inc-notice">
-          New entries are closed. You can still view your past entries and request corrections.
+          {b.state === "scheduled"
+            ? `This program starts on ${b.program.startDate}. Entries open on that day.`
+            : "Entries are closed for this program. You can still view your team's records; ask your teacher if something needs to change."}
         </p>
       )}
       <nav

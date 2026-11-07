@@ -145,6 +145,42 @@ export default function CompetitionHub({
             ) : (
               <span className="inc-notice">Available once you are added to a team</span>
             )}
+            {!student && c.kind === "business_incubation" && data?.canCreateIncubation && (
+              <div className="inc-row" style={{ marginTop: 12 }}>
+                <button
+                  className="inc-btn danger"
+                  onClick={async () => {
+                    const typed = window.prompt(
+                      `Delete "${c.title}"?
+
+It will disappear for everyone (students, staff and the public link). Its records stay in the database history.
+
+Type the program name to confirm:`,
+                    );
+                    if (typed === null) return;
+                    const reason = window.prompt("Reason for deleting (for example: created twice by mistake):");
+                    if (!reason) return;
+                    const r = await fetch("/api/incubation", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        action: "delete_program",
+                        programId: c.programId,
+                        payload: { confirmName: typed, reason },
+                      }),
+                    });
+                    if (r.ok)
+                      setData({
+                        ...data,
+                        competitions: data.competitions.filter((v: any) => v.id !== c.id),
+                      });
+                    else setError((await r.json()).error);
+                  }}
+                >
+                  Delete
+                </button>
+              </div>
+            )}
             {!student && c.kind === "form" && (
               <div className="inc-row" style={{ marginTop: 12 }}>
                 <Link

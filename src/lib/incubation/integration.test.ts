@@ -847,6 +847,62 @@ describe("real migration and transactional incubation workflows", () => {
     await expect(send(lead, "sheet_save", { reason: "x x x", voids: [] })).rejects.toThrow();
   });
 
+  it("after the end date only staff can add or change entries; a deleted program disappears", async () => {
+    const yesterday = new Date(Date.now() - 86400000).toLocaleDateString("en-CA", { timeZone: "Asia/Dhaka" });
+    const created = (await api.command(manager, {
+      action: "program",
+      payload: {
+        name: "Ended lab",
+        description: "",
+        startDate: "2026-01-01",
+        endDate: yesterday,
+        batchNames: ["Batch 1"],
+        staffIds: [],
+        settings,
+        status: "active",
+      },
+    })) as any;
+    const team = (await api.command(manager, {
+      action: "team",
+      programId: created.id,
+      payload: { name: "Ended team", studentIds: ["s-target"], leadId: "s-target", active: true },
+    })) as any;
+    const expense = (date: string, key: string) => ({
+      action: "record",
+      programId: created.id,
+      payload: { teamId: team.id, kind: "expense", date, requestKey: key, data: { amount: "5", expenseType: "Transport" } },
+    });
+    // The student (team lead) is shut out once the end date has passed…
+    await expect(api.command(target, expense(yesterday, "student-late"))).rejects.toThrow(/closed|running/);
+    // …but staff can still record and correct.
+    const staffEntry = (await api.command(manager, expense(yesterday, "staff-late"))) as any;
+    expect(staffEntry.status).toBe("posted");
+    await expect(
+      api.command(target, {
+        action: "correct",
+        programId: created.id,
+        payload: { recordId: staffEntry.id, version: 1, date: yesterday, data: { amount: "6", expenseType: "Transport" }, reason: "typo", void: false },
+      }),
+    ).rejects.toThrow(/closed/);
+    expect((await api.overview(manager, created.id)).state).toBe("ended");
+
+    // Deleting needs the exact name and staff rights, then hides the program everywhere.
+    await expect(
+      api.command(target, { action: "delete_program", programId: created.id, payload: { confirmName: "Ended lab", reason: "duplicate" } }),
+    ).rejects.toThrow();
+    await expect(
+      api.command(manager, { action: "delete_program", programId: created.id, payload: { confirmName: "Ended", reason: "duplicate" } }),
+    ).rejects.toThrow(/exactly/);
+    await api.command(manager, { action: "delete_program", programId: created.id, payload: { confirmName: " Ended lab ", reason: "Created twice" } });
+    expect((await api.overview(manager)).programs.some((p: any) => p.id === created.id)).toBe(false);
+    await expect(api.overview(manager, created.id)).rejects.toThrow(/not found/);
+    const row = await prisma.incubationProgram.findUniqueOrThrow({ where: { id: created.id } });
+    expect(row.deletedAt).not.toBeNull();
+    expect(row.deleteReason).toBe("Created twice");
+    expect(await prisma.incubationRecord.count({ where: { programId: created.id } })).toBe(1);
+    expect(await prisma.incubationAudit.count({ where: { programId: created.id, action: "program.deleted" } })).toBe(1);
+  });
+
   it("refuses to send a program with entries back to draft, and cancelling needs a reason", async () => {
     const current = await prisma.incubationProgram.findUniqueOrThrow({ where: { id: programId } });
     expect(current.status).toBe("active");

@@ -150,7 +150,7 @@ export async function accessProgram(
   const program = await tx.incubationProgram.findUnique({
     where: { id: programId, courseId: actor.courseId },
   });
-  insist(program, "Program not found.", 404);
+  insist(program && !program.deletedAt, "Program not found.", 404);
   let member = null;
   if (actor.role === "student") {
     insist(
@@ -444,6 +444,7 @@ export async function overview(actor: Actor, programId?: string) {
     const programs = await tx.incubationProgram.findMany({
       where: {
         courseId: actor.courseId,
+        deletedAt: null,
         ...(actor.role === "student"
           ? {
               status: { not: "draft" },
@@ -948,6 +949,41 @@ export async function command(actor: Actor, input: unknown) {
       body.programId,
       true,
     );
+    if (body.action === "delete_program") {
+      insist(manager, "Only staff can delete a program.", 403);
+      const v = z
+        .object({ confirmName: z.string(), reason: z.string().trim().min(3).max(2000) })
+        .parse(p);
+      insist(
+        v.confirmName.trim() === program.name.trim(),
+        "Type the program name exactly to confirm deletion.",
+      );
+      // Soft delete: hidden everywhere, records and audit history are kept.
+      const deleted = await tx.incubationProgram.update({
+        where: { id: program.id },
+        data: {
+          deletedAt: new Date(),
+          deletedBy: actor.id,
+          deleteReason: v.reason,
+          publicTokenHash: null,
+        },
+      });
+      await tx.competition.update({
+        where: { id: program.competitionId },
+        data: { isActive: false },
+      });
+      await audit(tx, actor, program.id, "program.deleted", program.id, program, deleted, v.reason);
+      return { ok: true };
+    }
+    // After the end date (or before the start) students can no longer add or change anything;
+    // staff keep full control until the program is closed.
+    if (actor.role === "student")
+      insist(
+        isIncubationRunning(program) ||
+          !["record", "correct", "accept_transfer"].includes(body.action),
+        "Entries for this program are closed. Contact your teacher if something needs to change.",
+        409,
+      );
     // Results are a frozen read of final figures, so they may be published after closing.
     const resultsAction = ["publish_results", "withdraw_results"].includes(body.action);
     insist(
@@ -1291,7 +1327,7 @@ export async function command(actor: Actor, input: unknown) {
     }
     if (body.action === "record") {
       insist(
-        isIncubationRunning(program),
+        actor.role !== "student" || isIncubationRunning(program),
         "The program must be running to accept entries.",
       );
       const v = z

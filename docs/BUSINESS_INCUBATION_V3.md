@@ -57,12 +57,18 @@ Branch: `feature/incubation-v3` (worktree `asm-portal-v2-incubation-v3`), main `
 - সংখ্যার ঘরে (পরিমাণ, দাম, টাকা, steps, settings) শুধু সংখ্যা লেখা যায় — অক্ষর টাইপ বা paste হয় না; বাংলা অঙ্ক ইংরেজি হয়ে যায়।
 - **Manage data** (নতুন, পুরোনো শিট এডিটরের জায়গায়): Battle of Cups-এর মতো full-screen শিট — "Team-wise data" (Sales, Purchases, Expenses, Supplier returns, Damage, Customer refunds, Transfers, Funding, Principal repayments, Cash counts) ও "Individual data" (FGD, Market insights)। Cell এডিট, Add row / Add 5 rows, row মুছে ফেলা (history-তে void হিসেবে থাকে), Excel paste, খোঁজা ও টিম filter। সেভ একসাথে (`sheet_save`): একটিও ভুল হলে কিছুই সেভ হয় না, ভুল row লাল হয়ে "Sales, row 1: …" দেখায়। নতুন Purchase (voucher লাগে), Customer refund ও Transfer (অন্য এন্ট্রির সঙ্গে যুক্ত) entry form থেকে যোগ করতে হয়; এগুলোর বিদ্যমান row শিটে এডিট করা যায়।
 
+### তারিখ, entry-র সময়সীমা ও মুছে ফেলা
+- **শুরু ও শেষের তারিখ:** Setup → "Edit dates & rules" থেকে যেকোনো সময় বদলানো যায় (প্রোগ্রাম বন্ধ/আর্কাইভ না থাকলে)। শুরুর তারিখের আগে "Upcoming", শুরুর দিন থেকে নিজে থেকেই "Running", শেষ তারিখ পেরোলে নিজে থেকেই **"Closing"** দেখায়।
+- **শেষ তারিখের পরে:** শিক্ষার্থী (লিডার/সদস্য) নতুন এন্ট্রি, সংশোধন অনুরোধ, হস্তান্তর গ্রহণ, মাঠ-সংশোধন বা ফাইল আপলোড করতে পারে না (খোলা মাঠ সেশনের check-out ছাড়া)। Admin/teacher সব এন্ট্রি, Manage data শিট, সংশোধন ও অনুমোদন চালিয়ে যেতে পারেন। পুরো হিসাব শেষে "Closed" করলে সবার জন্য বন্ধ; প্রয়োজনে কারণসহ আবার খোলা যায়।
+- **মুছে ফেলা:** Competitions পাতার কার্ডে "Delete", অথবা Setup-এ "Delete program"। নিশ্চিত করতে প্রোগ্রামের নাম হুবহু লিখতে হয় ও কারণ দিতে হয়। প্রোগ্রাম সবার কাছ থেকে (শিক্ষার্থী, staff, public link, রিমাইন্ডার) সরে যায়; ভুলে মুছলে উদ্ধারের জন্য record ও audit database-এ রেখে দেওয়া হয় (soft delete, `program.deleted` audit)।
+
 ## ২. Database migration (সবই additive)
 | Migration | কাজ |
 |---|---|
 | `202611070001_competition_submission_revisions` | Form grid-এর পরিবর্তনের ইতিহাস (RLS) |
 | `202611070002_incubation_program_cancelled` | status CHECK-এ `cancelled` যোগ |
 | `202611070003_incubation_notifications_results` | `incubation_notifications`, `incubation_results` (RLS) |
+| `202611070004_incubation_program_soft_delete` | প্রোগ্রাম মুছে ফেলার জন্য `deleted_at`, `deleted_by`, `delete_reason` |
 
 কোনো table drop, ডাটা reset বা পুরোনো row পরিবর্তন নেই। বিদ্যমান startup (`ensure-app-role` → `prisma migrate deploy` → `incubation-check-schema`) এগুলো চালাবে; readiness gate নতুন দুই table-এর RLS-ও যাচাই করে।
 

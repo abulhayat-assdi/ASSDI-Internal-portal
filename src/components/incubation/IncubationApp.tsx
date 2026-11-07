@@ -40,6 +40,7 @@ import {
   BookOpen,
   History,
   Table2,
+  Trash2,
   Filter,
   RefreshCw,
   X,
@@ -172,7 +173,7 @@ function Badge({ value }: { value: string }) {
           cancelled: "Cancelled",
           scheduled: "Upcoming",
           running: "Running",
-          ended: "Ended",
+          ended: "Closing",
         } as Row
       )[value] || value}
     </span>
@@ -3677,6 +3678,34 @@ export default function IncubationApp({
                 <div className="inc-row inc-between">
                   <h2>Program and rules</h2>
                   <button
+                    className="inc-btn danger"
+                    disabled={busy}
+                    onClick={async () => {
+                      const typed = window.prompt(
+                        `Delete "${bundle.program.name}"?
+
+It will disappear for everyone (students, staff and the public link). Its records stay in the database history.
+
+Type the program name to confirm:`,
+                      );
+                      if (typed === null) return;
+                      const reason = window.prompt("Reason for deleting (for example: created twice by mistake):");
+                      if (!reason) return;
+                      setBusy(true);
+                      try {
+                        await send("delete_program", { confirmName: typed, reason });
+                        router.push("/dashboard/competitions");
+                      } catch (e) {
+                        setError((e as Error).message);
+                      } finally {
+                        setBusy(false);
+                      }
+                    }}
+                  >
+                    <Trash2 size={15} />
+                    Delete program
+                  </button>
+                  <button
                     className="inc-btn"
                     onClick={() =>
                       setEditor({
@@ -3694,9 +3723,14 @@ export default function IncubationApp({
                     }
                   >
                     <Settings2 size={15} />
-                    Edit
+                    Edit dates & rules
                   </button>
                 </div>
+                <p className="inc-sub">
+                  Runs {bundle.program.startDate} to {bundle.program.endDate || "no end date"}. Students can add
+                  entries only between these dates; after the end date it shows as Closing and only staff can
+                  add or change data. Edit the dates here at any time.
+                </p>
                 <p>{bundle.program.description}</p>
                 <p className="inc-sub">
                   Batches: {bundle.program.batchNames.join(" · ")}

@@ -346,6 +346,11 @@ export async function fieldCorrectionCommand(actor: Actor, input: unknown) {
     const { program } = await accessProgram(tx, actor, body.programId, true),
       p = body.payload;
     insist(!isProgramLocked(program.status), lockedMessage(program.status), 409);
+    insist(
+      actor.role !== "student" || body.action !== "field_correct" || isIncubationRunning(program),
+      "Entries for this program are closed. Contact your teacher if something needs to change.",
+      409,
+    );
     const apply = async (
       sessionId: string,
       version: number,

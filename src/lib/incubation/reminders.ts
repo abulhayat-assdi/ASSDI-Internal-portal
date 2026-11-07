@@ -27,7 +27,7 @@ export async function runIncubationReminders(today = todayDhaka()) {
     if (!isFeatureEnabled(course.settings, "business_incubation")) continue;
     await withCourseContext({ courseId: course.id, isSuperAdmin: false }, async (tx) => {
       const programs = await tx.incubationProgram.findMany({
-        where: { courseId: course.id, status: { in: ["active", "closing"] } },
+        where: { courseId: course.id, deletedAt: null, status: { in: ["active", "closing"] } },
       });
       for (const program of programs) {
         if (!["running", "closing"].includes(incubationState(program, today))) continue;

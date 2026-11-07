@@ -710,3 +710,9 @@
   padding: 0;
   font-size: 13px;
 }
+
+/* "Closing" after the end date reads the same as the stored closing status. */
+.inc-status.ended {
+  background: #e4eefb;
+  color: #2f5f9e;
+}

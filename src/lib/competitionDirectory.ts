@@ -59,6 +59,7 @@ export async function competitionDirectory(actor: Actor, student = false) {
       const programs = isFeatureEnabled(course?.settings, "business_incubation")
         ? await tx.incubationProgram.findMany({
             where: {
+              deletedAt: null,
               ...(student
                 ? {
                     status: { not: "draft" },
@@ -95,6 +96,7 @@ export async function competitionDirectory(actor: Actor, student = false) {
         ...programs
           .map((p) => ({
             id: p.competitionId,
+            programId: p.id,
             title: p.name,
             description: p.description,
             kind: "business_incubation",
