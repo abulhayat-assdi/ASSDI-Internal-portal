@@ -1,6 +1,15 @@
 import "server-only";
 import { z } from "zod";
-import { access, need, hash, secret } from "./access";
+import {
+  access,
+  need,
+  hash,
+  linkToken,
+  linkPath,
+  isPermanent,
+  PERMANENT_UNTIL,
+} from "./access";
+import { randomUUID } from "node:crypto";
 import {
   settingsSchema,
   defaults,
@@ -338,7 +347,12 @@ export async function read(ctx: Identity, w: string, q: URLSearchParams) {
         activeChats: workloads.find((v) => v.agentId === a.userId)?._count || 0,
       })),
       categories,
-      links,
+      // The token hash stays server-side; staff receive only a re-derivable URL path.
+      links: links.map(({ tokenHash, ...link }) => ({
+        ...link,
+        permanent: isPermanent(link.expiresAt),
+        path: linkPath({ ...link, tokenHash }),
+      })),
       sessions: sessions.map((s) =>
         ctx.staff
           ? s
@@ -623,8 +637,14 @@ export async function mutate(ctx: Identity, raw: unknown) {
         .object({
           sessionId: z.string().nullable().default(null),
           hours: z.number().int().min(1).max(720).default(24),
+          permanent: z.boolean().default(false),
         })
         .parse(b.data);
+      need(
+        !(d.permanent && d.sessionId),
+        "Session links must have an expiry",
+        400,
+      );
       if (d.sessionId)
         need(
           await tx.chatTrainingSession.findFirst({
@@ -633,16 +653,47 @@ export async function mutate(ctx: Identity, raw: unknown) {
           "Session not found",
           404,
         );
-      const token = w + "." + secret();
+      // Renewing the permanent link retires the previous permanent general link.
+      if (d.permanent) {
+        const prior = await tx.chatPublicLink.findMany({
+          where: {
+            workspaceId: w,
+            sessionId: null,
+            active: true,
+            expiresAt: { gte: PERMANENT_UNTIL },
+          },
+          select: { id: true },
+        });
+        if (prior.length) {
+          await tx.chatPublicLink.updateMany({
+            where: { workspaceId: w, id: { in: prior.map((p) => p.id) } },
+            data: { active: false },
+          });
+          for (const p of prior)
+            await event(tx, s, a.id, "link_changed", null, {
+              id: p.id,
+              active: false,
+              replaced: true,
+            });
+        }
+      }
+      const id = randomUUID(),
+        token = linkToken(w, id);
       const value = await tx.chatPublicLink.create({
         data: {
           ...s,
+          id,
           sessionId: d.sessionId,
           tokenHash: hash(token),
-          expiresAt: new Date(+now + d.hours * 3600000),
+          expiresAt: d.permanent
+            ? PERMANENT_UNTIL
+            : new Date(+now + d.hours * 3600000),
         },
       });
-      await event(tx, s, a.id, "link_created", null, { id: value.id });
+      await event(tx, s, a.id, "link_created", null, {
+        id: value.id,
+        permanent: d.permanent,
+      });
       return { id: value.id, path: "/live-chat/" + token };
     }
     if (b.action === "link_state") {

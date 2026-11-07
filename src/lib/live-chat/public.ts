@@ -28,13 +28,21 @@ async function throttle(
   s: { courseId: string; workspaceId: string },
   key: string,
   limit: number,
+  windowSeconds = 60,
 ) {
+  const ms = windowSeconds * 1000;
   const id = hash(
-    s.courseId + s.workspaceId + key + Math.floor(Date.now() / 60000),
+    s.courseId +
+      s.workspaceId +
+      key +
+      ":" +
+      windowSeconds +
+      ":" +
+      Math.floor(Date.now() / ms),
   );
   const bucket = await tx.chatRateBucket.upsert({
     where: { id },
-    create: { ...s, id, expiresAt: new Date(Date.now() + 120000) },
+    create: { ...s, id, expiresAt: new Date(Date.now() + 2 * ms) },
     update: { count: { increment: 1 } },
   });
   // A rejected mutation must commit this counter, so callers return a tagged result.
@@ -56,6 +64,18 @@ export async function publicRead(req: NextRequest, token: string) {
           }),
           training: true,
           accepting: link && businessOpen(settings),
+          // A yes/no only: customers never see agent names, counts or contact details.
+          agentsOnline:
+            (await tx.chatAgentState.count({
+              where: {
+                workspaceId: link.workspaceId,
+                status: "AVAILABLE",
+                heartbeatAt: {
+                  gte: new Date(Date.now() - settings.disconnectSeconds * 1000),
+                },
+              },
+            })) > 0,
+          linkOpen: link.active && link.expiresAt > new Date(),
           feedback: settings.feedback,
           scenario: training?.scenario || "",
         };
@@ -172,9 +192,20 @@ export async function publicMutate(
             categoryId: z.string(),
             text: z.string().trim().min(1).max(8000),
             requestId: z.string().uuid(),
+            // Hidden form field: people leave it empty, simple bots fill it in.
+            website: z.string().max(200).optional(),
           })
           .parse(b.data);
-        if (!(await throttle(tx, s, "start:" + getClientIp(req), 120)))
+        need(!d.website, "Unable to start chat", 400);
+        // A whole classroom may share one public IP, so the per-minute IP limit stays
+        // generous; the hourly IP cap and workspace-wide cap bound abuse of a
+        // permanently shared link.
+        const ip = getClientIp(req);
+        if (
+          !(await throttle(tx, s, "start:" + ip, 120)) ||
+          !(await throttle(tx, s, "start-hour:" + ip, 600, 3600)) ||
+          !(await throttle(tx, s, "start-all", 300))
+        )
           return { limited: true };
         need(businessOpen(cfg), "Chat is outside opening hours", 409);
         const category = await tx.chatCategory.findFirst({
