@@ -174,7 +174,7 @@ export async function accessProgram(
     );
   return { program, member };
 }
-async function audit(
+export async function audit(
   tx: Tx,
   a: Actor,
   pid: string,
@@ -1559,6 +1559,8 @@ export async function command(actor: Actor, input: unknown) {
           req.reason,
         );
       }
+      if (!v.approve)
+        await audit(tx, actor, pid, "correction.rejected", req.recordId, req.record, null, v.reason);
       return tx.incubationCorrection.update({
         where: { id: req.id },
         data: {

@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { mkdir, writeFile, unlink } from "node:fs/promises";
 import { getSessionUser } from "@/lib/auth";
-import { featureTx, accessProgram, type Actor } from "@/lib/incubation/server";
+import { featureTx, accessProgram, audit, type Actor } from "@/lib/incubation/server";
 import { insist } from "@/lib/incubation/domain";
 import { isProgramLocked, lockedMessage } from "@/lib/incubation/lifecycle";
 import { failure } from "@/lib/incubation/http";
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
       insist(written.startsWith(base + path.sep), "অবৈধ ফাইল পাথ।");
       await mkdir(path.dirname(written), { recursive: true });
       await writeFile(written, buffer, { flag: "wx" });
-      return tx.incubationAttachment.create({
+      const attachment = await tx.incubationAttachment.create({
         data: {
           courseId: actor.courseId,
           programId,
@@ -74,6 +74,13 @@ export async function POST(req: NextRequest) {
           path: relative,
         },
       });
+      await audit(tx, actor, programId, "file.uploaded", attachment.id, null, {
+        name: attachment.name,
+        mime: attachment.mime,
+        size: attachment.size,
+        teamId,
+      });
+      return attachment;
     });
     return NextResponse.json({ id: result.id, name: result.name });
   } catch (e) {

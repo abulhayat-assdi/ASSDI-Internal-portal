@@ -4,6 +4,7 @@ import { isIncubationRunning, isProgramLocked, lockedMessage } from "./lifecycle
 import { Prisma } from "@prisma/client";
 import {
   accessProgram,
+  audit,
   featureTx,
   settingsSchema,
   isManager,
@@ -221,6 +222,12 @@ export async function fieldCommand(actor: Actor, input: unknown) {
           carried: json(body.carried || []),
         },
       });
+      await audit(tx, actor, program.id, "field.checkin", session.id, null, {
+        teamId: session.teamId,
+        userName: session.userName,
+        startAreaId: session.startAreaId,
+        carried: body.carried || [],
+      });
     } else {
       insist(
         session &&
@@ -425,7 +432,7 @@ export async function fieldCorrectionCommand(actor: Actor, input: unknown) {
       insist(old.version === v.version, "সেশন পরিবর্তিত হয়েছে।", 409);
       if (isManager(actor))
         return apply(old.id, v.version, v.proposed, v.reason);
-      return tx.incubationFieldCorrection.create({
+      const request = await tx.incubationFieldCorrection.create({
         data: {
           courseId: actor.courseId,
           programId: program.id,
@@ -444,6 +451,8 @@ export async function fieldCorrectionCommand(actor: Actor, input: unknown) {
           requestedByName: actor.displayName,
         },
       });
+      await audit(tx, actor, program.id, "field.correction.requested", old.id, request.before, request.proposed, v.reason);
+      return request;
     }
     insist(
       actor.role !== "student" && isSupervisor(actor),
@@ -465,6 +474,8 @@ export async function fieldCorrectionCommand(actor: Actor, input: unknown) {
       "অনুরোধ ইতিমধ্যে পর্যালোচিত হয়েছে।",
       409,
     );
+    if (!v.approve)
+      await audit(tx, actor, program.id, "field.correction.rejected", request.sessionId, request.before, request.proposed, v.reason);
     if (v.approve)
       await apply(
         request.sessionId,
