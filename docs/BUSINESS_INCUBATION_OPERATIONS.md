@@ -4,7 +4,7 @@
 
 এই release-এ Business Incubation-এর ওয়েব ফিচার রয়েছে। Android অ্যাপের পরিকল্পনা `ANDROID_PORTAL_APP_PLAN.md`-তে রাখা আছে; APK বা ফোন লক অবস্থার tracking এই release-এর অংশ নয়।
 
-কাজের branch: `feature/incubation-competitions-v2`। ব্যবহারকারীর স্পষ্ট নির্দেশ ছাড়া main-এ merge, push বা production deployment করা হবে না।
+আগের revision (`feature/incubation-competitions-v2`) main-এ merge হয়েছে (`71feabb`)। v3-এর পরিবর্তন (lifecycle lock, রিমাইন্ডার, ranking, form grid সংশোধন) `docs/BUSINESS_INCUBATION_V3.md`-এ। ব্যবহারকারীর স্পষ্ট নির্দেশ ছাড়া main-এ merge, push বা production deployment করা হবে না।
 
 ## কোর্সে চালু করা
 

@@ -1,0 +1,96 @@
+# Business Incubation v3 — পরিবর্তন, ব্যবহার ও যাচাই
+
+Branch: `feature/incubation-v3` (worktree `asm-portal-v2-incubation-v3`), main `f3a4da9` থেকে শুরু।
+অবস্থা: বাস্তবায়ন ও স্থানীয় যাচাই সম্পন্ন; ব্যবহারকারীর review-এর অপেক্ষায়। main-এ merge, push, production migration বা deployment ব্যবহারকারীর আলাদা অনুমোদন ছাড়া হবে না।
+
+ব্যবহারকারীর সিদ্ধান্ত (২০২৬-১১-০৭): Application/Screening/Judge/Mentor (Track B) এখন নয়; Form competition grid সংশোধন P0; ranking-এর মানদণ্ড Revenue; রিমাইন্ডার In-app + Email।
+
+## ১. কী বদলেছে
+
+### Form competition (Battle of Cups ইত্যাদি) — Manage Responses grid
+- সেভ এখন **সব-অথবা-কিছুই-না**। একটি row-এ ভুল থাকলে কিছুই সেভ হয় না; কোন sheet-এর কোন row-এ কী ভুল তা লাল করে দেখায়। আগে ভুল চাপা পড়ে "success" দেখাত।
+- ফর্মের নিজের নিয়মে যাচাই: সংখ্যা, তারিখ, বাধ্যতামূলক উত্তর, BD mobile।
+- স্বয়ংক্রিয় normalisation: `01`→`1`, `00`→`0`, `1,200`→`1200`, বাংলা অঙ্ক→ইংরেজি, `11/10/2026`→`2026-10-11`।
+- শুধু বদলানো row পাঠানো হয়; বদলানো ঘর হলুদ, অসংরক্ষিত পরিবর্তনের সংখ্যা দেখায়, বন্ধ করার আগে সতর্ক করে।
+- একই টিমের (বা একই শিক্ষার্থীর) একই দিনের দ্বিতীয় রিপোর্ট আটকানো হয়।
+- Grid খোলার পর অন্য কেউ row বদলালে সেই row সেভ হয় না (409)।
+- Repeater-এর ৫টির বেশি item আর হারায় না।
+- প্রতিটি তৈরি/বদল/মোছা `competition_submission_revisions`-এ আগে-পরের মানসহ থাকে।
+- পুরোনো ডাটা বদলানো হয়নি; নিয়ম শুধু নতুন বা বদলানো row-এ প্রযোজ্য।
+- Hub-এ form competition-এর অবস্থা এখন তারিখ থেকে (Asia/Dhaka): শেষ তারিখ পেরোলে "সময় শেষ"।
+
+### Business Incubation — lifecycle
+| থেকে | যেতে পারে | কারণ লাগবে |
+|---|---|---|
+| খসড়া | সক্রিয়, বাতিল | বাতিলে |
+| সক্রিয় | হিসাব মেলানো, বন্ধ, খসড়া*, বাতিল | খসড়া/বাতিলে |
+| হিসাব মেলানো | সক্রিয়, বন্ধ | সক্রিয়তে ফেরাতে |
+| বন্ধ | হিসাব মেলানো, আর্কাইভ | হিসাব মেলানোয় ফেরাতে |
+| আর্কাইভ | বন্ধ | হ্যাঁ |
+| বাতিল | খসড়া, আর্কাইভ | খসড়ায় |
+
+\* এন্ট্রি থাকলে খসড়ায় ফেরানো যায় না। "চলমান / আসন্ন / সময় শেষ" তারিখ থেকে স্বয়ংক্রিয়ভাবে হিসাব হয়।
+
+- **বন্ধ, আর্কাইভ ও বাতিল প্রোগ্রাম সার্ভারে read-only**: এন্ট্রি, সংশোধন, bulk edit, অনুমোদন, টিম, catalog, sprint, শেয়ার, মাঠের সংশোধন ও upload — সব বন্ধ। খোলা মাঠ সেশনের check-out করা যায়। খুলতে হলে কারণসহ অবস্থা বদলাতে হয়; audit-এ `program.status.<আগে>><পরে>` থাকে।
+- টিম আবার সেভ করলে সদস্যের রেকর্ড মুছে নতুন বানানো হয় না (ID অপরিবর্তিত)। স্টক, ক্যাশ বা ফেরতযোগ্য ফান্ড থাকা টিম নিষ্ক্রিয় করা যায় না।
+- Audit-এ নতুন: সংশোধন প্রত্যাখ্যান, check-in, মাঠ-সংশোধনের অনুরোধ/প্রত্যাখ্যান, file upload, ফলাফল প্রকাশ/প্রত্যাহার।
+
+### আজকের করণীয় ও রিমাইন্ডার
+- Staff ড্যাশবোর্ডের শুরুতে **"আজকের করণীয়"**: লিডার নেই, আজ sprint নেই, গতকালের বিক্রি নেই, FGD বাকি (চালু থাকলে), check-out বাকি, দেরির এন্ট্রি/হস্তান্তর/সংশোধন অপেক্ষায়।
+- লিডার/সদস্যের home-এ শুধু নিজের জরুরি কাজ। সদস্য টিমের বিক্রির রিমাইন্ডার পান না।
+- প্রতিদিন একবার রিমাইন্ডার: লিডার/সদস্য প্রতি বিষয়ে একটি, staff প্রতি প্রোগ্রামে একটি digest। একই দিনে দ্বিতীয়বার চললেও নতুন কিছু তৈরি হয় না। ঘণ্টার (🔔) বোতামে দেখা যায়।
+- Course-এ `email_notifications` চালু ও SMTP থাকলে প্রত্যেকে দিনে একটি email পান।
+- Setup-এ: "আগের দিনের বিক্রির রিমাইন্ডার" (ডিফল্ট চালু), "FGD রিমাইন্ডার: প্রতি কত দিনে" (ডিফল্ট বন্ধ)।
+- Staff প্রাপক: প্রোগ্রামের staff তালিকা; তালিকা ফাঁকা হলে course-এর সব admin ও teacher।
+
+### Ranking ও ফলাফল (Revenue)
+- মানদণ্ড: বিক্রির আয় (গ্রাহক refund বাদে); অন্য টিমে হস্তান্তর বিক্রি নয়। আয় সমান হলে নিট লাভ বেশি যার সে আগে; দুটোই সমান হলে একই স্থান।
+- রিপোর্ট ট্যাবে চলমান র‍্যাংকিং; **"ফলাফল প্রকাশ করুন"** একটি স্থির snapshot রাখে (নোটসহ, যেমন "সপ্তাহ ১")। নতুন করে প্রকাশ করলে আগেরটি প্রতিস্থাপিত হয়; প্রত্যাহারও করা যায়। বন্ধ প্রোগ্রামেও প্রকাশ করা যায়।
+- শিক্ষার্থীর home ও public link-এ শুধু প্রকাশিত ফলাফল (স্থান, টিম, আয়, নিট লাভ)।
+
+### ডাটা শিট এডিটর
+- টিম, ধরন, জমাদাতা ও record ID কলাম; খোঁজার ঘর; বদলানো row হাইলাইট।
+
+## ২. Database migration (সবই additive)
+| Migration | কাজ |
+|---|---|
+| `202611070001_competition_submission_revisions` | Form grid-এর পরিবর্তনের ইতিহাস (RLS) |
+| `202611070002_incubation_program_cancelled` | status CHECK-এ `cancelled` যোগ |
+| `202611070003_incubation_notifications_results` | `incubation_notifications`, `incubation_results` (RLS) |
+
+কোনো table drop, ডাটা reset বা পুরোনো row পরিবর্তন নেই। বিদ্যমান startup (`ensure-app-role` → `prisma migrate deploy` → `incubation-check-schema`) এগুলো চালাবে; readiness gate নতুন দুই table-এর RLS-ও যাচাই করে।
+
+## ৩. চালু করার আগে (প্রশাসক)
+1. Deploy-এর আগে database ও `/app/storage` backup।
+2. `CRON_SECRET` (১৬+ অক্ষর) সেট থাকতে হবে, নইলে দৈনিক রিমাইন্ডার চলবে না। একাধিক instance হলে `DISABLE_INTERNAL_CRON=1` দিয়ে external scheduler থেকে `POST /api/cron/incubation-reminders` (`x-cron-secret` header) ডাকুন।
+3. **সময়:** internal scheduler container-এর ঘড়িতে সকাল ৭টার পরে চলে। Container-এ TZ সেট নেই (UTC), তাই এখন বাংলাদেশ সময় দুপুর ১টার পরে চলবে। সকালে চাইলে container-এ `TZ=Asia/Dhaka` দিন — এতে attendance alert-ও সকাল ৭টায় সরবে।
+4. Email চাইলে course settings-এ email notifications চালু ও SMTP ঠিক রাখুন।
+5. প্রোগ্রাম setup-এ রিমাইন্ডার settings দেখে নিন; প্রতিটি টিমে লিডার ও sprint আছে কিনা "আজকের করণীয়"-তে দেখুন।
+
+## ৪. Rollback
+আগের application release-এ ফেরা যায়; নতুন table/column রেখে দিন (পুরোনো code এগুলো ব্যবহার করে না)। ব্যতিক্রম: কোনো প্রোগ্রাম `cancelled` অবস্থায় থাকলে পুরোনো code সেটি বুঝবে না — rollback-এর আগে সেটি `draft`/`archived` করুন। Database restore সাধারণ rollback নয়।
+
+## ৫. যাচাইয়ের ফলাফল (স্থানীয়, ২০২৬-১১-০৭)
+| পরীক্ষা | ফল |
+|---|---|
+| Incubation Vitest (PGlite-এ আসল migration) — lifecycle, lock, টিম ID, রিমাইন্ডার, ranking, audit সহ | ৫৭/৫৭ পাস |
+| Form grid unit (`competitionBulk`), competitions | পাস (মোট ৮১/৮১ লক্ষ্যভিত্তিক) |
+| পুরো `src/lib` Vitest | ৪০৩ পাস, ১টি ব্যর্থ — `leaveDuration.test.ts` (এই কাজে স্পর্শ করা হয়নি; আগে থেকেই ব্যর্থ) |
+| TypeScript (পুরো প্রজেক্ট) | পাস |
+| `test/incubation-http.mjs` (disposable preview) | পাস |
+| `test/incubation-access-http.mjs` (role/টিম/প্রোগ্রাম isolation, form regression) | পাস |
+| `test/form-grid-http.mjs` (নতুন: atomic, normalise, duplicate দিন, stale edit, update/delete, student 403) | পাস |
+| `test/incubation-browser.mjs` — member/leader/teacher/admin/public, Chrome | পাস |
+| Screenshot পর্যালোচনা (ignored `.incubation-test/v3/`) — dashboard, ranking, bell, lead mobile, form grid error, sheet editor | কোনো page error নেই |
+| Linux production Docker build (`asm-incubation-v3:review`) | পাস |
+| Populated upgrade: main-এর migration + নমুনা ডাটা → নতুন image চালু | ৩টি migration প্রয়োগ, readiness gate পাস, `/api/health` ok, ডাটার fingerprint আগে-পরে হুবহু এক |
+| নতুন table-এ RLS (forced) ও `cancelled` CHECK | পাস |
+| Production image-এ রিমাইন্ডার cron | admin-এর একটি digest; দ্বিতীয়বার ০; ভুল secret → 401 |
+| Container restart (repeat deploy) | "No pending migrations", ডাটা অপরিবর্তিত, duplicate competition নেই |
+
+## ৬. এখনো করা হয়নি (পরবর্তী ধাপ)
+- Track B: registration/application, screening, rubric/judge, mentor।
+- TanStack-ভিত্তিক shared DataSheet (column customization, CSV import)।
+- Milestone/deadline table, সাপ্তাহিক/মাসিক রিপোর্ট preset, audit history-তে field diff।
+- `IncubationApp.tsx` / `server.ts` বিভাজন (refactor)।
+- Overview/export-এ pagination এবং ledger caching (record হাজার ছাড়ালে)।
