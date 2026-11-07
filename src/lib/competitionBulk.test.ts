@@ -134,3 +134,16 @@ describe("stableStringify", () => {
     expect(stableStringify({ b: 1, a: [{ y: 2, x: 1 }] })).toBe(stableStringify({ a: [{ x: 1, y: 2 }], b: 1 }));
   });
 });
+
+describe("formState", () => {
+  it("derives the hub state from the switch and the Dhaka dates", async () => {
+    const { formState } = await import("./competitions");
+    const c = { isActive: true, startDate: "2026-10-10T00:00:00+06:00", endDate: "2026-10-20T23:59:59+06:00" };
+    expect(formState(c, "2026-10-09")).toBe("scheduled");
+    expect(formState(c, "2026-10-15")).toBe("running");
+    expect(formState(c, "2026-10-20")).toBe("running");
+    expect(formState(c, "2026-10-21")).toBe("ended");
+    expect(formState({ ...c, endDate: null }, "2027-01-01")).toBe("running");
+    expect(formState({ ...c, isActive: false }, "2026-10-15")).toBe("ended");
+  });
+});

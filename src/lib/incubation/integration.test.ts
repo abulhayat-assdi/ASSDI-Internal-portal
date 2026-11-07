@@ -644,6 +644,111 @@ describe("real migration and transactional incubation workflows", () => {
     });
     await expect(api.overview(lead, created.id)).rejects.toThrow();
   });
+  it("follows the lifecycle state machine and locks closed, archived and cancelled programs", async () => {
+    const base = {
+      name: "Lifecycle program",
+      description: "",
+      startDate: todayDhaka(),
+      endDate: null,
+      batchNames: ["Batch 1"],
+      staffIds: [],
+      settings,
+    };
+    await expect(
+      api.command(manager, { action: "program", payload: { ...base, status: "closed" } }),
+    ).rejects.toThrow(/খসড়া বা সক্রিয়/);
+    const created = (await api.command(manager, {
+      action: "program",
+      payload: { ...base, status: "draft" },
+    })) as any;
+    const save = (status: string, reason?: string, extra: Record<string, unknown> = {}) =>
+      api.command(manager, {
+        action: "program",
+        programId: created.id,
+        payload: { ...base, ...extra, status, ...(reason ? { reason } : {}) },
+      });
+    await save("active");
+    // Skipping straight from active to archived is not a valid move.
+    await expect(save("archived")).rejects.toThrow(/সরাসরি/);
+    await save("closed");
+    const teamPayload = {
+      name: "Late team",
+      studentIds: ["s-target"],
+      leadId: "s-target",
+      active: true,
+    };
+    await expect(
+      api.command(manager, { action: "team", programId: created.id, payload: teamPayload }),
+    ).rejects.toThrow(/পরিবর্তন করা যাবে না/);
+    await expect(
+      api.command(manager, {
+        action: "catalog",
+        programId: created.id,
+        payload: { kind: "area", name: "X", parentId: null, unit: "piece", fractional: false, active: true },
+      }),
+    ).rejects.toThrow(/পরিবর্তন করা যাবে না/);
+    // A locked program cannot be edited by re-saving it with the same status.
+    await expect(save("closed", undefined, { name: "Renamed" })).rejects.toThrow(/পরিবর্তন করা যাবে না/);
+    await save("archived");
+    expect(
+      (await prisma.incubationProgram.findUniqueOrThrow({ where: { id: created.id } })).name,
+    ).toBe("Lifecycle program");
+    // Reopening needs a reason and is audited.
+    await expect(save("closed")).rejects.toThrow(/কারণ/);
+    await save("closed", "Correcting a missed sale");
+    await save("closing", "Correcting a missed sale");
+    await api.command(manager, { action: "team", programId: created.id, payload: teamPayload });
+    const audit = await prisma.incubationAudit.findMany({
+      where: { programId: created.id, action: { startsWith: "program.status." } },
+      orderBy: { createdAt: "asc" },
+    });
+    expect(audit.map((a) => a.action)).toEqual([
+      "program.status.draft>active",
+      "program.status.active>closed",
+      "program.status.closed>archived",
+      "program.status.archived>closed",
+      "program.status.closed>closing",
+    ]);
+    expect(audit[3].reason).toBe("Correcting a missed sale");
+  });
+
+  it("re-saving a team keeps member ids, and a team holding money or stock cannot be deactivated", async () => {
+    const before = await prisma.incubationMember.findMany({ where: { teamId: teamA }, orderBy: { studentId: "asc" } });
+    const lead = before.find((m) => m.isLead)!;
+    const payload = { id: teamA, name: "Team A", studentIds: before.map((m) => m.studentId), leadId: lead.studentId };
+    await api.command(manager, { action: "team", programId, payload: { ...payload, active: true } });
+    const after = await prisma.incubationMember.findMany({ where: { teamId: teamA }, orderBy: { studentId: "asc" } });
+    expect(after.map((m) => [m.id, m.studentId, m.isLead])).toEqual(before.map((m) => [m.id, m.studentId, m.isLead]));
+    await expect(
+      api.command(manager, { action: "team", programId, payload: { ...payload, active: false } }),
+    ).rejects.toThrow(/নিষ্ক্রিয়/);
+    expect((await prisma.incubationTeam.findUniqueOrThrow({ where: { id: teamA } })).active).toBe(true);
+  });
+
+  it("refuses to send a program with entries back to draft, and cancelling needs a reason", async () => {
+    const current = await prisma.incubationProgram.findUniqueOrThrow({ where: { id: programId } });
+    expect(current.status).toBe("active");
+    const payload = {
+      name: current.name,
+      description: current.description,
+      startDate: current.startDate,
+      endDate: current.endDate,
+      batchNames: current.batchNames,
+      staffIds: current.staffIds,
+      settings,
+    };
+    await expect(
+      api.command(manager, {
+        action: "program",
+        programId,
+        payload: { ...payload, status: "draft", reason: "test" },
+      }),
+    ).rejects.toThrow(/খসড়ায় ফেরানো যায় না/);
+    await expect(
+      api.command(manager, { action: "program", programId, payload: { ...payload, status: "cancelled" } }),
+    ).rejects.toThrow(/কারণ/);
+  });
+
   it("audit history cannot be overwritten even by a direct database update", async () => {
     await expect(
       fixture.db.exec("UPDATE incubation_audit SET reason='changed'"),

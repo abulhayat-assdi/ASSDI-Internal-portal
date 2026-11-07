@@ -9,7 +9,14 @@ import { z } from "zod";
 import type { JWTPayload } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 import { isFeatureEnabled } from "@/lib/features";
-import { isIncubationRunning, incubationState } from "./lifecycle";
+import {
+  checkTransition,
+  incubationState,
+  isIncubationRunning,
+  isProgramLocked,
+  lockedMessage,
+  PROGRAM_STATUSES,
+} from "./lifecycle";
 import { withCourseContext } from "@/lib/db";
 import {
   calculateLedger,
@@ -772,7 +779,7 @@ export async function command(actor: Actor, input: unknown) {
           batchNames: z.array(text).min(1),
           staffIds: z.array(id),
           settings: settingsSchema,
-          status: z.enum(["draft", "active", "closing", "closed", "archived"]),
+          status: z.enum(PROGRAM_STATUSES),
         })
         .parse(p);
       insist(
@@ -806,6 +813,28 @@ export async function command(actor: Actor, input: unknown) {
       const before = body.programId
         ? (await accessProgram(tx, actor, body.programId, true)).program
         : null;
+      const reason = String(p.reason || "").trim();
+      if (!before)
+        insist(
+          values.status === "draft" || values.status === "active",
+          "নতুন প্রোগ্রাম খসড়া বা সক্রিয় অবস্থায় তৈরি করুন।",
+        );
+      if (before) {
+        insist(
+          !isProgramLocked(before.status) || values.status !== before.status,
+          lockedMessage(before.status),
+          409,
+        );
+        const transitionError = checkTransition(before.status, values.status, reason);
+        insist(!transitionError, transitionError ?? "");
+        if (before.status === "active" && values.status === "draft") {
+          const used = await tx.incubationRecord.count({ where: { programId: before.id } });
+          insist(
+            used === 0,
+            "এন্ট্রি থাকা প্রোগ্রাম খসড়ায় ফেরানো যায় না। প্রয়োজনে 'হিসাব মেলানো' বা 'বাতিল' করুন।",
+          );
+        }
+      }
       if (before && values.status === "closed" && before.status !== "closed") {
         const balances = await ledger(tx, before.id);
         const unresolved = balances.summaries.some(
@@ -823,7 +852,11 @@ export async function command(actor: Actor, input: unknown) {
       const result = before
         ? await tx.incubationProgram.update({
             where: { id: before.id },
-            data: { ...values, settings: json(values.settings) },
+            // Between two locked states (e.g. closed → archived) only the status moves.
+            data:
+              isProgramLocked(before.status) && isProgramLocked(values.status)
+                ? { status: values.status }
+                : { ...values, settings: json(values.settings) },
           })
         : await tx.incubationProgram.create({
             data: {
@@ -866,11 +899,15 @@ export async function command(actor: Actor, input: unknown) {
         tx,
         actor,
         result.id,
-        before ? "program.updated" : "program.created",
+        !before
+          ? "program.created"
+          : before.status !== result.status
+            ? `program.status.${before.status}>${result.status}`
+            : "program.updated",
         result.id,
         before,
         result,
-        String(p.reason || ""),
+        reason,
       );
       return { id: result.id, competitionId: result.competitionId };
     }
@@ -881,6 +918,7 @@ export async function command(actor: Actor, input: unknown) {
       body.programId,
       true,
     );
+    insist(!isProgramLocked(program.status), lockedMessage(program.status), 409);
     const pid = program.id;
     if (["team", "catalog", "sprint", "share"].includes(body.action))
       insist(manager, "প্রশাসকের অনুমতি প্রয়োজন।", 403);
@@ -937,6 +975,14 @@ export async function command(actor: Actor, input: unknown) {
         "একজন শিক্ষার্থী একই প্রোগ্রামে একাধিক টিমে থাকতে পারবেন না।",
         409,
       );
+      if (before?.active && !v.active) {
+        const own = (await ledger(tx, pid)).summaries.find((x) => x.teamId === before.id);
+        insist(
+          !own || (own.stockValue === 0 && own.cash === 0 && own.principalOutstanding === 0),
+          "এই টিমের কাছে স্টক, ক্যাশ বা ফেরতযোগ্য ফান্ড আছে। আগে হিসাব মিলিয়ে তারপর টিম নিষ্ক্রিয় করুন।",
+          409,
+        );
+      }
       if (before && before.batchName !== students[0].batchName)
         insist(
           !(await tx.incubationRecord.count({ where: { teamId: before.id } })),
@@ -960,18 +1006,39 @@ export async function command(actor: Actor, input: unknown) {
               courseId: actor.courseId,
             },
           });
-      await tx.incubationMember.deleteMany({ where: { teamId: team.id } });
+      // Keep existing member rows (and their ids); only add/remove the difference.
+      // Leads are cleared first so the one-lead-per-team index never sees two.
+      const keep = new Set(students.map((s) => s.id));
+      const existingIds = new Set((before?.members ?? []).map((m) => m.studentId));
+      await tx.incubationMember.updateMany({
+        where: { teamId: team.id, isLead: true },
+        data: { isLead: false },
+      });
+      await tx.incubationMember.deleteMany({
+        where: { teamId: team.id, studentId: { notIn: [...keep] } },
+      });
+      for (const s of students.filter((x) => existingIds.has(x.id)))
+        await tx.incubationMember.updateMany({
+          where: { teamId: team.id, studentId: s.id },
+          data: { name: s.name, roll: s.roll, batchName: s.batchName },
+        });
       await tx.incubationMember.createMany({
-        data: students.map((s) => ({
-          courseId: actor.courseId,
-          programId: pid,
-          teamId: team.id,
-          studentId: s.id,
-          name: s.name,
-          roll: s.roll,
-          batchName: s.batchName,
-          isLead: s.id === v.leadId,
-        })),
+        data: students
+          .filter((s) => !existingIds.has(s.id))
+          .map((s) => ({
+            courseId: actor.courseId,
+            programId: pid,
+            teamId: team.id,
+            studentId: s.id,
+            name: s.name,
+            roll: s.roll,
+            batchName: s.batchName,
+            isLead: false,
+          })),
+      });
+      await tx.incubationMember.updateMany({
+        where: { teamId: team.id, studentId: v.leadId },
+        data: { isLead: true },
       });
       await audit(tx, actor, pid, "team.saved", team.id, before, {
         ...team,

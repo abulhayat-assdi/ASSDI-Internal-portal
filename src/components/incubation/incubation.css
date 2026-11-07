@@ -317,12 +317,19 @@
   background: #fff0d7;
   color: #9b6a20;
 }
+.inc-status.scheduled,
+.inc-status.closing {
+  background: #e4eefb;
+  color: #2f5f9e;
+}
 .inc-status.rejected,
+.inc-status.cancelled,
 .inc-status.void {
   background: #fae9e5;
   color: #ac503d;
 }
 .inc-status.draft,
+.inc-status.ended,
 .inc-status.closed,
 .inc-status.archived {
   background: #ebeeed;

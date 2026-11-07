@@ -58,6 +58,12 @@ import {
   type Product,
 } from "@/lib/incubation/domain";
 import { buildReport, type ReportFilters } from "@/lib/incubation/report";
+import {
+  allowedTransitions,
+  isProgramLocked,
+  STATUS_LABELS,
+  transitionNeedsReason,
+} from "@/lib/incubation/lifecycle";
 import "./incubation.css";
 import RecordSnapshot from "./RecordSnapshot";
 import BulkSheetEditor from "./BulkSheetEditor";
@@ -154,6 +160,10 @@ function Badge({ value }: { value: string }) {
           closing: "হিসাব মেলানো",
           closed: "সমাপ্ত",
           archived: "আর্কাইভ",
+          cancelled: "বাতিল",
+          scheduled: "আসন্ন",
+          running: "চলমান",
+          ended: "সময় শেষ",
         } as Row
       )[value] || value}
     </span>
@@ -1116,15 +1126,15 @@ export default function IncubationApp({
                         value={editor.data.status}
                         onChange={(e) => setValue("status", e.target.value)}
                       >
-                        {[
-                          "draft",
-                          "active",
-                          "closing",
-                          "closed",
-                          "archived",
-                        ].map((s) => (
+                        {(editor.data.id
+                          ? [
+                              bundle?.program?.status || "draft",
+                              ...allowedTransitions(bundle?.program?.status || "draft"),
+                            ]
+                          : ["draft", "active"]
+                        ).map((s) => (
                           <option key={s} value={s}>
-                            {s}
+                            {STATUS_LABELS[s] || s}
                           </option>
                         ))}
                       </select>
@@ -1152,8 +1162,22 @@ export default function IncubationApp({
                       onChange={(e) => setValue("description", e.target.value)}
                     />
                   </Field>
-                  {editor.data.status === "closed" && (
-                    <Field name="অসম্পূর্ণ হিসাব থাকলে বন্ধ করার ব্যাখ্যা">
+                  {editor.data.id && isProgramLocked(bundle?.program?.status || "") && (
+                    <div className="inc-notice">
+                      এই প্রোগ্রাম এখন &quot;{STATUS_LABELS[bundle?.program?.status] || bundle?.program?.status}&quot;।
+                      শুধু অবস্থা বদলানো যাবে; অন্য তথ্য বদলাতে আগে কারণসহ আবার চালু করুন।
+                    </div>
+                  )}
+                  {(editor.data.status === "closed" ||
+                    (editor.data.id &&
+                      transitionNeedsReason(bundle?.program?.status || "", editor.data.status))) && (
+                    <Field
+                      name={
+                        editor.data.status === "closed"
+                          ? "অসম্পূর্ণ হিসাব থাকলে বন্ধ করার ব্যাখ্যা"
+                          : "অবস্থা বদলের কারণ (বাধ্যতামূলক)"
+                      }
+                    >
                       <textarea
                         value={editor.data.reason || ""}
                         onChange={(e) => setValue("reason", e.target.value)}

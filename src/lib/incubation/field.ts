@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { isIncubationRunning } from "./lifecycle";
+import { isIncubationRunning, isProgramLocked, lockedMessage } from "./lifecycle";
 import { Prisma } from "@prisma/client";
 import {
   accessProgram,
@@ -338,6 +338,7 @@ export async function fieldCorrectionCommand(actor: Actor, input: unknown) {
   return featureTx(actor, async (tx) => {
     const { program } = await accessProgram(tx, actor, body.programId, true),
       p = body.payload;
+    insist(!isProgramLocked(program.status), lockedMessage(program.status), 409);
     const apply = async (
       sessionId: string,
       version: number,

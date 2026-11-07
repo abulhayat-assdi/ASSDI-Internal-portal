@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { STATUS_LABELS } from "@/lib/incubation/lifecycle";
 import Link from "next/link";
 import {
   Trophy,
@@ -33,9 +34,11 @@ export default function CompetitionHub({
       filter === "all" ||
       (filter === "running"
         ? c.state === "running"
-        : filter === "incubation"
-          ? c.kind === "business_incubation"
-          : ["ended", "closed", "closing", "archived"].includes(c.state)),
+        : filter === "upcoming"
+          ? ["scheduled", "draft"].includes(c.state)
+          : filter === "incubation"
+            ? c.kind === "business_incubation"
+            : ["ended", "closed", "closing", "archived", "cancelled"].includes(c.state)),
   );
   return (
     <main className="inc">
@@ -76,6 +79,7 @@ export default function CompetitionHub({
       <nav className="inc-tabs" aria-label="Competition filter">
         {[
           ["running", "চলমান"],
+          ["upcoming", "আসন্ন / খসড়া"],
           ["all", "সব"],
           ["incubation", "Business Incubation"],
           ["ended", "শেষ / ইতিহাস"],
@@ -100,7 +104,9 @@ export default function CompetitionHub({
           <article className="inc-card" key={c.id}>
             <div className="inc-row inc-between">
               <Trophy size={22} />
-              <span className="inc-status">{c.state}</span>
+              <span className={`inc-status ${c.state}`}>
+                {STATUS_LABELS[c.state] || c.state}
+              </span>
             </div>
             <p className="inc-eyebrow" style={{ marginTop: 20 }}>
               {c.kind === "business_incubation"
