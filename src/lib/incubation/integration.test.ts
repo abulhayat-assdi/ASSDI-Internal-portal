@@ -751,13 +751,13 @@ describe("real migration and transactional incubation workflows", () => {
     expect((await runIncubationReminders()).created).toBe(0);
 
     const staffView = await api.overview(manager, programId);
-    expect(staffView.monitor.some((i: any) => i.kind === "missing_sales" && i.teamId === teamB)).toBe(true);
+    expect(staffView.monitor!.some((i: any) => i.kind === "missing_sales" && i.teamId === teamB)).toBe(true);
     const leadView = await api.overview(target, programId);
-    expect(leadView.monitor.length).toBeGreaterThan(0);
-    expect(leadView.monitor.every((i: any) => i.teamId === teamB)).toBe(true);
+    expect(leadView.monitor!.length).toBeGreaterThan(0);
+    expect(leadView.monitor!.every((i: any) => i.teamId === teamB)).toBe(true);
     const nonLead = [lead, member].find((a) => nonLeadUsers.some((u) => u.id === a.id))!;
     const memberView = await api.overview(nonLead, programId);
-    expect(memberView.monitor.some((i: any) => i.kind === "missing_sales")).toBe(false);
+    expect(memberView.monitor!.some((i: any) => i.kind === "missing_sales")).toBe(false);
   });
 
   it("refuses to send a program with entries back to draft, and cancelling needs a reason", async () => {

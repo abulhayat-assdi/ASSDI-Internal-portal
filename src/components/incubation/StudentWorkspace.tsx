@@ -1,4 +1,6 @@
 "use client";
+import MonitorPanel from "./MonitorPanel";
+import NotificationBell from "./NotificationBell";
 import { useState, useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import {
@@ -221,6 +223,7 @@ export default function StudentWorkspace({
           <button className="inc-btn" onClick={refresh}>
             Refresh
           </button>
+          <NotificationBell programId={b.program.id} />
           <span className="inc-role">{lead ? "টিম লিডার" : "টিম সদস্য"}</span>
         </div>
         <p className="inc-eyebrow" style={{ marginTop: 22 }}>
@@ -293,6 +296,9 @@ export default function StudentWorkspace({
       )}
       {tab === "home" && (
         <>
+          {(b.monitor?.length ?? 0) > 0 && (
+            <MonitorPanel issues={b.monitor} title="জরুরি — এখনই করুন" />
+          )}
           <section className="inc-card">
             <h2>আজকের দায়িত্ব</h2>
             {lead && !stock.some((s: R) => s.available > 0) && (

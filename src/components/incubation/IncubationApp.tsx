@@ -67,6 +67,8 @@ import {
 import "./incubation.css";
 import RecordSnapshot from "./RecordSnapshot";
 import BulkSheetEditor from "./BulkSheetEditor";
+import MonitorPanel from "./MonitorPanel";
+import NotificationBell from "./NotificationBell";
 import {
   FieldCorrectionEditor,
   FieldCorrectionReviews,
@@ -109,6 +111,8 @@ const blankProgram = () => ({
     objections: [],
     fgdRequiredCount: 1,
     whyBoughtRequired: false,
+    salesReminder: true,
+    fgdEveryDays: null,
     sprintDays: "",
     enforceCategory: true,
     maxFieldHours: "",
@@ -601,6 +605,11 @@ export default function IncubationApp({
               .map((v: string) => v.trim())
               .filter(Boolean),
             fgdRequiredCount: Number(d.settings.fgdRequiredCount || 1),
+            salesReminder: d.settings.salesReminder !== false,
+            fgdEveryDays:
+              d.settings.fgdEveryDays === "" || d.settings.fgdEveryDays == null
+                ? null
+                : Number(d.settings.fgdEveryDays),
             sprintDays: Number(d.settings.sprintDays),
             maxFieldHours:
               d.settings.maxFieldHours === "" ||
@@ -1361,6 +1370,33 @@ export default function IncubationApp({
                     />
                     Insight-এ “কেন কিনেছে” বাধ্যতামূলক
                   </label>
+                  <label className="inc-row">
+                    <input
+                      type="checkbox"
+                      checked={editor.data.settings.salesReminder !== false}
+                      onChange={(e) =>
+                        setValue("settings", {
+                          ...editor.data.settings,
+                          salesReminder: e.target.checked,
+                        })
+                      }
+                    />
+                    আগের দিনের বিক্রির এন্ট্রি না থাকলে লিডার ও শিক্ষককে রিমাইন্ডার দিন
+                  </label>
+                  <Field name="FGD রিমাইন্ডার: প্রতি কত দিনে অন্তত একটি FGD (ফাঁকা = বন্ধ)">
+                    <input
+                      type="number"
+                      min={1}
+                      max={30}
+                      value={editor.data.settings.fgdEveryDays ?? ""}
+                      onChange={(e) =>
+                        setValue("settings", {
+                          ...editor.data.settings,
+                          fgdEveryDays: e.target.value,
+                        })
+                      }
+                    />
+                  </Field>
                   <Field name="খরচের ধরন (প্রতি লাইনে একটি)">
                     <textarea
                       value={editor.data.settings.expenseTypes.join("\n")}
@@ -2454,6 +2490,7 @@ export default function IncubationApp({
                   প্রোগ্রাম
                 </button>
                 {bundle?.program && <Badge value={bundle.program.status} />}
+                <NotificationBell programId={programId} />
                 <button
                   className="inc-btn"
                   disabled={busy || loading}
@@ -2572,6 +2609,7 @@ export default function IncubationApp({
           )}
           {tab === "overview" && (
             <>
+              <MonitorPanel issues={bundle.monitor} />
               {filtersUI}
               {!reportError && (
                 <>
