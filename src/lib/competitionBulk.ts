@@ -128,7 +128,28 @@ function normaliseAnswer(field: any, value: unknown): [unknown, string | null] {
     }
     return [items.length ? items : undefined, null];
   }
+  const options: string[] = Array.isArray(field.options) ? field.options.map(String) : [];
+  const matchOption = (v: unknown) =>
+    options.find((o) => o.trim().toLowerCase() === String(v ?? "").trim().toLowerCase());
+  if (field.type === "multi_select") {
+    const list = (Array.isArray(value) ? value : String(value ?? "").split(/[,;\n]/))
+      .map((v) => String(v).trim())
+      .filter(Boolean);
+    if (!list.length) return [undefined, null];
+    if (!options.length) return [list, null];
+    const picked: string[] = [];
+    for (const v of list) {
+      const o = matchOption(v);
+      if (!o) return [undefined, `${field.label}: "${v}" is not one of the options (${options.join(", ")}).`];
+      if (!picked.includes(o)) picked.push(o);
+    }
+    return [picked, null];
+  }
   if (isBlank(value)) return [undefined, null];
+  if ((field.type === "dropdown" || field.type === "mcq") && options.length) {
+    const o = matchOption(value);
+    return o ? [o, null] : [undefined, `${field.label}: "${value}" is not one of the options (${options.join(", ")}).`];
+  }
   if (field.type === "date") {
     const d = normaliseDate(value);
     return d ? [d, null] : [undefined, `${field.label}: enter the date as YYYY-MM-DD or DD/MM/YYYY ("${value}" is not valid).`];
@@ -249,4 +270,17 @@ export function findDuplicateDays(
     }
   }
   return errors;
+}
+
+/**
+ * Answers stored on a submission that are not form questions (for example the
+ * team's absentRolls from the student portal). The grid never shows them, so a
+ * save must carry them over unchanged.
+ */
+export function nonSchemaData(schema: unknown, data: unknown): Record<string, unknown> {
+  const ids = new Set((Array.isArray(schema) ? schema : []).map((f: any) => String(f?.id)));
+  const out: Record<string, unknown> = {};
+  if (data && typeof data === "object" && !Array.isArray(data))
+    for (const [k, v] of Object.entries(data as Record<string, unknown>)) if (!ids.has(k)) out[k] = v;
+  return out;
 }

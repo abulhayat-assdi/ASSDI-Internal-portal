@@ -65,8 +65,10 @@ const nextConfig: NextConfig = {
     },
     async headers() {
         return [
-            // Allow location only in the incubation student workspace. The
-            // default policy below continues denying it elsewhere.
+            // Location is denied everywhere except the student portal. It has to
+            // be allowed for the whole portal, not only the incubation workspace:
+            // a Permissions-Policy is fixed when the document first loads, and
+            // students reach the workspace through client-side navigation.
             {
                 source: '/:path*',
                 headers: [
@@ -79,7 +81,7 @@ const nextConfig: NextConfig = {
                 ],
             },
             {
-                source: '/student-dashboard/competitions/:path*',
+                source: '/student-dashboard/:path*',
                 headers: [{ key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(self)' }],
             },
         ];

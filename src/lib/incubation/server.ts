@@ -381,6 +381,16 @@ async function validateData(
         })),
       "Select the original sale from this team.",
     );
+  if (r.kind !== "transfer")
+    insist(!r.targetTeamId, "Only a transfer can name a receiving team.");
+  if (d.categoryId)
+    insist(
+      await tx.incubationCatalog.findFirst({
+        where: { id: d.categoryId, programId: program.id, kind: "category" },
+        select: { id: true },
+      }),
+      "Select a valid category.",
+    );
   if (r.kind === "transfer")
     insist(
       r.targetTeamId &&
@@ -435,7 +445,11 @@ async function validateData(
   }
   return d;
 }
-export async function overview(actor: Actor, programId?: string) {
+export async function overview(
+  actor: Actor,
+  programId?: string,
+  options: { fullHistory?: boolean } = {},
+) {
   return featureTx(actor, async (tx) => {
     const manager = isManager(actor),
       supervisor = isSupervisor(actor);
@@ -601,6 +615,8 @@ export async function overview(actor: Actor, programId?: string) {
             : {}),
         },
         orderBy: { createdAt: "desc" },
+        // The screen shows recent history; exports ask for all of it.
+        ...(options.fullHistory ? {} : { take: 500 }),
       }),
       manager
         ? tx.batchStudent.findMany({
@@ -866,7 +882,49 @@ export async function command(actor: Actor, input: unknown) {
           );
         }
       }
+      if (
+        before &&
+        !isProgramLocked(before.status) &&
+        (values.startDate !== before.startDate || values.endDate !== before.endDate)
+      ) {
+        // New dates must still contain every entry and sprint, or they could never be corrected.
+        const outside = {
+          OR: [
+            { date: { lt: values.startDate } },
+            ...(values.endDate ? [{ date: { gt: values.endDate } }] : []),
+          ],
+        };
+        const [records, sprints] = await Promise.all([
+          tx.incubationRecord.count({
+            where: { programId: before.id, status: { in: ["posted", "pending", "transfer_pending"] }, ...outside },
+          }),
+          tx.incubationSprint.count({
+            where: {
+              programId: before.id,
+              OR: [
+                { startDate: { lt: values.startDate } },
+                ...(values.endDate ? [{ endDate: { gt: values.endDate } }] : []),
+              ],
+            },
+          }),
+        ]);
+        insist(
+          records === 0 && sprints === 0,
+          `These dates would leave ${records} entr${records === 1 ? "y" : "ies"} and ${sprints} sprint(s) outside the program. Choose dates that include them, or correct those first.`,
+        );
+      }
       if (before && values.status === "closed" && before.status !== "closed") {
+        const [pendingRecords, pendingCorrections, pendingField, openSessions] = await Promise.all([
+          tx.incubationRecord.count({ where: { programId: before.id, status: { in: ["pending", "transfer_pending"] } } }),
+          tx.incubationCorrection.count({ where: { programId: before.id, status: "pending" } }),
+          tx.incubationFieldCorrection.count({ where: { programId: before.id, status: "pending" } }),
+          tx.incubationFieldSession.count({ where: { programId: before.id, checkOut: null } }),
+        ]);
+        const waiting = pendingRecords + pendingCorrections + pendingField + openSessions;
+        insist(
+          waiting === 0 || String(p.reason || "").trim().length >= 3,
+          `${waiting} item(s) still need action (pending approvals, correction requests or open field sessions). Resolve them, or enter a reason to close anyway.`,
+        );
         const balances = await ledger(tx, before.id);
         const unresolved = balances.summaries.some(
           (s) =>
@@ -958,6 +1016,18 @@ export async function command(actor: Actor, input: unknown) {
         v.confirmName.trim() === program.name.trim(),
         "Type the program name exactly to confirm deletion.",
       );
+      // Close open field sessions first: a session in a hidden program could never be
+      // checked out and would block the student's next check-in anywhere.
+      const open = await tx.incubationFieldSession.findMany({
+        where: { programId: program.id, checkOut: null },
+      });
+      for (const session of open) {
+        await tx.incubationFieldSession.update({
+          where: { id: session.id },
+          data: { checkOut: new Date(), endAreaId: session.startAreaId, version: { increment: 1 } },
+        });
+        await audit(tx, actor, program.id, "field.force_checkout", session.id, session, null, "Program deleted");
+      }
       // Soft delete: hidden everywhere, records and audit history are kept.
       const deleted = await tx.incubationProgram.update({
         where: { id: program.id },
@@ -987,7 +1057,10 @@ export async function command(actor: Actor, input: unknown) {
     // Results are a frozen read of final figures, so they may be published after closing.
     const resultsAction = ["publish_results", "withdraw_results"].includes(body.action);
     insist(
-      !isProgramLocked(program.status) || (resultsAction && program.status === "closed"),
+      !isProgramLocked(program.status) ||
+        (resultsAction && program.status === "closed") ||
+        // A public link can always be switched off.
+        (body.action === "share" && p.enabled === false),
       lockedMessage(program.status),
       409,
     );
@@ -1380,6 +1453,7 @@ export async function command(actor: Actor, input: unknown) {
           endDate: { gte: v.date },
         },
       });
+      v.targetTeamId = v.kind === "transfer" ? v.targetTeamId || null : null;
       const d = await validateData(tx, program, {
         ...v,
         targetTeamId: v.targetTeamId || null,

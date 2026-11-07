@@ -554,7 +554,8 @@
     padding: 0;
   }
   .ds-shell {
-    height: 100vh;
+    /* The overlay is already fixed to the visible viewport; 100vh would hide the footer behind mobile browser bars. */
+    height: 100%;
     border-radius: 0;
   }
   .ds-bottom {

@@ -1,5 +1,5 @@
 import "server-only";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { IncubationProgram, IncubationRecord, Prisma } from "@prisma/client";
 import { IncubationError, insist, type EntryData } from "./domain";
@@ -50,8 +50,9 @@ export async function sheetSave(deps: SheetDeps, payload: unknown) {
             key: z.string().max(100),
             kind: z.enum(SHEET_CREATABLE),
             teamId: z.string().min(1),
-            date: day,
-            data: deps.entrySchema,
+            // Date and data are checked per row below, so errors can name the row.
+            date: z.string(),
+            data: z.unknown(),
           }),
         )
         .max(300)
@@ -62,8 +63,8 @@ export async function sheetSave(deps: SheetDeps, payload: unknown) {
             key: z.string().max(100),
             recordId: z.string().min(1),
             version: z.number().int().positive(),
-            date: day,
-            data: deps.entrySchema,
+            date: z.string(),
+            data: z.unknown(),
           }),
         )
         .max(300)
@@ -84,14 +85,25 @@ export async function sheetSave(deps: SheetDeps, payload: unknown) {
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       if (e instanceof IncubationError) throw new IncubationError(`[[${key}]] ${message}`, e.status);
-      if (e instanceof z.ZodError) throw new IncubationError(`[[${key}]] Some values in this row are not valid.`, 400);
+      if (e instanceof z.ZodError) {
+        const issue = e.issues[0];
+        const field = issue?.path?.filter((x) => typeof x === "string").pop();
+        throw new IncubationError(
+          `[[${key}]] ${field ? `"${field}": ` : ""}${issue?.message || "Some values in this row are not valid."}`,
+          400,
+        );
+      }
       throw e;
     }
   };
 
   for (const x of v.voids) {
     const old = await tx.incubationRecord.findFirst({ where: { id: x.recordId, programId: program.id } });
-    insist(old && old.status === "posted" && old.version === x.version, "An entry was changed by someone else. Reopen the sheet.", 409);
+    insist(
+      old && old.status === "posted" && old.version === x.version,
+      `A deleted entry (${x.recordId.slice(0, 8)}) was changed by someone else meanwhile. Reopen the sheet.`,
+      409,
+    );
     const changed = await tx.incubationRecord.update({
       where: { id: old.id },
       data: { status: "void", version: { increment: 1 } },
@@ -103,10 +115,11 @@ export async function sheetSave(deps: SheetDeps, payload: unknown) {
     await row(u.key, async () => {
       const old = await tx.incubationRecord.findFirst({ where: { id: u.recordId, programId: program.id, status: "posted" } });
       insist(old && old.version === u.version, "This entry was changed by someone else. Reopen the sheet.", 409);
-      const data = await deps.validate({ ...old, date: u.date, data: u.data });
+      const date = day.parse(u.date);
+      const data = await deps.validate({ ...old, date, data: deps.entrySchema.parse(u.data) });
       const changed = await tx.incubationRecord.update({
         where: { id: old.id },
-        data: { date: u.date, data: deps.json(data), version: { increment: 1 } },
+        data: { date, data: deps.json(data), version: { increment: 1 } },
       });
       await deps.audit("record.sheet_corrected", old.id, old, changed, v.reason);
     });
@@ -117,15 +130,30 @@ export async function sheetSave(deps: SheetDeps, payload: unknown) {
     await row(c.key, async () => {
       const team = await tx.incubationTeam.findFirst({ where: { id: c.teamId, programId: program.id } });
       insist(team, "Choose a team for this row.");
-      const data = await deps.validate({ id: "new", teamId: c.teamId, targetTeamId: null, kind: c.kind, date: c.date, data: c.data });
-      const requestKey = randomUUID();
+      // A retried or double-clicked save must not add the same row twice.
+      const requestKey = `sheet:${c.key}`;
+      const existing = await tx.incubationRecord.findUnique({
+        where: { programId_enteredBy_requestKey: { programId: program.id, enteredBy: actor.id, requestKey } },
+        select: { id: true },
+      });
+      if (existing) return;
+      const date = day.parse(c.date);
+      const input = deps.entrySchema.parse(c.data) as Record<string, unknown>;
+      if (c.kind === "fgd" || c.kind === "insight") {
+        const sprint = await tx.incubationSprint.findFirst({
+          where: { programId: program.id, teamId: c.teamId, startDate: { lte: date }, endDate: { gte: date } },
+          select: { categoryId: true },
+        });
+        if (sprint) input.categoryId = sprint.categoryId;
+      }
+      const data = await deps.validate({ id: "new", teamId: c.teamId, targetTeamId: null, kind: c.kind, date, data: input });
       const record = await tx.incubationRecord.create({
         data: {
           courseId: actor.courseId,
           programId: program.id,
           teamId: c.teamId,
           kind: c.kind,
-          date: c.date,
+          date,
           data: deps.json(data),
           requestKey,
           requestHash: createHash("sha256").update(JSON.stringify(c)).digest("hex"),
@@ -139,6 +167,15 @@ export async function sheetSave(deps: SheetDeps, payload: unknown) {
     });
   }
 
-  await deps.recompute();
+  try {
+    await deps.recompute();
+  } catch (e) {
+    if (e instanceof IncubationError)
+      throw new IncubationError(
+        `These changes would break the stock or cash rules: ${e.message} Check quantities and dates of the rows you changed.`,
+        e.status,
+      );
+    throw e;
+  }
   return { created, updated: v.updates.length, voided: v.voids.length };
 }

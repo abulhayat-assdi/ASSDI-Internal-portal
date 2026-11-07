@@ -147,3 +147,24 @@ describe("formState", () => {
     expect(formState({ ...c, isActive: false }, "2026-10-15")).toBe("ended");
   });
 });
+
+describe("choice answers and hidden data", () => {
+  const choiceSchema = [
+    { id: "d", type: "dropdown", label: "Sector", options: ["Retail", "Finance"] },
+    { id: "m", type: "multi_select", label: "Channels", options: ["Facebook", "Street", "Shop"] },
+  ];
+  it("matches options case-insensitively and rejects unknown ones", async () => {
+    const { normaliseBulkRows } = await import("./competitionBulk");
+    const ok = normaliseBulkRows(choiceSchema, [
+      { type: "individual", rollNumber: "1", data: { d: " retail ", m: "street, FACEBOOK" } },
+    ]);
+    expect(ok.errors).toEqual([]);
+    expect(ok.rows[0].data).toEqual({ d: "Retail", m: ["Street", "Facebook"] });
+    const bad = normaliseBulkRows(choiceSchema, [{ type: "individual", rollNumber: "1", data: { d: "yes" } }]);
+    expect(bad.errors[0].message).toContain("not one of the options");
+  });
+  it("keeps answers that are not form questions", async () => {
+    const { nonSchemaData } = await import("./competitionBulk");
+    expect(nonSchemaData(choiceSchema, { d: "Retail", absentRolls: ["12"] })).toEqual({ absentRolls: ["12"] });
+  });
+});

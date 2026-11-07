@@ -30,13 +30,14 @@ export async function runIncubationReminders(today = todayDhaka()) {
         where: { courseId: course.id, deletedAt: null, status: { in: ["active", "closing"] } },
       });
       for (const program of programs) {
-        if (!["running", "closing"].includes(incubationState(program, today))) continue;
+        // "ended" = past the end date (shown as Closing): open sessions and approvals still need chasing.
+        if (!["running", "ended", "closing"].includes(incubationState(program, today))) continue;
         const [teams, sprints, records, sessions, corrections, fieldCorrections] = await Promise.all([
           tx.incubationTeam.findMany({ where: { programId: program.id }, include: { members: true } }),
           tx.incubationSprint.findMany({ where: { programId: program.id } }),
           tx.incubationRecord.findMany({
             where: { programId: program.id },
-            select: { teamId: true, targetTeamId: true, kind: true, status: true, date: true },
+            select: { id: true, teamId: true, targetTeamId: true, kind: true, status: true, date: true },
           }),
           tx.incubationFieldSession.findMany({
             where: { programId: program.id, checkOut: null },
@@ -60,17 +61,19 @@ export async function runIncubationReminders(today = todayDhaka()) {
         // Student accounts of each team's current lead.
         const leads = teams.flatMap((t) => t.members.filter((m) => m.isLead).map((m) => ({ teamId: t.id, m })));
         const leadUsers = new Map<string, string>();
+        const leadAccounts = leads.length
+          ? await tx.user.findMany({
+              where: {
+                courseId: course.id,
+                role: "student",
+                deletedAt: null,
+                OR: leads.map(({ m }) => ({ studentBatchName: m.batchName, studentRoll: m.roll })),
+              },
+              select: { id: true, studentBatchName: true, studentRoll: true },
+            })
+          : [];
         for (const { teamId, m } of leads) {
-          const u = await tx.user.findFirst({
-            where: {
-              courseId: course.id,
-              role: "student",
-              deletedAt: null,
-              studentBatchName: m.batchName,
-              studentRoll: m.roll,
-            },
-            select: { id: true },
-          });
+          const u = leadAccounts.find((a) => a.studentBatchName === m.batchName && a.studentRoll === m.roll);
           if (u) leadUsers.set(teamId, u.id);
         }
         const staffIds = (program.staffIds as string[]).length
@@ -144,7 +147,7 @@ export async function runIncubationReminders(today = todayDhaka()) {
         });
         created.push(...fresh.map((r) => ({ courseId: course.id, userId: r.userId, title: r.title, body: r.body, link: r.link })));
       }
-    });
+    }, { timeout: 60000, maxWait: 10000 });
   }
 
   const emailed = await emailDigests(courses, created, today);

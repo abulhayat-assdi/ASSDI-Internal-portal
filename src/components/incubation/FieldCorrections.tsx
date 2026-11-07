@@ -1,4 +1,5 @@
 "use client";
+import { numberInputProps } from "./numeric";
 import { useState } from "react";
 const local = (iso: string) =>
   new Date(iso)
@@ -144,11 +145,7 @@ export function FieldCorrectionEditor({
                 New steps
                 <input
                   required
-                  type="number"
-                  min="0"
-                  max="200000"
-                  value={form.steps}
-                  onChange={(e) => setForm({ ...form, steps: e.target.value })}
+                  {...numberInputProps(form.steps, (v) => setForm({ ...form, steps: v }), false)}
                 />
               </label>
             </div>

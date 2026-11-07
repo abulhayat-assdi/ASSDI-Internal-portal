@@ -73,7 +73,7 @@ Date range, batch, team, sprint, category, product ও broad area দিয়ে �
 
 1. `scripts/ensure-app-role.js` runtime role এবং বর্তমান/ভবিষ্যৎ table/sequence permissions প্রস্তুত করে।
 2. Bootstrap connection দিয়ে `prisma migrate deploy` নতুন migration চালায়।
-3. `scripts/incubation-check-schema.cjs` দিয়ে সব ১২টি table এবং RLS readiness যাচাই হয়।
+3. `scripts/incubation-check-schema.cjs` দিয়ে ১৫টি table-এর RLS, runtime role-এর read/write অনুমতি, এবং নতুন column (competition link, variant, soft delete) যাচাই হয়।
 4. তারপর বিদ্যমান startup steps ও Next server চালু হয়। Migration/readiness ব্যর্থ হলে app launch হয় না।
 
 Migration: `202611040001_business_incubation` খালি operational tables তৈরি করে; নতুন `202611060001_incubation_competitions` বিদ্যমান program-কে একবার parent Competition-এর সঙ্গে যুক্ত করে এবং variant field যোগ করে। Form competition-এর single batch rule বহাল থাকে। কোনো legacy CSV import, sample program/product/transaction seed নেই। Existing program/team/record/share IDs বজায় থাকে; repeated startup data reset বা duplicate parent তৈরি করে না। Readiness gate নতুন link/kind/variant columns-ও যাচাই করে।

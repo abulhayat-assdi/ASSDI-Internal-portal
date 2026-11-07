@@ -48,6 +48,7 @@ export interface MonitorInput {
   }[];
   sprints: { teamId: string; startDate: string; endDate: string }[];
   records: {
+    id?: string;
     teamId: string;
     targetTeamId?: string | null;
     kind: string;
@@ -155,7 +156,8 @@ export function buildMonitor(input: MonitorInput): MonitorIssue[] {
     const day = dhakaDay(s.checkIn);
     if (day >= today) continue;
     issues.push({
-      key: `open_session:${s.id}`,
+      // Includes the day so the reminder repeats daily until the session is closed.
+      key: `open_session:${s.id}:${today}`,
       kind: "open_session",
       severity: "high",
       audience: ["member", "lead", "staff"],
@@ -181,7 +183,7 @@ export function buildMonitor(input: MonitorInput): MonitorIssue[] {
   for (const r of input.records) {
     if (r.status !== "transfer_pending" || !r.targetTeamId) continue;
     issues.push({
-      key: `transfer_pending:${r.targetTeamId}:${r.teamId}:${r.date}`,
+      key: `transfer_pending:${r.id ?? `${r.targetTeamId}:${r.teamId}:${r.date}`}:${today}`,
       kind: "transfer_pending",
       severity: "medium",
       audience: ["lead", "staff"],

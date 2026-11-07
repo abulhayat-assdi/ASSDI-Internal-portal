@@ -73,6 +73,27 @@ export async function register() {
         } catch (error) {
             console.error('[cron] incubation retention failed:', error instanceof Error ? error.message : error);
         }
+    };
+
+    // Business Incubation reminders follow Bangladesh time (07:00 Asia/Dhaka)
+    // whatever the container's clock is, so leads see them in the morning.
+    let lastReminderDate: string | null = null;
+    const dhaka = () => {
+        const parts = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Dhaka',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            hourCycle: 'h23',
+        }).formatToParts(new Date());
+        const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
+        return { date: `${get('year')}-${get('month')}-${get('day')}`, hour: Number(get('hour')) };
+    };
+    const reminderTick = async () => {
+        const { date, hour } = dhaka();
+        if (hour < RUN_AT_HOUR || lastReminderDate === date) return;
+        lastReminderDate = date;
         try {
             const res = await fetch(incubationRemindersUrl, { method: 'POST', headers: { 'x-cron-secret': secret } });
             const body = res.ok ? ((await res.json()) as { created: number; emailed: number }) : null;
@@ -83,9 +104,18 @@ export async function register() {
         }
     };
 
-    const timer = setInterval(tick, CHECK_INTERVAL_MS);
+    const timer = setInterval(() => {
+        void tick();
+        void reminderTick();
+    }, CHECK_INTERVAL_MS);
     // Never hold the process open just for this.
     timer.unref?.();
+    // First check shortly after start-up instead of an hour later (each job still runs once a day).
+    const first = setTimeout(() => {
+        void tick();
+        void reminderTick();
+    }, 60_000);
+    first.unref?.();
 
-    console.info('[cron] internal scheduler started (attendance alerts, deployment cleanup)');
+    console.info('[cron] internal scheduler started (attendance alerts, deployment cleanup, incubation retention, incubation reminders at 07:00 Asia/Dhaka)');
 }

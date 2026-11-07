@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     const q = req.nextUrl.searchParams,
       programId = q.get("programId");
     insist(programId, "Specify a program.");
-    const bundle = await overview(a as Actor, programId);
+    const bundle = await overview(a as Actor, programId, { fullHistory: true });
     const { program, catalog, records, teams, fields } = bundle;
     insist(
       !bundle.member ||

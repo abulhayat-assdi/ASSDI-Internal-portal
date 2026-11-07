@@ -4,6 +4,7 @@ import { withCourseContext } from "@/lib/db";
 import { getServerSessionUser, canManageCompetitions } from "@/lib/auth";
 import {
   findDuplicateDays,
+  nonSchemaData,
   normaliseBulkRows,
   stableStringify,
   type BulkRowError,
@@ -182,6 +183,8 @@ export async function POST(
         };
         if (row.id) {
           const current = byId.get(row.id)!;
+          // Keep data the grid does not show (e.g. absentRolls from the student portal).
+          values.data = { ...nonSchemaData(competition.schema, current.data), ...row.data } as Prisma.InputJsonValue;
           const sameTeam = (current.teamName || "").trim() === (row.teamName || "").trim();
           const res = await tx.competitionSubmission.updateMany({
             where: { id: row.id, competitionId: compId, courseId },

@@ -10,6 +10,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  useRef,
   type FormEvent,
   type ReactNode,
   type ReactElement,
@@ -198,7 +199,6 @@ function GridTable({
   pageSize?: number;
 }) {
   const [page, setPage] = useState(0);
-  useEffect(() => setPage(0), [rows.length]);
   const current = Math.min(
     page,
     Math.max(0, Math.ceil(rows.length / pageSize) - 1),
@@ -273,6 +273,7 @@ export default function IncubationApp({
     [busy, setBusy] = useState(false),
     [editor, setEditor] = useState<Editor | null>(null),
     [sheetOpen, setSheetOpen] = useState(false),
+    backdropPress = useRef(false),
     [filters, setFilters] = useState<ReportFilters>({}),
     [sheet, setSheet] = useState("sale"),
     [search, setSearch] = useState(""),
@@ -516,10 +517,11 @@ export default function IncubationApp({
   useEffect(() => {
     if (!programId) return;
     const timer = setInterval(() => {
-      if (!document.hidden && !editor && !busy) void load();
+      // Never refresh under an open form or the data sheet: it would discard unsaved input.
+      if (!document.hidden && !editor && !busy && !sheetOpen) void load();
     }, 60000);
     return () => clearInterval(timer);
-  }, [programId, load, editor, busy]);
+  }, [programId, load, editor, busy, sheetOpen]);
   const upload = async (file: File, teamId: string) => {
     if (file.type.startsWith("image/")) {
       const originalName = file.name;
@@ -595,7 +597,14 @@ export default function IncubationApp({
       original: r,
       data: {
         ...r,
-        data: JSON.parse(JSON.stringify(r.data)),
+        data: (() => {
+          const d = JSON.parse(JSON.stringify(r.data));
+          // Always offer three finding/action boxes, even if fewer were stored.
+          if (r.kind === "fgd")
+            for (const key of ["findings", "actions"])
+              d[key] = Array.from({ length: 3 }, (_, j) => d[key]?.[j] ?? "");
+          return d;
+        })(),
         reason: "",
         void: false,
       },
@@ -649,6 +658,17 @@ export default function IncubationApp({
           },
         };
         delete payload.id;
+        const st = payload.settings;
+        const check = (value: number | null, min: number, max: number, label: string, whole = true) => {
+          if (value === null) return;
+          if (!Number.isFinite(value) || value < min || value > max || (whole && !Number.isInteger(value)))
+            throw Error(`${label} must be ${whole ? "a whole number " : ""}between ${min} and ${max}.`);
+        };
+        check(st.sprintDays, 1, 365, "Sprint length (days)");
+        check(st.trackingMinutes, 1, 60, "GPS update interval (minutes)");
+        check(st.retentionDays, 1, 730, "GPS history retention (days)");
+        check(st.fgdEveryDays, 1, 30, "FGD reminder interval (days)");
+        check(st.maxFieldHours, 0.25, 168, "Max field hours", false);
       }
       if (editor.type === "catalog")
         payload = { ...d, parentId: d.parentId || null };
@@ -1116,8 +1136,14 @@ export default function IncubationApp({
       {editor && (
         <div
           className="inc-modal-bg"
+          // Close only when the press both starts and ends on the backdrop, so a text
+          // selection dragged outside the form does not throw the input away.
+          onMouseDown={(e) => {
+            backdropPress.current = e.target === e.currentTarget;
+          }}
           onClick={(e) => {
-            if (e.target === e.currentTarget && !busy) setEditor(null);
+            if (backdropPress.current && e.target === e.currentTarget && !busy) setEditor(null);
+            backdropPress.current = false;
           }}
         >
           <form className="inc-modal" onSubmit={submit}>
@@ -1272,7 +1298,7 @@ export default function IncubationApp({
                           ))}
                       </div>
                     </Field>
-                    <Field name="Coordinating staff (all teachers can manage)">
+                    <Field name="Staff who receive this program's daily reminders (every teacher in the course can manage it)">
                       <div className="inc-checklist">
                         {bundle?.staff?.map((s: Row) => (
                           <label key={s.id}>
@@ -2535,7 +2561,7 @@ export default function IncubationApp({
                 </button>
                 {bundle?.program && <Badge value={bundle.program.status} />}
                 <NotificationBell programId={programId} />
-                {bundle?.manager && (
+                {bundle?.manager && !isProgramLocked(bundle.program?.status || "") && (
                   <button className="inc-btn" onClick={() => setSheetOpen(true)}>
                     <Table2 size={16} /> Manage data
                   </button>
@@ -2841,7 +2867,7 @@ export default function IncubationApp({
             <>
               {filtersUI}
               {exportButtons(sheet)}
-              {bundle.manager && (
+              {bundle.manager && !isProgramLocked(bundle.program?.status || "") && (
                 <div className="inc-card inc-row inc-between" style={{ marginBottom: 15 }}>
                   <div>
                     <h2 style={{ margin: 0 }}>Edit data like a spreadsheet</h2>
@@ -3289,7 +3315,45 @@ export default function IncubationApp({
                           hours
                         </>
                       ) : (
-                        <Badge value="active" />
+                        <>
+                          <Badge value="active" />
+                          {bundle.manager && (
+                            <button
+                              className="inc-btn"
+                              style={{ marginTop: 6 }}
+                              disabled={busy}
+                              onClick={async () => {
+                                const reason = window.prompt(
+                                  `Close ${r.userName}'s open field session now? Enter a reason (for example: forgot to check out):`,
+                                );
+                                if (!reason) return;
+                                setBusy(true);
+                                setError("");
+                                try {
+                                  const res = await fetch("/api/incubation/field", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({
+                                      action: "field_force_checkout",
+                                      programId,
+                                      payload: { sessionId: r.id, reason },
+                                    }),
+                                  });
+                                  const d = await res.json();
+                                  if (!res.ok) throw Error(d.error);
+                                  setMessage("Field session closed.");
+                                  await load();
+                                } catch (e) {
+                                  setError((e as Error).message);
+                                } finally {
+                                  setBusy(false);
+                                }
+                              }}
+                            >
+                              Force check-out
+                            </button>
+                          )}
+                        </>
                       ),
                   },
                   {

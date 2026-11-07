@@ -1,7 +1,6 @@
 # Business Incubation v3 — পরিবর্তন, ব্যবহার ও যাচাই
 
-Branch: `feature/incubation-v3` (worktree `asm-portal-v2-incubation-v3`), main `f3a4da9` থেকে শুরু।
-অবস্থা: বাস্তবায়ন ও স্থানীয় যাচাই সম্পন্ন; ব্যবহারকারীর review-এর অপেক্ষায়। main-এ merge, push, production migration বা deployment ব্যবহারকারীর আলাদা অনুমোদন ছাড়া হবে না।
+অবস্থা: main-এ merge হয়েছে (`cb2b8ce`, ২০২৬-১১-০৭)। পরের অডিট-সংশোধন `fix/incubation-audit` branch-এ (নিচে §৭)। Push ও production deployment ব্যবহারকারী করবেন।
 
 ব্যবহারকারীর সিদ্ধান্ত (২০২৬-১১-০৭): Application/Screening/Judge/Mentor (Track B) এখন নয়; Form competition grid সংশোধন P0; ranking-এর মানদণ্ড Revenue; রিমাইন্ডার In-app + Email।
 
@@ -75,8 +74,8 @@ Branch: `feature/incubation-v3` (worktree `asm-portal-v2-incubation-v3`), main `
 ## ৩. চালু করার আগে (প্রশাসক)
 1. Deploy-এর আগে database ও `/app/storage` backup।
 2. `CRON_SECRET` (১৬+ অক্ষর) সেট থাকতে হবে, নইলে দৈনিক রিমাইন্ডার চলবে না। একাধিক instance হলে `DISABLE_INTERNAL_CRON=1` দিয়ে external scheduler থেকে `POST /api/cron/incubation-reminders` (`x-cron-secret` header) ডাকুন।
-3. **সময়:** internal scheduler container-এর ঘড়িতে সকাল ৭টার পরে চলে। Container-এ TZ সেট নেই (UTC), তাই এখন বাংলাদেশ সময় দুপুর ১টার পরে চলবে। সকালে চাইলে container-এ `TZ=Asia/Dhaka` দিন — এতে attendance alert-ও সকাল ৭টায় সরবে।
-4. Email চাইলে course settings-এ email notifications চালু ও SMTP ঠিক রাখুন।
+3. **সময়:** Business Incubation রিমাইন্ডার এখন container-এর ঘড়ি যা-ই হোক, বাংলাদেশ সময় সকাল ৭টার পরে চলে (অডিট-সংশোধন)। Server চালুর ১ মিনিট পরেই প্রথম যাচাই হয়। অন্য দৈনিক কাজ (attendance alert ইত্যাদি) আগের মতো container-এর ঘড়িতে চলে; `TZ` বদলানোর দরকার নেই।
+4. Email চাইলে course settings-এ email notifications চালু রাখুন এবং SMTP env দিন: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`। Email-এর লিংকের জন্য `BASE_DOMAIN` (যেমন `tasm-skill.asf.bd`) সঠিক থাকতে হবে।
 5. প্রোগ্রাম setup-এ রিমাইন্ডার settings দেখে নিন; প্রতিটি টিমে লিডার ও sprint আছে কিনা "আজকের করণীয়"-তে দেখুন।
 
 ## ৪. Rollback
