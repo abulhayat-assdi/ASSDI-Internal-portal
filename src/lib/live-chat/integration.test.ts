@@ -485,6 +485,72 @@ describe.skipIf(!enabled)("Live Chat isolated PostgreSQL", () => {
       }),
     ).rejects.toThrow("paused");
   });
+  it("creates a re-copyable permanent link and renew retires the previous one", async () => {
+    const first = (await act(admin, "link", { permanent: true })) as {
+      id: string;
+      path: string;
+    };
+    type Links = {
+      links: {
+        id: string;
+        active: boolean;
+        permanent: boolean;
+        path: string | null;
+        tokenHash?: string;
+      }[];
+    };
+    let state = (await read(admin, w, new URLSearchParams())) as Links;
+    const listed = state.links.find((l) => l.id === first.id)!;
+    expect(listed.permanent).toBe(true);
+    expect(listed.path).toBe(first.path);
+    expect(listed.tokenHash).toBeUndefined();
+    // Students never receive links.
+    expect(
+      ((await read(agent, w, new URLSearchParams())) as Links).links,
+    ).toEqual([]);
+    const firstToken = first.path.split("/").pop()!;
+    const welcome = (await publicRead(
+      new NextRequest(req().url.replace(token, firstToken) + "?kind=welcome", {
+        headers: Object.fromEntries(req().headers),
+      }),
+      firstToken,
+    )) as { linkOpen: boolean; agentsOnline: boolean; categories: unknown[] };
+    expect(welcome.linkOpen).toBe(true);
+    expect(typeof welcome.agentsOnline).toBe("boolean");
+    expect(JSON.stringify(welcome)).not.toMatch(/@|userId|email/);
+    // Session links cannot be permanent.
+    await expect(
+      act(admin, "link", { permanent: true, sessionId: randomUUID() }),
+    ).rejects.toThrow("expiry");
+    const second = (await act(admin, "link", { permanent: true })) as {
+      id: string;
+      path: string;
+    };
+    expect(second.path).not.toBe(first.path);
+    state = (await read(admin, w, new URLSearchParams())) as Links;
+    expect(state.links.find((l) => l.id === first.id)!.active).toBe(false);
+    expect(state.links.find((l) => l.id === second.id)!.active).toBe(true);
+    await expect(
+      publicMutate(req(), firstToken, {
+        action: "start",
+        data: { name: "Old", categoryId, text: "hi", requestId: randomUUID() },
+      }),
+    ).rejects.toThrow("paused");
+    // Honeypot submissions are rejected and create no conversation.
+    await expect(
+      publicMutate(req(), second.path.split("/").pop()!, {
+        action: "start",
+        data: {
+          name: "Bot",
+          categoryId,
+          text: "spam",
+          requestId: randomUUID(),
+          website: "http://spam.example",
+        },
+      }),
+    ).rejects.toThrow("Unable to start chat");
+    await act(admin, "link_state", { active: false }, second.id);
+  });
   it("isolates assessment references and preserves the scoring policy snapshot", async () => {
     const session = (await act(admin, "session", {
       name: "Assessment",

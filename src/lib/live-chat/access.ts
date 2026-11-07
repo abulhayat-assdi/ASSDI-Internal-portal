@@ -13,10 +13,45 @@ import {
   isCourseUsable,
 } from "@/lib/course";
 import { isFeatureEnabled } from "@/lib/features";
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, createHmac, randomBytes } from "node:crypto";
 export const hash = (value: string) =>
   createHash("sha256").update(value).digest("hex");
 export const secret = () => randomBytes(32).toString("base64url");
+/** Expiry used for links that never expire (the schema keeps expiresAt required). */
+export const PERMANENT_UNTIL = new Date("2100-01-01T00:00:00.000Z");
+export const isPermanent = (expiresAt: Date) => +expiresAt >= +PERMANENT_UNTIL;
+function linkSigningKey() {
+  const key = process.env.LIVE_CHAT_LINK_SECRET || process.env.JWT_SECRET;
+  need(key, "Server link signing is not configured", 503);
+  return key;
+}
+/**
+ * Public link tokens are derived from the link id with a server secret, so staff can
+ * copy the same URL again later. Only the hash is stored; the database alone cannot
+ * reproduce a working URL. Rotating the signing secret invalidates derived links.
+ */
+export function linkToken(workspaceId: string, linkId: string) {
+  return (
+    workspaceId +
+    "." +
+    createHmac("sha256", linkSigningKey())
+      .update("live-chat-link:" + workspaceId + ":" + linkId)
+      .digest("base64url")
+  );
+}
+/** URL path for derived links; legacy random-secret links cannot be shown again. */
+export function linkPath(link: {
+  id: string;
+  workspaceId: string;
+  tokenHash: string;
+}) {
+  try {
+    const token = linkToken(link.workspaceId, link.id);
+    return hash(token) === link.tokenHash ? "/live-chat/" + token : null;
+  } catch {
+    return null;
+  }
+}
 export function need(
   condition: unknown,
   message: string,

@@ -102,12 +102,7 @@ type Snapshot = {
   chats: Chat[];
   agents: Agent[];
   categories: { id: string; name: string; active: boolean }[];
-  links: {
-    id: string;
-    active: boolean;
-    expiresAt: string;
-    sessionId: string | null;
-  }[];
+  links: PublicLink[];
   sessions: Session[];
   references: { id: string; kind: string; title: string; text: string }[];
   identity: { id: string; name: string; staff: boolean; admin: boolean };
@@ -246,6 +241,54 @@ export default function ChatApp({ staff = false }: { staff?: boolean }) {
     if (g === generation.current && r === refreshGeneration.current)
       setState(next);
   }, [w]);
+  // New-assignment alert: a short tone, plus a desktop notification when the tab is hidden.
+  const knownAssigned = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (!state) return;
+    const mine = state.chats
+      .filter(
+        (c) =>
+          (c.agentId === state.identity.id && c.status === "ASSIGNED") ||
+          c.transferTo === state.identity.id,
+      )
+      .map((c) => c.id);
+    const known = knownAssigned.current;
+    knownAssigned.current = new Set(mine);
+    if (!known) return; // first load: nothing is "new"
+    const fresh = state.chats.filter(
+      (c) => mine.includes(c.id) && !known.has(c.id),
+    );
+    if (!fresh.length) return;
+    try {
+      const Ctx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext })
+          .webkitAudioContext;
+      const audio = new Ctx(),
+        osc = audio.createOscillator(),
+        gain = audio.createGain();
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.0001, audio.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.15, audio.currentTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + 0.4);
+      osc.connect(gain).connect(audio.destination);
+      osc.start();
+      osc.stop(audio.currentTime + 0.42);
+      osc.onended = () => void audio.close();
+    } catch {}
+    if (
+      document.visibilityState !== "visible" &&
+      typeof Notification !== "undefined" &&
+      Notification.permission === "granted"
+    )
+      try {
+        new Notification("New live chat", {
+          body: fresh.map((c) => c.customerName).join(", "),
+          tag: "asm-live-chat-" + fresh[0].id,
+        });
+      } catch {}
+  }, [state]);
+  useEffect(() => () => void (knownAssigned.current = null), [w]);
   const selectedRef = useRef(selected);
   const latestMessage = useRef<{ id: string; conversationId: string } | null>(
     null,
@@ -731,9 +774,16 @@ export default function ChatApp({ staff = false }: { staff?: boolean }) {
               aria-label={t("Your availability", "আপনার অ্যাভেইলেবিলিটি")}
               value={me?.status || "OFFLINE"}
               disabled={!state || busy}
-              onChange={(e) =>
-                void perform("presence", { status: e.target.value }, "")
-              }
+              onChange={(e) => {
+                // Ask once, from this user gesture, so new-chat alerts can reach a hidden tab.
+                if (
+                  e.target.value === "AVAILABLE" &&
+                  typeof Notification !== "undefined" &&
+                  Notification.permission === "default"
+                )
+                  void Notification.requestPermission().catch(() => {});
+                void perform("presence", { status: e.target.value }, "");
+              }}
             >
               {["OFFLINE", "AVAILABLE", "BUSY", "AWAY"].map((x) => (
                 <option key={x}>{x}</option>
@@ -742,9 +792,18 @@ export default function ChatApp({ staff = false }: { staff?: boolean }) {
           </label>
           <small>
             {t("Capacity", "সর্বোচ্চ চ্যাট")}: {state?.settings.capacity || 3} ·{" "}
-            {t(
-              "Keep your availability up to date",
-              "আপনার অ্যাভেইলেবিলিটি আপডেট রাখুন",
+            {state && me?.status !== "AVAILABLE" ? (
+              <b className="lc-not-available" role="status">
+                {t(
+                  "You are not receiving new chats. Select AVAILABLE to get public chat messages.",
+                  "আপনি নতুন চ্যাট পাচ্ছেন না। পাবলিক চ্যাটের মেসেজ পেতে AVAILABLE নির্বাচন করুন।",
+                )}
+              </b>
+            ) : (
+              t(
+                "Keep your availability up to date",
+                "আপনার অ্যাভেইলেবিলিটি আপডেট রাখুন",
+              )
             )}
           </small>
           {["Live Chat", "Queue", "History"].includes(tab) && (
@@ -1814,46 +1873,237 @@ export default function ChatApp({ staff = false }: { staff?: boolean }) {
                     </>
                   )}
                   <ReferenceForm onSave={(d) => perform("reference", d, "")} />
-                  <h3>Public links</h3>
-                  <button
-                    disabled={busy}
-                    onClick={async () => {
-                      const v = await perform("link", { hours: 24 }, "");
-                      if (v) setNotice(location.origin + v.path);
-                    }}
-                  >
-                    Create 24-hour public practice link
-                  </button>
-                  <small>
-                    Copy the generated URL when shown. Secrets are not stored in
-                    recoverable form.
-                  </small>
-                  {state.links.map((link) => (
-                    <div key={link.id} className="lc-row">
-                      <small>
-                        #{link.id.slice(0, 8)} ·{" "}
-                        {new Date(link.expiresAt).toLocaleString()}
-                      </small>
-                      <button
-                        disabled={busy}
-                        onClick={() =>
-                          void perform(
-                            "link_state",
-                            { active: !link.active },
-                            link.id,
-                          )
-                        }
-                      >
-                        {link.active ? "Pause" : "Enable"}
-                      </button>
-                    </div>
-                  ))}
+                  <PublicLinks
+                    links={state.links}
+                    busy={busy}
+                    agentsAvailable={
+                      state.agents.filter((a) => a.status === "AVAILABLE")
+                        .length
+                    }
+                    onCreate={(data) => perform("link", data, "")}
+                    onToggle={(id, active) =>
+                      perform("link_state", { active }, id)
+                    }
+                  />
                 </section>
               )}
             </>
           )}
         </main>
       </div>
+    </div>
+  );
+}
+type PublicLink = {
+  id: string;
+  active: boolean;
+  expiresAt: string;
+  createdAt: string;
+  sessionId: string | null;
+  permanent: boolean;
+  path: string | null;
+};
+function PublicLinks({
+  links,
+  busy,
+  agentsAvailable,
+  onCreate,
+  onToggle,
+}: {
+  links: PublicLink[];
+  busy: boolean;
+  agentsAvailable: number;
+  onCreate: (data: {
+    permanent?: boolean;
+    hours?: number;
+  }) => Promise<{ path?: string } | null>;
+  onToggle: (id: string, active: boolean) => Promise<unknown>;
+}) {
+  const [copied, setCopied] = useState(""),
+    [copyError, setCopyError] = useState(""),
+    [hours, setHours] = useState(24),
+    [confirmRenew, setConfirmRenew] = useState(false);
+  const url = (path: string) =>
+    typeof location === "undefined" ? path : location.origin + path;
+  const now = Date.now();
+  const main = links.find(
+    (l) => l.permanent && !l.sessionId && l.active && l.path,
+  );
+  const others = links.filter((l) => l !== main);
+  const copy = async (id: string, path: string) => {
+    try {
+      await navigator.clipboard.writeText(url(path));
+      setCopied(id);
+      setCopyError("");
+      setTimeout(() => setCopied((v) => (v === id ? "" : v)), 2000);
+    } catch {
+      setCopyError("Copy failed. Select the link text and copy it manually.");
+    }
+  };
+  const label = (l: PublicLink) =>
+    !l.active
+      ? "Paused"
+      : !l.permanent && +new Date(l.expiresAt) <= now
+        ? "Expired"
+        : "Active";
+  return (
+    <div className="lc-links">
+      <h3>Public chat link</h3>
+      <small>
+        Anyone with this link can start a chat without an account. New chats go
+        to agents who are <b>Available</b> in this batch workspace (now:{" "}
+        {agentsAvailable}); otherwise they wait in the queue. / এই লিংকে যে কেউ
+        চ্যাট করতে পারবে; Available এজেন্টরা মেসেজ পাবেন।
+      </small>
+      {main ? (
+        <div className="lc-link-main">
+          <span className="lc-badge AVAILABLE">Permanent · Active</span>
+          <input
+            readOnly
+            aria-label="Permanent public chat link"
+            value={url(main.path!)}
+            onFocus={(e) => e.currentTarget.select()}
+          />
+          <div className="lc-row">
+            <button
+              className="primary"
+              onClick={() => void copy(main.id, main.path!)}
+            >
+              {copied === main.id ? <Check size={15} /> : <Copy size={15} />}{" "}
+              {copied === main.id ? "Copied" : "Copy link"}
+            </button>
+            <a
+              className="lc-link"
+              href={main.path!}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Open
+            </a>
+            <button
+              disabled={busy}
+              onClick={() => void onToggle(main.id, false)}
+            >
+              Pause
+            </button>
+            {confirmRenew ? (
+              <>
+                <small>Old link stops working for new chats.</small>
+                <button
+                  disabled={busy}
+                  onClick={async () => {
+                    setConfirmRenew(false);
+                    await onCreate({ permanent: true });
+                  }}
+                >
+                  Confirm renew
+                </button>
+                <button onClick={() => setConfirmRenew(false)}>Cancel</button>
+              </>
+            ) : (
+              <button disabled={busy} onClick={() => setConfirmRenew(true)}>
+                Renew link
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="lc-row">
+          <button
+            className="primary"
+            disabled={busy}
+            onClick={() => void onCreate({ permanent: true })}
+          >
+            Create permanent public link
+          </button>
+        </div>
+      )}
+      <div className="lc-row">
+        <label>
+          Temporary link duration
+          <select
+            value={hours}
+            onChange={(e) => setHours(Number(e.target.value))}
+          >
+            <option value={1}>1 hour</option>
+            <option value={24}>24 hours</option>
+            <option value={168}>7 days</option>
+            <option value={720}>30 days</option>
+          </select>
+        </label>
+        <button disabled={busy} onClick={() => void onCreate({ hours })}>
+          Create temporary link
+        </button>
+      </div>
+      {copyError && <p role="alert">{copyError}</p>}
+      {others.length > 0 && (
+        <div className="lc-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Link</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Expires</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {others.map((l) => (
+                <tr key={l.id}>
+                  <td>#{l.id.slice(0, 8)}</td>
+                  <td>
+                    {l.sessionId
+                      ? "Session"
+                      : l.permanent
+                        ? "Permanent"
+                        : "Temporary"}
+                  </td>
+                  <td>
+                    <span
+                      className={
+                        "lc-badge " +
+                        (label(l) === "Active" ? "AVAILABLE" : "OFFLINE")
+                      }
+                    >
+                      {label(l)}
+                    </span>
+                  </td>
+                  <td>
+                    {l.permanent
+                      ? "Never"
+                      : new Date(l.expiresAt).toLocaleString()}
+                  </td>
+                  <td>
+                    <div className="lc-row">
+                      {l.path ? (
+                        <button onClick={() => void copy(l.id, l.path!)}>
+                          {copied === l.id ? (
+                            <Check size={14} />
+                          ) : (
+                            <Copy size={14} />
+                          )}{" "}
+                          {copied === l.id ? "Copied" : "Copy"}
+                        </button>
+                      ) : (
+                        <small title="Created before re-copyable links">
+                          URL not recoverable
+                        </small>
+                      )}
+                      <button
+                        disabled={busy}
+                        onClick={() => void onToggle(l.id, !l.active)}
+                      >
+                        {l.active ? "Pause" : "Enable"}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

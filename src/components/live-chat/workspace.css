@@ -1017,3 +1017,53 @@
 .lc-workspace .lc-team-person small {
   font-size: 10px;
 }
+
+/* Public chat link manager (Settings). */
+.lc-workspace .lc-links {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  margin-top: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.lc-workspace .lc-links h3 {
+  margin: 0;
+}
+.lc-workspace .lc-links > small {
+  color: var(--muted);
+}
+.lc-workspace .lc-link-main {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--surface-raised);
+}
+.lc-workspace .lc-link-main .lc-badge {
+  justify-self: start;
+}
+.lc-workspace .lc-link-main input {
+  width: 100%;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 13px;
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--line);
+}
+.lc-workspace .lc-links label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.lc-workspace .lc-not-available {
+  color: var(--warn);
+  font-weight: 700;
+}
+.lc-workspace .lc-links table button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
