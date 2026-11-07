@@ -105,3 +105,20 @@
 - Milestone/deadline table, সাপ্তাহিক/মাসিক রিপোর্ট preset, audit history-তে field diff।
 - `IncubationApp.tsx` / `server.ts` বিভাজন (refactor)।
 - Overview/export-এ pagination এবং ledger caching (record হাজার ছাড়ালে)।
+
+## ৭. প্রি-লঞ্চ অডিট ও সংশোধন (২০২৬-১১-০৭, branch `fix/incubation-audit`)
+তিনটি স্বাধীন review (server যুক্তি, UI, deploy/performance) — প্রতিটি ফলাফল কোডে যাচাই করে সংশোধন:
+
+| গুরুত্ব | সমস্যা | সমাধান |
+|---|---|---|
+| উচ্চ | Student dashboard থেকে লিংকে ক্লিক করে workspace-এ গেলে GPS check-in কাজ করত না (Permissions-Policy শুধু direct load-এ) | পুরো `/student-dashboard`-এ location অনুমতি; browser-এ click-through করে যাচাই |
+| উচ্চ | Manage data শিট খোলা থাকলে ৬০ সেকেন্ডের auto-refresh অসংরক্ষিত এডিট মুছে দিত | শিট/ফর্ম খোলা থাকলে refresh বন্ধ; ৭০ সেকেন্ড অপেক্ষা করে যাচাই |
+| উচ্চ | লিডার sale-এ অন্য টিম (`targetTeamId`) জুড়ে দিলে সেই টিমের রিপোর্ট ভেঙে যেত | শুধু transfer-এ receiving team থাকে |
+| উচ্চ | Battle of Cups grid-এ row এডিট করলে `absentRolls` (অনুপস্থিতি) মুছে যেত; filter অবস্থায় paste লুকানো row-এ পড়ত | লুকানো ডাটা রক্ষা; paste শুধু দৃশ্যমান row-এ; dropdown/multi-select যাচাই |
+| মাঝারি | তারিখ বদলালে পুরোনো এন্ট্রি আর সংশোধন করা যেত না; ভুলে যাওয়া check-out আটকে থাকত; বন্ধ প্রোগ্রামের public link বন্ধ করা যেত না; pending কাজ রেখে close করা যেত | তারিখ-সীমা যাচাই; staff "Force check-out"; link সবসময় বন্ধ করা যায়; close-এর আগে pending গণনা |
+| মাঝারি | শিট: অপরিবর্তিত লেখা "changed" দেখাত; ভুলের row চিহ্নিত হতো না; দুবার Save-এ duplicate | সব ঠিক করা হয়েছে |
+| নিম্ন | রিমাইন্ডার UTC দুপুর ১টায়; check-out রিমাইন্ডার একবারই; deleted প্রোগ্রামের রিমাইন্ডার bell-এ | বাংলাদেশ সময় সকাল ৭টা; প্রতিদিন; লুকানো |
+| নিম্ন | Readiness gate runtime role-এর অনুমতি দেখত না; dashboard সব audit history লোড করত | Gate-এ অনুমতি যাচাই; screen-এ সর্বশেষ ৫০০ (export-এ সব) |
+
+**জেনে রাখুন (নকশাগত সিদ্ধান্ত, বদলানো হয়নি):** course-এর প্রত্যেক শিক্ষক সব Business Incubation পরিচালনা করতে পারেন (আগের অনুমোদিত নীতি); প্রোগ্রামের "staff" তালিকা শুধু কে দৈনিক রিমাইন্ডার পাবেন তা ঠিক করে। SMTP email একে একে যায় — অনেক প্রাপক হলে রিমাইন্ডার পাঠাতে কয়েক মিনিট লাগতে পারে।
+
