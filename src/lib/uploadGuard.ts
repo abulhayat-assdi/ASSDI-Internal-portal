@@ -109,6 +109,25 @@ const TEXT_DOCUMENT_EXTENSIONS = new Set([".html", ".htm", ".svg"]);
 /** Pages with inlined images/fonts get big, but they are read whole to be scanned. */
 const MAX_TEXT_DOCUMENT_BYTES = 50 * 1024 * 1024;
 
+/**
+ * Markdown notes. Served back as text/plain (never rendered as HTML), so they
+ * can't execute anything; they only need to really be text. Not run through the
+ * SQL-injection scan: a write-up about SQL legitimately contains such snippets.
+ */
+const MARKDOWN_EXTENSIONS = new Set([".md", ".markdown"]);
+
+function verifyMarkdownFile(buffer: Buffer, ext: string): string | null {
+    if (buffer.length === 0) return `${ext} ফাইলটি খালি।`;
+    if (buffer.length > MAX_TEXT_DOCUMENT_BYTES) {
+        return `${ext} ফাইল সর্বোচ্চ ${MAX_TEXT_DOCUMENT_BYTES / (1024 * 1024)}MB হতে পারবে।`;
+    }
+    // A NUL byte in the first 8KB means a binary file wearing a text extension.
+    if (buffer.subarray(0, 8192).includes(0)) {
+        return `File contents do not match its ${ext} extension.`;
+    }
+    return null;
+}
+
 interface SqlPattern {
     label: string;
     regex: RegExp;
@@ -156,6 +175,7 @@ export function findSqlInjection(text: string): string | null {
  */
 export function verifyHomeworkFile(buffer: Buffer, fileName: string): string | null {
     const ext = path.extname(fileName).toLowerCase();
+    if (MARKDOWN_EXTENSIONS.has(ext)) return verifyMarkdownFile(buffer, ext);
     if (!TEXT_DOCUMENT_EXTENSIONS.has(ext)) return verifyFileSignature(buffer, fileName);
 
     if (buffer.length === 0) return `${ext} ফাইলটি খালি।`;
