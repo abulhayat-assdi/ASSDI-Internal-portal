@@ -56,8 +56,6 @@ export default function CourseModulesAdminPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [seeding, setSeeding] = useState(false);
-    const [bulkResetting, setBulkResetting] = useState(false);
-    const [resettingSlug, setResettingSlug] = useState<string | null>(null);
     const [dbError, setDbError] = useState<string | null>(null);
 
     // Editor state
@@ -116,33 +114,6 @@ export default function CourseModulesAdminPage() {
         }
     };
 
-    // ── Bulk reset all modules from code ─────────────────────
-    const handleBulkReset = async () => {
-        const ok = await confirm({
-            message: `Code-এ যত module আছে সবগুলোর title, description ও curriculum code থেকে আপডেট হবে। আপনার করা slug/order/bullets পরিবর্তন অক্ষুণ্ণ থাকবে। Continue?`,
-            variant: "warning",
-        });
-        if (!ok) return;
-        setBulkResetting(true);
-        try {
-            const res = await fetch("/api/admin/course-modules/bulk-reset", { method: "POST" });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error);
-            await load();
-            const resultItems = (data.results as { slug: string; status: string }[]).map(r => ({
-                text: `${r.slug}: ${r.status}`,
-                status: r.status.includes("updated") ? "created" as const
-                      : r.status.includes("skipped") ? "skipped" as const
-                      : "error" as const,
-            }));
-            showResults("Update সম্পন্ন!", resultItems);
-        } catch (err: unknown) {
-            toastError("Update Failed", err instanceof Error ? err.message : "Unknown error");
-        } finally {
-            setBulkResetting(false);
-        }
-    };
-
     // ── Open create / edit ───────────────────────────────────
     const openCreate = () => {
         const nextOrder = modules.length > 0 ? Math.max(...modules.map(m => m.order)) + 1 : 0;
@@ -176,31 +147,6 @@ export default function CourseModulesAdminPage() {
             await load();
         } catch {
             toastError("Delete Failed", "Module delete করা সম্ভব হয়নি।");
-        }
-    };
-
-    // ── Reset curriculum from data file ─────────────────────
-    const handleResetCurriculum = async (m: CourseModule) => {
-        const ok = await confirm({
-            message: `"${m.title}" module-এর curriculum কি data file থেকে reset করবেন? Database-এর বর্তমান curriculum replace হয়ে যাবে।`,
-            variant: "warning",
-        });
-        if (!ok) return;
-        setResettingSlug(m.slug);
-        try {
-            const res = await fetch("/api/admin/course-modules/reset-curriculum", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ slug: m.slug }),
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error ?? "Reset failed");
-            await load();
-            success("Curriculum Reset!", data.message);
-        } catch (err: unknown) {
-            toastError("Reset Failed", err instanceof Error ? err.message : "Unknown error");
-        } finally {
-            setResettingSlug(null);
         }
     };
 
@@ -693,36 +639,6 @@ export default function CourseModulesAdminPage() {
                     </div>
                     <div className="flex gap-3 flex-wrap">
                         <button
-                            onClick={handleSeed}
-                            disabled={seeding || bulkResetting}
-                            title="Code-এ নতুন যোগ করা module DB-তে add করুন (existing গুলো unchanged থাকবে)"
-                            className="flex items-center gap-2 px-4 py-2.5 border-2 border-amber-500 text-amber-600 font-semibold rounded-xl hover:bg-amber-50 transition-colors text-sm disabled:opacity-50"
-                        >
-                            {seeding ? (
-                                <span className="inline-block w-4 h-4 border-2 border-amber-400/40 border-t-amber-500 rounded-full animate-spin" />
-                            ) : (
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                                </svg>
-                            )}
-                            {seeding ? "Syncing..." : "Sync Modules"}
-                        </button>
-                        <button
-                            onClick={handleBulkReset}
-                            disabled={bulkResetting || seeding}
-                            title="Code থেকে সব module-এর title, description ও curriculum আপডেট করুন"
-                            className="flex items-center gap-2 px-4 py-2.5 border-2 border-blue-500 text-blue-600 font-semibold rounded-xl hover:bg-blue-50 transition-colors text-sm disabled:opacity-50"
-                        >
-                            {bulkResetting ? (
-                                <span className="inline-block w-4 h-4 border-2 border-blue-400/40 border-t-blue-500 rounded-full animate-spin" />
-                            ) : (
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                </svg>
-                            )}
-                            {bulkResetting ? "Updating..." : "Update All from Code"}
-                        </button>
-                        <button
                             onClick={openCreate}
                             className="flex items-center gap-2 px-5 py-2.5 bg-[#059669] text-white font-semibold rounded-xl hover:bg-[#047857] transition-colors shadow-sm text-sm"
                         >
@@ -856,21 +772,6 @@ export default function CourseModulesAdminPage() {
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                             </svg>
                                             Edit
-                                        </button>
-                                        <button
-                                            onClick={() => handleResetCurriculum(m)}
-                                            disabled={resettingSlug === m.slug}
-                                            title="Code থেকে curriculum আপডেট করুন"
-                                            className="flex items-center justify-center gap-1 px-2 py-2 text-xs font-semibold text-amber-600 border border-amber-400 rounded-lg hover:bg-amber-50 hover:text-amber-800 transition-colors disabled:opacity-50"
-                                        >
-                                            {resettingSlug === m.slug ? (
-                                                <span className="inline-block w-3 h-3 border-2 border-amber-400/40 border-t-amber-500 rounded-full animate-spin" />
-                                            ) : (
-                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                                </svg>
-                                            )}
-                                            <span>Reset</span>
                                         </button>
                                         <button
                                             onClick={() => handleDelete(m)}
