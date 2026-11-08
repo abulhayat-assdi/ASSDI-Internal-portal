@@ -4,6 +4,7 @@ import { fieldCommand, fieldCorrectionCommand } from "@/lib/incubation/field";
 import { featureTx, accessProgram, type Actor } from "@/lib/incubation/server";
 import { insist } from "@/lib/incubation/domain";
 import { failure } from "@/lib/incubation/http";
+import { ingestUrl, requestOrigin } from "@/lib/tracking/core";
 export const dynamic = "force-dynamic";
 export async function POST(req: NextRequest) {
   try {
@@ -11,11 +12,22 @@ export async function POST(req: NextRequest) {
     if (!a?.courseId)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const body = await req.json();
-    return NextResponse.json(
-      await (["field_correct", "field_review", "field_force_checkout"].includes(body.action)
-        ? fieldCorrectionCommand(a as Actor, body)
-        : fieldCommand(a as Actor, body)),
-    );
+    if (["field_correct", "field_review", "field_force_checkout"].includes(body.action))
+      return NextResponse.json(await fieldCorrectionCommand(a as Actor, body));
+    const result = await fieldCommand(a as Actor, body);
+    // A check-in also opens a field track for the Android app (window.AsmApp.startTracking).
+    if ("tracking" in result && result.tracking)
+      return NextResponse.json(
+        {
+          ...result,
+          tracking: {
+            ...result.tracking,
+            ingestUrl: ingestUrl(requestOrigin(req.headers)),
+          },
+        },
+        { headers: { "Cache-Control": "no-store" } },
+      );
+    return NextResponse.json(result);
   } catch (e) {
     return failure(e);
   }

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Change the app name here. -->
+    <string name="app_name">ASSDI Portal</string>
+
+    <string name="error_title">সংযোগ করা যাচ্ছে না\nCan\'t connect</string>
+    <string name="error_message">ইন্টারনেট সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।\nCheck your internet connection and try again.</string>
+    <string name="retry">আবার চেষ্টা করুন / Retry</string>
+
+    <string name="no_app_to_open">এই লিংক খোলার মতো কোনো অ্যাপ নেই / No app can open this link</string>
+    <string name="download_started">ডাউনলোড শুরু হয়েছে / Download started</string>
+    <string name="download_unsupported">এই ফাইলটি অ্যাপে ডাউনলোড করা যাচ্ছে না / This download is not supported in the app</string>
+    <string name="choose_file">ফাইল বেছে নিন / Choose a file</string>
+
+    <string name="bg_title">সবসময় লোকেশন অনুমতি / Allow location all the time</string>
+    <string name="bg_message">ফোন লক থাকলেও ফিল্ড ট্র্যাকিং চালু রাখতে লোকেশন অনুমতি \"সবসময় অনুমতি দিন\" (Allow all the time) করুন। পরের পর্দায় \"Allow all the time\" বেছে নিন। শুধু ফিল্ড সেশন চলার সময় লোকেশন নেওয়া হয়।\n\nTo keep field tracking running while the phone is locked, choose \"Allow all the time\" on the next screen. Location is used only during an active field session.</string>
+    <string name="bg_allow">অনুমতি দিন / Allow</string>
+    <string name="not_now">এখন না / Not now</string>
+
+    <string name="channel_tracking">ফিল্ড ট্র্যাকিং / Field tracking</string>
+    <string name="channel_alerts">ট্র্যাকিং বার্তা / Tracking alerts</string>
+    <string name="tracking_running">ফিল্ড ট্র্যাকিং চালু আছে</string>
+    <string name="tracking_stopped_title">ফিল্ড ট্র্যাকিং বন্ধ হয়েছে</string>
+    <string name="tracking_stopped_text">সেশন শেষ হয়েছে। / The field session has ended.</string>
+    <string name="tracking_unauthorized_text">ট্র্যাকিং অনুমোদন বাতিল হয়েছে। অ্যাপ খুলে আবার শুরু করুন। / Tracking was not authorized. Open the app and start again.</string>
+    <string name="tracking_resume_title">ফিল্ড ট্র্যাকিং চালু করুন</string>
+    <string name="tracking_resume_text">ট্র্যাকিং আবার চালু করতে ট্যাপ করুন। / Tap to resume field tracking.</string>
+</resources>

@@ -195,6 +195,14 @@ Type the program name to confirm:`,
                 >
                   Procurement
                 </Link>
+                {c.trackingEnabled && (
+                  <Link
+                    className="inc-btn"
+                    href={"/dashboard/competitions/" + c.id + "/live"}
+                  >
+                    Live map
+                  </Link>
+                )}
                 <button
                   className="inc-btn danger"
                   onClick={async () => {

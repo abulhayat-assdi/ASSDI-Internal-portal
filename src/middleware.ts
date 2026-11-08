@@ -13,6 +13,11 @@ const PUBLIC_API_ROUTES = [
     '/api/live-chat/public/',
     '/live-chat/',
     '/api/health',
+    // Android app location batches: authenticated by a per-track bearer token,
+    // never by the session cookie (see src/lib/tracking/server.ts).
+    '/api/tracking/ingest',
+    // Android app: list of course hosts it may trust (public course slugs only).
+    '/api/app/hosts',
     // Authenticates with CRON_SECRET, not a session — there is no user behind it.
     '/api/cron/',
     '/api/chat',
@@ -55,9 +60,13 @@ const PUBLIC_API_ROUTES = [
  */
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
+// Write routes that never read the session cookie, so a cross-origin caller gains nothing.
+const COOKIELESS_WRITE_ROUTES = ['/api/tracking/ingest'];
+
 function isCrossOriginWrite(request: NextRequest, host: string): boolean {
     if (SAFE_METHODS.has(request.method)) return false;
     if (!request.nextUrl.pathname.startsWith('/api')) return false;
+    if (COOKIELESS_WRITE_ROUTES.includes(request.nextUrl.pathname)) return false;
 
     // Sec-Fetch-Site is the precise signal where it exists (all current
     // browsers); Origin is the fallback for the rest.
@@ -253,9 +262,22 @@ async function courseGuard(request: NextRequest, course: { id: string; slug: str
     return passThrough();
 }
 
+/** Typing Adventure / Typing Exam are hidden inside the Android app (UA marker AsmPortalApp). */
+const APP_HIDDEN_STUDENT_PATHS = ['/student-dashboard/typing-game', '/student-dashboard/typing-exam'];
+
+function isAppHiddenPath(request: NextRequest): boolean {
+    const { pathname } = request.nextUrl;
+    if (!(request.headers.get('user-agent') || '').includes('AsmPortalApp')) return false;
+    return APP_HIDDEN_STUDENT_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'));
+}
+
 export async function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
     const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || '';
+
+    if (isAppHiddenPath(request)) {
+        return NextResponse.redirect(new URL(APP_PATHS.STUDENT_DASHBOARD, request.url));
+    }
 
     // 0. Reject cross-origin writes before any of the guards below run, so a
     // sibling subdomain can't ride a teacher's cookie into a mutating route.

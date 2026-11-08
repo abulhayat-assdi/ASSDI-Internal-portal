@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import TrackingSettingsFields, { trackingSettingsError, TRACKING_DEFAULT_SECONDS } from "@/components/competitions/TrackingSettingsFields";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 
@@ -28,6 +29,8 @@ export default function CreateCompetitionPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [batchName, setBatchName] = useState("");
+  const [trackingEnabled, setTrackingEnabled] = useState(false);
+  const [trackingInterval, setTrackingInterval] = useState<number | "">(TRACKING_DEFAULT_SECONDS);
   const [fields, setFields] = useState<FormField[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -200,6 +203,12 @@ export default function CreateCompetitionPage() {
       }
     }
 
+    const trackingError = trackingSettingsError(trackingEnabled, trackingInterval);
+    if (trackingError) {
+      toast.error(trackingError);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const res = await fetch("/api/competitions", {
@@ -210,7 +219,9 @@ export default function CreateCompetitionPage() {
           description: description.trim(),
           batchName: batchName.trim(),
           schema: fields,
-          isActive: true
+          isActive: true,
+          trackingEnabled,
+          trackingIntervalSeconds: trackingEnabled ? trackingInterval : undefined,
         })
       });
 
@@ -292,6 +303,12 @@ export default function CreateCompetitionPage() {
               value={description} onChange={(e) => setDescription(e.target.value)}
             />
           </div>
+          <TrackingSettingsFields
+            enabled={trackingEnabled}
+            interval={trackingInterval}
+            onEnabled={setTrackingEnabled}
+            onInterval={setTrackingInterval}
+          />
         </div>
 
         <div className="space-y-4">

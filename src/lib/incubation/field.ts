@@ -2,6 +2,8 @@ import "server-only";
 import { z } from "zod";
 import { isIncubationRunning, isProgramLocked, lockedMessage } from "./lifecycle";
 import { Prisma } from "@prisma/client";
+import { endTracks, openTrack } from "@/lib/tracking/tracks";
+import { DEFAULT_INTERVAL_SECONDS } from "@/lib/tracking/core";
 import {
   accessProgram,
   audit,
@@ -139,6 +141,11 @@ export async function fieldCommand(actor: Actor, input: unknown) {
     let session = await tx.incubationFieldSession.findFirst({
       where: { userId: actor.id, courseId: actor.courseId, checkOut: null },
     });
+    // Check-in also opens a field track so the Android app can post locations
+    // while the screen is locked. The route adds ingestUrl (it knows the origin).
+    let tracking:
+      | { trackId: string; token: string; intervalSeconds: number; expiresAt: string; title: string }
+      | undefined;
     if (body.action === "checkin") {
       insist(!session, "Check out of your open session first.", 409);
       insist(
@@ -222,6 +229,25 @@ export async function fieldCommand(actor: Actor, input: unknown) {
           carried: json(body.carried || []),
         },
       });
+      const opened = await openTrack(tx, {
+        courseId: actor.courseId,
+        competitionId: program.competitionId,
+        userId: actor.id,
+        userName: actor.displayName,
+        batchName: member.batchName || null,
+        label: member.team.name,
+        source: "incubation",
+        incubationSessionId: session.id,
+        intervalSeconds: DEFAULT_INTERVAL_SECONDS,
+        now,
+      });
+      tracking = {
+        trackId: opened.track.id,
+        token: opened.token,
+        intervalSeconds: opened.track.intervalSeconds,
+        expiresAt: opened.track.tokenExpiresAt.toISOString(),
+        title: program.name,
+      };
       await audit(tx, actor, program.id, "field.checkin", session.id, null, {
         teamId: session.teamId,
         userName: session.userName,
@@ -275,6 +301,7 @@ export async function fieldCommand(actor: Actor, input: unknown) {
             proofId: body.proofId,
           },
         });
+        await endTracks(tx, { incubationSessionId: session.id }, "checkout", now);
         await tx.incubationAudit.create({
           data: {
             courseId: actor.courseId,
@@ -321,7 +348,7 @@ export async function fieldCommand(actor: Actor, input: unknown) {
       },
       update: {},
     });
-    return { session };
+    return tracking ? { session, tracking } : { session };
   });
 }
 
@@ -358,6 +385,7 @@ export async function fieldCorrectionCommand(actor: Actor, input: unknown) {
         where: { id: session.id },
         data: { checkOut: new Date(), endAreaId: session.startAreaId, version: { increment: 1 } },
       });
+      await endTracks(tx, { incubationSessionId: session.id }, "force_checkout");
       await audit(tx, actor, program.id, "field.force_checkout", session.id, session, closed, v.reason);
       return closed;
     }

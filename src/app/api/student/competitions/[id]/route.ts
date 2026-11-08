@@ -15,6 +15,7 @@ import {
 import { accessProgram, type Actor } from "@/lib/incubation/server";
 import { isFeatureEnabled } from "@/lib/features";
 import { failure } from "@/lib/incubation/http";
+import { studentTrackingInfo } from "@/lib/tracking/server";
 
 // The form plus everything this student is allowed to see: their own
 // individual reports, their teammates' individual reports, and their team's
@@ -141,7 +142,11 @@ export async function GET(
             batchName: competition.batchName,
             schema: competition.schema,
             isActive: competition.isActive,
+            startDate: competition.startDate,
+            endDate: competition.endDate,
           },
+          // Field tracking from the Android app; openTrack lets the page resume after a reload.
+          tracking: await studentTrackingInfo(tx, competition, session.id),
           me: { roll: student.roll, name: student.name },
           team: group
             ? {

@@ -10,6 +10,10 @@ import { useBranding } from "@/contexts/BrandingContext";
 import { useSidebarNotifications } from "@/hooks/useSidebarNotifications";
 import { PermissionKey } from "@/lib/permissions";
 import StudentBottomNav from "@/components/layout/StudentBottomNav";
+import { useIsAsmApp } from "@/lib/tracking/client";
+
+/** Student pages hidden inside the Android app (the middleware also redirects them). */
+const APP_HIDDEN_STUDENT_FEATURES = new Set(["typing_game", "typing_exam"]);
 
 interface NavItem {
     href: string;
@@ -193,6 +197,7 @@ export default function Sidebar({ variant }: SidebarProps = {}) {
     }, [pathname, loading, markPageAsVisited]);
 
     const isStudent = variant === "student" || userProfile?.role === "student";
+    const inApp = useIsAsmApp();
     const useBottomNav = variant === "student";
 
     // While the drawer is open on a phone: the page behind must not scroll,
@@ -217,6 +222,7 @@ export default function Sidebar({ variant }: SidebarProps = {}) {
 
     // Filter helper function
     const isNavItemAllowed = (item: NavItem) => {
+        if (isStudent && inApp && item.feature && APP_HIDDEN_STUDENT_FEATURES.has(item.feature)) return false;
         if(item.feature === "competitions" && !loading) return (features.competitions !== false || features.business_incubation === true) && (isStudent || hasPermission("competitions_view"));
         if (item.feature === "live_chat" && (loading || features.live_chat !== true || features.crm !== true)) return false;
         if (item.feature === "crm" && (loading || features.crm !== true)) return false;

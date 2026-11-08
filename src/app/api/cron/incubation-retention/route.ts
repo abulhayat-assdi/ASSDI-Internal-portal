@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { withCourseContext } from "@/lib/db";
+import { purgeOldPositions } from "@/lib/tracking/server";
 export const dynamic = "force-dynamic";
 export async function POST(req: NextRequest) {
   const secret = process.env.CRON_SECRET || "",
@@ -41,11 +42,16 @@ export async function POST(req: NextRequest) {
             data: { endPosition: Prisma.JsonNull },
           });
         }
-        return count;
+        // Competition field tracking (Android app): fixed 90-day retention for every course.
+        const trackPositions = await purgeOldPositions(tx);
+        return { count, trackPositions };
       },
       { timeout: 60000 },
     );
-    return NextResponse.json({ removed });
+    return NextResponse.json({
+      removed: removed.count,
+      trackPositionsRemoved: removed.trackPositions,
+    });
   } catch (e) {
     console.error("Incubation retention failed", e);
     return NextResponse.json(

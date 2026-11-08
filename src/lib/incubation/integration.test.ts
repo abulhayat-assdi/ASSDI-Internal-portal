@@ -415,6 +415,25 @@ describe("real migration and transactional incubation workflows", () => {
       carried: [{ productId: product, quantity: "4" }],
     });
     expect(a.session.checkOut).toBeNull();
+    // Check-in opens a linked field track for the Android app; its uploads mirror into incubation_positions.
+    const cfg = (a as any).tracking;
+    expect(cfg).toMatchObject({ intervalSeconds: 60 });
+    const tracking = await import("@/lib/tracking/server");
+    const offline = new Date(Date.now() - 20000).toISOString();
+    expect(
+      await tracking.ingest(cfg.token, {
+        trackId: cfg.trackId,
+        positions: [{ latitude: 23.81, longitude: 90.41, accuracy: 9, capturedAt: offline }],
+      }),
+    ).toMatchObject({ accepted: 1 });
+    expect(
+      await prisma.incubationPosition.count({
+        where: { sessionId: a.session.id, capturedAt: new Date(offline) },
+      }),
+    ).toBe(1);
+    await expect(
+      tracking.startCompetitionTrack({ ...lead, courseId: "course-a" }, (await prisma.incubationProgram.findUniqueOrThrow({ where: { id: programId } })).competitionId, "https://x.test"),
+    ).rejects.toMatchObject({ status: 409 });
     await expect(
       field.fieldCommand(member, {
         action: "checkin",
@@ -432,6 +451,14 @@ describe("real migration and transactional incubation workflows", () => {
       steps: 400,
     });
     expect(end.session.checkOut).not.toBeNull();
+    const track = await prisma.fieldTrack.findUniqueOrThrow({ where: { id: cfg.trackId } });
+    expect(track).toMatchObject({ source: "incubation", endReason: "checkout", incubationSessionId: a.session.id });
+    await expect(
+      tracking.ingest(cfg.token, {
+        trackId: cfg.trackId,
+        positions: [{ latitude: 23.81, longitude: 90.41, accuracy: 9, capturedAt: new Date().toISOString() }],
+      }),
+    ).rejects.toMatchObject({ status: 410 });
   });
   it("reviews individual field corrections without editing recorded coordinates", async () => {
     const session = await prisma.incubationFieldSession.findFirstOrThrow({
@@ -967,6 +994,9 @@ describe("real migration and transactional incubation workflows", () => {
       payload: { sessionId: open.session.id, reason: "Forgot to check out" },
     })) as any;
     expect(closed.checkOut).not.toBeNull();
+    expect(
+      (await prisma.fieldTrack.findFirstOrThrow({ where: { incubationSessionId: open.session.id } })).endReason,
+    ).toBe("force_checkout");
 
     // A retried sheet save does not add the same new row twice; bad dates name the row.
     const row = { key: "n-retry-1", kind: "expense", teamId: teamA, date: todayDhaka(), data: { amount: "4", expenseType: "Transport" } };
