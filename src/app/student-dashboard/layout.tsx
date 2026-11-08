@@ -1,4 +1,5 @@
 import { BrandingProvider } from "@/contexts/BrandingContext";
+import AppSessionKeeper from "@/components/auth/AppSessionKeeper";
 import { getRequestBranding } from "@/lib/branding";
 import { getServerSessionUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -18,5 +19,10 @@ export default async function Layout({
   if (!user) redirect("/student-login");
   if (user.role !== "student") redirect("/dashboard");
   const branding = await getRequestBranding();
-  return <BrandingProvider value={branding}>{children}</BrandingProvider>;
+  return (
+    <BrandingProvider value={branding}>
+      <AppSessionKeeper />
+      {children}
+    </BrandingProvider>
+  );
 }

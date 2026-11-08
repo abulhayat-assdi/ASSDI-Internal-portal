@@ -78,6 +78,11 @@ All JSON. `cookie` means the normal portal session cookie (`getSessionUser`).
 - Signing: release keystore outside git (`android/keystore.properties` and `*.jks` are gitignored). Build instructions are in `android/README.md`.
 - Honest limits: tracking stops if the user force-stops the app, turns off location, or the phone vendor kills the service. The staff map shows such tracks as stale.
 
+## Staying logged in (app 1.2.0)
+- The app remembers the last course origin and area (student or staff) once a dashboard page loads. On launch it opens that dashboard directly, but only when the course is still trusted and CookieManager still holds a `__session` cookie for it. Otherwise it opens the course picker.
+- Logout deletes the cookie, so the next launch starts at the course picker. A session revoked on the server ends with a redirect to the course's own login page.
+- Sliding session: inside the app, `AppSessionKeeper` calls `POST /api/auth/refresh` at most every 12 h. That renews the cookie, the JWT and the ActiveSession row for another 30 days. Only a live session is renewed (deleted, disabled, left or revoked sessions are not), and impersonated sessions never are. Browsers keep the fixed 30-day lifetime.
+
 ## In-app updates
 - Web changes (pages, features, design) reach the app as soon as they are deployed, because the app loads the live portal. No new APK is needed.
 - Native changes (tracking, permissions, name/icon, bridge) need a new APK. The release manifest `public/downloads/asm-portal.json` is written by `gradlew publishApk` together with `public/downloads/asm-portal.apk`. Both are committed and deployed with the portal.
