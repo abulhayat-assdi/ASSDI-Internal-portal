@@ -1,28 +1,27 @@
 import type { Metadata } from "next";
-import { stat } from "node:fs/promises";
-import path from "node:path";
+import { apkDownloadPath, readAppRelease } from "@/lib/appRelease";
 
 // Public download page for the ASSDI Portal Android app (no login; reachable on the
-// root domain and every course subdomain). The APK is dropped into public/downloads later.
+// root domain and every course subdomain). The APK and its manifest live in
+// public/downloads and are written by `gradlew publishApk`.
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "ASSDI Portal Android App",
   description: "ASSDI Portal অ্যান্ড্রয়েড অ্যাপ ডাউনলোড ও সেটআপ",
 };
 
-const APK_PATH = "/downloads/asm-portal.apk";
-
-async function apkInfo(): Promise<{ sizeMb: string; updated: string } | null> {
-  try {
-    const s = await stat(path.join(process.cwd(), "public", APK_PATH));
-    if (!s.isFile() || s.size === 0) return null;
-    return {
-      sizeMb: (s.size / 1024 / 1024).toFixed(1),
-      updated: s.mtime.toLocaleDateString("en-GB", { timeZone: "Asia/Dhaka" }),
-    };
-  } catch {
-    return null;
-  }
+async function apkInfo() {
+  const release = await readAppRelease();
+  if (!release) return null;
+  return {
+    href: apkDownloadPath(release),
+    versionName: release.versionName,
+    notes: release.notes,
+    sizeMb: (release.size / 1024 / 1024).toFixed(1),
+    updated: release.publishedAt
+      ? new Date(release.publishedAt).toLocaleDateString("en-GB", { timeZone: "Asia/Dhaka" })
+      : null,
+  };
 }
 
 const steps: { title: string; body: string[] }[] = [
@@ -79,14 +78,15 @@ export default async function AppDownloadPage() {
             {apk ? (
               <>
                 <a
-                  href={APK_PATH}
-                  download
+                  href={apk.href}
+                  download="asm-portal.apk"
                   className="inline-flex items-center rounded-xl bg-white px-6 py-3 text-base font-black text-emerald-700 shadow hover:bg-emerald-50"
                 >
                   ডাউনলোড করুন (APK)
                 </a>
                 <span className="text-xs text-emerald-50">
-                  {apk.sizeMb} MB · আপডেট {apk.updated}
+                  Version {apk.versionName} · {apk.sizeMb} MB
+                  {apk.updated ? ` · প্রকাশ ${apk.updated}` : ""}
                 </span>
               </>
             ) : (
@@ -98,6 +98,17 @@ export default async function AppDownloadPage() {
           <p className="mt-3 text-xs text-emerald-50">শুধু Android ফোনের জন্য (Android 8.0 বা নতুন)। iPhone সমর্থিত নয়।</p>
         </header>
 
+        {apk && apk.notes.length > 0 && (
+          <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
+            <h2 className="text-lg font-bold text-emerald-900">Version {apk.versionName}-এ যা নতুন</h2>
+            <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm text-emerald-900">
+              {apk.notes.map((n) => (
+                <li key={n}>{n}</li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         {steps.map((s) => (
           <section key={s.title} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-bold text-slate-800">{s.title}</h2>
@@ -108,6 +119,19 @@ export default async function AppDownloadPage() {
             </ul>
           </section>
         ))}
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-600 shadow-sm">
+          <h2 className="text-lg font-bold text-slate-800">অ্যাপ আপডেট কীভাবে হয়?</h2>
+          <ul className="mt-2 list-disc space-y-1.5 pl-5">
+            <li>পোর্টালের পেজ, ফিচার বা ডিজাইনের পরিবর্তন অ্যাপে সাথে সাথেই চলে আসে; এর জন্য নতুন করে কিছু ইনস্টল করতে হয় না।</li>
+            <li>
+              অ্যাপের নিজের নতুন version এলে অ্যাপ খুললেই &quot;নতুন আপডেট এসেছে&quot; নোটিশ দেখাবে। &quot;এখনই আপডেট করুন&quot;
+              চাপলে ডাউনলোড হয়ে ইনস্টলের স্ক্রিন আসবে; Install চাপুন। আগের লগইন ও তথ্য মুছবে না।
+            </li>
+            <li>প্রথমবার আপডেটের সময় ফোন &quot;Install unknown apps&quot; অনুমতি চাইলে ASSDI Portal-এর জন্য Allow দিন।</li>
+            <li>Version 1.0.0 ব্যবহারকারীদের অ্যাপে আপডেট-নোটিশ নেই; তারা একবার এই পেজ থেকে নতুনটি ডাউনলোড করে ইনস্টল করুন।</li>
+          </ul>
+        </section>
 
         <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
           <h2 className="font-bold">লোকেশন কখন পাঠানো হয়?</h2>

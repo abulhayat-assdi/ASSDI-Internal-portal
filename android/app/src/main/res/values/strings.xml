@@ -25,4 +25,24 @@
     <string name="tracking_unauthorized_text">ট্র্যাকিং অনুমোদন বাতিল হয়েছে। অ্যাপ খুলে আবার শুরু করুন। / Tracking was not authorized. Open the app and start again.</string>
     <string name="tracking_resume_title">ফিল্ড ট্র্যাকিং চালু করুন</string>
     <string name="tracking_resume_text">ট্র্যাকিং আবার চালু করতে ট্যাপ করুন। / Tap to resume field tracking.</string>
+
+    <!-- In-app update -->
+    <string name="update_title">নতুন আপডেট এসেছে (%1$s) / Update available</string>
+    <string name="update_required">এই সংস্করণ আর চলবে না। চালিয়ে যেতে আপডেট করুন।\nThis version is no longer supported. Please update to continue.</string>
+    <string name="update_now">এখনই আপডেট করুন / Update now</string>
+    <string name="update_later">পরে / Later</string>
+    <string name="update_close_app">অ্যাপ বন্ধ করুন / Close app</string>
+    <string name="update_size">আকার / Size: %1$s</string>
+    <string name="update_downloading">আপডেট ডাউনলোড হচ্ছে… / Downloading update…</string>
+    <string name="update_cancel">বাতিল / Cancel</string>
+    <string name="update_latest">আপনার অ্যাপ সর্বশেষ সংস্করণে আছে / You have the latest version</string>
+    <string name="update_error_title">আপডেট করা যায়নি / Update failed</string>
+    <string name="update_error_download">ডাউনলোড ব্যর্থ হয়েছে। ইন্টারনেট সংযোগ দেখে আবার চেষ্টা করুন।\nThe download failed. Check your connection and try again.</string>
+    <string name="update_error_verify">ডাউনলোড করা ফাইলটি যাচাইয়ে টেকেনি, তাই মুছে ফেলা হয়েছে।\nThe downloaded file failed verification and was deleted.</string>
+    <string name="update_error_source">আপডেটের লিংকটি বিশ্বস্ত নয়।\nThe update link is not trusted.</string>
+    <string name="update_error_install">ইনস্টলার খোলা যায়নি।\nCould not open the installer.</string>
+    <string name="update_unknown_sources_title">ইনস্টলের অনুমতি দিন / Allow installing the update</string>
+    <string name="update_unknown_sources_msg">আপডেট ইনস্টল করতে পরের পর্দায় \"এই উৎস থেকে অনুমতি দিন\" চালু করে ফিরে আসুন।\n\nOn the next screen, turn on \"Allow from this source\", then come back to finish the update.</string>
+    <string name="update_open_settings">সেটিংস খুলুন / Open settings</string>
+    <string name="ok">ঠিক আছে / OK</string>
 </resources>

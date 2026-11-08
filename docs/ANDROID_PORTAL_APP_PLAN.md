@@ -74,5 +74,15 @@ All JSON. `cookie` means the normal portal session cookie (`getSessionUser`).
 - Signing: release keystore outside git (`android/keystore.properties` and `*.jks` are gitignored). Build instructions are in `android/README.md`.
 - Honest limits: tracking stops if the user force-stops the app, turns off location, or the phone vendor kills the service. The staff map shows such tracks as stale.
 
+## In-app updates
+- Web changes (pages, features, design) reach the app as soon as they are deployed, because the app loads the live portal. No new APK is needed.
+- Native changes (tracking, permissions, name/icon, bridge) need a new APK. The release manifest `public/downloads/asm-portal.json` is written by `gradlew publishApk` together with `public/downloads/asm-portal.apk`. Both are committed and deployed with the portal.
+- `GET /api/app/version` (public, no-store) returns `{versionCode, versionName, minVersionCode, apkUrl, sha256, size, notes, publishedAt}`. It returns 404 when nothing is published. `apkUrl` carries `?v=<versionCode>` to bust caches.
+- The app checks on launch and on resume (at most every 30 min).
+  - A newer `versionCode` shows the "নতুন আপডেট এসেছে" dialog. "পরে" snoozes it for 24 h.
+  - Below `minVersionCode`, the dialog cannot be dismissed.
+  - The update downloads the APK, verifies the SHA-256 and the package, then opens the system installer. The user taps Install once; Android requires that for apps installed from outside a store.
+- The same release key must sign every update. Releases v1.0.0 and earlier have no updater, so their users update once by hand from `/app`.
+
 ## Validation required before rollout
 Real phones from several vendors (Samsung, Xiaomi/Redmi, Realme/Oppo, Vivo). Check: locked-screen tracking for at least 30 min, offline replay, stop behaviour, reboot, battery-saver. Pilot APK first.

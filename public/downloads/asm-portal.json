@@ -1,0 +1,13 @@
+{
+  "versionCode": 2,
+  "versionName": "1.1.0",
+  "minVersionCode": 1,
+  "sha256": "24b978702f327e11d48ecbb3c165d85b901438d7b0d0c23201b60e93cffc8d51",
+  "size": 1230818,
+  "notes": [
+    "অ্যাপের ভেতরে আপডেট-নোটিশ যোগ হয়েছে",
+    "নতুন আপডেট এলে এক চাপে ইনস্টল"
+  ],
+  "publishedAt": "2026-11-08T09:59:31Z",
+  "apk": "/downloads/asm-portal.apk"
+}
