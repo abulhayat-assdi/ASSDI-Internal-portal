@@ -73,6 +73,29 @@ function isCrossOriginWrite(request: NextRequest, host: string): boolean {
     }
 }
 
+/**
+ * Waits for an upload's body to arrive in full before the middleware returns.
+ *
+ * Next 15's Node middleware hands the route handler a copy of the request body
+ * that it fills while the middleware runs. If the middleware finishes while a
+ * slow client is still uploading, the route gets a broken body: req.formData()
+ * fails ("upload didn't fully reach the server") or Next throws "Response body
+ * object should not be disturbed or locked". A fast connection never hits it,
+ * so small files deploy fine and a ~600KB file fails on a slow line.
+ * Reading the middleware's copy to the end makes Next finish the route's copy
+ * first. Reproduced and verified against next@15.5.26 with a throttled upload.
+ */
+async function drainUploadBody(request: NextRequest): Promise<void> {
+    if (SAFE_METHODS.has(request.method) || !request.body) return;
+    const type = request.headers.get('content-type') ?? '';
+    if (!type.startsWith('multipart/form-data') && !type.startsWith('application/octet-stream')) return;
+    try {
+        await request.arrayBuffer();
+    } catch {
+        // The client dropped mid-upload; the route reports it as incomplete.
+    }
+}
+
 const isPublicAssetPath = (pathname: string) =>
     pathname.startsWith('/_next') ||
     pathname.startsWith('/images') ||
@@ -262,6 +285,8 @@ export async function middleware(request: NextRequest) {
     if (isCrossOriginWrite(request, host)) {
         return NextResponse.json({ error: 'Cross-origin request blocked' }, { status: 403 });
     }
+
+    await drainUploadBody(request);
 
     // 1. Reserved super-admin host (admin.<base domain>) — no course resolution.
     if (isSuperAdminHost(host)) {
