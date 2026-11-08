@@ -55,6 +55,7 @@ import bd.asf.tasmskill.portal.tracking.TrackingStatus
 import bd.asf.tasmskill.portal.tracking.TrackingStore
 import bd.asf.tasmskill.portal.tracking.StatusBus
 import bd.asf.tasmskill.portal.tracking.Uploader
+import bd.asf.tasmskill.portal.update.UpdateManager
 import bd.asf.tasmskill.portal.web.AsmAppCore
 import bd.asf.tasmskill.portal.web.LegacyAsmAppBridge
 import bd.asf.tasmskill.portal.web.SecureAsmAppBridge
@@ -92,6 +93,11 @@ class MainActivity : AppCompatActivity() {
 
     /** Registered at construction time, as required for activity-result launchers. */
     val permissionFlow = PermissionFlow(this)
+
+    /** In-app update notice (also registers a result launcher, so it is built here too). */
+    val updateManager = UpdateManager(this)
+    private var firstResume = true
+    private val updateCheckRunnable = Runnable { if (!isDestroyed) updateManager.onResume() }
 
     // File chooser state
     private var fileCallback: ValueCallback<Array<Uri>>? = null
@@ -640,6 +646,10 @@ class MainActivity : AppCompatActivity() {
         if (hostsReady && TrustedHosts.isStale(this)) io.execute { TrustedHosts.refresh(applicationContext) }
         resumeTrackingIfNeeded()
         dispatchTrackingStatus()
+        // Update check: on launch after the splash, then on resume (throttled to 30 min inside).
+        mainHandler.removeCallbacks(updateCheckRunnable)
+        mainHandler.postDelayed(updateCheckRunnable, if (firstResume) SPLASH_MAX_MS else 0L)
+        firstResume = false
     }
 
     override fun onPause() {
@@ -659,6 +669,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        mainHandler.removeCallbacks(updateCheckRunnable)
+        updateManager.dispose()
         TrustedHosts.removeListener(hostsListener)
         io.shutdown()
         cancelFileChooser()

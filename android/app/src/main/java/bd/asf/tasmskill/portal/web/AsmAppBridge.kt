@@ -118,6 +118,15 @@ class AsmAppCore(private val activity: MainActivity) {
         return JSONObject().put("ok", true).toString()
     }
 
+    /** Triggers the update check (ignores "Later") and shows the dialog if an update exists. */
+    fun checkForUpdate(): String {
+        activity.runOnUiThread { activity.updateManager.check(userInitiated = true) }
+        return JSONObject()
+            .put("currentVersionCode", BuildConfig.VERSION_CODE)
+            .put("currentVersionName", BuildConfig.VERSION_NAME)
+            .toString()
+    }
+
     /** Accepts `abc`, `"abc"` (JSON string) or `{"trackId":"abc"}`. */
     private fun parseTrackId(raw: String?): String? {
         val s = raw?.trim().orEmpty()
@@ -155,7 +164,8 @@ class AsmAppCore(private val activity: MainActivity) {
                   stopTracking: function(t){ return b.stopTracking(n, t == null ? '' : String(t)); },
                   getTrackingStatus: function(){ return b.getTrackingStatus(n); },
                   requestPermissions: function(){ return b.requestPermissions(n); },
-                  openAppSettings: function(){ return b.openAppSettings(n); }
+                  openAppSettings: function(){ return b.openAppSettings(n); },
+                  checkForUpdate: function(){ return b.checkForUpdate(n); }
                 };
                 Object.freeze(api);
                 Object.defineProperty(window, 'AsmApp', { value: api, writable: false, configurable: false, enumerable: true });
@@ -194,6 +204,10 @@ class SecureAsmAppBridge(private val core: AsmAppCore, nonce: String) {
     @JavascriptInterface
     fun openAppSettings(nonce: String?): String =
         if (ok(nonce)) core.openAppSettings() else AsmAppCore.UNTRUSTED
+
+    @JavascriptInterface
+    fun checkForUpdate(nonce: String?): String =
+        if (ok(nonce)) core.checkForUpdate() else AsmAppCore.UNTRUSTED
 }
 
 /** Fallback exposed directly as `AsmApp` when document-start scripts are unsupported. */
@@ -217,4 +231,7 @@ class LegacyAsmAppBridge(private val core: AsmAppCore) {
 
     @JavascriptInterface
     fun openAppSettings(): String = if (core.trusted()) core.openAppSettings() else AsmAppCore.UNTRUSTED
+
+    @JavascriptInterface
+    fun checkForUpdate(): String = if (core.trusted()) core.checkForUpdate() else AsmAppCore.UNTRUSTED
 }

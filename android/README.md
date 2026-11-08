@@ -45,7 +45,7 @@ APKs land in:
 
 Without `keystore.properties` the release task produces `app-release-unsigned.apk`, which cannot be installed.
 
-To publish for download, copy `app-release.apk` to the portal's download path **`/downloads/asm-portal.apk`**. The web side serves it at `/app`.
+To publish a release, use `gradlew.bat publishApk` (see **How to release an update** below). It copies the APK to `public/downloads/asm-portal.apk` and writes `public/downloads/asm-portal.json`. The web side serves the APK at `/app` and the version info at `/api/app/version`.
 
 ### Debug build against a local dev server
 
@@ -64,15 +64,36 @@ If you change the dev host, add it to the debug network security config too.
 | App name | `app/src/main/res/values/strings.xml` → `app_name` |
 | Start URL | `app/build.gradle.kts` → `prodStartUrl` (or `-Pasm.startUrl=https://...`) |
 | Trusted root domain | `app/build.gradle.kts` → `TRUSTED_ROOT_HOST` (also update the plan doc) |
-| Version | `app/build.gradle.kts` → `versionCode` / `versionName` |
+| Version | `app/build.gradle.kts` → `appVersionCode` / `appVersionName` |
 | Launcher icon | `app/src/main/res/drawable/ic_launcher_foreground.xml` (vector) + `ic_launcher_background` colour in `values/colors.xml` |
 | Notification text | `strings.xml` → `tracking_running` and the others |
 
-### Releasing an update
+## How to release an update
 
-Android installs an update only if **both** of these hold:
-1. `versionCode` is higher than the installed one (1 → 2 → 3 …). Also bump `versionName` (for example `1.0.1`), which the web sees in the user agent and in `AsmApp.getInfo()`.
-2. The APK is signed with **the same release key** (`release.jks`).
+Android installs an update only if **both** of these hold: `versionCode` is higher than the installed one, and the APK is signed with **the same release key** (`release.jks`).
+
+**Web-only changes need no new APK.** The app loads the live portal, so a normal portal deploy is enough. Release a new APK only when something under `android/` changes.
+
+1. In `app/build.gradle.kts`, bump **both** `appVersionCode` (2 → 3 → 4 …) and `appVersionName` (for example `1.1.0` → `1.2.0`). The web sees the version name in the user agent and in `AsmApp.getInfo()`.
+2. Build and publish, with release notes separated by `|` (shown as bullets in the update dialog):
+   ```
+   gradlew.bat publishApk -Pasm.notes="প্রথম পরিবর্তন / First change|দ্বিতীয় পরিবর্তন / Second change"
+   ```
+   - To **force** the update (older versions cannot be used until they update), also pass `-Pasm.minVersionCode=<new versionCode>`. If you leave it out, the previously published value is kept. 1 means never forced.
+   - If you leave out `-Pasm.notes`, the previous notes are kept.
+   - The task refuses to run if `appVersionCode` is not greater than the published `versionCode`. `-Pasm.force=true` overrides this; use it only for the very first publish or a deliberate re-publish.
+   - Tip: Bengali notes pass through `cmd` more reliably as an environment variable: `set "ORG_GRADLE_PROJECT_asm.notes=…"` then `gradlew.bat publishApk`.
+3. Check `public/downloads/asm-portal.json` (versionCode, versionName, sha256, size, notes), then **commit `public/downloads/`** (APK + JSON together), merge and deploy the portal.
+4. Within about 30 minutes of opening the app (and immediately on a fresh launch), installed apps show "নতুন আপডেট এসেছে". They download the APK, verify its SHA-256, package name and versionCode, and open the system installer. On first use Android asks the user to allow installs from this app ("Allow from this source").
+
+**Installs of v1.0.0 have no updater.** Those phones must update once by hand: open `https://tasm-skill.asf.bd/app` (or the course's `/app` page), download and install. After that, updates arrive in the app.
+
+How the in-app check behaves:
+- It runs about 3 s after launch and on resume, at most once per 30 minutes. Network errors are silent.
+- An optional update has **এখনই আপডেট করুন / Update now** and **পরে / Later**. "Later" hides that version for 24 hours.
+- A forced update (installed versionCode < `minVersionCode`) cannot be dismissed. Its only buttons are Update and Close app.
+- Tracking is never stopped for an update. Installing restarts the app, and `MY_PACKAGE_REPLACED` (BootReceiver) resumes an active session. It resumes right away with "Allow all the time"; otherwise it shows a "tap to resume" notification and resumes when the app opens.
+- The web can trigger a check with `AsmApp.checkForUpdate()`, which ignores "Later" and returns `{"currentVersionCode","currentVersionName"}`.
 
 ## Signing key: back it up now
 

@@ -18,6 +18,8 @@ const PUBLIC_API_ROUTES = [
     '/api/tracking/ingest',
     // Android app: list of course hosts it may trust (public course slugs only).
     '/api/app/hosts',
+    // Android app: latest published release for the in-app update notice.
+    '/api/app/version',
     // Authenticates with CRON_SECRET, not a session — there is no user behind it.
     '/api/cron/',
     '/api/chat',
