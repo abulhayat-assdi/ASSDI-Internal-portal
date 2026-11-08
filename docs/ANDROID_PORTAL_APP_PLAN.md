@@ -11,6 +11,10 @@ Status: in development on branch `feature/android-app` (worktree `asm-portal-v2-
   - Business Incubation: the existing field check-in starts tracking and check-out stops it.
 - The app sends a location **every 60 seconds** (the per-competition setting defaults to 60). Tracking keeps running while the screen is locked, using a foreground service.
 - Staff watch from a browser: an OpenStreetMap (Leaflet) live map with every student in the field. A **Direction** button opens Google Maps directions (`https://www.google.com/maps/dir/?api=1&destination=<lat>,<lng>`) from the viewer's current location to the student. There is no Google Cloud key and no billing.
+- Live map details (2026-11-08):
+  - A "ম্যাপ / স্যাটেলাইট" toggle switches the base map. Satellite uses Esri World Imagery plus Esri road and place-name overlays (public tiles, no key).
+  - Fit, Trail and focus never zoom past street-name level (fit 16, focus 17).
+  - Trails are cleaned for display by `src/lib/tracking/trail.ts`. It drops fixes worse than ±50 m, merges jitter within the combined error radius, removes out-and-back spikes and impossible jumps, and marks 5+ minute stops. Raw fixes can still be shown on request.
 - Same portal server and same database (new tables via Prisma migration). No separate Coolify project. The APK download is served by the portal at `/app`.
 - iPhone is out of scope. Tracking happens only during an active session, never outside one.
 
