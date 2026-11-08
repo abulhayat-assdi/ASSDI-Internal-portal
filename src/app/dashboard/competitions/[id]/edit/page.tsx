@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import TrackingSettingsFields, { trackingSettingsError, TRACKING_DEFAULT_SECONDS } from "@/components/competitions/TrackingSettingsFields";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "react-hot-toast";
@@ -33,6 +34,8 @@ export default function EditCompetitionPage() {
   const [description, setDescription] = useState("");
   const [batchName, setBatchName] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [trackingEnabled, setTrackingEnabled] = useState(false);
+  const [trackingInterval, setTrackingInterval] = useState<number | "">(TRACKING_DEFAULT_SECONDS);
   const [fields, setFields] = useState<FormField[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -68,6 +71,8 @@ export default function EditCompetitionPage() {
         setDescription(data.description || "");
         setBatchName(data.batchName || "");
         setIsActive(data.isActive !== undefined ? data.isActive : true);
+        setTrackingEnabled(!!data.trackingEnabled);
+        setTrackingInterval(data.trackingIntervalSeconds || TRACKING_DEFAULT_SECONDS);
         setFields(Array.isArray(data.schema) ? data.schema : []);
       } else {
         toast.error("Failed to load competition details");
@@ -132,6 +137,12 @@ export default function EditCompetitionPage() {
       }
     }
     
+    const trackingError = trackingSettingsError(trackingEnabled, trackingInterval);
+    if (trackingError) {
+      toast.error(trackingError);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const res = await fetch(`/api/competitions/${id}`, {
@@ -142,7 +153,9 @@ export default function EditCompetitionPage() {
           description: description.trim(),
           batchName: batchName.trim(),
           schema: fields,
-          isActive
+          isActive,
+          trackingEnabled,
+          trackingIntervalSeconds: trackingEnabled ? trackingInterval : undefined,
         })
       });
 
@@ -244,6 +257,12 @@ export default function EditCompetitionPage() {
               value={description} onChange={(e) => setDescription(e.target.value)}
             />
           </div>
+          <TrackingSettingsFields
+            enabled={trackingEnabled}
+            interval={trackingInterval}
+            onEnabled={setTrackingEnabled}
+            onInterval={setTrackingInterval}
+          />
         </div>
 
         <div className="space-y-4">

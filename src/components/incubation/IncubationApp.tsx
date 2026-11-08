@@ -2,6 +2,8 @@
 import { numericOnly } from "./numeric";
 import { useRouter } from "next/navigation";
 import StudentWorkspace from "./StudentWorkspace";
+import Link from "next/link";
+import { APP_DOWNLOAD_PAGE, asmApp, useAppTracking } from "@/lib/tracking/client";
 import {
   Children,
   cloneElement,
@@ -286,6 +288,8 @@ export default function IncubationApp({
       proofId: "",
     }),
     [positionHistory, setPositionHistory] = useState<Row[]>([]);
+  // Inside the Android app the native service sends locations, even with the screen locked.
+  const appTracking = useAppTracking();
   const load = useCallback(
     async (selected = programId) => {
       setError("");
@@ -456,12 +460,40 @@ export default function IncubationApp({
         { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
       );
     });
+  const resumeAppTracking = async (body: Row) => {
+    const r = await fetch("/api/tracking/resume", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+      d = await r.json();
+    if (!r.ok) throw Error(d.error);
+    asmApp.startTracking({
+      trackId: d.track.id,
+      token: d.token,
+      ingestUrl: d.ingestUrl,
+      intervalSeconds: d.intervalSeconds,
+      expiresAt: d.expiresAt,
+      title: d.title,
+    });
+    appTracking.refresh();
+  };
   const fieldAction = async (action: string) => {
     setBusy(true);
     setError("");
+    // Stop the app first so it can flush queued locations before check-out revokes the token.
+    let stoppedTrackId: string | null = null;
     try {
-      const position = await gps(),
-        r = await fetch("/api/incubation/field", {
+      const position = await gps();
+      if (action === "checkout" && asmApp.available()) {
+        const st = asmApp.status();
+        if (st?.active && st.trackId) {
+          stoppedTrackId = st.trackId;
+          asmApp.stopTracking(st.trackId);
+          await new Promise((res) => setTimeout(res, 1500));
+        }
+      }
+      const r = await fetch("/api/incubation/field", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -473,9 +505,14 @@ export default function IncubationApp({
             steps: Number(fieldForm.steps) || 0,
             proofId: fieldForm.proofId || undefined,
           }),
-        }),
-        d = await r.json();
+        });
+      const d = await r.json();
       if (!r.ok) throw Error(d.error);
+      if (action === "checkin" && d.tracking && asmApp.available()) {
+        asmApp.startTracking({ ...d.tracking, title: d.tracking.title || bundle?.program?.name });
+        appTracking.refresh();
+      }
+      stoppedTrackId = null;
       setMessage(
         action === "checkin" ? "Field session started." : "Field session ended.",
       );
@@ -489,14 +526,19 @@ export default function IncubationApp({
       await load();
     } catch (e) {
       setError((e as Error).message);
+      // Check-out failed: the session is still open, so turn app tracking back on.
+      if (stoppedTrackId)
+        await resumeAppTracking({ trackId: stoppedTrackId }).catch(() => {});
     } finally {
       setBusy(false);
     }
   };
   const openFieldId = ownField?.id,
     trackingMinutes = bundle?.program?.settings?.trackingMinutes;
+  const inApp = appTracking.hasBridge;
   useEffect(() => {
-    if (!openFieldId || !trackingMinutes) return;
+    // In the Android app the native service sends locations; no browser ping loop.
+    if (!openFieldId || !trackingMinutes || inApp) return;
     const timer = setInterval(
       () => {
         if (document.hidden) return;
@@ -513,7 +555,7 @@ export default function IncubationApp({
       Math.max(1, trackingMinutes) * 60000,
     );
     return () => clearInterval(timer);
-  }, [openFieldId, programId, trackingMinutes]);
+  }, [openFieldId, programId, trackingMinutes, inApp]);
   useEffect(() => {
     if (!programId) return;
     const timer = setInterval(() => {
@@ -3100,11 +3142,45 @@ export default function IncubationApp({
                 </select>
               </Field>
               {exportButtons("field")}
-              <div className="inc-notice">
-                On the website, GPS check-in/out and updates work while the page is open.
-                Tracking with the phone locked is planned for the Android app; it is
-                not shown as active here.
-              </div>
+              {inApp ? (
+                <div className="inc-notice">
+                  Your location is sent by the ASSDI Portal app every minute while you are
+                  checked in, even with the screen locked.
+                  {student && ownField && appTracking.status && !appTracking.status.active && (
+                    <>
+                      {" "}Tracking is not running in the app.{" "}
+                      <button
+                        type="button"
+                        className="inc-btn"
+                        disabled={busy}
+                        onClick={() =>
+                          resumeAppTracking({ incubationSessionId: ownField.id }).catch((e) =>
+                            setError((e as Error).message),
+                          )
+                        }
+                      >
+                        Resume tracking
+                      </button>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="inc-notice">
+                  On the website, GPS check-in/out and updates work only while this page is
+                  open. Tracking with the phone locked needs the ASSDI Portal Android app
+                  (লক স্ক্রিনে ট্র্যাকিংয়ের জন্য অ্যাপ লাগবে):{" "}
+                  <Link href={APP_DOWNLOAD_PAGE}>download the app</Link>.
+                </div>
+              )}
+              {!student && bundle.program?.competitionId && (
+                <Link
+                  className="inc-btn primary"
+                  style={{ margin: "0 0 16px", display: "inline-flex" }}
+                  href={`/dashboard/competitions/${bundle.program.competitionId}/live`}
+                >
+                  <MapPin size={16} /> Live map (লাইভ ম্যাপ)
+                </Link>
+              )}
               {student && (
                 <section className="inc-card" style={{ marginBottom: 20 }}>
                   <div className="inc-row inc-between">

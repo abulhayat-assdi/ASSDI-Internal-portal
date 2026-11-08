@@ -18,6 +18,7 @@ import {
   PROGRAM_STATUSES,
 } from "./lifecycle";
 import { withCourseContext } from "@/lib/db";
+import { endTracks } from "@/lib/tracking/tracks";
 import { buildMonitor, issuesFor } from "./monitor";
 import { buildReport } from "./report";
 import { RESULT_METRIC, rankTeams } from "./results";
@@ -1026,6 +1027,7 @@ export async function command(actor: Actor, input: unknown) {
           where: { id: session.id },
           data: { checkOut: new Date(), endAreaId: session.startAreaId, version: { increment: 1 } },
         });
+        await endTracks(tx, { incubationSessionId: session.id }, "program_deleted");
         await audit(tx, actor, program.id, "field.force_checkout", session.id, session, null, "Program deleted");
       }
       // Soft delete: hidden everywhere, records and audit history are kept.

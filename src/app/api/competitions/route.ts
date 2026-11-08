@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ZodError } from "zod";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser, canManageCompetitions } from "@/lib/auth";
 import { competitionDirectory } from "@/lib/competitionDirectory";
 import { failure } from "@/lib/incubation/http";
 import type { Actor } from "@/lib/incubation/server";
+import { parseTrackingSettings } from "@/lib/tracking/core";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +54,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const trackingInput = parseTrackingSettings(body);
     const competition = await withCourseContext(
       { courseId, isSuperAdmin: false },
       (tx) =>
@@ -65,12 +68,18 @@ export async function POST(req: NextRequest) {
             isActive: body.isActive ?? true,
             startDate: body.startDate ? new Date(body.startDate) : new Date(),
             endDate: body.endDate ? new Date(body.endDate) : null,
+            ...trackingInput,
           },
         }),
     );
 
     return NextResponse.json(competition);
   } catch (error: any) {
+    if (error instanceof ZodError)
+      return NextResponse.json(
+        { error: "Tracking interval must be a whole number of seconds between 30 and 3600." },
+        { status: 400 },
+      );
     console.error("Failed to create competition:", error);
     return NextResponse.json(
       { error: error?.message || "Internal Server Error" },

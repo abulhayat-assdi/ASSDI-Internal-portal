@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ZodError } from "zod";
+import { parseTrackingSettings } from "@/lib/tracking/core";
 import { withCourseContext } from "@/lib/db";
 import { getSessionUser, canManageCompetitions } from "@/lib/auth";
 
@@ -64,11 +66,18 @@ export async function PUT(
       );
 
     const body = await req.json();
+    const trackingInput = parseTrackingSettings(body);
 
     const competition = await withCourseContext(
       { courseId, isSuperAdmin: false },
-      (tx) =>
-        tx.competition.update({
+      async (tx) => {
+        // Switching tracking off ends open tracks; the app gets 410 and stops.
+        if (trackingInput.trackingEnabled === false)
+          await tx.fieldTrack.updateMany({
+            where: { competitionId: id, endedAt: null },
+            data: { endedAt: new Date(), endReason: "tracking_disabled", tokenRevokedAt: new Date() },
+          });
+        return tx.competition.update({
           where: { id, courseId, kind: "form" },
           data: {
             title: body.title,
@@ -78,12 +87,19 @@ export async function PUT(
             isActive: body.isActive,
             startDate: body.startDate ? new Date(body.startDate) : undefined,
             endDate: body.endDate ? new Date(body.endDate) : undefined,
+            ...trackingInput,
           },
-        }),
+        });
+      },
     );
 
     return NextResponse.json(competition);
   } catch (error) {
+    if (error instanceof ZodError)
+      return NextResponse.json(
+        { error: "Tracking interval must be a whole number of seconds between 30 and 3600." },
+        { status: 400 },
+      );
     console.error("Failed to update competition:", error);
     return NextResponse.json(
       { error: "Internal Server Error" },

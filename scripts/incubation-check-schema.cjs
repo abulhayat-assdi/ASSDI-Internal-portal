@@ -15,7 +15,7 @@ const tables = [
   "audit",
   "notifications",
   "results",
-].map((n) => "incubation_" + n).concat(["competition_submission_revisions"]);
+].map((n) => "incubation_" + n).concat(["competition_submission_revisions", "field_tracks", "field_track_positions"]);
 async function check() {
   if (!process.env.DATABASE_URL)
     throw Error("DATABASE_URL is required for the schema readiness check");

@@ -13,3 +13,6 @@
 storage
 generated/customer-service
 generated/prisma
+
+# Android app sources, build output and signing keys never go into the server image
+android

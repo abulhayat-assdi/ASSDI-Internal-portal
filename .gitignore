@@ -76,3 +76,15 @@ tsconfig.tsbuildinfo
 /.crm-test/
 /.incubation-test/
 /tmp/live-chat/
+
+# Android app (android/)
+android/local.properties
+android/keystore.properties
+*.jks
+*.keystore
+android/.gradle
+android/build
+android/app/build
+android/.idea
+android/.kotlin
+android/captures

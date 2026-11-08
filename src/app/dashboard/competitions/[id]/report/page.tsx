@@ -342,6 +342,15 @@ export default function CompetitionReportPage() {
             <option value="current">Current Report (Yesterday)</option>
           </select>
 
+          {competition.trackingEnabled && (
+            <a
+              href={`/dashboard/competitions/${id}/live`}
+              className="bg-white hover:bg-slate-50 text-emerald-700 border border-emerald-300 font-bold px-4 py-2.5 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 text-sm w-full sm:w-auto"
+            >
+              <span>📍</span> Live map
+            </a>
+          )}
+
           <button 
             onClick={() => setShowBulkEntry(true)} 
             className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 text-sm w-full sm:w-auto"
