@@ -24,9 +24,8 @@ The contract with the web portal (trusted origins, user-agent suffix, the `windo
    ```
    sdk.dir=C\:\\Users\\USER\\AppData\\Local\\Android\\Sdk
    ```
-   (Another SDK that already has everything is at `F:\Android\Sdk`. To use it, set `sdk.dir=F\:/Android/Sdk`.)
 
-If the C: drive is short on space, you can move the Gradle cache: `set GRADLE_USER_HOME=F:\dev-cache\gradle`.
+If the C: drive is short on space, you can move the Gradle cache to another drive, for example `set GRADLE_USER_HOME=D:\gradle-cache`.
 
 ## Build
 
