@@ -88,3 +88,6 @@ android/app/build
 android/.idea
 android/.kotlin
 android/captures
+
+# Android release signing key backup (never commit)
+signing-backup/

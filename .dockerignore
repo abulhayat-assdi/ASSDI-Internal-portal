@@ -16,3 +16,6 @@ generated/prisma
 
 # Android app sources, build output and signing keys never go into the server image
 android
+
+# Android release signing key backup
+signing-backup
