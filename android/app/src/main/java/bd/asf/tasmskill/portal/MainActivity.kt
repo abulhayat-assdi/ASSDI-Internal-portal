@@ -97,6 +97,9 @@ class MainActivity : AppCompatActivity() {
     /** In-app update notice (also registers a result launcher, so it is built here too). */
     val updateManager = UpdateManager(this)
     private var firstResume = true
+
+    // Stay logged in: the cold-start URL may have to wait for the splash host-list fetch.
+    private var pendingLaunch = false
     private val updateCheckRunnable = Runnable { if (!isDestroyed) updateManager.onResume() }
 
     // File chooser state
@@ -144,6 +147,7 @@ class MainActivity : AppCompatActivity() {
         io.execute {
             TrustedHosts.refresh(applicationContext)
             hostsReady = true
+            mainHandler.post { onHostsReady() }
         }
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -172,7 +176,10 @@ class MainActivity : AppCompatActivity() {
         swipe.setOnRefreshListener { webView.reload() }
 
         val restored = savedInstanceState?.let { webView.restoreState(it) }
-        if (restored == null) webView.loadUrl(BuildConfig.START_URL)
+        if (restored == null) {
+            val explicit = intentUrl(intent)
+            if (explicit != null) webView.loadUrl(explicit) else loadLaunchUrl()
+        }
 
         onBackPressedDispatcher.addCallback(this) {
             if (errorView.visibility == View.VISIBLE && webView.canGoBack()) {
@@ -260,12 +267,14 @@ class MainActivity : AppCompatActivity() {
             firstPageDone = true
             swipe.isRefreshing = false
             lastKnownUrl = view.url
+            rememberSession(view.url ?: url)
             if (mainFrameError) showError() else hideError()
             dispatchTrackingStatus()
         }
 
         override fun doUpdateVisitedHistory(view: WebView, url: String?, isReload: Boolean) {
             lastKnownUrl = url
+            rememberSession(url) // SPA navigations (e.g. login -> dashboard via the client router)
         }
 
         override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
@@ -318,6 +327,68 @@ class MainActivity : AppCompatActivity() {
                 if (trust == Trust.TRUSTED) webView.loadUrl(url) else openExternal(uri)
             }
         }
+    }
+
+    // ---------------------------------------------------------------- stay logged in
+
+    /**
+     * Cold start without saved state or an explicit URL: reopen the last dashboard while its
+     * course is trusted and its __session cookie exists. If the saved course is not in the
+     * cached host list, wait for the splash fetch before deciding.
+     */
+    private fun loadLaunchUrl() {
+        val saved = SessionMemory.get(this)
+        if (saved != null && !hostsReady && !Origins.isTrusted(saved.origin)) {
+            pendingLaunch = true
+            return
+        }
+        val decision = LaunchPolicy.launchUrl(
+            saved,
+            saved?.let { CookieManager.getInstance().getCookie(it.origin) },
+            Origins.policy,
+            TrustedHosts.current(),
+            BuildConfig.START_URL,
+        )
+        if (decision.clearSaved) SessionMemory.clear(this)
+        webView.loadUrl(decision.url)
+    }
+
+    private fun onHostsReady() {
+        if (!pendingLaunch || isDestroyed || webViewDestroyed) return
+        pendingLaunch = false
+        loadLaunchUrl()
+    }
+
+    /** Save the dashboard {origin, area}; forget it when the saved origin lost its session. */
+    private fun rememberSession(url: String?) {
+        val origin = LaunchPolicy.originOf(url) ?: return
+        val action = LaunchPolicy.onMainFramePage(
+            url,
+            SessionMemory.get(this),
+            CookieManager.getInstance().getCookie(origin),
+            Origins.policy,
+            TrustedHosts.current(),
+        )
+        when (action) {
+            is LaunchPolicy.PageAction.Save -> {
+                SessionMemory.save(this, action.session)
+                CookieManager.getInstance().flush() // keep the fresh login cookie even if killed now
+            }
+            LaunchPolicy.PageAction.Clear -> SessionMemory.clear(this)
+            LaunchPolicy.PageAction.None -> Unit
+        }
+    }
+
+    /** An explicit, trusted http(s) URL in the launching intent wins over the saved dashboard. */
+    private fun intentUrl(intent: Intent?): String? {
+        val candidate = intent?.dataString ?: intent?.getStringExtra(EXTRA_URL)
+        return candidate?.takeIf { Origins.isTrusted(it) }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        intentUrl(intent)?.let { if (!webViewDestroyed) webView.loadUrl(it) }
     }
 
     @SuppressLint("JavascriptInterface")
@@ -659,6 +730,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onStop() {
+        CookieManager.getInstance().flush()
         StatusBus.remove(statusListener)
         super.onStop()
     }
@@ -690,6 +762,7 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val SPLASH_MAX_MS = 3000L
         private const val NATIVE_BRIDGE_NAME = "__asmAppNative"
+        const val EXTRA_URL = "bd.asf.tasmskill.portal.extra.URL"
         private val IMAGE_EXTENSIONS = setOf(".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic", ".heif", ".bmp")
     }
 }

@@ -21,8 +21,8 @@ fun prop(name: String, default: String): String =
     (project.findProperty(name) as String?)?.takeIf { it.isNotBlank() } ?: default
 
 // App version. Bump BOTH for every release (see README "How to release an update").
-val appVersionCode = 2
-val appVersionName = "1.1.0"
+val appVersionCode = 3
+val appVersionName = "1.2.0"
 
 // Production start page. Override with -Pasm.startUrl=https://...
 val prodStartUrl = prop("asm.startUrl", "https://tasm-skill.asf.bd")

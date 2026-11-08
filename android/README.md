@@ -135,6 +135,17 @@ Students' deployed mini-sites share the `<name>.tasm-skill.asf.bd` namespace wit
   - On a very old WebView without document-start scripts, `AsmApp` is exposed directly with the top-level-page check only.
 - To test against a different host-list URL: `-Pasm.hostsUrl=https://.../api/app/hosts`.
 
+## Staying logged in
+
+Once a student or teacher has logged in, later launches open straight into that account, without the course picker or the login form, until the user logs out.
+
+- The login itself is the portal's `__session` cookie on the course host (HttpOnly, 30 days, refreshed daily by the portal). The WebView keeps it on disk. The app flushes cookies on pause and stop, and right after a dashboard is first reached. Nothing in the app ever clears cookies.
+- **What the app remembers:** on a trusted course host (`<slug>.tasm-skill.asf.bd`, never the root host), a main-frame visit to `/student-dashboard…` saves `{origin, area:"student"}`, and `/dashboard…` saves `{origin, area:"staff"}`, in private prefs. Other pages (login pages, `/app`, the course picker) change nothing.
+- **Cold start:** with no saved WebView state and no explicit URL in the intent, the app opens `origin + /student-dashboard` or `origin + /dashboard`. It does this only when the course is still trusted (cached host list, or the splash fetch when the course is not in the cache) and `CookieManager` still has a non-empty `__session` for it. Otherwise it opens `https://tasm-skill.asf.bd`. A course that is no longer trusted is forgotten.
+- **Logout:** when a page finishes on the saved course and `__session` is gone (explicit logout, or a revoked session redirected to the login page), the saved value is cleared. The next launch starts at the course picker. Picking another course and reaching its dashboard replaces the saved value.
+- An explicit trusted URL in the launching intent (`intent.data` or the `EXTRA_URL` extra) wins over the saved dashboard. Notification taps simply return to the running app.
+- The rules are in `LaunchPolicy.kt` and tested in `LaunchPolicyTest.kt`.
+
 ## How tracking works (short)
 
 1. The web page calls `AsmApp.startTracking(JSON.stringify({trackId, token, ingestUrl, intervalSeconds, title, expiresAt}))`.
