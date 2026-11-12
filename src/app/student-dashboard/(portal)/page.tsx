@@ -184,7 +184,10 @@ export default function StudentDashboardOverview() {
                                             <span className="text-xs font-bold text-red-600 uppercase">🔴 Urgent — </span>
                                         )}
                                         <h4 className="font-bold text-gray-900 inline">{notice.title}</h4>
-                                        <p className="text-gray-600 text-sm mt-1 break-words">{notice.description}</p>
+                                        {notice.batchName && notice.batchName !== 'all' && (
+                                            <span className="ml-2 align-middle text-[10px] font-semibold bg-amber-50 text-amber-800 px-1.5 py-0.5 rounded">{notice.batchName}</span>
+                                        )}
+                                        <p className="text-gray-600 text-sm mt-1 break-words whitespace-pre-line">{notice.description}</p>
                                         <p className="text-xs text-gray-400 mt-1">By: {notice.createdByName}</p>
                                     </div>
                                 </div>

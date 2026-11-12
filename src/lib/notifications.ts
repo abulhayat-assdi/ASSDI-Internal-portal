@@ -139,14 +139,16 @@ export function dispatchInBackground(label: string, run: () => Promise<DispatchR
 
 export function notifyStudentsOfNotice(notice: {
     courseId: string;
+    /** Target batch, or "all"/null for every student in the course. */
+    batchName?: string | null;
     title: string;
     description: string;
     priority?: string | null;
 }): void {
     dispatchInBackground(`notice "${notice.title}"`, () =>
-        dispatch(notice.courseId, null, (course) => ({
+        dispatch(notice.courseId, notice.batchName ?? null, (course) => ({
             subject:
-                notice.priority === 'high'
+                notice.priority === 'urgent' || notice.priority === 'high'
                     ? `[জরুরি] ${notice.title}`
                     : notice.title,
             html: renderEmail({

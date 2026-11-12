@@ -963,6 +963,8 @@ model StudentNotice {
   description   String
   date          String
   priority      String   @default("normal")
+  /// Batch the notice is for, or "all" for every batch (same convention as homework).
+  batchName     String   @default("all") @map("batch_name")
   createdBy     String?  @map("created_by")
   createdByName String?  @map("created_by_name")
   createdAt     DateTime @default(now()) @map("created_at")
@@ -972,6 +974,7 @@ model StudentNotice {
 
   @@index([createdAt])
   @@index([courseId])
+  @@index([courseId, batchName])
   @@map("student_notices")
 }
 

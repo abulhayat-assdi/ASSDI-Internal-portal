@@ -30,6 +30,8 @@ export interface StudentNotice {
     description: string;
     date: string;
     priority: "normal" | "urgent";
+    /** Target batch name, or "all" for every batch. */
+    batchName?: string;
     createdBy?: string;
     createdByName?: string;
     createdAt?: string | null;
@@ -88,8 +90,13 @@ export const addStudentNotice = async (notice: Omit<StudentNotice, "id">): Promi
     return data.id;
 };
 
-export const getAllStudentNotices = async (): Promise<StudentNotice[]> => {
-    const res = await fetch("/api/dashboard/student-notices", { cache: "no-store" });
+/**
+ * Students always get their own batch + course-wide notices (enforced server-side).
+ * Teachers/admins get everything, or one batch's view when `batchName` is given.
+ */
+export const getAllStudentNotices = async (batchName?: string): Promise<StudentNotice[]> => {
+    const qs = batchName ? `?batchName=${encodeURIComponent(batchName)}` : "";
+    const res = await fetch(`/api/dashboard/student-notices${qs}`, { cache: "no-store" });
     if (!res.ok) return [];
     return res.json();
 };
