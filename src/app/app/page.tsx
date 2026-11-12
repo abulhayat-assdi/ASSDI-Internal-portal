@@ -41,6 +41,25 @@ const steps: { title: string; body: string[] }[] = [
     ],
   },
   {
+    title: "২ক. ইনস্টল আটকে গেলে: আপনার ফোনের ব্র্যান্ড অনুযায়ী",
+    body: [
+      "সব ফোন (Google Play Protect): \"Unsafe app blocked\" দেখালে \"More details\" চাপুন, তারপর \"Install anyway\"। \"Send app for a security check?\" জিজ্ঞেস করলে \"Install without scanning\" বা স্ক্যান শেষে Install চাপুন।",
+      "Samsung: \"Blocked by Auto Blocker\" দেখালে Settings → Security and privacy → Auto Blocker বন্ধ করুন, অ্যাপ ইনস্টল করুন, তারপর চাইলে Auto Blocker আবার চালু করুন। অ্যাপ একবার ইনস্টল হয়ে গেলে Auto Blocker চালু থাকলেও অ্যাপ চলবে।",
+      "Xiaomi / Redmi / POCO: ইনস্টলের আগে \"Security scan\" চলবে। স্ক্যান শেষে \"Install anyway\" চাপুন। ঝুঁকির সতর্কবার্তা এলে \"I'm aware of the risks\" টিক দিন এবং টাইমার শেষ হওয়া পর্যন্ত অপেক্ষা করে \"Continue\" চাপুন।",
+      "Oppo / Realme / OnePlus: \"Install anyway\" বা \"Continue installation\" চাপুন। ফোন যদি অ্যাকাউন্ট পাসওয়ার্ড বা ফোনের লক (PIN) চায়, সেটা দিন।",
+      "Vivo / iQOO: \"Install safely\" / ঝুঁকির স্ক্রিনে \"I understand the risks\" বেছে নিয়ে কাউন্টডাউন শেষে \"Continue installing\" চাপুন।",
+      "শুধু \"App blocked to protect your device\" দেখায়, Install-এর কোনো বাটন নেই? Play Store খুলুন → উপরে ডানে প্রোফাইল ছবি → Play Protect → উপরে ⚙ → \"Scan apps with Play Protect\" সাময়িক বন্ধ করুন, অ্যাপ ইনস্টল করুন, তারপর অবশ্যই আবার চালু করে দিন।",
+    ],
+  },
+  {
+    title: "২খ. \"App not installed\" দেখালে",
+    body: [
+      "ফোনে আগে থেকে অন্য কোথাও থেকে পাওয়া ASSDI Portal অ্যাপ থাকলে সেটা আনইনস্টল করে আবার চেষ্টা করুন।",
+      "Messenger / WhatsApp-এ পাঠানো ফাইল অনেক সময় নষ্ট হয়ে যায়। এই পেজ থেকে Chrome দিয়ে সরাসরি ডাউনলোড করুন।",
+      "ফোনে অন্তত ১০০ MB জায়গা খালি আছে কি না দেখুন। ফোনটি Android 8.0 বা নতুন হতে হবে।",
+    ],
+  },
+  {
     title: "৩. লোকেশন \"Allow all the time\" দিন",
     body: [
       "অ্যাপ খুলে আপনার কোর্স বেছে লগইন করুন।",
