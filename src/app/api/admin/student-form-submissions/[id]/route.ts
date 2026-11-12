@@ -43,6 +43,7 @@ export async function PATCH(
           permanentAddress: sub.permanentAddress || undefined,
           guardianName: sub.guardianName || undefined,
           guardianPhone: sub.guardianPhone || undefined,
+          guardianEmail: sub.guardianEmail || undefined,
           lastInstitute: sub.lastInstitute || undefined,
           latestDegree: sub.latestDegree || undefined,
           gpaResult: sub.gpaResult || undefined,

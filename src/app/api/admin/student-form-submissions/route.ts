@@ -40,6 +40,7 @@ export async function GET(req: NextRequest) {
     permanentAddress: r.permanentAddress,
     guardianName: r.guardianName,
     guardianPhone: r.guardianPhone,
+    guardianEmail: r.guardianEmail,
     lastInstitute: r.lastInstitute,
     latestDegree: r.latestDegree,
     gpaResult: r.gpaResult,

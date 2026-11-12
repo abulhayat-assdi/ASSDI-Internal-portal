@@ -8,6 +8,7 @@ import { withCourseContext } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { ATTENDANCE_STATUSES } from "@/lib/attendance";
 import { HOUR, rateLimit } from "@/lib/rateLimit";
+import { notifyNewCorrectionRequest } from "@/lib/emailAlerts/events";
 
 const createSchema = z.object({
     sessionId: z.string().min(1),
@@ -147,6 +148,8 @@ export async function POST(req: NextRequest) {
                     reason,
                 },
             });
+            // Last statement of the transaction; the mail goes out in the background.
+            notifyNewCorrectionRequest(request);
             return NextResponse.json({ request }, { status: 201 });
         });
     } catch (error) {

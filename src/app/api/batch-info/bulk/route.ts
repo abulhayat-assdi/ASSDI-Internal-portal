@@ -153,6 +153,7 @@ export async function POST(req: NextRequest) {
                         permanentAddress: s.permanentAddress ? String(s.permanentAddress) : null,
                         guardianName: s.guardianName ? String(s.guardianName) : null,
                         guardianPhone: s.guardianPhone ? String(s.guardianPhone) : null,
+                        guardianEmail: s.guardianEmail ? String(s.guardianEmail).trim().toLowerCase() : null,
                         lastInstitute: s.lastInstitute ? String(s.lastInstitute) : null,
                         latestDegree: s.latestDegree ? String(s.latestDegree) : null,
                         gpaResult: s.gpaResult ? String(s.gpaResult) : null,

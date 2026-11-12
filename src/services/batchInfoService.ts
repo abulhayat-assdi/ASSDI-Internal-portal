@@ -31,6 +31,7 @@ export interface BatchStudent {
     permanentAddress?: string;
     guardianName?: string;
     guardianPhone?: string;
+    guardianEmail?: string;
     lastInstitute?: string;
     latestDegree?: string;
     gpaResult?: string;

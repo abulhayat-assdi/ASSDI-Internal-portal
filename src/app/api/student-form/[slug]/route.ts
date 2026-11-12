@@ -79,6 +79,7 @@ export async function POST(
     gpaResult, currentDistrict, homeDistrict, category, tShirtSize,
     courseGoal,
   } = body;
+  const guardianEmail = String(body.guardianEmail ?? "").trim().toLowerCase();
 
   const required: Record<string, unknown> = {
     roll, name, phone, nidBirthNo, dob, email, bloodGroup,
@@ -91,6 +92,10 @@ export async function POST(
     if (!val || String(val).trim() === "") {
       return NextResponse.json({ error: `Field '${key}' is required` }, { status: 400 });
     }
+  }
+
+  if (guardianEmail && !guardianEmail.includes("@")) {
+    return NextResponse.json({ error: "অভিভাবকের ইমেইল সঠিক নয়" }, { status: 400 });
   }
 
   const courseId = form.courseId;
@@ -123,6 +128,7 @@ export async function POST(
         permanentAddress: String(permanentAddress),
         guardianName: String(guardianName),
         guardianPhone: String(guardianPhone),
+        guardianEmail,
         lastInstitute: String(lastInstitute),
         latestDegree: String(latestDegree),
         gpaResult: String(gpaResult),

@@ -12,7 +12,7 @@ type FormData = {
   roll: string; name: string; phone: string; nidBirthNo: string;
   dob: string; email: string; bloodGroup: string; fatherName: string;
   motherName: string; presentAddress: string; permanentAddress: string;
-  guardianName: string; guardianPhone: string; lastInstitute: string;
+  guardianName: string; guardianPhone: string; guardianEmail: string; lastInstitute: string;
   latestDegree: string; gpaResult: string; currentDistrict: string;
   homeDistrict: string; category: string; tShirtSize: string;
   courseGoal: string;
@@ -20,7 +20,7 @@ type FormData = {
 const EMPTY: FormData = {
   roll:"",name:"",phone:"",nidBirthNo:"",dob:"",email:"",bloodGroup:"",
   fatherName:"",motherName:"",presentAddress:"",permanentAddress:"",
-  guardianName:"",guardianPhone:"",lastInstitute:"",latestDegree:"",
+  guardianName:"",guardianPhone:"",guardianEmail:"",lastInstitute:"",latestDegree:"",
   gpaResult:"",currentDistrict:"",homeDistrict:"",category:"",tShirtSize:"",
   courseGoal:"",
 };
@@ -264,6 +264,10 @@ export default function StudentFormClient({ brand }: { brand: CourseBranding }) 
           <div>
             <label className={label}>অভিভাবকের ফোন নম্বর {req}</label>
             <input type="tel" value={form.guardianPhone} onChange={(e) => set("guardianPhone",e.target.value)} required className={input} placeholder="01XXXXXXXXX" />
+          </div>
+          <div>
+            <label className={label}>অভিভাবকের ইমেইল (ঐচ্ছিক)</label>
+            <input type="email" value={form.guardianEmail} onChange={(e) => set("guardianEmail",e.target.value)} className={input} placeholder="guardian@example.com" />
           </div>
         </Section>
 

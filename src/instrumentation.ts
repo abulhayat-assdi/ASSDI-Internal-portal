@@ -35,6 +35,7 @@ export async function register() {
     const cleanupUrl = `http://127.0.0.1:${port}/api/cron/deployment-cleanup`;
     const incubationRetentionUrl = `http://127.0.0.1:${port}/api/cron/incubation-retention`;
     const incubationRemindersUrl = `http://127.0.0.1:${port}/api/cron/incubation-reminders`;
+    const emailAlertsUrl = `http://127.0.0.1:${port}/api/cron/email-alerts`;
 
     let lastRunDate: string | null = null;
 
@@ -102,6 +103,15 @@ export async function register() {
         } catch (error) {
             console.error('[cron] incubation reminders failed:', error instanceof Error ? error.message : error);
         }
+        // Leave + attendance-streak email alerts, also on Bangladesh time.
+        try {
+            const res = await fetch(emailAlertsUrl, { method: 'POST', headers: { 'x-cron-secret': secret } });
+            const body = res.ok ? ((await res.json()) as { ran: number; sent: number; failed: number }) : null;
+            if (body) console.info(`[cron] email alerts: ${body.ran} course(s), ${body.sent} sent, ${body.failed} failed`);
+            else console.error(`[cron] email alerts returned ${res.status}`);
+        } catch (error) {
+            console.error('[cron] email alerts failed:', error instanceof Error ? error.message : error);
+        }
     };
 
     const timer = setInterval(() => {
@@ -117,5 +127,5 @@ export async function register() {
     }, 60_000);
     first.unref?.();
 
-    console.info('[cron] internal scheduler started (attendance alerts, deployment cleanup, incubation retention, incubation reminders at 07:00 Asia/Dhaka)');
+    console.info('[cron] internal scheduler started (attendance alerts, deployment cleanup, incubation retention, incubation reminders + email alerts at 07:00 Asia/Dhaka)');
 }

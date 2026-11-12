@@ -44,6 +44,7 @@ const teacherAdminTopNavItems: NavItem[] = [
     { href: "/dashboard/teacher-attendance", label: "Teacher Attendance", icon: "🧑‍🏫", permission: "teacher_attendance", feature: "attendance" },
     { href: "/dashboard/leave-status", label: "Who's on Leave", icon: "📋", permission: null, feature: "student_leaves" },
     { href: "/dashboard/student-leaves", label: "Student Leaves", icon: "🏖️", permission: "admin_leave", feature: "student_leaves" },
+    { href: "/dashboard/student-leaves/email-alerts", label: "Email Alerts", icon: "📧", permission: "admin_leave", feature: "email_notifications" },
 ];
 
 const teacherAdminNavSections: NavSection[] = [
