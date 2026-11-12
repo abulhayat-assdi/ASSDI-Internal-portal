@@ -27,6 +27,7 @@ type Submission = {
   permanentAddress: string;
   guardianName: string;
   guardianPhone: string;
+  guardianEmail?: string;
   lastInstitute: string;
   latestDegree: string;
   gpaResult: string;
@@ -307,6 +308,7 @@ export default function BatchFormsAdminPage() {
               <Row label="মাতার নাম" value={selectedSub.motherName} />
               <Row label="অভিভাবক" value={selectedSub.guardianName} />
               <Row label="অভিভাবকের ফোন" value={selectedSub.guardianPhone} />
+              <Row label="অভিভাবকের ইমেইল" value={selectedSub.guardianEmail || ""} />
               <Row label="বর্তমান ঠিকানা" value={selectedSub.presentAddress} />
               <Row label="স্থায়ী ঠিকানা" value={selectedSub.permanentAddress} />
               <Row label="বর্তমান জেলা" value={selectedSub.currentDistrict} />

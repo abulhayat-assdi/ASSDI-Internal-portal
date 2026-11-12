@@ -6,6 +6,7 @@ import { withCourseContext } from "@/lib/db";
 import { getServerSessionUser } from "@/lib/auth";
 import { createStudentLeaveRequest } from "@/lib/studentLeaveDb";
 import { validateLeaveWindow } from "@/lib/leaveDuration";
+import { notifyNewLeaveRequest } from "@/lib/emailAlerts/events";
 
 export async function GET() {
     try {
@@ -199,6 +200,9 @@ export async function POST(req: Request) {
         if ("error" in result) {
             return NextResponse.json({ error: result.error }, { status: 403 });
         }
+
+        // Saved and committed — now tell the approvers (fire-and-forget).
+        notifyNewLeaveRequest(result.leaveRequest);
 
         return NextResponse.json(result.leaveRequest, { status: 201 });
     } catch (error) {

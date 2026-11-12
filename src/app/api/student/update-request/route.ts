@@ -98,6 +98,11 @@ export async function PATCH(req: NextRequest) {
                     const n = Number(raw.salary);
                     raw.salary = Number.isFinite(n) ? n : 0;
                 }
+                if ("guardianEmail" in raw) {
+                    const ge = String(raw.guardianEmail ?? "").trim().toLowerCase();
+                    if (ge && !ge.includes("@")) delete raw.guardianEmail;
+                    else raw.guardianEmail = ge || null;
+                }
                 const changes = raw;
 
                 await tx.batchStudent.updateMany({

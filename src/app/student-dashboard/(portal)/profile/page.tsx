@@ -29,6 +29,7 @@ const EMPTY_FORM = {
     permanentAddress: "",
     guardianName: "",
     guardianPhone: "",
+    guardianEmail: "",
     lastInstitute: "",
     latestDegree: "",
     gpaResult: "",
@@ -75,6 +76,7 @@ export default function StudentProfilePage() {
                         permanentAddress: match.permanentAddress || "",
                         guardianName: match.guardianName || "",
                         guardianPhone: match.guardianPhone || "",
+                        guardianEmail: match.guardianEmail || "",
                         lastInstitute: match.lastInstitute || "",
                         latestDegree: match.latestDegree || "",
                         gpaResult: match.gpaResult || "",
@@ -128,6 +130,7 @@ export default function StudentProfilePage() {
             check("permanentAddress", s?.permanentAddress);
             check("guardianName", s?.guardianName);
             check("guardianPhone", s?.guardianPhone);
+            check("guardianEmail", s?.guardianEmail);
             check("lastInstitute", s?.lastInstitute);
             check("latestDegree", s?.latestDegree);
             check("gpaResult", s?.gpaResult);
@@ -160,7 +163,7 @@ export default function StudentProfilePage() {
                 category: s?.category, bloodGroup: s?.bloodGroup, address: s?.address,
                 email: s?.email, nidBirthNo: s?.nidBirthNo, fatherName: s?.fatherName,
                 motherName: s?.motherName, permanentAddress: s?.permanentAddress,
-                guardianName: s?.guardianName, guardianPhone: s?.guardianPhone,
+                guardianName: s?.guardianName, guardianPhone: s?.guardianPhone, guardianEmail: s?.guardianEmail,
                 lastInstitute: s?.lastInstitute, latestDegree: s?.latestDegree,
                 gpaResult: s?.gpaResult, currentDistrict: s?.currentDistrict,
                 homeDistrict: s?.homeDistrict, tShirtSize: s?.tShirtSize,
@@ -259,6 +262,7 @@ export default function StudentProfilePage() {
                     <Field label="Permanent Address" value={studentData?.permanentAddress} />
                     <Field label="Guardian Name" value={studentData?.guardianName} />
                     <Field label="Guardian Phone" value={studentData?.guardianPhone} />
+                    <Field label="Guardian Email" value={studentData?.guardianEmail} />
 
                     <SectionTitle title="Education" />
                     <Field label="Last Institute" value={studentData?.lastInstitute} />
@@ -397,6 +401,10 @@ export default function StudentProfilePage() {
                                     <div>
                                         <label className={labelCls}>Guardian Phone</label>
                                         <input type="tel" value={form.guardianPhone} onChange={e => handleChange("guardianPhone", e.target.value)} className={inputCls} placeholder="01XXXXXXXXX" />
+                                    </div>
+                                    <div>
+                                        <label className={labelCls}>Guardian Email (optional)</label>
+                                        <input type="email" value={form.guardianEmail} onChange={e => handleChange("guardianEmail", e.target.value)} className={inputCls} placeholder="guardian@example.com" />
                                     </div>
                                 </div>
                             </div>

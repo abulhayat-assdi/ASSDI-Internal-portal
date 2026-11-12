@@ -261,6 +261,7 @@ model Course {
   quizLiveSessions         QuizLiveSession[]
   fieldTracks              FieldTrack[]
   fieldTrackPositions      FieldTrackPosition[]
+  emailLogs                EmailLog[]
 
   @@index([slug])
   @@index([status])
@@ -809,6 +810,8 @@ model BatchStudent {
   permanentAddress String? @map("permanent_address")
   guardianName     String? @map("guardian_name")
   guardianPhone    String? @map("guardian_phone")
+  // Optional; used for attendance alerts to the guardian.
+  guardianEmail    String? @map("guardian_email")
   lastInstitute    String? @map("last_institute")
   latestDegree     String? @map("latest_degree")
   gpaResult        String? @map("gpa_result")
@@ -1617,6 +1620,7 @@ model StudentFormSubmission {
   permanentAddress String    @default("") @map("permanent_address")
   guardianName     String    @default("") @map("guardian_name")
   guardianPhone    String    @default("") @map("guardian_phone")
+  guardianEmail    String    @default("") @map("guardian_email")
   lastInstitute    String    @default("") @map("last_institute")
   latestDegree     String    @default("") @map("latest_degree")
   gpaResult        String    @default("") @map("gpa_result")
@@ -1706,6 +1710,31 @@ model StudentLeaveRequest {
   @@index([status])
   @@index([courseId])
   @@map("student_leave_requests")
+}
+
+// One row per automated email (leave requests, attendance streaks, digests).
+// `dedupeKey` is unique per course, so a job that runs twice — or a streak
+// that is seen again the next morning — never mails the same thing twice.
+model EmailLog {
+  id         String   @id @default(uuid())
+  courseId   String   @map("course_id")
+  // e.g. leave_new, leave_confirm, leave_pending, on_leave_today,
+  // correction_new, streak_late, streak_absent, streak_escalation, streak_guardian
+  kind       String
+  dedupeKey  String   @map("dedupe_key")
+  recipients String[]
+  subject    String
+  // SENT | FAILED
+  status     String
+  error      String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, dedupeKey])
+  @@index([courseId, createdAt])
+  @@index([courseId, kind])
+  @@map("email_logs")
 }
 
 // ============================================================

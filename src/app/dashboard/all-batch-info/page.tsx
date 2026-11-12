@@ -114,7 +114,7 @@ interface OverviewStat {
 const COLUMNS = [
     "roll", "name", "phone", "dob", "educationalDegree", "category", "bloodGroup", "address",
     "email", "nidBirthNo", "fatherName", "motherName", "permanentAddress",
-    "guardianName", "guardianPhone", "lastInstitute", "latestDegree", "gpaResult",
+    "guardianName", "guardianPhone", "guardianEmail", "lastInstitute", "latestDegree", "gpaResult",
     "currentDistrict", "homeDistrict", "tShirtSize", "courseGoal",
     "courseStatus", "currentlyDoing", "companyName", "businessName", "salary",
 ] as const;
@@ -140,6 +140,7 @@ const GRID_COLUMN_META: { key: string; label: string; width: number }[] = [
     { key: "permanentAddress", label: "Permanent Address", width: 240 },
     { key: "guardianName", label: "Guardian Name", width: 170 },
     { key: "guardianPhone", label: "Guardian Phone", width: 150 },
+    { key: "guardianEmail", label: "Guardian Email", width: 200 },
     { key: "lastInstitute", label: "Last Institute", width: 210 },
     { key: "latestDegree", label: "Latest Degree", width: 160 },
     { key: "gpaResult", label: "GPA / Result", width: 130 },
@@ -391,6 +392,7 @@ export default function AllBatchInfoPage() {
                     permanentAddress: student.permanentAddress || "",
                     guardianName: student.guardianName || "",
                     guardianPhone: student.guardianPhone || "",
+                    guardianEmail: student.guardianEmail || "",
                     lastInstitute: student.lastInstitute || "",
                     latestDegree: student.latestDegree || "",
                     gpaResult: student.gpaResult || "",
@@ -505,6 +507,7 @@ export default function AllBatchInfoPage() {
                 permanentAddress: row.permanentAddress || "",
                 guardianName: row.guardianName || "",
                 guardianPhone: row.guardianPhone || "",
+                guardianEmail: row.guardianEmail || "",
                 lastInstitute: row.lastInstitute || "",
                 latestDegree: row.latestDegree || "",
                 gpaResult: row.gpaResult || "",
@@ -596,6 +599,7 @@ export default function AllBatchInfoPage() {
                         permanentAddress: row.permanentAddress || "",
                         guardianName: row.guardianName || "",
                         guardianPhone: row.guardianPhone || "",
+                        guardianEmail: row.guardianEmail || "",
                         lastInstitute: row.lastInstitute || "",
                         latestDegree: row.latestDegree || "",
                         gpaResult: row.gpaResult || "",
@@ -666,7 +670,7 @@ export default function AllBatchInfoPage() {
             sheetData.push([
                 "Batch", "Roll", "Name", "Phone", "Date of Birth", "Educational Degree", "Category", "Blood Group",
                 "Address", "Email", "NID / Birth No", "Father Name", "Mother Name", "Permanent Address",
-                "Guardian Name", "Guardian Phone", "Last Institute", "Latest Degree", "GPA / Result",
+                "Guardian Name", "Guardian Phone", "Guardian Email", "Last Institute", "Latest Degree", "GPA / Result",
                 "Current District", "Home District", "T-Shirt Size", "Course Goal",
                 "Status", "Currently", "Company Name", "Business Name", "Salary"
             ]);
@@ -690,6 +694,7 @@ export default function AllBatchInfoPage() {
                     s.permanentAddress || "-",
                     s.guardianName || "-",
                     s.guardianPhone || "-",
+                    s.guardianEmail || "-",
                     s.lastInstitute || "-",
                     s.latestDegree || "-",
                     s.gpaResult || "-",
@@ -845,6 +850,7 @@ export default function AllBatchInfoPage() {
                                 ["মাতার নাম", detailStudent.motherName],
                                 ["অভিভাবক", detailStudent.guardianName],
                                 ["অভিভাবকের ফোন", detailStudent.guardianPhone],
+                                ["অভিভাবকের ইমেইল", detailStudent.guardianEmail],
                                 ["বর্তমান ঠিকানা", detailStudent.address],
                                 ["স্থায়ী ঠিকানা", detailStudent.permanentAddress],
                                 ["বর্তমান জেলা", detailStudent.currentDistrict],

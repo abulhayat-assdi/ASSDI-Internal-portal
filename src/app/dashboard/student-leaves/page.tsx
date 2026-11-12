@@ -479,6 +479,12 @@ export default function AdminStudentLeavesPage() {
                     </div>
 
                     <div className="flex items-center gap-3 shrink-0">
+                        <a
+                            href="/dashboard/student-leaves/email-alerts"
+                            className="px-4 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-700 hover:bg-slate-50"
+                        >
+                            📧 Email Alerts
+                        </a>
                         <button
                             onClick={openAddLeaveModal}
                             className="px-4 py-2.5 bg-[#059669] hover:bg-[#10b981] text-white text-sm font-semibold rounded-xl transition-colors shadow-sm flex items-center gap-2 cursor-pointer"
