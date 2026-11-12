@@ -159,7 +159,7 @@ export default function StudentFormClient({ brand }: { brand: CourseBranding }) 
       <div className="bg-[#0f2744]">
         <div className="max-w-2xl mx-auto px-5 py-8 text-center">
           <p className="no-gradient text-emerald-400 text-[11px] font-bold uppercase tracking-[0.2em] mb-2">
-            Sales &amp; Marketing Institute
+            {brand.name}
           </p>
           <p className="no-gradient text-white text-2xl sm:text-3xl font-extrabold leading-tight">
             Student Information Form
