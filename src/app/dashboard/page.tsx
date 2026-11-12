@@ -3,7 +3,7 @@
 import { CardBody } from "@/components/ui/Card";
 import NoticeCard from "@/components/ui/NoticeCard";
 import Badge from "@/components/ui/Badge";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCourseName } from "@/contexts/BrandingContext";
 import Clock from "@/components/ui/Clock";
@@ -21,6 +21,14 @@ import {
 } from "@/services/dashboardService";
 import Button from "@/components/ui/Button";
 import OnLeaveTodayCard from "@/components/leave/OnLeaveTodayCard";
+import { ALL_BATCHES } from "@/lib/studentNoticeScope";
+
+/** Filter value meaning "show every student notice, whatever its batch". */
+const FILTER_EVERYTHING = "__everything__";
+
+type BatchOption = { name: string; status: string };
+const isArchivedBatch = (b: BatchOption) => b.status === "archived" || b.status === "Completed";
+const batchLabel = (batchName?: string) => (!batchName || batchName === ALL_BATCHES ? "All batches" : batchName);
 
 
 export default function DashboardPage() {
@@ -46,7 +54,12 @@ export default function DashboardPage() {
     const [studentNoticeTitle, setStudentNoticeTitle] = useState("");
     const [studentNoticeDescription, setStudentNoticeDescription] = useState("");
     const [studentNoticePriority, setStudentNoticePriority] = useState<"normal" | "urgent">("normal");
+    const [studentNoticeBatch, setStudentNoticeBatch] = useState<string>(ALL_BATCHES);
     const [isAddingStudentNotice, setIsAddingStudentNotice] = useState(false);
+
+    // Batches for targeting/filtering student notices
+    const [batchOptions, setBatchOptions] = useState<BatchOption[]>([]);
+    const [studentNoticeFilter, setStudentNoticeFilter] = useState<string>(FILTER_EVERYTHING);
 
     // Delete Notice State
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -77,7 +90,48 @@ export default function DashboardPage() {
         };
 
         fetchData();
+
+        // Batch list is best-effort: without it the form still posts to "All batches".
+        fetch("/api/auth/batches?mode=raw", { cache: "no-store" })
+            .then((res) => (res.ok ? res.json() : { batches: [] }))
+            .then((data: { batches?: BatchOption[] }) => {
+                const list = (data.batches || []).filter((b) => b && b.name);
+                list.sort((a, b) =>
+                    Number(isArchivedBatch(a)) - Number(isArchivedBatch(b)) ||
+                    a.name.localeCompare(b.name, undefined, { numeric: true })
+                );
+                setBatchOptions(list);
+            })
+            .catch((error) => console.error("Error fetching batches:", error));
     }, []);
+
+    // Batches a new notice can target: running ones, plus the current one when editing an older notice.
+    const postableBatches = useMemo(() => {
+        const names = batchOptions.filter((b) => !isArchivedBatch(b)).map((b) => b.name);
+        if (studentNoticeBatch !== ALL_BATCHES && !names.includes(studentNoticeBatch)) names.push(studentNoticeBatch);
+        return names;
+    }, [batchOptions, studentNoticeBatch]);
+
+    // Filter dropdown: every known batch plus any batch that only appears on an old notice.
+    const filterBatches = useMemo(() => {
+        const names = batchOptions.map((b) => b.name);
+        for (const n of studentNotices) {
+            const b = n.batchName || ALL_BATCHES;
+            if (b !== ALL_BATCHES && !names.includes(b)) names.push(b);
+        }
+        return names;
+    }, [batchOptions, studentNotices]);
+
+    // A batch filter shows what that batch's students see: its own notices + "All batches" ones.
+    const visibleStudentNotices = useMemo(() => {
+        if (studentNoticeFilter === FILTER_EVERYTHING) return studentNotices;
+        return studentNotices.filter((n) => {
+            const b = n.batchName || ALL_BATCHES;
+            return studentNoticeFilter === ALL_BATCHES
+                ? b === ALL_BATCHES
+                : b === studentNoticeFilter || b === ALL_BATCHES;
+        });
+    }, [studentNotices, studentNoticeFilter]);
 
     const handleAddNotice = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -180,12 +234,14 @@ export default function DashboardPage() {
                     title: studentNoticeTitle,
                     description: studentNoticeDescription,
                     priority: studentNoticePriority,
+                    batchName: studentNoticeBatch,
                 });
             } else {
                 await addStudentNotice({
                     title: studentNoticeTitle,
                     description: studentNoticeDescription,
                     priority: studentNoticePriority,
+                    batchName: studentNoticeBatch,
                     date: new Date().toISOString().split('T')[0],
                     createdBy: userProfile?.uid || "unknown",
                     createdByName: userProfile?.displayName || "Unknown",
@@ -209,6 +265,7 @@ export default function DashboardPage() {
         setStudentNoticeTitle("");
         setStudentNoticeDescription("");
         setStudentNoticePriority("normal");
+        setStudentNoticeBatch(ALL_BATCHES);
     };
 
     const handleEditStudentNotice = (notice: StudentNotice) => {
@@ -217,6 +274,7 @@ export default function DashboardPage() {
         setStudentNoticeTitle(notice.title);
         setStudentNoticeDescription(notice.description);
         setStudentNoticePriority(notice.priority || "normal");
+        setStudentNoticeBatch(notice.batchName || ALL_BATCHES);
         setIsStudentNoticeModalOpen(true);
     };
 
@@ -358,9 +416,23 @@ export default function DashboardPage() {
                             Student Notice
                         </h2>
                         <Badge variant="default">
-                            {loading ? "..." : `${studentNotices.length} Notices`}
+                            {loading ? "..." : `${visibleStudentNotices.length} Notices`}
                         </Badge>
                     </div>
+                    <label className="flex items-center gap-2 text-sm text-gray-600">
+                        <span className="font-medium">Batch</span>
+                        <select
+                            value={studentNoticeFilter}
+                            onChange={(e) => setStudentNoticeFilter(e.target.value)}
+                            className="px-3 py-1.5 border border-gray-300 rounded-lg bg-white text-gray-800 focus:ring-2 focus:ring-[#1e3a5f] focus:border-[#1e3a5f] outline-none"
+                        >
+                            <option value={FILTER_EVERYTHING}>All notices</option>
+                            <option value={ALL_BATCHES}>Only &quot;All batches&quot; notices</option>
+                            {filterBatches.map((name) => (
+                                <option key={name} value={name}>{name}</option>
+                            ))}
+                        </select>
+                    </label>
                 </div>
 
                 {loading ? (
@@ -368,13 +440,17 @@ export default function DashboardPage() {
                         <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#1e3a5f]"></div>
                         <p className="mt-4 text-[#6b7280]">Loading student notices...</p>
                     </div>
-                ) : studentNotices.length === 0 ? (
+                ) : visibleStudentNotices.length === 0 ? (
                     <div className="text-center py-12 bg-white rounded-lg shadow-soft">
-                        <p className="text-[#6b7280]">No student notices yet. Click {"\"Add Notice for Students\""} to post one.</p>
+                        <p className="text-[#6b7280]">
+                            {studentNotices.length === 0
+                                ? <>No student notices yet. Click {"\"Add Notice for Students\""} to post one.</>
+                                : "No notices for this batch."}
+                        </p>
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {studentNotices.map((notice) => (
+                        {visibleStudentNotices.map((notice) => (
                             <div key={notice.id} className={`bg-white rounded-xl p-5 shadow-sm border-l-4 ${
                                 notice.priority === 'urgent' ? 'border-red-500' : 'border-[#1e3a5f]'
                             } hover:shadow-md transition-shadow`}>
@@ -393,8 +469,11 @@ export default function DashboardPage() {
                                         >Delete</button>
                                     </div>
                                 </div>
+                                <span className={`inline-block mt-2 text-xs font-semibold px-2 py-0.5 rounded-md ${
+                                    (notice.batchName || ALL_BATCHES) === ALL_BATCHES ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'
+                                }`}>🎓 {batchLabel(notice.batchName)}</span>
                                 <h4 className="font-bold text-gray-900 mt-2">{notice.title}</h4>
-                                <p className="text-gray-600 text-sm mt-1 leading-relaxed">{notice.description}</p>
+                                <p className="text-gray-600 text-sm mt-1 leading-relaxed whitespace-pre-line">{notice.description}</p>
                                 <p className="text-xs text-gray-400 mt-3">By: {notice.createdByName} · {notice.date}</p>
                             </div>
                         ))}
@@ -539,6 +618,24 @@ export default function DashboardPage() {
                         </div>
                         <form onSubmit={handleStudentNoticeSubmit} className="p-6 space-y-4">
                             <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Batch</label>
+                                <select
+                                    value={studentNoticeBatch}
+                                    onChange={(e) => setStudentNoticeBatch(e.target.value)}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-[#1e3a5f] focus:border-[#1e3a5f] outline-none transition-all"
+                                >
+                                    <option value={ALL_BATCHES}>All batches</option>
+                                    {postableBatches.map((name) => (
+                                        <option key={name} value={name}>{name}</option>
+                                    ))}
+                                </select>
+                                <p className="text-xs text-gray-500 mt-1">
+                                    {studentNoticeBatch === ALL_BATCHES
+                                        ? "Every student in the course will see this notice."
+                                        : `Only students of ${studentNoticeBatch} will see this notice.`}
+                                </p>
+                            </div>
+                            <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
                                 <input
                                     type="text"
@@ -594,7 +691,7 @@ export default function DashboardPage() {
                                     disabled={isAddingStudentNotice}
                                     className="w-full bg-[#1e3a5f] hover:bg-[#162e4a] text-white"
                                 >
-                                    {isAddingStudentNotice ? "Saving..." : (isEditStudentMode ? "Update" : "Post to Students")}
+                                    {isAddingStudentNotice ? "Saving..." : (isEditStudentMode ? "Update" : (studentNoticeBatch === ALL_BATCHES ? "Post to Students" : `Post to ${studentNoticeBatch}`))}
                                 </Button>
                             </div>
                         </form>
