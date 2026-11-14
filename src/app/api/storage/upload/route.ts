@@ -101,7 +101,9 @@ export async function POST(request: NextRequest) {
         // input; the bytes are not. Reject a .png that is really a script.
         const signatureError =
             category === "homework" || (category === "resource" && htmlAllowedHere)
-                ? verifyHomeworkFile(buffer, file.name)
+                ? // Staff-authored resource pages are not student code: the SQL
+                  // scan false-positives on ordinary markup (e.g. href="#").
+                  verifyHomeworkFile(buffer, file.name, { skipSqlScan: category === "resource" })
                 : verifyFileSignature(buffer, file.name);
         if (signatureError) {
             return NextResponse.json({ error: signatureError }, { status: 400 });

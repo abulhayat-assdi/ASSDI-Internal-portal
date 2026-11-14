@@ -173,7 +173,11 @@ export function findSqlInjection(text: string): string | null {
  *
  * Returns an error string, or null when the file is acceptable.
  */
-export function verifyHomeworkFile(buffer: Buffer, fileName: string): string | null {
+export function verifyHomeworkFile(
+    buffer: Buffer,
+    fileName: string,
+    options: { skipSqlScan?: boolean } = {}
+): string | null {
     const ext = path.extname(fileName).toLowerCase();
     if (MARKDOWN_EXTENSIONS.has(ext)) return verifyMarkdownFile(buffer, ext);
     if (!TEXT_DOCUMENT_EXTENSIONS.has(ext)) return verifyFileSignature(buffer, fileName);
@@ -192,7 +196,7 @@ export function verifyHomeworkFile(buffer: Buffer, fileName: string): string | n
         return "File contents do not match its .svg extension.";
     }
 
-    const finding = findSqlInjection(text);
+    const finding = options.skipSqlScan ? null : findSqlInjection(text);
     if (finding) {
         return `ফাইলে SQL ইনজেকশন ভালনারেবিলিটি আছে — ${finding}। কোডটি ঠিক করে আবার আপলোড করুন।`;
     }

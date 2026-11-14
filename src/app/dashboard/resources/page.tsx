@@ -287,7 +287,11 @@ export default function ResourceManagementPage() {
             setUploadProgress(0);
         } catch (err) {
             console.error("Upload error:", err);
-            alert("Upload failed.");
+            let detail = "";
+            if (err instanceof Error && err.message) {
+                try { detail = JSON.parse(err.message).error || ""; } catch { detail = err.message; }
+            }
+            alert(detail ? `Upload failed: ${detail}` : "Upload failed.");
         } finally {
             setIsUploading(false);
         }
