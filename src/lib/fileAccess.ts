@@ -251,7 +251,10 @@ export function servingHeadersFor(
 ): Record<string, string> {
     const ext = path.extname(absolutePath).toLowerCase();
     const documentType = HOMEWORK_DOCUMENT_TYPES[ext];
-    if (documentType && ownerIdFor(normalizedPath)) {
+    if (
+        documentType &&
+        (ownerIdFor(normalizedPath) || /^(uploads\/)?resources\//.test(normalizedPath))
+    ) {
         return { "Content-Type": documentType, "Content-Security-Policy": HOMEWORK_DOCUMENT_CSP };
     }
     return { "Content-Type": contentTypeFor(absolutePath) };

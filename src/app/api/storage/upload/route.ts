@@ -51,12 +51,18 @@ export async function POST(request: NextRequest) {
         const HOMEWORK_ONLY_EXTENSIONS = new Set([".html", ".htm", ".svg"]);
 
         const ext = path.extname(file.name).toLowerCase();
+        // Staff (teacher/admin) may also add .html/.htm to the resource library.
+        // They are content-scanned and served sandboxed like homework.
+        const role = String((sessionUser as { role?: string }).role || "").toLowerCase();
+        const isStaff = role === "teacher" || role === "admin" || role === "super_admin";
+        const htmlAllowedHere =
+            category === "homework" || (category === "resource" && isStaff);
         const allowedHere =
-            ALLOWED_EXTENSIONS.has(ext) || (category === "homework" && HOMEWORK_ONLY_EXTENSIONS.has(ext));
+            ALLOWED_EXTENSIONS.has(ext) || (htmlAllowedHere && HOMEWORK_ONLY_EXTENSIONS.has(ext));
         if (!allowedHere) {
             return NextResponse.json(
                 {
-                    error: `এই ফাইল টাইপ গ্রহণযোগ্য নয় (${ext || "no extension"})। অনুমোদিত: ছবি, PDF, Word, Excel, PowerPoint, ZIP${category === "homework" ? ", HTML, SVG" : ""}।`,
+                    error: `এই ফাইল টাইপ গ্রহণযোগ্য নয় (${ext || "no extension"})। অনুমোদিত: ছবি, PDF, Word, Excel, PowerPoint, ZIP${htmlAllowedHere ? ", HTML, SVG" : ""}।`,
                 },
                 { status: 400 }
             );
@@ -94,7 +100,7 @@ export async function POST(request: NextRequest) {
         // The extension and the browser-supplied MIME type are both caller
         // input; the bytes are not. Reject a .png that is really a script.
         const signatureError =
-            category === "homework"
+            category === "homework" || (category === "resource" && htmlAllowedHere)
                 ? verifyHomeworkFile(buffer, file.name)
                 : verifyFileSignature(buffer, file.name);
         if (signatureError) {
