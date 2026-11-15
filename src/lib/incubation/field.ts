@@ -155,7 +155,6 @@ export async function fieldCommand(actor: Actor, input: unknown) {
               id: body.areaId,
               programId: program.id,
               kind: "area",
-              active: true,
             },
           })),
         "Select an area.",
@@ -187,7 +186,7 @@ export async function fieldCommand(actor: Actor, input: unknown) {
         const p = products.find((p) => p.id === l.productId),
           q = scaled(l.quantity, 3);
         insist(
-          p && p.active && q > 0 && (p.fractional || q % 1000 === 0),
+          p && q > 0,
           "Invalid product or quantity.",
         );
         requested.set(p.id, (requested.get(p.id) || 0) + q);
@@ -270,7 +269,6 @@ export async function fieldCommand(actor: Actor, input: unknown) {
                 id: body.areaId,
                 programId: program.id,
                 kind: "area",
-                active: true,
               },
             })),
           "Select the area you are returning from.",

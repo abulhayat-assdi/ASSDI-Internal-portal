@@ -1,3 +1,4 @@
+import { productLabel } from "@/lib/incubation/catalog";
 export default function RecordSnapshot({
   record,
   products = [],
@@ -27,7 +28,7 @@ export default function RecordSnapshot({
       {d.lines?.map((l: any, i: number) => (
         <div key={i} style={{ marginBottom: 10 }}>
           <dt className="inc-sub">
-            {products.find((p) => p.id === l.productId)?.name || l.productId}
+            {productLabel(products.find((p) => p.id === l.productId)) || l.productId}
           </dt>
           <dd>
             {l.quantity} × BDT {l.unitPrice || 0}
