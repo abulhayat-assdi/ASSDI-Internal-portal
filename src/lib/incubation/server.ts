@@ -23,6 +23,8 @@ import { buildMonitor, issuesFor } from "./monitor";
 import { buildReport } from "./report";
 import { RESULT_METRIC, rankTeams } from "./results";
 import { sheetSave } from "./sheet";
+import { catalogCommand, catalogUsage, CATALOG_ACTIONS } from "./catalog-server";
+import { groupKey } from "./catalog";
 import {
   calculateLedger,
   FINANCIAL_KINDS,
@@ -331,9 +333,33 @@ async function validateData(
         id: { in: d.lines.map((l) => l.productId) },
       },
     });
+    // A product that has variants must be bought/sold as one of its variants.
+    const bases = prods.filter((p) => !p.variant);
+    const needsVariant = new Set(
+      r.id === "new" && bases.length
+        ? (
+            await tx.incubationCatalog.findMany({
+              where: {
+                programId: program.id,
+                kind: "product",
+                variant: { not: "" },
+                OR: bases.map((p) => ({
+                  parentId: p.parentId,
+                  name: { equals: p.name, mode: "insensitive" as const },
+                })),
+              },
+              select: { parentId: true, name: true },
+            })
+          ).map(groupKey)
+        : [],
+    );
     for (const l of d.lines) {
       const p = prods.find((p) => p.id === l.productId);
       insist(p, "Product not found.");
+      insist(
+        p.variant || !needsVariant.has(groupKey(p)),
+        `${p.name}: select a variant.`,
+      );
       insist(scaled(l.quantity, 3) > 0, "Quantity must be greater than zero.");
       if (r.kind !== "damage") scaled(l.unitPrice);
     }
@@ -752,6 +778,7 @@ export async function overview(
                   permittedCategories.has(c.parentId)),
           )
         : catalog,
+      catalogUsage: manager ? await catalogUsage(tx, programId) : {},
       sprints,
       records,
       reportEntries,
@@ -1067,8 +1094,21 @@ export async function command(actor: Actor, input: unknown) {
       409,
     );
     const pid = program.id;
-    if (["team", "catalog", "sprint", "share"].includes(body.action))
+    if (["team", "sprint", "share", ...CATALOG_ACTIONS].includes(body.action))
       insist(manager, "Staff permission is required.", 403);
+    if (CATALOG_ACTIONS.includes(body.action))
+      return catalogCommand(
+        {
+          tx,
+          actor,
+          pid,
+          audit: (action, entityId, before, after, reason) =>
+            audit(tx, actor, pid, action, entityId, before, after, reason),
+          recompute: () => ledger(tx, pid),
+        },
+        body.action,
+        p,
+      );
     if (body.action === "team") {
       const v = z
         .object({
@@ -1194,73 +1234,6 @@ export async function command(actor: Actor, input: unknown) {
       });
       return team;
     }
-    if (body.action === "catalog") {
-      const v = z
-        .object({
-          id: id.optional(),
-          kind: z.enum(["category", "product", "area"]),
-          name: text,
-          parentId: id.nullable(),
-          variant: z.string().trim().max(100).default(""),
-          unit: text,
-          fractional: z.boolean(),
-          active: z.boolean(),
-        })
-        .parse(p);
-      if (v.kind === "product")
-        insist(
-          v.parentId &&
-            (await tx.incubationCatalog.findFirst({
-              where: { id: v.parentId, programId: pid, kind: "category" },
-            })),
-          "Select the product category.",
-        );
-      else v.parentId = null;
-      if (v.kind !== "product") v.variant = "";
-      const duplicate = await tx.incubationCatalog.findFirst({
-        where: {
-          programId: pid,
-          kind: v.kind,
-          parentId: v.parentId,
-          name: { equals: v.name, mode: "insensitive" },
-          variant: { equals: v.variant, mode: "insensitive" },
-          id: { not: v.id || "__new__" },
-        },
-      });
-      insist(!duplicate, "An item with the same name and variant already exists.");
-      const before = v.id
-        ? await tx.incubationCatalog.findFirst({
-            where: { id: v.id, programId: pid },
-          })
-        : null;
-      insist(
-        !v.id || (before && before.kind === v.kind),
-        "Catalog item not found.",
-      );
-      if (
-        before?.kind === "product" &&
-        (before.parentId !== v.parentId ||
-          before.unit !== v.unit ||
-          before.variant !== v.variant ||
-          before.fractional !== v.fractional)
-      ) {
-        const used = await tx.$queryRaw<
-          { used: boolean }[]
-        >`SELECT EXISTS(SELECT 1 FROM incubation_records WHERE program_id=${pid} AND (data->'lines') @> ${JSON.stringify([{ productId: before.id }])}::jsonb) AS used`;
-        insist(
-          !used[0]?.used,
-          "Do not change the category or unit of a product with transactions. Create a new product; name and active status can still be edited.",
-        );
-      }
-      const { id: unused, ...data } = v;
-      const item = before
-        ? await tx.incubationCatalog.update({ where: { id: before.id }, data })
-        : await tx.incubationCatalog.create({
-            data: { ...data, courseId: actor.courseId, programId: pid },
-          });
-      await audit(tx, actor, pid, "catalog.saved", item.id, before, item);
-      return item;
-    }
     if (body.action === "sprint") {
       const v = z
         .object({
@@ -1289,7 +1262,6 @@ export async function command(actor: Actor, input: unknown) {
             id: v.categoryId,
             programId: pid,
             kind: "category",
-            active: true,
           },
         }),
         "Category not found.",

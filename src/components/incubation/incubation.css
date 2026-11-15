@@ -755,3 +755,25 @@
 .inc-results { margin-bottom: 16px; }
 .inc-results h2 { display: flex; align-items: center; gap: 6px; }
 .inc-own-row td { background: #e5f2e9; font-weight: 700; }
+
+/* Catalog setup: categories, products and variants */
+.inc-warn { background: #fff7e6; border-color: #f0d49b; color: #6b4b10; }
+.inc-cat-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid #e9efea; }
+.inc-cat-row .inc-row { flex-shrink: 0; gap: 6px; }
+.inc-cat-products { grid-column: 1 / -1; }
+.inc-cat-group { margin-top: 18px; }
+.inc-cat-group .inc-eyebrow { color: #558568; margin-bottom: 2px; }
+.inc-cat-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.inc-cat-chip { font-size: 12px; padding: 2px 10px; border-radius: 999px; background: #e5f2e9; color: #26704f; }
+.inc-cat-variants { margin-top: 16px; padding: 14px; border: 1px solid #e0e9e3; border-radius: 12px; background: #f8fbf9; }
+.inc-cat-variant { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.inc-cat-variant input { flex: 1; min-width: 0; }
+.inc-cat-variant input.inc-cat-unit { flex: 0 0 110px; }
+.inc-cat-create { margin-top: 12px; }
+.inc-cat-create summary { cursor: pointer; font-weight: 700; color: #26704f; display: inline-flex; align-items: center; gap: 6px; list-style: none; }
+.inc-cat-create summary::-webkit-details-marker { display: none; }
+.inc-cat-removed { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.inc-cat-removed span { flex: 1; min-width: 120px; }
+@media (max-width: 600px) {
+  .inc-cat-variant input.inc-cat-unit { flex-basis: 80px; }
+}

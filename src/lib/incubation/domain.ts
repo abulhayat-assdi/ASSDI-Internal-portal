@@ -311,8 +311,8 @@ export function calculateLedger(entries: Entry[], products: Product[]) {
       insist(p, "Product not found.");
       const q = scaled(line.quantity, 3);
       insist(
-        q > 0 && (p.fractional || q % 1000 === 0),
-        `${p.name}: quantity does not match the unit.`,
+        q > 0,
+        `${p.name}: quantity must be greater than zero.`,
       );
       const s = stock(r.teamId, p.id);
       if (r.kind === "customer_refund") {

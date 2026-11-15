@@ -225,13 +225,14 @@ describe("incubation accounting", () => {
         products,
       ).summaries,
     ).toEqual([]));
-  it("uses decimal integer arithmetic and rejects fractional pieces", () => {
+  it("uses decimal integer arithmetic and always accepts fractional quantities", () => {
     expect(lineTotal("0.125", "0.20")).toBe(3);
     expect(scaled("999.99")).toBe(99999);
     expect(() => scaled("0.001")).toThrow();
-    expect(() =>
-      calculateLedger([entry("purchase", { lines: [line("0.5")] })], products),
-    ).toThrow();
+    expect(
+      calculateLedger([entry("purchase", { lines: [line("0.5")] })], products)
+        .stocks["a|p"]?.quantity,
+    ).toBe(500);
   });
   it("uses the precise today/yesterday late-entry boundary", () => {
     expect(isLate("2026-11-04", "2026-11-05")).toBe(false);

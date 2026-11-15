@@ -44,6 +44,7 @@ import {
   History,
   Table2,
   Trash2,
+  Pencil,
   Filter,
   RefreshCw,
   X,
@@ -78,6 +79,7 @@ import MonitorPanel from "./MonitorPanel";
 import ResultsCard from "./ResultsCard";
 import { rankTeams } from "@/lib/incubation/results";
 import NotificationBell from "./NotificationBell";
+import { groupProducts, productLabel, selectableProducts } from "@/lib/incubation/catalog";
 import {
   FieldCorrectionEditor,
   FieldCorrectionReviews,
@@ -86,7 +88,15 @@ import {
 type Row = Record<string, any>;
 type Editor = {
   type:
-    "program" | "team" | "catalog" | "sprint" | "record" | "correct" | "review";
+    | "program"
+    | "team"
+    | "catalog"
+    | "product"
+    | "remove"
+    | "sprint"
+    | "record"
+    | "correct"
+    | "review";
   data: Row;
   original?: Row;
 };
@@ -372,7 +382,51 @@ export default function IncubationApp({
   const teamName = (id: string) =>
     bundle?.teams?.find((t: Row) => t.id === id)?.name || "Other team";
   const productName = (id: string) =>
-    products.find((p: Row) => p.id === id)?.name || id;
+    productLabel(products.find((p: Row) => p.id === id)) || id;
+  const productGroups = useMemo(() => groupProducts(products as Row[] as (Row & { id: string; name: string })[]), [products]);
+  const openProduct = (g?: (typeof productGroups)[number]) => {
+    const head = g ? g.base || g.rows[0] : null;
+    setError("");
+    setEditor({
+      type: "product",
+      data: {
+        id: head?.id,
+        baseId: g?.base?.id,
+        allIds: g ? g.rows.map((r: Row) => r.id) : [],
+        name: g?.name || "",
+        parentId: g?.categoryId || "",
+        unit: head?.unit || "piece",
+        variants: (g?.variants || []).map((v: Row) => ({ id: v.id, variant: v.variant, unit: v.unit })),
+        removed: [],
+        newVariant: "",
+        newUnit: "",
+      },
+    });
+  };
+  const openRemove = (c: Row, g?: (typeof productGroups)[number]) => {
+    const usage = bundle?.catalogUsage || {};
+    const ids: string[] = g ? g.rows.map((r: Row) => r.id) : [c.id];
+    const used = ids.reduce((n, x) => n + (usage[x] || 0), 0);
+    const productCount =
+      c.kind === "category" ? products.filter((p: Row) => p.parentId === c.id).length : 0;
+    setError("");
+    setEditor({
+      type: "remove",
+      data: {
+        id: c.id,
+        kind: c.kind,
+        whole: !!g,
+        ids,
+        parentId: c.parentId,
+        label: g ? g.name : c.kind === "product" ? productLabel(c) : c.name,
+        variantCount: g ? g.variants.length : 0,
+        used,
+        productCount,
+        needsTarget: used > 0 || productCount > 0,
+        targetId: "",
+      },
+    });
+  };
   const { report, reportError } = useMemo(() => {
     try {
       return {
@@ -713,7 +767,37 @@ export default function IncubationApp({
         check(st.maxFieldHours, 0.25, 168, "Max field hours", false);
       }
       if (editor.type === "catalog")
-        payload = { ...d, parentId: d.parentId || null };
+        payload = { id: d.id, kind: d.kind, name: d.name, parentId: null };
+      if (editor.type === "product") {
+        action = "catalog_product";
+        const variants = [...d.variants];
+        const pending = (d.newVariant || "").trim();
+        if (pending) {
+          if (variants.some((x: Row) => x.variant.trim().toLowerCase() === pending.toLowerCase()))
+            throw Error(`Variant "${pending}" is already in the list.`);
+          variants.push({ variant: pending, unit: d.newUnit || "" });
+        }
+        for (const r of d.removed)
+          if (r.used && !r.targetId)
+            throw Error(`"${r.label}" has ${r.used} entries. Choose where to move them before saving.`);
+        payload = {
+          ...(d.id ? { id: d.id } : {}),
+          name: d.name,
+          parentId: d.parentId,
+          unit: d.unit,
+          variants: variants.map((x: Row) => ({
+            ...(x.id ? { id: x.id } : {}),
+            variant: x.variant,
+            unit: x.unit || "",
+          })),
+          removed: d.removed.map((r: Row) => ({ id: r.id, targetId: r.targetId || null })),
+        };
+      }
+      if (editor.type === "remove") {
+        action = "catalog_delete";
+        if (d.needsTarget && !d.targetId) throw Error("Choose where to move the existing data first.");
+        payload = { id: d.id, whole: !!d.whole, targetId: d.targetId || null };
+      }
       if (editor.type === "record" || editor.type === "correct") {
         const kind = d.kind as RecordKind,
           raw: Row = { ...d.data };
@@ -785,7 +869,9 @@ export default function IncubationApp({
       setMessage(
         editor.type === "correct" && !bundle?.manager
           ? "Correction request sent."
-          : "Saved successfully.",
+          : editor.type === "remove"
+            ? "Deleted successfully."
+            : "Saved successfully.",
       );
       if (editor.type === "program" && !programId)
         router.push("/dashboard/competitions/" + result.competitionId);
@@ -985,7 +1071,7 @@ export default function IncubationApp({
             )
             .map((p: Row) => (
               <option key={p.id} value={p.id}>
-                {p.name}
+                {productLabel(p)}
               </option>
             ))}
         </select>
@@ -1199,7 +1285,9 @@ export default function IncubationApp({
                     {
                       program: "Program setup",
                       team: "Create / edit team",
-                      catalog: "Catalog",
+                      catalog: { category: "Category", area: "Area" }[editor.data.kind as string] || "Catalog",
+                      product: editor.data.id ? "Edit product" : "New product",
+                      remove: "Delete " + (editor.data.label || ""),
                       sprint: "Sprint and category",
                       record: label(editor.data.kind),
                       correct: bundle?.manager
@@ -1682,21 +1770,112 @@ export default function IncubationApp({
                 </>
               )}
               {editor.type === "catalog" && (
-                <>
-                  <Field name="Name">
-                    <input
-                      required
-                      value={editor.data.name}
-                      onChange={(e) => setValue("name", e.target.value)}
-                    />
-                  </Field>
-                  {editor.data.kind === "product" && (
-                    <>
+                <Field name="Name">
+                  <input
+                    required
+                    autoFocus
+                    value={editor.data.name}
+                    onChange={(e) => setValue("name", e.target.value)}
+                  />
+                </Field>
+              )}
+              {editor.type === "product" && (() => {
+                const d = editor.data;
+                const usage = bundle?.catalogUsage || {};
+                // Items the deleted variants' entries can move to: this product's own
+                // remaining rows, plus other products in the (new) category.
+                const targets = [
+                  ...products
+                    .filter(
+                      (p: Row) =>
+                        p.id === d.baseId || d.variants.some((x: Row) => x.id === p.id),
+                    )
+                    .map((p: Row) => ({
+                      ...p,
+                      name: d.name || p.name,
+                      variant: d.variants.find((x: Row) => x.id === p.id)?.variant ?? p.variant,
+                    })),
+                  ...products.filter(
+                    (p: Row) => p.parentId === d.parentId && !d.allIds.includes(p.id),
+                  ),
+                ];
+                const addVariant = () => {
+                  const name = (d.newVariant || "").trim();
+                  if (!name) return;
+                  if (d.variants.some((x: Row) => x.variant.trim().toLowerCase() === name.toLowerCase())) {
+                    setError(`Variant "${name}" is already in the list.`);
+                    return;
+                  }
+                  setError("");
+                  setEditor((e) =>
+                    e
+                      ? {
+                          ...e,
+                          data: {
+                            ...e.data,
+                            variants: [...e.data.variants, { variant: name, unit: e.data.newUnit || "" }],
+                            newVariant: "",
+                            newUnit: "",
+                          },
+                        }
+                      : e,
+                  );
+                };
+                const removeVariant = (i: number) => {
+                  const x = d.variants[i];
+                  setEditor((e) =>
+                    e
+                      ? {
+                          ...e,
+                          data: {
+                            ...e.data,
+                            variants: e.data.variants.filter((_: Row, j: number) => j !== i),
+                            removed: x.id
+                              ? [
+                                  ...e.data.removed,
+                                  { ...x, label: x.variant, used: usage[x.id] || 0, targetId: "" },
+                                ]
+                              : e.data.removed,
+                          },
+                        }
+                      : e,
+                  );
+                };
+                const setVariant = (i: number, key: string, value: string) =>
+                  setValue(
+                    "variants",
+                    d.variants.map((x: Row, j: number) => (i === j ? { ...x, [key]: value } : x)),
+                  );
+                return (
+                  <>
+                    <div className="inc-form-grid">
+                      <Field name="Product name">
+                        <input
+                          required
+                          autoFocus
+                          value={d.name}
+                          onChange={(e) => setValue("name", e.target.value)}
+                        />
+                      </Field>
                       <Field name="Category">
                         <select
                           required
-                          value={editor.data.parentId || ""}
-                          onChange={(e) => setValue("parentId", e.target.value)}
+                          value={d.parentId || ""}
+                          onChange={(e) =>
+                            setEditor((x) =>
+                              x
+                                ? {
+                                    ...x,
+                                    data: {
+                                      ...x.data,
+                                      parentId: e.target.value,
+                                      // Replacement items must be in the new category.
+                                      removed: x.data.removed.map((r: Row) => ({ ...r, targetId: "" })),
+                                    },
+                                  }
+                                : x,
+                            )
+                          }
                         >
                           <option value="">Select</option>
                           {categories.map((c: Row) => (
@@ -1706,43 +1885,213 @@ export default function IncubationApp({
                           ))}
                         </select>
                       </Field>
-                      <Field name="Variant (optional)">
-                        <input
-                          value={editor.data.variant || ""}
-                          onChange={(e) => setValue("variant", e.target.value)}
-                          placeholder="e.g. 100g / red / large"
-                        />
-                      </Field>
                       <Field name="Unit">
                         <input
                           required
-                          value={editor.data.unit}
+                          value={d.unit}
                           onChange={(e) => setValue("unit", e.target.value)}
                           placeholder="piece / kg / packet"
                         />
                       </Field>
-                      <label className="inc-row">
-                        <input
-                          type="checkbox"
-                          checked={editor.data.fractional}
-                          onChange={(e) =>
-                            setValue("fractional", e.target.checked)
+                    </div>
+                    <div className="inc-cat-variants">
+                      <b>Variants ({d.variants.length})</b>
+                      <p className="inc-sub" style={{ margin: "4px 0 10px" }}>
+                        {d.variants.length
+                          ? "Entries for this product must pick one of these variants."
+                          : "No variants. The product itself is used in entries."}
+                      </p>
+                      {d.variants.map((x: Row, i: number) => (
+                        <div className="inc-cat-variant" key={x.id || "new-" + i}>
+                          <input
+                            aria-label="Variant name"
+                            required
+                            value={x.variant}
+                            onChange={(e) => setVariant(i, "variant", e.target.value)}
+                          />
+                          <input
+                            aria-label="Variant unit"
+                            className="inc-cat-unit"
+                            value={x.unit || ""}
+                            placeholder={d.unit || "unit"}
+                            onChange={(e) => setVariant(i, "unit", e.target.value)}
+                          />
+                          {!x.id ? (
+                            <small className="inc-sub">new</small>
+                          ) : usage[x.id] ? (
+                            <small className="inc-sub">{usage[x.id]} entries</small>
+                          ) : null}
+                          <button
+                            type="button"
+                            className="inc-btn"
+                            aria-label={"Remove variant " + x.variant}
+                            title="Remove variant"
+                            onClick={() => removeVariant(i)}
+                          >
+                            <X size={15} />
+                          </button>
+                        </div>
+                      ))}
+                      <details className="inc-cat-create">
+                        <summary>
+                          <Plus size={15} /> Create variant
+                        </summary>
+                        <div className="inc-cat-variant">
+                          <input
+                            aria-label="New variant name"
+                            value={d.newVariant || ""}
+                            placeholder="e.g. 100g / red / large"
+                            onChange={(e) => setValue("newVariant", e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                addVariant();
+                              }
+                            }}
+                          />
+                          <input
+                            aria-label="New variant unit"
+                            className="inc-cat-unit"
+                            value={d.newUnit || ""}
+                            placeholder={d.unit || "unit"}
+                            onChange={(e) => setValue("newUnit", e.target.value)}
+                          />
+                          <button type="button" className="inc-btn primary" onClick={addVariant}>
+                            <Plus size={15} /> Add
+                          </button>
+                        </div>
+                      </details>
+                    </div>
+                    {d.removed.length > 0 && (
+                      <div className="inc-notice inc-warn">
+                        <b>Variants to delete on save</b>
+                        {d.removed.map((r: Row) => (
+                          <div className="inc-cat-removed" key={r.id}>
+                            <span>
+                              {r.label}
+                              {r.used ? ` · ${r.used} entries` : " · no entries"}
+                            </span>
+                            {r.used > 0 && (
+                              <select
+                                required
+                                aria-label={"Move entries of " + r.label}
+                                value={r.targetId}
+                                onChange={(e) =>
+                                  setValue(
+                                    "removed",
+                                    d.removed.map((y: Row) =>
+                                      y.id === r.id ? { ...y, targetId: e.target.value } : y,
+                                    ),
+                                  )
+                                }
+                              >
+                                <option value="">Move entries to…</option>
+                                {targets
+                                  .filter((p: Row) => !d.removed.some((y: Row) => y.id === p.id))
+                                  .map((p: Row) => (
+                                    <option key={p.id} value={p.id}>
+                                      {productLabel(p)}
+                                    </option>
+                                  ))}
+                              </select>
+                            )}
+                            <button
+                              type="button"
+                              className="inc-btn"
+                              onClick={() =>
+                                setEditor((e) =>
+                                  e
+                                    ? {
+                                        ...e,
+                                        data: {
+                                          ...e.data,
+                                          removed: e.data.removed.filter((y: Row) => y.id !== r.id),
+                                          variants: [
+                                            ...e.data.variants,
+                                            { id: r.id, variant: r.variant, unit: r.unit },
+                                          ],
+                                        },
+                                      }
+                                    : e,
+                                )
+                              }
+                            >
+                              Undo
+                            </button>
+                          </div>
+                        ))}
+                        <p className="inc-sub" style={{ margin: "6px 0 0" }}>
+                          Entries (purchases, sales, costs) of a deleted variant move to the item you
+                          choose and are counted there. The move is saved in the audit log.
+                        </p>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+              {editor.type === "remove" && (() => {
+                const d = editor.data;
+                const options: Row[] =
+                  d.kind === "category"
+                    ? categories.filter((c: Row) => c.id !== d.id)
+                    : d.kind === "area"
+                      ? areas.filter((a: Row) => a.id !== d.id)
+                      : products.filter(
+                          (p: Row) => p.parentId === d.parentId && !d.ids.includes(p.id),
+                        );
+                return (
+                  <>
+                    <p>
+                      <b>{d.label}</b>
+                      {d.kind === "product" && d.whole && d.variantCount > 0
+                        ? ` and its ${d.variantCount} variant(s)`
+                        : ""}{" "}
+                      will be deleted permanently.
+                    </p>
+                    {d.needsTarget ? (
+                      <>
+                        <div className="inc-notice inc-warn">
+                          {d.kind === "category"
+                            ? `This category has ${d.productCount} product item(s) and ${d.used} linked entries/sprints. They move to the category you choose; a product with the same name there is merged into it.`
+                            : `This is used in ${d.used} entries. They move to the item you choose, and all their purchases, sales and costs are counted under it.`}{" "}
+                          The move is recorded in the audit log.
+                        </div>
+                        <Field
+                          name={
+                            d.kind === "category"
+                              ? "Move to category"
+                              : d.kind === "area"
+                                ? "Move to area"
+                                : "Move entries to product / variant"
                           }
-                        />
-                        Allow fractional quantities
-                      </label>
-                    </>
-                  )}
-                  <label className="inc-row">
-                    <input
-                      type="checkbox"
-                      checked={editor.data.active}
-                      onChange={(e) => setValue("active", e.target.checked)}
-                    />
-                    Active
-                  </label>
-                </>
-              )}
+                        >
+                          <select
+                            required
+                            value={d.targetId || ""}
+                            onChange={(e) => setValue("targetId", e.target.value)}
+                          >
+                            <option value="">Select</option>
+                            {options.map((o: Row) => (
+                              <option key={o.id} value={o.id}>
+                                {d.kind === "product" ? productLabel(o) : o.name}
+                              </option>
+                            ))}
+                          </select>
+                        </Field>
+                        {!options.length && (
+                          <p className="inc-sub">
+                            {d.kind === "product"
+                              ? "There is no other product in this category. Create the replacement product first."
+                              : "Create the replacement first."}
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <p className="inc-sub">Nothing uses it, so it is deleted directly.</p>
+                    )}
+                  </>
+                );
+              })()}
               {editor.type === "sprint" && (
                 <>
                   <div className="inc-form-grid">
@@ -1944,7 +2293,7 @@ export default function IncubationApp({
                                   }
                                 >
                                   <option value="">Select product</option>
-                                  {products
+                                  {selectableProducts(products, [l.productId])
                                     .filter(
                                       (p: Row) =>
                                         editor.type === "correct" ||
@@ -1964,9 +2313,7 @@ export default function IncubationApp({
                                     )
                                     .map((p: Row) => (
                                       <option key={p.id} value={p.id}>
-                                        {p.name}
-                                        {p.variant ? " · " + p.variant : ""} (
-                                        {p.unit})
+                                        {productLabel(p)} ({p.unit})
                                         {editor.data.kind === "sale"
                                           ? " · available " +
                                             ((bundle?.ledger?.stocks[
@@ -2487,15 +2834,17 @@ export default function IncubationApp({
               ) && (
                 <button
                   type="submit"
-                  className="inc-btn primary"
+                  className={editor.type === "remove" ? "inc-btn danger" : "inc-btn primary"}
                   disabled={busy}
                 >
-                  <Check size={16} />
+                  {editor.type === "remove" ? <Trash2 size={16} /> : <Check size={16} />}
                   {busy
                     ? "Saving…"
-                    : editor.type === "correct" && !bundle?.manager
-                      ? "Send request"
-                      : "Save"}
+                    : editor.type === "remove"
+                      ? "Delete permanently"
+                      : editor.type === "correct" && !bundle?.manager
+                        ? "Send request"
+                        : "Save"}
                 </button>
               )}
             </div>
@@ -3201,7 +3550,6 @@ export default function IncubationApp({
                       >
                         <option value="">Select</option>
                         {areas
-                          .filter((a: Row) => a.active)
                           .map((a: Row) => (
                             <option key={a.id} value={a.id}>
                               {a.name}
@@ -3252,9 +3600,9 @@ export default function IncubationApp({
                             }
                           >
                             <option value="">Select product</option>
-                            {products.map((p: Row) => (
+                            {selectableProducts(products, [l.productId]).map((p: Row) => (
                               <option key={p.id} value={p.id}>
-                                {p.name}
+                                {productLabel(p)}
                               </option>
                             ))}
                           </select>
@@ -3942,70 +4290,112 @@ Type the program name to confirm:`,
                   </div>
                 ))}
               </section>
-              {["category", "product", "area"].map((kind) => (
+              {(["category", "area"] as const).map((kind) => (
                 <section className="inc-card" key={kind}>
                   <div className="inc-row inc-between">
-                    <h2>
-                      {
-                        {
-                          category: "Categories",
-                          product: "Products and units",
-                          area: "Areas",
-                        }[kind]
-                      }
-                    </h2>
+                    <h2>{kind === "category" ? "Categories" : "Areas"}</h2>
                     <button
                       className="inc-btn"
                       onClick={() =>
-                        setEditor({
-                          type: "catalog",
-                          data: {
-                            kind,
-                            name: "",
-                            parentId: "",
-                            unit: "piece",
-                            fractional: false,
-                            active: true,
-                          },
-                        })
+                        setEditor({ type: "catalog", data: { kind, name: "" } })
                       }
                     >
                       <Plus size={15} />
                       Add
                     </button>
                   </div>
-                  {bundle.catalog
-                    .filter((c: Row) => c.kind === kind)
-                    .map((c: Row) => (
-                      <div
-                        className="inc-row inc-between"
-                        key={c.id}
-                        style={{
-                          padding: "10px 0",
-                          borderBottom: "1px solid #e9efea",
-                        }}
-                      >
-                        <span>
-                          {c.name}{" "}
-                          {!c.active && (
-                            <small className="inc-sub">(inactive)</small>
-                          )}{" "}
-                          {kind === "product" && (
-                            <small className="inc-sub"> · {c.unit}</small>
-                          )}
-                        </span>
+                  {(kind === "category" ? categories : areas).map((c: Row) => (
+                    <div className="inc-cat-row" key={c.id}>
+                      <span>
+                        {c.name}
+                        {kind === "category" && (
+                          <small className="inc-sub">
+                            {" "}
+                            · {productGroups.filter((g) => g.categoryId === c.id).length} products
+                          </small>
+                        )}
+                      </span>
+                      <div className="inc-row">
                         <button
                           className="inc-btn"
                           onClick={() =>
-                            setEditor({ type: "catalog", data: { ...c } })
+                            setEditor({ type: "catalog", data: { id: c.id, kind, name: c.name } })
                           }
                         >
-                          Edit
+                          <Pencil size={14} /> Edit
+                        </button>
+                        <button
+                          className="inc-btn danger"
+                          aria-label={"Delete " + c.name}
+                          onClick={() => openRemove(c)}
+                        >
+                          <Trash2 size={14} />
                         </button>
                       </div>
-                    ))}
+                    </div>
+                  ))}
+                  {!(kind === "category" ? categories : areas).length && (
+                    <p className="inc-sub">Nothing added yet.</p>
+                  )}
                 </section>
               ))}
+              <section className="inc-card inc-cat-products">
+                <div className="inc-row inc-between">
+                  <h2>Products and variants</h2>
+                  <button
+                    className="inc-btn"
+                    disabled={!categories.length}
+                    title={categories.length ? "" : "Add a category first"}
+                    onClick={() => openProduct()}
+                  >
+                    <Plus size={15} />
+                    Add product
+                  </button>
+                </div>
+                {categories.map((c: Row) => {
+                  const groups = productGroups.filter((g) => g.categoryId === c.id);
+                  if (!groups.length) return null;
+                  return (
+                    <div key={c.id} className="inc-cat-group">
+                      <div className="inc-eyebrow">{c.name}</div>
+                      {groups.map((g) => {
+                        const head = g.base || g.rows[0];
+                        return (
+                          <div className="inc-cat-row" key={g.key}>
+                            <div>
+                              <span>{g.name}</span>
+                              <small className="inc-sub"> · {head.unit}</small>
+                              {g.variants.length > 0 && (
+                                <div className="inc-cat-chips">
+                                  {g.variants.map((v) => (
+                                    <span className="inc-cat-chip" key={v.id}>
+                                      {v.variant}
+                                      {v.unit !== head.unit ? ` (${v.unit})` : ""}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <div className="inc-row">
+                              <button className="inc-btn" onClick={() => openProduct(g)}>
+                                <Pencil size={14} /> Edit
+                              </button>
+                              <button
+                                className="inc-btn danger"
+                                aria-label={"Delete " + g.name}
+                                onClick={() => openRemove(head, g)}
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+                {!productGroups.length && <p className="inc-sub">No products yet.</p>}
+              </section>
               <section className="inc-card">
                 <div className="inc-row inc-between">
                   <h2>Category rotation</h2>
