@@ -7,6 +7,7 @@ import {
   type Entry,
   type Product,
 } from "./domain";
+import { productLabel } from "./catalog";
 export interface ReportFilters {
   from?: string;
   to?: string;
@@ -168,31 +169,41 @@ export function buildReport(
         teamId,
         productId,
         teamName: teams.find((t) => t.id === teamId)?.name || "",
-        productName: products.find((p) => p.id === productId)?.name || "",
+        productName: productLabel(products.find((p) => p.id === productId)),
         unit: products.find((p) => p.id === productId)?.unit || "",
         ...s,
       };
     });
-  const totals = summaries.reduce(
-    (a, s) => ({
-      revenue: a.revenue + s.revenue,
-      expenses: a.expenses + s.expenses,
-      netProfit: a.netProfit + s.netProfit,
-      cash: a.cash + s.cash,
-      stockValue: a.stockValue + s.stockValue,
-      principalOutstanding: a.principalOutstanding + s.principalOutstanding,
-      variance: a.variance + s.variance,
-    }),
-    {
-      revenue: 0,
-      expenses: 0,
-      netProfit: 0,
-      cash: 0,
-      stockValue: 0,
-      principalOutstanding: 0,
-      variance: 0,
-    },
-  );
+  const totalKeys = [
+    "revenue",
+    "expenses",
+    "netProfit",
+    "grossProfit",
+    "cash",
+    "stockValue",
+    "principalOutstanding",
+    "variance",
+    "funding",
+    "principalReturned",
+    "purchases",
+    "received",
+    "refunds",
+    "damage",
+    "costOfSales",
+    "returnGain",
+  ] as const;
+  const totals = Object.fromEntries(
+    totalKeys.map((k) => [k, summaries.reduce((n, s) => n + (s[k] || 0), 0)]),
+  ) as Record<(typeof totalKeys)[number], number>;
+  // Money given to teams, grouped by the funding round ("ধাপ") written on each entry.
+  const fundingRounds = visible
+    .filter((r) => r.kind === "fund" && teams.some((t) => t.id === r.teamId))
+    .reduce<Record<string, Record<string, number>>>((a, r) => {
+      const round = (r.data.round || "").trim() || "—";
+      a[round] ??= {};
+      a[round][r.teamId] = (a[round][r.teamId] || 0) + scaled(r.data.amount ?? "0");
+      return a;
+    }, {});
   if (!filters.teamId && !filters.areaId && !filters.batchName) {
     totals.netProfit -= summaries.reduce(
       (n, s) => n + s.internalMarginChange,
@@ -208,6 +219,7 @@ export function buildReport(
     filters,
     productScope,
     totals,
+    fundingRounds,
   };
 }
 export function reportRows(

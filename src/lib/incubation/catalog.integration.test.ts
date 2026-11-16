@@ -201,6 +201,35 @@ describe("catalog: products, variants, edit and delete", () => {
     expect(b.catalogUsage[big]).toBe(1);
   });
 
+  it("lets a plain product's existing stock be sold after variants are added, but not bought", async () => {
+    const juice = (await send(manager, "catalog_product", { name: "Juice", parentId: drinks, unit: "cup" })).id;
+    await record(lead, "purchase", {
+      lines: [{ productId: juice, quantity: "3", unitPrice: "10" }],
+      voucherId: "cat-voucher",
+    });
+    await send(manager, "catalog_product", {
+      id: juice,
+      name: "Juice",
+      parentId: drinks,
+      unit: "cup",
+      variants: [{ variant: "Mango" }],
+    });
+    await expect(
+      record(lead, "purchase", {
+        lines: [{ productId: juice, quantity: "1", unitPrice: "10" }],
+        voucherId: "cat-voucher",
+      }),
+    ).rejects.toThrow(/select a variant/);
+    await record(lead, "sale", {
+      lines: [{ productId: juice, quantity: "2", unitPrice: "15" }],
+      areaId: area,
+    });
+    expect(await stockOf(juice)).toBe(1000);
+    await expect(
+      record(lead, "sale", { lines: [{ productId: juice, quantity: "5", unitPrice: "15" }], areaId: area }),
+    ).rejects.toThrow(/available stock/);
+  });
+
   it("edits everything on a used product: name, category, unit and variant names", async () => {
     await send(manager, "catalog_product", {
       id: cake,

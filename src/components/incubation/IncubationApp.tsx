@@ -56,6 +56,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import {
+  calculateLedger,
   KIND_LABELS,
   FINANCIAL_KINDS,
   todayDhaka,
@@ -80,6 +81,7 @@ import ResultsCard from "./ResultsCard";
 import { rankTeams } from "@/lib/incubation/results";
 import NotificationBell from "./NotificationBell";
 import { groupProducts, productLabel, selectableProducts } from "@/lib/incubation/catalog";
+import ErrorText from "./ErrorText";
 import {
   FieldCorrectionEditor,
   FieldCorrectionReviews,
@@ -381,8 +383,31 @@ export default function IncubationApp({
     areas = bundle?.catalog?.filter((c: Row) => c.kind === "area") || [];
   const teamName = (id: string) =>
     bundle?.teams?.find((t: Row) => t.id === id)?.name || "Other team";
+  // Two products can share a name (e.g. "Water Bottle" in two categories). Add the
+  // category to such labels so the right one is picked and recognised.
+  const duplicateLabels = useMemo(() => {
+    const seen = new Map<string, number>();
+    for (const p of products)
+      seen.set(productLabel(p).toLowerCase(), (seen.get(productLabel(p).toLowerCase()) || 0) + 1);
+    return new Set([...seen].filter(([, n]) => n > 1).map(([k]) => k));
+  }, [products]);
+  const productOption = (p?: Row | null) => {
+    if (!p) return "";
+    const label = productLabel(p);
+    return duplicateLabels.has(label.toLowerCase())
+      ? `${label} — ${categories.find((c: Row) => c.id === p.parentId)?.name || "?"}`
+      : label;
+  };
+  // Products a team still holds stock of stay selectable for selling/returning,
+  // even a plain product that has since been given variants.
+  const heldProductIds = (teamId?: string) =>
+    teamId
+      ? Object.entries<Row>(bundle?.ledger?.stocks || {})
+          .filter(([k, v]) => k.startsWith(teamId + "|") && v.quantity > 0)
+          .map(([k]) => k.split("|")[1])
+      : [];
   const productName = (id: string) =>
-    productLabel(products.find((p: Row) => p.id === id)) || id;
+    productOption(products.find((p: Row) => p.id === id)) || id;
   const productGroups = useMemo(() => groupProducts(products as Row[] as (Row & { id: string; name: string })[]), [products]);
   const openProduct = (g?: (typeof productGroups)[number]) => {
     const head = g ? g.base || g.rows[0] : null;
@@ -465,6 +490,36 @@ export default function IncubationApp({
       return [];
     }
   }, [bundle, products]);
+  // Before staff approve a correction, replay the ledger with it applied so a stock
+  // problem shows up (with the team, product and date) before pressing Save.
+  const correctionWarning = useMemo(() => {
+    if (
+      editor?.type !== "review" ||
+      editor.data.reviewType !== "review_correction" ||
+      editor.data.status !== "pending" ||
+      !editor.data.comparison ||
+      !bundle?.manager
+    )
+      return "";
+    const p = editor.data.comparison as Row;
+    try {
+      calculateLedger(
+        (bundle.records || []).map((r: Row) =>
+          r.id === editor.data.recordId
+            ? { ...r, date: p.date, data: p.data, status: p.status }
+            : r,
+        ),
+        products,
+      );
+      return "";
+    } catch (e) {
+      const err = e as Error & { details?: Row };
+      const team = bundle.teams?.find((t: Row) => t.id === err.details?.teamId)?.name;
+      return err.details?.code === "stock_short"
+        ? `Approving this correction would break stock: ${team ? `Team "${team}" — ` : ""}${err.message}`
+        : err.message;
+    }
+  }, [editor, bundle, products]);
   const records = useMemo(
     () =>
       bundle?.records?.filter(
@@ -668,11 +723,16 @@ export default function IncubationApp({
       setBusy(false);
     }
   };
-  const newRecord = (kind: RecordKind = "sale") =>
+  const newRecord = (kind: RecordKind = "sale", teamId?: string) =>
     setEditor({
       type: "record",
       data: {
-        teamId: bundle?.member?.teamId || bundle?.teams?.[0]?.id || "",
+        teamId:
+          bundle?.member?.teamId ||
+          teamId ||
+          bundle?.teams?.find((t: Row) => t.active)?.id ||
+          bundle?.teams?.[0]?.id ||
+          "",
         kind,
         date: todayDhaka(),
         requestKey: crypto.randomUUID(),
@@ -937,12 +997,12 @@ export default function IncubationApp({
     <>
       {error && (
         <div role="alert" className="inc-notice inc-error">
-          {error}
+          <ErrorText message={error} />
         </div>
       )}
       {reportError && (
         <div role="alert" className="inc-notice inc-error">
-          {reportError}
+          <ErrorText message={reportError} />
         </div>
       )}
       {message && (
@@ -1071,7 +1131,7 @@ export default function IncubationApp({
             )
             .map((p: Row) => (
               <option key={p.id} value={p.id}>
-                {productLabel(p)}
+                {productOption(p)}
               </option>
             ))}
         </select>
@@ -1311,7 +1371,7 @@ export default function IncubationApp({
             <div className="inc-modal-body">
               {error && (
                 <div role="alert" className="inc-notice inc-error">
-                  {error}
+                  <ErrorText message={error} />
                 </div>
               )}
               {editor.type === "program" && (
@@ -1700,18 +1760,32 @@ export default function IncubationApp({
                       onChange={(e) => setValue("name", e.target.value)}
                     />
                   </Field>
-                  <Field name="Select members from enrolled students">
+                  <Field
+                    name={`Select members from enrolled students · নির্বাচিত ${editor.data.studentIds.length} জন`}
+                  >
                     <div className="inc-checklist">
                       {bundle?.roster
                         ?.filter(
                           (s: Row) => s.batchName === editor.data.batchName,
                         )
+                        // Saved members of this team first, so they are visible without
+                        // scrolling (sorted by saved state so rows don't jump on click).
+                        .sort((a: Row, b: Row) => {
+                          const saved = (s: Row) =>
+                            Number(
+                              !!bundle.teams
+                                .find((t: Row) => t.id === editor.data.id)
+                                ?.members.some((m: Row) => m.studentId === s.id),
+                            );
+                          return saved(b) - saved(a);
+                        })
                         .map((s: Row) => {
-                          const taken = bundle.teams.some(
+                          const other = bundle.teams.find(
                             (t: Row) =>
                               t.id !== editor.data.id &&
                               t.members.some((m: Row) => m.studentId === s.id),
                           );
+                          const taken = !!other;
                           return (
                             <label key={s.id}>
                               <input
@@ -1735,13 +1809,18 @@ export default function IncubationApp({
                                 }}
                               />
                               {s.batchName} · {s.roll} · {s.name}
-                              {taken && " (in another team)"}
+                              {editor.data.leadId === s.id && (
+                                <span className="inc-lead" style={{ marginLeft: 6 }}>
+                                  ★ Team lead
+                                </span>
+                              )}
+                              {taken && ` (in another team: ${other.name})`}
                             </label>
                           );
                         })}
                     </div>
                   </Field>
-                  <Field name="Team lead">
+                  <Field name="Team lead · টিম লিডার (শুধু লিডার টাকা-পয়সার এন্ট্রি দিতে পারে)">
                     <select
                       required
                       value={editor.data.leadId || ""}
@@ -2293,7 +2372,10 @@ export default function IncubationApp({
                                   }
                                 >
                                   <option value="">Select product</option>
-                                  {selectableProducts(products, [l.productId])
+                                  {selectableProducts(products, [
+                                    l.productId,
+                                    ...(editor.data.kind === "purchase" ? [] : heldProductIds(editor.data.teamId)),
+                                  ])
                                     .filter(
                                       (p: Row) =>
                                         editor.type === "correct" ||
@@ -2313,7 +2395,7 @@ export default function IncubationApp({
                                     )
                                     .map((p: Row) => (
                                       <option key={p.id} value={p.id}>
-                                        {productLabel(p)} ({p.unit})
+                                        {productOption(p)} ({p.unit})
                                         {editor.data.kind === "sale"
                                           ? " · available " +
                                             ((bundle?.ledger?.stocks[
@@ -2579,12 +2661,36 @@ export default function IncubationApp({
                         </div>
                       )}
                       {editor.data.kind === "fund" && (
-                        <Field name="Funding round / reference">
-                          <input
-                            value={editor.data.data.round || ""}
-                            onChange={(e) => setData("round", e.target.value)}
-                          />
-                        </Field>
+                        <>
+                          <div className="inc-notice">
+                            টিমকে যত টাকা দেওয়া হলো (মূলধন/বিনিয়োগ) সেটি এখানে এন্ট্রি দিন। কোন ধাপে দেওয়া
+                            হলো তা নিচের “ধাপ” ঘরে লিখুন বা তালিকা থেকে বেছে নিন — Dashboard-এ ধাপ ও টিম
+                            অনুযায়ী মোট দেখা যাবে। টিম টাকা ফেরত দিলে “Principal repayment” এন্ট্রি দিন।
+                          </div>
+                          <Field name="ধাপ / Funding round (e.g. ১ম ধাপ)">
+                            <input
+                              list="inc-fund-rounds"
+                              placeholder="১ম ধাপ"
+                              value={editor.data.data.round || ""}
+                              onChange={(e) => setData("round", e.target.value)}
+                            />
+                            <datalist id="inc-fund-rounds">
+                              {[
+                                ...new Set([
+                                  ...(bundle?.records || [])
+                                    .filter((r: Row) => r.kind === "fund" && r.data.round)
+                                    .map((r: Row) => String(r.data.round)),
+                                  "১ম ধাপ",
+                                  "২য় ধাপ",
+                                  "৩য় ধাপ",
+                                  "৪র্থ ধাপ",
+                                ]),
+                              ].map((v) => (
+                                <option key={v} value={v} />
+                              ))}
+                            </datalist>
+                          </Field>
+                        </>
                       )}
                       {editor.data.kind === "expense" && (
                         <Field name="Expense type">
@@ -2757,21 +2863,37 @@ export default function IncubationApp({
                         {editor.original?.date} ·{" "}
                         {label(editor.original?.kind || "")}
                       </p>
+                      <p className="inc-sub" style={{ margin: "2px 0 8px" }}>
+                        Team: <b>{teamName(editor.original?.teamId)}</b>
+                      </p>
                       <RecordSnapshot
                         record={editor.original}
                         products={products}
+                        categories={categories}
+                        compare={editor.data.comparison}
                       />
                     </section>
                     {editor.data.comparison && (
                       <section className="inc-old">
                         <h3>Proposed correction</h3>
+                        <p className="inc-sub" style={{ margin: "2px 0 8px" }}>
+                          হলুদ চিহ্নিত লাইনগুলো পরিবর্তন হয়েছে।
+                        </p>
                         <RecordSnapshot
                           record={editor.data.comparison}
                           products={products}
+                          categories={categories}
+                          compare={editor.original}
                         />
                       </section>
                     )}
                   </div>
+                  {correctionWarning && (
+                    <div role="alert" className="inc-notice inc-error">
+                      <b>অনুমোদনের আগে সতর্কতা:</b>
+                      <ErrorText message={correctionWarning} />
+                    </div>
+                  )}
                   {(!student || editor.data.reviewType === "accept_transfer") &&
                   editor.data.status !== "approved" &&
                   editor.data.status !== "rejected" ? (
@@ -2857,28 +2979,76 @@ export default function IncubationApp({
     <div className="inc-kpis">
       {[
         {
-          title: "Total sales",
+          title: "Total sales · মোট বিক্রয়",
           value: report.totals.revenue,
-          sub: "Net sales value for the selected period",
+          sub: "রিফান্ড বাদে নিট বিক্রয়মূল্য",
           icon: ChartNoAxesCombined,
         },
         {
-          title: "Net profit / loss",
+          title: report.totals.netProfit < 0 ? "Net loss · নিট লস" : "Net profit · নিট লাভ",
           value: report.totals.netProfit,
-          sub: "After cost of goods sold and other expenses",
+          sub: "পণ্যের ক্রয়মূল্য, খরচ ও ড্যামেজ বাদ দিয়ে",
           icon: Wallet,
         },
         {
-          title: "Stock value",
+          title: "Stock value · স্টক ভ্যালু",
           value: report.totals.stockValue,
-          sub: "At cost on the end date",
+          sub: "হাতে থাকা পণ্যের ক্রয়মূল্য",
           icon: Package,
         },
         {
-          title: "Cash in hand",
+          title: "Cash in hand · হাতে ক্যাশ",
           value: report.totals.cash,
-          sub: "Calculated cash up to the end date",
+          sub: "সব টিমের হিসাব অনুযায়ী ক্যাশ",
           icon: Wallet,
+        },
+        {
+          title: "Funding given · মোট দেওয়া টাকা",
+          value: report.totals.funding,
+          sub: "সব টিমকে দেওয়া মূলধন/বিনিয়োগ",
+          icon: Wallet,
+        },
+        {
+          title: "Repaid · ফেরত পাওয়া মূলধন",
+          value: report.totals.principalReturned,
+          sub: "টিমগুলো যে মূলধন ফেরত দিয়েছে",
+          icon: Wallet,
+        },
+        {
+          title: "Principal due · বাকি মূলধন",
+          value: report.totals.principalOutstanding,
+          sub: "দেওয়া টাকা − ফেরত পাওয়া টাকা",
+          icon: Wallet,
+        },
+        {
+          title: "Purchases · মোট ক্রয়",
+          value: report.totals.purchases,
+          sub: "পণ্য কেনা ও অন্য টিম থেকে নেওয়া",
+          icon: Package,
+        },
+        {
+          title: "Expenses · মোট খরচ",
+          value: report.totals.expenses,
+          sub: "যাতায়াত, প্রচার ইত্যাদি খরচ",
+          icon: Wallet,
+        },
+        {
+          title: "Gross profit · গ্রস লাভ",
+          value: report.totals.grossProfit,
+          sub: `বিক্রয় − বিক্রিত পণ্যের ক্রয়মূল্য (${money(report.totals.costOfSales)})`,
+          icon: ChartNoAxesCombined,
+        },
+        {
+          title: "Cash received · প্রাপ্ত ক্যাশ",
+          value: report.totals.received,
+          sub: `বিক্রয়ে বাকি/পার্থক্য: ${money(report.totals.variance)}`,
+          icon: Wallet,
+        },
+        {
+          title: "Damage · ড্যামেজ/ক্ষতি",
+          value: report.totals.damage,
+          sub: `রিফান্ড: ${money(report.totals.refunds)}`,
+          icon: Package,
         },
       ].map((k, i) => (
         <div key={k.title} className={`inc-kpi ${i === 1 ? "feature" : ""}`}>
@@ -2894,6 +3064,206 @@ export default function IncubationApp({
       ))}
     </div>
   ) : null;
+  const today = todayDhaka();
+  const categoryName = (id: string) =>
+    categories.find((c: Row) => c.id === id)?.name || "—";
+  const sprintOf = (teamId: string) => {
+    const list = (bundle?.sprints || []).filter((s: Row) => s.teamId === teamId);
+    return {
+      current: list.find((s: Row) => s.startDate <= today && s.endDate >= today),
+      next: list
+        .filter((s: Row) => s.startDate > today)
+        .sort((a: Row, b: Row) => a.startDate.localeCompare(b.startDate))[0],
+    };
+  };
+  const fundingRounds = Object.entries(report?.fundingRounds || {}) as [
+    string,
+    Record<string, number>,
+  ][];
+  const canEnter = !!bundle?.manager && !isProgramLocked(bundle?.program?.status || "");
+  const teamOverview =
+    report && bundle?.teams?.length ? (
+      <>
+        <section className="inc-card" style={{ marginBottom: 18 }}>
+          <div className="inc-row inc-between">
+            <div>
+              <h2 style={{ margin: 0 }}>Teams at a glance · টিম সামারি</h2>
+              <p className="inc-sub" style={{ margin: "4px 0 0" }}>
+                টিম লিডার, সদস্য, চলমান স্প্রিন্ট এবং প্রতিটি টিমের টাকার হিসাব এক জায়গায়।
+              </p>
+            </div>
+            {canEnter && (
+              <button className="inc-btn primary" onClick={() => newRecord("fund")}>
+                <Plus size={15} /> টাকা দিন (Funding)
+              </button>
+            )}
+          </div>
+          <GridTable
+            rows={report.summaries.map((s) => ({
+              ...s,
+              id: s.teamId,
+              team: bundle.teams.find((t: Row) => t.id === s.teamId),
+            }))}
+            columns={[
+              {
+                title: "Team",
+                render: (r) => (
+                  <>
+                    <b>{r.teamName}</b>
+                    <br />
+                    <small className="inc-sub">
+                      {r.team?.batchName}
+                      {r.team && !r.team.active ? " · বন্ধ (inactive)" : ""}
+                    </small>
+                  </>
+                ),
+              },
+              {
+                title: "Team lead · লিডার",
+                render: (r) => {
+                  const lead = r.team?.members?.find((m: Row) => m.isLead);
+                  return lead ? (
+                    <span className="inc-lead">
+                      ★ {lead.name} <small>({lead.roll})</small>
+                    </span>
+                  ) : (
+                    <span className="inc-negative">লিডার নেই</span>
+                  );
+                },
+              },
+              {
+                title: "Members · সদস্য",
+                render: (r) => (
+                  <details>
+                    <summary>{r.team?.members?.length || 0} জন</summary>
+                    <small>
+                      {(r.team?.members || [])
+                        .map((m: Row) => `${m.name} (${m.roll})${m.isLead ? " ★" : ""}`)
+                        .join(", ")}
+                    </small>
+                  </details>
+                ),
+              },
+              {
+                title: "Sprint · স্প্রিন্ট",
+                render: (r) => {
+                  const { current, next } = sprintOf(r.teamId);
+                  return (
+                    <>
+                      {current ? (
+                        <>
+                          <b>{categoryName(current.categoryId)}</b>
+                          <br />
+                          <small className="inc-sub">
+                            {current.startDate} — {current.endDate}
+                          </small>
+                        </>
+                      ) : (
+                        <span className="inc-sub">আজ কোনো স্প্রিন্ট নেই</span>
+                      )}
+                      {next && (
+                        <>
+                          <br />
+                          <small className="inc-sub">
+                            পরের: {categoryName(next.categoryId)} ({next.startDate})
+                          </small>
+                        </>
+                      )}
+                    </>
+                  );
+                },
+              },
+              { title: "Funding · দেওয়া টাকা", render: (r) => money(r.funding) },
+              { title: "Sales · বিক্রয়", render: (r) => money(r.revenue) },
+              { title: "Expenses · খরচ", render: (r) => money(r.expenses) },
+              {
+                title: "Profit/Loss · লাভ/লস",
+                render: (r) => (
+                  <b className={r.netProfit < 0 ? "inc-negative" : ""}>{money(r.netProfit)}</b>
+                ),
+              },
+              { title: "Cash · ক্যাশ", render: (r) => money(r.cash) },
+              { title: "Stock · স্টক", render: (r) => money(r.stockValue) },
+              {
+                title: "Principal due · বাকি মূলধন",
+                render: (r) => money(r.principalOutstanding),
+              },
+              ...(canEnter
+                ? [
+                    {
+                      title: "",
+                      render: (r: Row) => (
+                        <button
+                          className="inc-btn"
+                          disabled={r.team && !r.team.active}
+                          onClick={() => newRecord("fund", r.teamId)}
+                        >
+                          <Plus size={14} /> টাকা দিন
+                        </button>
+                      ),
+                    },
+                  ]
+                : []),
+            ]}
+          />
+        </section>
+        <section className="inc-card" style={{ marginBottom: 18 }}>
+          <h2 style={{ margin: 0 }}>Funding by round · ধাপ অনুযায়ী দেওয়া টাকা</h2>
+          <p className="inc-sub" style={{ margin: "4px 0 12px" }}>
+            Funding এন্ট্রির “ধাপ” ঘর অনুযায়ী কোন ধাপে কোন টিমকে কত টাকা দেওয়া হয়েছে।
+          </p>
+          {fundingRounds.length ? (
+            <div className="inc-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>ধাপ / Round</th>
+                    {report.summaries.map((s) => (
+                      <th key={s.teamId}>{s.teamName}</th>
+                    ))}
+                    <th>মোট</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {fundingRounds.map(([round, byTeam]) => (
+                    <tr key={round}>
+                      <td>
+                        <b>{round === "—" ? "ধাপ লেখা নেই" : round}</b>
+                      </td>
+                      {report.summaries.map((s) => (
+                        <td key={s.teamId}>{byTeam[s.teamId] ? money(byTeam[s.teamId]) : "—"}</td>
+                      ))}
+                      <td>
+                        <b>{money(Object.values(byTeam).reduce((n, v) => n + v, 0))}</b>
+                      </td>
+                    </tr>
+                  ))}
+                  <tr>
+                    <td>
+                      <b>সর্বমোট</b>
+                    </td>
+                    {report.summaries.map((s) => (
+                      <td key={s.teamId}>
+                        <b>{money(s.funding)}</b>
+                      </td>
+                    ))}
+                    <td>
+                      <b>{money(report.totals.funding)}</b>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <Empty title="এখনো কোনো টাকা দেওয়ার এন্ট্রি নেই">
+              {canEnter
+                ? "উপরের “টাকা দিন (Funding)” বাটন চাপুন, টিম ও টাকার পরিমাণ দিন এবং “ধাপ” ঘরে লিখুন কোন ধাপে দিলেন (যেমন ১ম ধাপ)।"
+                : "শিক্ষক টাকা দেওয়ার এন্ট্রি দিলে এখানে দেখা যাবে।"}
+            </Empty>
+          )}
+        </section>
+      </>
+    ) : null;
   if (student)
     return (
       <StudentWorkspace
@@ -3086,6 +3456,7 @@ export default function IncubationApp({
                     </div>
                   )}
                   {kpis}
+                  {teamOverview}
                   <div className="inc-grid">
                     <section className="inc-card">
                       <div className="inc-row inc-between">
@@ -3600,9 +3971,9 @@ export default function IncubationApp({
                             }
                           >
                             <option value="">Select product</option>
-                            {selectableProducts(products, [l.productId]).map((p: Row) => (
+                            {selectableProducts(products, [l.productId, ...heldProductIds(bundle?.member?.teamId)]).map((p: Row) => (
                               <option key={p.id} value={p.id}>
-                                {productLabel(p)}
+                                {productOption(p)}
                               </option>
                             ))}
                           </select>
@@ -4263,9 +4634,22 @@ Type the program name to confirm:`,
                   >
                     <div>
                       <b>{t.name}</b>
-                      <p className="inc-sub">
-                        {t.members.length} members · Team lead:{" "}
-                        {t.members.find((m: Row) => m.isLead)?.name || "—"}
+                      {!t.active && <span className="inc-sub"> · বন্ধ (inactive)</span>}
+                      <p className="inc-sub" style={{ margin: "4px 0" }}>
+                        {t.batchName} · {t.members.length} জন সদস্য
+                      </p>
+                      {t.members.find((m: Row) => m.isLead) ? (
+                        <span className="inc-lead">
+                          ★ Team lead: {t.members.find((m: Row) => m.isLead).name} (
+                          {t.members.find((m: Row) => m.isLead).roll})
+                        </span>
+                      ) : (
+                        <span className="inc-negative">টিম লিডার সেট করা নেই</span>
+                      )}
+                      <p className="inc-sub" style={{ margin: "4px 0 0" }}>
+                        {sprintOf(t.id).current
+                          ? `এখনকার স্প্রিন্ট: ${categoryName(sprintOf(t.id).current.categoryId)} (${sprintOf(t.id).current.startDate} — ${sprintOf(t.id).current.endDate})`
+                          : "আজ কোনো স্প্রিন্ট নেই"}
                       </p>
                     </div>
                     <button
@@ -4418,17 +4802,26 @@ Type the program name to confirm:`,
                   </button>
                 </div>
                 <div className="inc-timeline" style={{ marginTop: 20 }}>
-                  {bundle.sprints.map((s: Row) => (
+                  {[...bundle.sprints]
+                    .sort(
+                      (a: Row, b: Row) =>
+                        teamName(a.teamId).localeCompare(teamName(b.teamId)) ||
+                        a.startDate.localeCompare(b.startDate),
+                    )
+                    .map((s: Row) => (
                     <div className="inc-timeline-item" key={s.id}>
                       <b>
-                        {teamName(s.teamId)} →{" "}
-                        {
-                          categories.find((c: Row) => c.id === s.categoryId)
-                            ?.name
-                        }
+                        {teamName(s.teamId)} → {categoryName(s.categoryId)}
                       </b>
                       <p className="inc-sub">
-                        {s.startDate} — {s.endDate}
+                        {s.startDate} — {s.endDate} ·{" "}
+                        {s.startDate <= today && s.endDate >= today ? (
+                          <b style={{ color: "#1a8564" }}>চলমান</b>
+                        ) : s.startDate > today ? (
+                          "আসছে"
+                        ) : (
+                          "শেষ"
+                        )}
                       </p>
                       <button
                         className="inc-btn"
