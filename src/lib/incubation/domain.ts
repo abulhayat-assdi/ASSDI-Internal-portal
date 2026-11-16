@@ -43,6 +43,8 @@ export class IncubationError extends Error {
   constructor(
     message: string,
     public status = 400,
+    /** Structured context (e.g. which team/product ran short) for clearer messages. */
+    public details?: Record<string, unknown>,
   ) {
     super(message);
   }
@@ -361,10 +363,19 @@ export function calculateLedger(entries: Entry[], products: Product[]) {
         continue;
       }
       // Sequential mutation also validates repeated product lines in a single form.
-      insist(
-        s.quantity >= q,
-        `${p.name}: more than the available stock on ${r.date} (in stock: ${decimal(s.quantity, 3)}).`,
-      );
+      if (s.quantity < q)
+        throw new IncubationError(
+          `${[p.name, p.variant].filter(Boolean).join(" · ")}: more than the available stock on ${r.date} (in stock: ${decimal(s.quantity, 3)}, needed: ${decimal(q, 3)}; entry: ${KIND_LABELS[r.kind as RecordKind] ?? r.kind}).`,
+          400,
+          {
+            code: "stock_short",
+            teamId: r.teamId,
+            productId: p.id,
+            recordId: r.id,
+            kind: r.kind,
+            date: r.date,
+          },
+        );
       const cost = q === s.quantity ? s.value : ratio(s.value, q, s.quantity);
       const margin =
         q === s.quantity

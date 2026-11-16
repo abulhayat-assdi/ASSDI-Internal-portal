@@ -1,5 +1,6 @@
 "use client";
 import ResultsCard from "./ResultsCard";
+import ErrorText from "./ErrorText";
 import { useEffect, useState } from "react";
 import {
   AreaChart,
@@ -71,7 +72,7 @@ export default function PublicIncubationReport({ token }: { token: string }) {
           className="inc-notice inc-error"
           style={{ marginTop: 20 }}
         >
-          {error}
+          <ErrorText message={error} />
         </div>
       )}
       {!data && !error ? (

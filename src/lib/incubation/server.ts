@@ -223,7 +223,24 @@ async function ledger(
   const all = replacement
     ? [...records.filter((r) => r.id !== replacement.id), replacement]
     : records;
-  const computed = calculateLedger(all.map(asEntry), products);
+  let computed: ReturnType<typeof calculateLedger>;
+  try {
+    computed = calculateLedger(all.map(asEntry), products);
+  } catch (e) {
+    // Name the team that ran short, so staff know where to look.
+    if (e instanceof IncubationError && typeof e.details?.teamId === "string") {
+      const team = await tx.incubationTeam.findUnique({
+        where: { id: e.details.teamId },
+        select: { name: true },
+      });
+      if (team)
+        throw new IncubationError(`Team "${team.name}" — ${e.message}`, e.status, {
+          ...e.details,
+          teamName: team.name,
+        });
+    }
+    throw e;
+  }
   const pending = await tx.incubationRecord.findMany({
     where: { programId, kind: "transfer", status: "transfer_pending" },
   });
@@ -333,10 +350,12 @@ async function validateData(
         id: { in: d.lines.map((l) => l.productId) },
       },
     });
-    // A product that has variants must be bought/sold as one of its variants.
+    // A product that has variants must be bought as one of its variants. Stock already
+    // held under the plain product can still be sold, returned or moved, so it never
+    // gets stuck (the ledger still refuses anything beyond the stock on hand).
     const bases = prods.filter((p) => !p.variant);
     const needsVariant = new Set(
-      r.id === "new" && bases.length
+      r.id === "new" && r.kind === "purchase" && bases.length
         ? (
             await tx.incubationCatalog.findMany({
               where: {
@@ -1143,13 +1162,39 @@ export async function command(actor: Actor, input: unknown) {
           })
         : null;
       insist(!v.id || before, "Team not found.");
-      if (before)
-        insist(
-          !(await tx.incubationFieldSession.findFirst({
-            where: { teamId: before.id, checkOut: null },
-          })),
-          "End the open field sessions before changing members.",
-        );
+      // An open field session only matters for a member who is being removed (they
+      // could never check out) or when the whole team is switched off. Renaming,
+      // adding members or changing the lead is safe while someone is in the field.
+      if (before) {
+        const open = await tx.incubationFieldSession.findMany({
+          where: { teamId: before.id, checkOut: null },
+          select: { userId: true, userName: true },
+        });
+        if (open.length) {
+          insist(
+            v.active || !before.active,
+            `Field sessions still open: ${open.map((s) => s.userName).join(", ")}. End the open field sessions before deactivating the team.`,
+          );
+          const removed = before.members.filter(
+            (m) => !v.studentIds.includes(m.studentId),
+          );
+          if (removed.length) {
+            const users = await tx.user.findMany({
+              where: { id: { in: open.map((s) => s.userId) } },
+              select: { id: true, studentBatchName: true, studentRoll: true },
+            });
+            const blocked = removed.filter((m) =>
+              users.some(
+                (u) => u.studentBatchName === m.batchName && u.studentRoll === m.roll,
+              ),
+            );
+            insist(
+              !blocked.length,
+              `Field sessions still open: ${blocked.map((m) => m.name).join(", ")}. End the open field sessions before removing these members.`,
+            );
+          }
+        }
+      }
       const conflicts = await tx.incubationMember.count({
         where: {
           programId: pid,
@@ -1741,7 +1786,17 @@ export async function command(actor: Actor, input: unknown) {
             version: { increment: 1 },
           },
         });
-        await ledger(tx, pid);
+        try {
+          await ledger(tx, pid);
+        } catch (e) {
+          if (e instanceof IncubationError && e.details?.code === "stock_short")
+            throw new IncubationError(
+              `Approving this correction would break stock: ${e.message}`,
+              e.status,
+              { ...e.details, context: "correction" },
+            );
+          throw e;
+        }
         await audit(
           tx,
           actor,

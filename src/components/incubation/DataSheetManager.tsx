@@ -9,6 +9,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, Save, Search, Trash2, X } from "lucide-react";
 import { numericOnly } from "./numeric";
+import ErrorText from "./ErrorText";
+import { toBangla } from "@/lib/incubation/errors-bn";
 import "./incubation-glass.css";
 
 type Row = Record<string, any>;
@@ -493,7 +495,7 @@ export default function DataSheetManager({
       setReason("");
     } catch (e) {
       const message = (e as Error).message || "Could not save.";
-      const m = /^\[\[(.+?)\]\]\s*(.*)$/.exec(message);
+      const m = /^\[\[(.+?)\]\]\s*([\s\S]*)$/.exec(message);
       if (m) {
         setErrors({ [m[1]]: m[2] });
         for (const [k, list] of Object.entries(rows))
@@ -502,8 +504,8 @@ export default function DataSheetManager({
             setGroup(isIndividual ? "individual" : "team");
             setKind(k);
           }
-        setBanner({ tone: "error", text: `${m[2]} Nothing was saved.` });
-      } else setBanner({ tone: "error", text: `${message} Nothing was saved.` });
+        setBanner({ tone: "error", text: `${toBangla(m[2])}\n(কিছুই সেভ হয়নি।)` });
+      } else setBanner({ tone: "error", text: `${toBangla(message)}\n(কিছুই সেভ হয়নি।)` });
     } finally {
       setSaving(false);
     }
@@ -603,7 +605,11 @@ export default function DataSheetManager({
           )}
         </div>
 
-        {banner && <div className={`ds-banner ${banner.tone}`}>{banner.text}</div>}
+        {banner && (
+          <div className={`ds-banner ${banner.tone}`}>
+            {banner.tone === "error" ? <ErrorText message={banner.text} /> : banner.text}
+          </div>
+        )}
 
         <div className="ds-grid-wrap">
           <table className="ds-grid">
@@ -633,7 +639,7 @@ export default function DataSheetManager({
                 const err = errors[r.key];
                 const dirty = dirtyKeys.has(r.key);
                 return (
-                  <tr key={r.key} className={err ? "error" : dirty ? "dirty" : isNew(r) ? "new" : ""} title={err}>
+                  <tr key={r.key} className={err ? "error" : dirty ? "dirty" : isNew(r) ? "new" : ""} title={err ? toBangla(err) : undefined}>
                     <td className="ds-sticky ds-num">{i + 1}</td>
                     <td className="ds-del">
                       <button aria-label="Delete row" onClick={() => removeRow(r)}>
@@ -692,8 +698,8 @@ export default function DataSheetManager({
                 const index = where ? where[1].findIndex((r) => r.key === k) + 1 : 0;
                 return (
                   <li key={k}>
-                    {label ? `${label}, row ${index}: ` : ""}
-                    {msg}
+                    {label ? `${label}, সারি ${index}: ` : ""}
+                    <ErrorText message={msg} />
                   </li>
                 );
               })}

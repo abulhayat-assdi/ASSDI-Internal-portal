@@ -4,6 +4,7 @@ import MonitorPanel from "./MonitorPanel";
 import ResultsCard from "./ResultsCard";
 import { STATUS_LABELS } from "@/lib/incubation/lifecycle";
 import NotificationBell from "./NotificationBell";
+import ErrorText from "./ErrorText";
 import { useState, useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import {
@@ -213,7 +214,7 @@ export default function StudentWorkspace({
       <main className="inc">
         <Link href="/student-dashboard/competitions">← Competitions</Link>
         <p role={error ? "alert" : "status"}>
-          {error || "Loading your workspace…"}
+          {error ? <ErrorText message={error} /> : "Loading your workspace…"}
         </p>
       </main>
     );
@@ -245,7 +246,7 @@ export default function StudentWorkspace({
       </header>
       {error && (
         <p role="alert" className="inc-notice inc-error">
-          {error}
+          <ErrorText message={error} />
         </p>
       )}
       {message && (

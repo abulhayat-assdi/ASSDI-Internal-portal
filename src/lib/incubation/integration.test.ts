@@ -595,6 +595,56 @@ describe("real migration and transactional incubation workflows", () => {
       record(lead, "expense", { amount: "1", expenseType: "Transport" }),
     ).rejects.toThrow();
   });
+  it("an open field session blocks only removing that member, not changing the lead", async () => {
+    const open = await prisma.incubationFieldSession.create({
+      data: {
+        courseId: "course-a",
+        programId,
+        teamId: teamA,
+        userId: member.id,
+        userName: "member",
+        startAreaId: area,
+        startPosition: { latitude: 23.8, longitude: 90.4 },
+      },
+    });
+    try {
+      // Changing the lead (and renaming) works while the member is in the field.
+      await send(manager, "team", {
+        id: teamA,
+        name: "Team A",
+        studentIds: ["s-lead", "s-member"],
+        leadId: "s-lead",
+        active: true,
+      });
+      expect(
+        (await prisma.incubationMember.findFirstOrThrow({ where: { teamId: teamA, isLead: true } }))
+          .studentId,
+      ).toBe("s-lead");
+      // Removing the member who is still checked in would trap their session.
+      await expect(
+        send(manager, "team", {
+          id: teamA,
+          name: "Team A",
+          studentIds: ["s-lead"],
+          leadId: "s-lead",
+          active: true,
+        }),
+      ).rejects.toThrow(/Field sessions still open: member/);
+    } finally {
+      await prisma.incubationFieldSession.update({
+        where: { id: open.id },
+        data: { checkOut: new Date(), endAreaId: area },
+      });
+      // Later tests expect the lead set by the previous test.
+      await send(manager, "team", {
+        id: teamA,
+        name: "Team A",
+        studentIds: ["s-lead", "s-member"],
+        leadId: "s-member",
+        active: true,
+      });
+    }
+  });
   it("keeps roles per program and blocks drafts, ended entries and inactive teams", async () => {
     const created = (await api.command(manager, {
       action: "program",
