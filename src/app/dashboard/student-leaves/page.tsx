@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { leaveMinutes, leaveHours, validateLeaveWindow, formatLeaveDuration, formatLeaveTime } from "@/lib/leaveDuration";
 
 type LeaveRequest = {
@@ -21,7 +21,43 @@ type LeaveRequest = {
     reviewNote?: string;
 };
 
-const MagnifyingGlassIcon = (props: React.SVGProps<SVGSVGElement>) => (
+// Long leave reasons are clamped to 4 lines; "See more" appears only when the text overflows.
+function ExpandableReason({ text }: { text: string }) {
+    const [expanded, setExpanded] = useState(false);
+    const [overflows, setOverflows] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const el = ref.current;
+        if (!el) return;
+        const check = () => {
+            if (!expanded) setOverflows(el.scrollHeight > el.clientHeight + 1);
+        };
+        check();
+        const ro = new ResizeObserver(check);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, [text, expanded]);
+
+    return (
+        <div className="text-xs text-slate-700 bg-slate-50 p-2.5 rounded-lg border border-slate-200 leading-relaxed">
+            <div ref={ref} className={`whitespace-pre-wrap break-words ${expanded ? "" : "line-clamp-4"}`}>
+                {text}
+            </div>
+            {(overflows || expanded) && (
+                <button
+                    type="button"
+                    onClick={() => setExpanded((v) => !v)}
+                    className="mt-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800"
+                >
+                    {expanded ? "See less" : "See more"}
+                </button>
+            )}
+        </div>
+    );
+}
+
+const MagnifyingGlassIcon =(props: React.SVGProps<SVGSVGElement>) => (
     <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
     </svg>
@@ -597,9 +633,7 @@ export default function AdminStudentLeavesPage() {
                                                     </div>
                                                 </td>
                                                 <td className="p-4 align-top max-w-xs">
-                                                    <div className="text-xs text-slate-700 bg-slate-50 p-2.5 rounded-lg border border-slate-200 whitespace-pre-wrap break-words leading-relaxed">
-                                                        {req.reason}
-                                                    </div>
+                                                    <ExpandableReason text={req.reason} />
                                                     {req.attachmentUrl && (
                                                         <div className="mt-2">
                                                             <a
