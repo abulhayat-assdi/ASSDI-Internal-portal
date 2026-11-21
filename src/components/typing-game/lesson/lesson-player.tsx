@@ -9,6 +9,7 @@ import { starsFor } from "@/lib/typing-game/curriculum/progress";
 import { OnScreenKeyboard } from "./on-screen-keyboard";
 import { Hands } from "./hands";
 import { AdSlot } from "@/components/typing-game/ads/ad-slot";
+import { useFitHeight } from "./use-fit-height";
 
 interface Props {
   lessonId: string;
@@ -80,6 +81,8 @@ export function LessonPlayer({ lessonId, lessonTitle, levelTitle, screens }: Pro
   const [errorMsg, setErrorMsg] = useState("");
   const startRef = useRef<number | null>(null);
   const textRef = useRef<HTMLDivElement>(null);
+  // The player fills the window below the header: no page scrolling while typing.
+  const { ref: fitRef, height: fitHeight } = useFitHeight<HTMLDivElement>();
 
   const screen = screens[index];
   const chars = useMemo(() => Array.from(screen.text), [screen.text]);
@@ -297,10 +300,12 @@ export function LessonPlayer({ lessonId, lessonTitle, levelTitle, screens }: Pro
     );
   }
 
+  const showKeyboard = phase === "typing" && (prefs.keyboard || prefs.hands);
+
   return (
-    <div className="flex flex-col gap-4">
+    <div ref={fitRef} className="flex flex-col gap-3 overflow-hidden" style={fitHeight ? { height: fitHeight } : undefined}>
       {/* Header: lesson + screen progress + toggles */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-ink-faint">{levelTitle}</p>
           <h1 className="font-display text-xl font-bold">{lessonTitle}</h1>
@@ -317,7 +322,7 @@ export function LessonPlayer({ lessonId, lessonTitle, levelTitle, screens }: Pro
           </button>
         </div>
       </div>
-      <div className="flex gap-1" aria-label={`Screen ${index + 1} of ${screens.length}`}>
+      <div className="flex shrink-0 gap-1" aria-label={`Screen ${index + 1} of ${screens.length}`}>
         {screens.map((_, i) => (
           <span
             key={i}
@@ -328,7 +333,7 @@ export function LessonPlayer({ lessonId, lessonTitle, levelTitle, screens }: Pro
       </div>
 
       {/* Main card */}
-      <div className="tap-card flex min-h-[220px] flex-col items-center justify-center gap-4 p-5 sm:p-8">
+      <div className={`tap-card flex flex-col items-center justify-center gap-4 p-4 sm:p-6 lg:px-10 ${showKeyboard ? "shrink-0" : "min-h-0 flex-1"}`}>
         {phase === "error" ? (
           <div className="text-center">
             <p className="font-semibold">ফল সেভ করা যায়নি ({errorMsg})।</p>
@@ -388,7 +393,9 @@ export function LessonPlayer({ lessonId, lessonTitle, levelTitle, screens }: Pro
             </div>
             <div
               ref={textRef}
-              className={`max-h-44 overflow-hidden font-mono leading-relaxed ${chars.length <= 60 ? "text-3xl sm:text-4xl" : "text-xl sm:text-2xl"}`}
+              className={`overflow-hidden font-mono leading-relaxed ${
+                chars.length <= 60 ? "max-h-[8.5rem] text-3xl lg:max-h-[10rem] lg:text-5xl" : "max-h-[7.5rem] text-xl lg:max-h-[9rem] lg:text-3xl"
+              }`}
               aria-live="off"
             >
               {chars.map((c, i) => {
@@ -419,16 +426,25 @@ export function LessonPlayer({ lessonId, lessonTitle, levelTitle, screens }: Pro
       </div>
 
       {/* Keyboard + hands */}
-      {phase === "typing" && (prefs.keyboard || prefs.hands) ? (
-        <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-1">
+      {showKeyboard ? (
+        <div className="flex min-h-0 w-full flex-1 flex-col items-center gap-1">
           {finger ? (
-            <p className="text-sm font-semibold" style={{ color: finger.color }}>
+            <p className="shrink-0 text-sm font-semibold" style={{ color: finger.color }}>
               {keyFor(expected)?.shifted ? `Shift + ` : ""}
               {finger.bn} · {keyDisplayName(expected)}
             </p>
           ) : null}
-          {prefs.keyboard ? <OnScreenKeyboard next={expected} wrong={wrongKey} /> : null}
-          {prefs.hands ? <Hands fingers={activeFingers} className="w-full max-w-lg" /> : null}
+          {/* Both scale to the space left, keeping their proportions. */}
+          {prefs.keyboard ? (
+            <div className="min-h-0 w-full flex-[3]">
+              <OnScreenKeyboard next={expected} wrong={wrongKey} className="h-full w-full" />
+            </div>
+          ) : null}
+          {prefs.hands ? (
+            <div className="min-h-0 w-full flex-[1.1]">
+              <Hands fingers={activeFingers} className="h-full w-full" />
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>

@@ -6,6 +6,7 @@ import { userDbClient } from "@/lib/typing-game/server/auth";
 import { getCurrentActor } from "@/lib/typing-game/server/staff";
 import { isLocale, type Locale, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { SuspendedNotice } from "@/components/typing-game/suspended-notice";
+import { TypingContainer } from "@/components/typing-game/typing-container";
 import { AdsProvider, type AllowedSlots } from "@/components/typing-game/ads/ads-context";
 import { createAdsStore } from "@/lib/typing-game/server/ads-store";
 import { AD_SLOTS, displaySlot } from "@/lib/typing-game/ads/settings";
@@ -70,14 +71,14 @@ export default async function StudentLayout({
   }
   return (
     <AdsProvider slots={slots}>
-    <div className="tap-scope min-h-screen bg-canvas">
+    <div className="tap-scope min-h-[calc(100dvh-8rem)] bg-canvas">
       <div className="tap-ambient" aria-hidden="true">
         <span />
         <span />
         <span />
       </div>
       <StudentNav locale={locale} />
-      <div className="mx-auto w-full max-w-5xl px-3 sm:px-4 py-4 sm:py-6">{children}</div>
+      <TypingContainer>{children}</TypingContainer>
     </div>
     </AdsProvider>
   );

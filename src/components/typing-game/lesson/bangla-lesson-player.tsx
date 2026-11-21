@@ -11,6 +11,7 @@ import { graphemes, typingHint, type BanglaLayout } from "@/lib/typing-game/curr
 import { starsFor, type ScreenSnapshot } from "@/lib/typing-game/curriculum/progress";
 import type { LessonScreen } from "@/lib/typing-game/curriculum/types";
 import { AdSlot } from "@/components/typing-game/ads/ad-slot";
+import { useFitHeight } from "./use-fit-height";
 
 interface Props {
   lessonId: string;
@@ -62,6 +63,7 @@ export function BanglaLessonPlayer({ lessonId, lessonTitle, levelTitle, screens 
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
   const engineRef = useRef<TypingExamEngine | null>(null);
+  const { ref: fitRef, height: fitHeight } = useFitHeight<HTMLDivElement>();
 
   const screen = screens[index];
   const text = screen.text;
@@ -237,8 +239,8 @@ export function BanglaLessonPlayer({ lessonId, lessonTitle, levelTitle, screens 
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div ref={fitRef} className="flex flex-col gap-3 overflow-hidden" style={fitHeight ? { height: fitHeight } : undefined}>
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-ink-faint">{levelTitle}</p>
           <h1 className="font-display text-xl font-bold">{lessonTitle}</h1>
@@ -251,7 +253,7 @@ export function BanglaLessonPlayer({ lessonId, lessonTitle, levelTitle, screens 
           ))}
         </div>
       </div>
-      <div className="flex gap-1" aria-label={`Screen ${index + 1} of ${screens.length}`}>
+      <div className="flex shrink-0 gap-1" aria-label={`Screen ${index + 1} of ${screens.length}`}>
         {screens.map((_, i) => (
           <span
             key={i}
@@ -261,7 +263,7 @@ export function BanglaLessonPlayer({ lessonId, lessonTitle, levelTitle, screens 
         ))}
       </div>
 
-      <div className="tap-card flex flex-col gap-4 p-5 sm:p-6">
+      <div className="tap-card flex min-h-0 flex-1 flex-col justify-center gap-4 overflow-y-auto p-5 sm:p-8 lg:px-12">
         {phase === "error" ? (
           <div className="text-center">
             <p className="font-semibold">ফল সেভ করা যায়নি ({errorMsg})।</p>
