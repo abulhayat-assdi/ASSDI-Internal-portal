@@ -10,7 +10,9 @@ export interface OverviewLesson {
   id: string;
   number: number;
   title: string;
-  kind: "keys" | "review" | "wrapup" | "assessment";
+  kind: string;
+  /** Timed lessons: length in seconds. */
+  seconds: number | null;
   state: "completed" | "skipped" | "available" | "locked";
   stars: number;
   bestWpm: number;
@@ -165,7 +167,7 @@ export function LessonsOverview({ levels, current, units, firstVisit, banglaUnlo
                     <div className="min-w-0 flex-1">
                       <p className="flex items-center gap-2 font-semibold">
                         {l.title}
-                        {l.kind === "assessment" ? <span className="tap-badge tap-badge-warning">1:00</span> : null}
+                        {l.seconds ? <span className="tap-badge tap-badge-warning">{fmtTime(l.seconds * 1000)}</span> : null}
                         {!l.skippable ? <span className="tap-badge tap-badge-primary">Pass required</span> : null}
                         {l.state === "skipped" ? <span className="tap-badge tap-badge-neutral">Skipped</span> : null}
                       </p>

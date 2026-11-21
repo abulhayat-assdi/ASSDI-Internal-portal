@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { EN_FOUNDATION, BANGLA_GATE_LESSON_ID } from "./en-foundation";
 import { buildScreens, eligibleWords, hashSeed, lessonCharCount, letterGroups } from "./generate";
-import { englishWordBank } from "./word-bank";
+import { englishArticles, englishWordBank } from "./word-bank";
 import { fingerFor, keyFor, KEYBOARD_ROWS } from "./keyboard";
 import { findLesson, nextLesson, LEVELS, UNSKIPPABLE } from "./index";
 import { EN_CAPITALS, EN_NUMBERS } from "./en-levels-2-3";
@@ -17,6 +17,7 @@ import {
 import { seededRandom } from "@/lib/typing-game/practice/transform";
 
 const bank = englishWordBank();
+const articles = englishArticles();
 const lessons = levelLessons(EN_FOUNDATION);
 const row = (lessonId: string, status: "completed" | "skipped" = "completed"): LessonProgressRow => ({
   lessonId,
@@ -61,7 +62,7 @@ describe("Foundation level", () => {
   it("every screen only uses keys learned so far (all levels)", () => {
     for (const lesson of LEVELS.flatMap(levelLessons)) {
       const allowed = new Set([...lesson.allowedKeys, " "]);
-      for (const s of buildScreens(lesson, bank)) {
+      for (const s of buildScreens(lesson, bank, articles)) {
         for (const ch of s.text) expect(allowed.has(ch), `${lesson.id} uses "${ch}"`).toBe(true);
       }
     }
@@ -180,5 +181,43 @@ describe("Levels 2 and 3", () => {
     expect(lessonsToSkip(LEVELS, "en-2-01", new Map(), UNSKIPPABLE)).toBeNull();
     const passed = new Map([["en-1-16", row("en-1-16")]]);
     expect(lessonsToSkip(LEVELS, "en-2-01", passed, UNSKIPPABLE)).toHaveLength(15);
+  });
+});
+
+describe("Levels 4 to 6", () => {
+  const byId = (id: string) => findLesson(id)!.lesson;
+  it("teach no new keys", () => {
+    for (const l of LEVELS.filter((x) => x.number >= 4).flatMap(levelLessons)) expect(l.newKeys).toEqual([]);
+  });
+  it("every lesson produces screens with text", () => {
+    for (const l of LEVELS.filter((x) => x.number >= 4).flatMap(levelLessons)) {
+      const s = buildScreens(l, bank, articles);
+      expect(s.length, l.id).toBeGreaterThan(0);
+      for (const x of s) expect(x.text.length, `${l.id} empty screen`).toBeGreaterThan(5);
+    }
+  });
+  it("sprints repeat the same line three times", () => {
+    const s = buildScreens(byId("en-5-01"), bank, articles);
+    expect(s).toHaveLength(6);
+    expect(s[0].text).toBe(s[2].text);
+    expect(s[3].text).toBe(s[5].text);
+  });
+  it("timed lessons carry their length", () => {
+    expect(buildScreens(byId("en-5-05"), bank, articles)[0]).toMatchObject({ type: "timed", seconds: 180 });
+    expect(buildScreens(byId("en-5-07"), bank, articles)[0].seconds).toBe(180);
+  });
+  it("professional lessons use real workplace texts and article excerpts", () => {
+    const email = buildScreens(byId("en-6-01"), bank, articles);
+    expect(email).toHaveLength(3);
+    expect(email[0].text).toContain("Dear");
+    const art = buildScreens(byId("en-6-06"), bank, articles);
+    expect(art.length).toBeGreaterThan(0);
+    for (const s of art) expect(s.text.split(" ").length).toBeGreaterThanOrEqual(20);
+  });
+  it("accuracy lessons lean on the focus letters", () => {
+    const s = buildScreens(byId("en-4-04"), bank, articles);
+    const words = s[1].text.split(" ");
+    const heavy = words.filter((w) => ["r", "t", "b", "n"].filter((c) => w.includes(c)).length >= 2);
+    expect(heavy.length / words.length).toBeGreaterThan(0.7);
   });
 });

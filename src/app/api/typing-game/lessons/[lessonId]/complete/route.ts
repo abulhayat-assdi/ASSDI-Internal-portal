@@ -8,7 +8,7 @@ import { NextResponse } from "next/server";
 import { lessonContext, lessonError } from "../../_helper";
 import { lessonStates, evaluateLessonResult, type LessonResultInput } from "@/lib/typing-game/curriculum/progress";
 import { buildScreens, lessonCharCount } from "@/lib/typing-game/curriculum/generate";
-import { englishWordBank } from "@/lib/typing-game/curriculum/word-bank";
+import { englishArticles, englishWordBank } from "@/lib/typing-game/curriculum/word-bank";
 import { BANGLA_GATE_LESSON_ID, levelsFor, nextLesson } from "@/lib/typing-game/curriculum";
 
 /** Clock drift allowance for timed screens. */
@@ -31,7 +31,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ lessonI
     if (lessonStates(levelsFor(ctx.level.mode), progress).get(ctx.lesson.id) === "locked") {
       return NextResponse.json({ error: "LOCKED" }, { status: 409 });
     }
-    const screens = buildScreens(ctx.lesson, englishWordBank());
+    const screens = buildScreens(ctx.lesson, englishWordBank(), englishArticles());
     const timedMs = screens.reduce((n, s) => n + (s.type === "timed" ? (s.seconds ?? 0) * 1000 : 0), 0);
     const result = evaluateLessonResult(
       {

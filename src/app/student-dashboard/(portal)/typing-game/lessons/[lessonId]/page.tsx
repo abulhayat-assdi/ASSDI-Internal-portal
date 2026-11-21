@@ -9,7 +9,7 @@ import { createLessonStore } from "@/lib/typing-game/server/lesson-store";
 import { findLesson, levelsFor } from "@/lib/typing-game/curriculum";
 import { lessonStates } from "@/lib/typing-game/curriculum/progress";
 import { buildScreens } from "@/lib/typing-game/curriculum/generate";
-import { englishWordBank } from "@/lib/typing-game/curriculum/word-bank";
+import { englishArticles, englishWordBank } from "@/lib/typing-game/curriculum/word-bank";
 
 export default async function LessonPage({ params }: { params: Promise<{ lessonId: string }> }) {
   const { lessonId } = await params;
@@ -39,7 +39,7 @@ export default async function LessonPage({ params }: { params: Promise<{ lessonI
       lessonId={hit.lesson.id}
       lessonTitle={`${hit.lesson.number}. ${hit.lesson.title}`}
       levelTitle={`Level ${hit.level.number} · ${hit.level.title}`}
-      screens={buildScreens(hit.lesson, englishWordBank())}
+      screens={buildScreens(hit.lesson, englishWordBank(), englishArticles())}
     />
   );
 }

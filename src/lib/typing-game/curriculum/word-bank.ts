@@ -4,6 +4,7 @@
  * favour everyday words). Server side only — the bank is large.
  */
 import { ALL_PASSAGES } from "@/lib/typing-exam/content";
+import { cleanExamText } from "@/lib/typing-exam/examText";
 
 let cache: string[] | null = null;
 
@@ -19,4 +20,18 @@ export function englishWordBank(): string[] {
   }
   cache = Array.from(freq).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([w]) => w);
   return cache;
+}
+
+let articleCache: Record<string, string[]> | null = null;
+
+/** English article texts grouped by category (cleaned to keyboard characters). */
+export function englishArticles(): Record<string, string[]> {
+  if (articleCache) return articleCache;
+  const out: Record<string, string[]> = {};
+  for (const p of ALL_PASSAGES) {
+    if (p.language !== "en") continue;
+    (out[p.category] ??= []).push(cleanExamText(p.text));
+  }
+  articleCache = out;
+  return out;
 }

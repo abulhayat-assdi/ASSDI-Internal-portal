@@ -9,6 +9,10 @@ export interface LessonSpec {
   title: string;
   kind: LessonKind;
   newKeys: string[];
+  focus?: string[];
+  pool?: number;
+  topic?: string;
+  seconds?: number;
 }
 
 export interface LevelSpec {
@@ -45,6 +49,10 @@ export function buildLevel(spec: LevelSpec, startingKeys: string[] = []): LevelD
         kind: l.kind,
         newKeys: l.newKeys,
         allowedKeys: learned.slice(),
+        ...(l.focus ? { focus: l.focus } : {}),
+        ...(l.pool ? { pool: l.pool } : {}),
+        ...(l.topic ? { topic: l.topic } : {}),
+        ...(l.seconds ? { seconds: l.seconds } : {}),
       };
     }),
   }));

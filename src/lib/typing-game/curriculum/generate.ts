@@ -11,6 +11,7 @@
 import { fingerFor, keyDisplayName, keyFor, FINGERS } from "./keyboard";
 import type { LessonDef, LessonScreen, LessonWithScreens } from "./types";
 import { seededRandom } from "@/lib/typing-game/practice/transform";
+import { PROFESSIONAL_TEXTS } from "./professional-texts";
 
 const isLower = (c: string) => /^[a-z]$/.test(c);
 const isUpper = (c: string) => /^[A-Z]$/.test(c);
@@ -159,7 +160,7 @@ function symbolToken(ctx: Ctx, symbol: string, word: string): string | null {
 }
 
 /** Words → a line of text using every learned kind of character. */
-function decorate(words: string[], ctx: Ctx, opts: { sentences: boolean }): string {
+function decorate(words: string[], ctx: Ctx, opts: { sentences: boolean; plain?: boolean }): string {
   const { rand } = ctx;
   const enders = [".", "?", "!"].filter((c) => ctx.allowed.has(c));
   const inline = Array.from(ctx.allowed).filter((c) => isSymbol(c) && !enders.includes(c) && c !== "," && c !== ";" && c !== "'");
@@ -186,7 +187,7 @@ function decorate(words: string[], ctx: Ctx, opts: { sentences: boolean }): stri
       if (t) word = t;
     }
     if (opts.sentences && startOfSentence) word = capitalizeIfAllowed(ctx, word);
-    else if (rand() < 0.08) word = capitalizeIfAllowed(ctx, word);
+    else if (!opts.plain && rand() < 0.08) word = capitalizeIfAllowed(ctx, word);
     startOfSentence = false;
     sinceStop++;
 
@@ -221,9 +222,41 @@ function introTitle(key: string): string {
   return `${finger.bn} দিয়ে ${keyDisplayName(key)} চাপুন`;
 }
 
+/** The 100 most common English words (lowercase; "I" left out). */
+const COMMON_100 = (
+  "the be to of and a in that have it for not on with he as you do at this but his by from they we say her she or an " +
+  "will my one all would there their what so up out if about who get which go me when make can like time no just him " +
+  "know take people into year your good some could them see other than then now look only come its over think also " +
+  "back after use two how our work first well way even new want because any these give day most us"
+).split(" ");
+
 const APOSTROPHE_WORDS = ["don't", "it's", "can't", "we're", "i'm", "you're", "isn't", "that's", "let's", "won't"];
 
-export function buildScreens(lesson: LessonDef, bank: readonly string[]): LessonScreen[] {
+/** Article texts by category (English), for "articles:<Category>" lessons. */
+export type ArticleSource = Record<string, readonly string[]>;
+
+/** Cuts text into excerpts of whole sentences, each at least `words` words long. */
+export function excerpts(text: string, words: number): string[] {
+  const sentences = text.match(/[^.!?]+[.!?]+["')\]]*\s*|[^.!?]+$/g) ?? [];
+  const out: string[] = [];
+  let cur: string[] = [];
+  let n = 0;
+  for (const raw of sentences) {
+    const s = raw.trim();
+    if (!s) continue;
+    cur.push(s);
+    n += s.split(/\s+/).length;
+    if (n >= words) {
+      out.push(cur.join(" "));
+      cur = [];
+      n = 0;
+    }
+  }
+  if (n >= words / 2) out.push(cur.join(" "));
+  return out;
+}
+
+export function buildScreens(lesson: LessonDef, bank: readonly string[], articles: ArticleSource = {}): LessonScreen[] {
   const rand = seededRandom(hashSeed(lesson.id));
   const allowedLetters = lesson.allowedKeys.filter(isLower);
   const newLower = lesson.newKeys.filter(isLower);
@@ -237,6 +270,31 @@ export function buildScreens(lesson: LessonDef, bank: readonly string[]): Lesson
     ? APOSTROPHE_WORDS.filter((w) => Array.from(w).every((c) => c === "'" || allowedLetters.includes(c)))
     : [];
   const hasWords = words.length >= 6;
+  // Fluency lessons (levels with no new keys) read like plain prose: letters,
+  // capitals, . , and apostrophes only — no stray numbers or symbols.
+  const plainCtx: Ctx = { ...ctx, allowed: new Set(Array.from(ctx.allowed).filter((c) => /[a-zA-Z .,']/.test(c))), focus: new Set() };
+  const plainLine = (n: number, pool: string[] = words) => decorate(sampleWords(pool, n, rand), plainCtx, { sentences: true, plain: true });
+  // Real sentences from the article bank, cut to about `n` words; plain ones
+  // (no digits/symbols) unless `full`. Falls back to generated prose.
+  const realPool = (n: number, full: boolean) =>
+    shuffle(
+      Object.values(articles)
+        .flatMap((texts) => texts.flatMap((t) => excerpts(t, n)))
+        .filter((t) => t.split(" ").length <= n * 2 && can(full ? ctx : plainCtx, t)),
+      rand,
+    );
+  const realText = (n: number, full = false): string => realPool(n, full)[0] ?? plainLine(n);
+  const realLong = (words: number): string => {
+    const pool = realPool(40, false);
+    const parts: string[] = [];
+    let count = 0;
+    for (const p of pool) {
+      if (count >= words) break;
+      parts.push(p);
+      count += p.split(" ").length;
+    }
+    return parts.length ? parts.join(" ") : plainLine(words);
+  };
   const screens: LessonScreen[] = [];
 
   const wordList = (n: number): string[] => {
@@ -306,24 +364,105 @@ export function buildScreens(lesson: LessonDef, bank: readonly string[]): Lesson
     screens.push(wordsScreen(14, "আরও শব্দ"));
     screens.push(lineScreen(24, "লাইন অনুশীলন"));
     screens.push(lineScreen(28, "লম্বা লাইন"));
+  } else if (lesson.kind === "words") {
+    const size = lesson.pool ?? 300;
+    const pool =
+      size <= 100
+        ? COMMON_100.filter((w) => can(ctx, w))
+        : bank.slice(0, size).filter((w) => can(ctx, w) && (size < 1000 || w.length >= 7));
+    for (let i = 1; i <= 4; i++) {
+      screens.push({ type: "word_drill", title: `শব্দ ${i}/4`, text: Array.from({ length: 15 }, () => pick(pool, rand)).join(" ") });
+    }
+    screens.push({ type: "sentence", title: "শব্দগুলো লাইনে", text: decorate(Array.from({ length: 24 }, () => pick(pool, rand)), plainCtx, { sentences: true, plain: true }) });
+  } else if (lesson.kind === "accuracy") {
+    const focusList = lesson.focus ?? [];
+    const singles = focusList.filter((f) => f.length === 1);
+    const hits = (w: string) => focusList.filter((f) => w.includes(f)).length;
+    const pool = words.filter((w) => hits(w) >= (singles.length ? 2 : 1));
+    const focusWords = pool.length >= 10 ? pool : words;
+    if (singles.length) {
+      screens.push({ type: "letter_drill", title: `${singles.map(keyDisplayName).join(" ")} — ধীরে, নির্ভুলভাবে`, text: letterGroups(singles, 12, 2, 4, rand) });
+    }
+    screens.push({ type: "word_drill", title: "গুলিয়ে যাওয়া অক্ষরের শব্দ", text: sampleWords(focusWords, 14, rand).join(" ") });
+    screens.push({ type: "word_drill", title: "আরও শব্দ", text: sampleWords(focusWords, 14, rand).join(" ") });
+    screens.push({ type: "sentence", title: "লাইনে নির্ভুলতা", text: plainLine(22, focusWords) });
+  } else if (lesson.kind === "sentences") {
+    const withPunctuation = lesson.focus?.includes("punctuation") ?? false;
+    const pool = realPool(withPunctuation ? 30 : 20, withPunctuation);
+    for (let i = 1; i <= 4; i++) {
+      screens.push({ type: "sentence", title: `বাক্য ${i}/4`, text: pool[i - 1] ?? plainLine(26 + i * 2) });
+    }
+  } else if (lesson.kind === "sprint") {
+    const short = realPool(10, false).filter((t) => t.split(" ").length <= 16);
+    const lines = [short[0] ?? plainLine(10, words.slice(0, 150)), short[1] ?? plainLine(12, words.slice(0, 300))];
+    lines.forEach((text, li) => {
+      for (let r = 1; r <= 3; r++) {
+        screens.push({ type: "sentence", title: `লাইন ${li + 1} — বার ${r}/3: আগেরবারের চেয়ে একটু দ্রুত`, text });
+      }
+    });
+  } else if (lesson.kind === "endurance") {
+    const seconds = lesson.seconds ?? 120;
+    screens.push({
+      type: "timed",
+      title: `${Math.round(seconds / 60)} মিনিট টানা — গতি ধরে রাখুন`,
+      text: realLong(Math.ceil((seconds / 60) * 160)),
+      seconds,
+    });
+  } else if (lesson.kind === "professional") {
+    const texts = professionalTexts(lesson.topic ?? "", articles, ctx, rand);
+    texts.slice(0, 3).forEach((text, i) => screens.push({ type: "sentence", title: `${lesson.title} ${i + 1}/3`, text }));
+    if (screens.length === 0) screens.push(lineScreen(40, lesson.title));
   } else if (lesson.kind === "wrapup") {
     screens.push(wordsScreen(16, "শব্দ অনুশীলন"));
     screens.push(lineScreen(30, "অনুচ্ছেদ ১"));
     screens.push(lineScreen(36, "অনুচ্ছেদ ২"));
     screens.push(lineScreen(40, "অনুচ্ছেদ ৩"));
   } else {
+    const seconds = lesson.seconds ?? 60;
+    const minutes = Math.round(seconds / 60);
+    const text =
+      lesson.topic === "mixed"
+        ? shuffle(professionalTexts("all", articles, ctx, rand), rand).join(" ")
+        : Number(lesson.levelId.split("-")[1]) >= 4 // fluency levels: real prose
+          ? realLong(Math.ceil((seconds / 60) * 160))
+          : lineScreen(Math.ceil((seconds / 60) * 160), "").text;
     screens.push({
       type: "timed",
-      title: "১ মিনিটে যতটা পারেন সঠিকভাবে টাইপ করুন",
-      text: lineScreen(160, "").text,
-      seconds: 60,
+      title: `${minutes} মিনিটে যতটা পারেন সঠিকভাবে টাইপ করুন`,
+      text,
+      seconds,
     });
   }
   return screens;
 }
 
-export function withScreens(lesson: LessonDef, bank: readonly string[]): LessonWithScreens {
-  return { ...lesson, screens: buildScreens(lesson, bank) };
+function shuffle<T>(items: T[], rand: Rand): T[] {
+  const a = items.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/**
+ * Texts for a professional lesson: a fixed workplace set, excerpts from the
+ * article bank ("articles:<Category>"), or "all" of both. Only excerpts made
+ * entirely of typeable, learned characters are used.
+ */
+function professionalTexts(topic: string, articles: ArticleSource, ctx: Ctx, rand: Rand): string[] {
+  const fixed = topic === "all" ? Object.values(PROFESSIONAL_TEXTS).flat() : PROFESSIONAL_TEXTS[topic] ?? [];
+  let fromArticles: string[] = [];
+  if (topic.startsWith("articles:") || topic === "all") {
+    const cats = topic === "all" ? Object.keys(articles) : [topic.slice("articles:".length)];
+    fromArticles = cats.flatMap((c) => (articles[c] ?? []).flatMap((t) => excerpts(t, 60)));
+  }
+  const usable = [...fixed, ...shuffle(fromArticles, rand)].filter((t) => t.split(" ").length >= 20 && can(ctx, t));
+  return topic === "all" ? usable : topic.startsWith("articles:") ? usable.slice(0, 3) : fixed.filter((t) => can(ctx, t));
+}
+
+export function withScreens(lesson: LessonDef, bank: readonly string[], articles: ArticleSource = {}): LessonWithScreens {
+  return { ...lesson, screens: buildScreens(lesson, bank, articles) };
 }
 
 /** Characters a lesson asks the student to type (for server-side plausibility checks). */

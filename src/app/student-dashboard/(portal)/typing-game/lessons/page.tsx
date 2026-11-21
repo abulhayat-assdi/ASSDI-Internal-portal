@@ -51,6 +51,7 @@ export default async function LessonsPage({ searchParams }: { searchParams: Prom
         number: l.number,
         title: l.title,
         kind: l.kind,
+        seconds: l.kind === "assessment" ? (l.seconds ?? 60) : (l.seconds ?? null),
         state: states.get(l.id) ?? "locked",
         stars: row?.stars ?? 0,
         bestWpm: row?.bestWpm ?? 0,
