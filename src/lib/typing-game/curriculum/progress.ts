@@ -4,6 +4,8 @@
  * and tests.
  */
 import type { LessonDef, LevelDef } from "./types";
+import { scoreAttempt } from "@/lib/typing-exam/scoring";
+import { isPassageComplete, passageWords } from "@/lib/typing-exam/words";
 
 export type LessonStatus = "completed" | "skipped";
 
@@ -126,4 +128,63 @@ export function evaluateLessonResult(
   const wpm = Math.round((correctChars / 5 / minutes) * 100) / 100;
   const accuracy = keystrokes > 0 ? Math.round((correctChars / keystrokes) * 10000) / 100 : 0;
   return { wpm, accuracy, stars: starsFor(accuracy), elapsedMs };
+}
+
+// ---------------------------------------------------------------------------
+// Text-based lessons (Bangla): the browser sends what was typed per screen,
+// the server scores it against the screens it built itself.
+// ---------------------------------------------------------------------------
+
+export interface ScreenSnapshot {
+  typedText: string;
+  keystrokesTotal: number;
+  keystrokesCorrect: number;
+  elapsedMs: number;
+}
+
+/** Faster than this is not hand typing (pasted or scripted text). */
+export const MAX_LESSON_WPM = 250;
+const TIMED_SLACK_MS = 1500;
+
+export function evaluateScreenSnapshots(
+  screens: { type: string; text: string; seconds?: number }[],
+  snaps: unknown,
+): LessonResult | { error: string } {
+  if (!Array.isArray(snaps) || snaps.length !== screens.length) return { error: "BAD_NUMBERS" };
+  let correct = 0;
+  let typed = 0;
+  let ksTotal = 0;
+  let ksCorrect = 0;
+  let elapsed = 0;
+  for (let i = 0; i < screens.length; i++) {
+    const s = screens[i];
+    const raw = snaps[i] as Partial<ScreenSnapshot> | null;
+    if (!raw || typeof raw.typedText !== "string") return { error: "BAD_NUMBERS" };
+    const nums = [raw.keystrokesTotal, raw.keystrokesCorrect, raw.elapsedMs].map(Number);
+    if (!nums.every((n) => Number.isFinite(n) && n >= 0)) return { error: "BAD_NUMBERS" };
+    const [kt, kc, ms] = nums;
+    const text = s.text.normalize("NFC");
+    const typedText = raw.typedText.normalize("NFC").slice(0, text.length * 2 + 50);
+    if (s.type === "timed") {
+      if (ms < (s.seconds ?? 60) * 1000 - TIMED_SLACK_MS) return { error: "TOO_FAST" };
+    } else if (!isPassageComplete(passageWords(text), typedText)) {
+      return { error: "INCOMPLETE" };
+    }
+    const sc = scoreAttempt({ originalText: text, typedText, elapsedMs: ms, keystrokes: { total: kt, correct: kc } });
+    correct += sc.correctChars;
+    typed += sc.totalChars;
+    ksTotal += kt;
+    ksCorrect += Math.min(kc, kt);
+    elapsed += Math.max(ms, 0);
+  }
+  const minutes = Math.max(elapsed, 1000) / 60000;
+  const wpm = Math.round((correct / 5 / minutes) * 100) / 100;
+  if (wpm > MAX_LESSON_WPM) return { error: "TOO_FAST" };
+  const accuracy =
+    ksTotal >= typed && ksTotal > 0
+      ? Math.round((ksCorrect / ksTotal) * 10000) / 100
+      : typed > 0
+        ? Math.round((correct / typed) * 10000) / 100
+        : 0;
+  return { wpm, accuracy, stars: starsFor(accuracy), elapsedMs: Math.round(elapsed) };
 }

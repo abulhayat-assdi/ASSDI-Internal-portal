@@ -3,7 +3,9 @@ import { EN_FOUNDATION, BANGLA_GATE_LESSON_ID } from "./en-foundation";
 import { buildScreens, eligibleWords, hashSeed, lessonCharCount, letterGroups } from "./generate";
 import { englishArticles, englishWordBank } from "./word-bank";
 import { fingerFor, keyFor, KEYBOARD_ROWS } from "./keyboard";
-import { findLesson, nextLesson, LEVELS, UNSKIPPABLE } from "./index";
+import { findLesson, nextLesson, LEVELS as ALL_LEVELS, UNSKIPPABLE } from "./index";
+
+const LEVELS = ALL_LEVELS.filter((l) => l.mode === "en");
 import { EN_CAPITALS, EN_NUMBERS } from "./en-levels-2-3";
 import {
   evaluateLessonResult,

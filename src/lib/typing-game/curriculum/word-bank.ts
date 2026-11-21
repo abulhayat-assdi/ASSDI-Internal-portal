@@ -5,6 +5,9 @@
  */
 import { ALL_PASSAGES } from "@/lib/typing-exam/content";
 import { cleanExamText } from "@/lib/typing-exam/examText";
+import { buildBanglaScreens, buildBanglaWordBank } from "./bn-generate";
+import { buildScreens } from "./generate";
+import type { LessonDef, LessonScreen } from "./types";
 
 let cache: string[] | null = null;
 
@@ -34,4 +37,33 @@ export function englishArticles(): Record<string, string[]> {
   }
   articleCache = out;
   return out;
+}
+
+let bnBankCache: string[] | null = null;
+let bnArticleCache: Record<string, string[]> | null = null;
+
+/** Bangla article texts grouped by category (NFC, keyboard-clean). */
+export function banglaArticles(): Record<string, string[]> {
+  if (bnArticleCache) return bnArticleCache;
+  const out: Record<string, string[]> = {};
+  for (const p of ALL_PASSAGES) {
+    if (p.language !== "bn") continue;
+    (out[p.category] ??= []).push(cleanExamText(p.text));
+  }
+  bnArticleCache = out;
+  return out;
+}
+
+/** Bangla word bank (most frequent first) from the Bangla articles. */
+export function banglaWordBank(): string[] {
+  if (bnBankCache) return bnBankCache;
+  bnBankCache = buildBanglaWordBank(Object.values(banglaArticles()).flat());
+  return bnBankCache;
+}
+
+/** Screens for any lesson, picking the right generator and sources. Server only. */
+export function lessonScreens(lesson: LessonDef): LessonScreen[] {
+  return lesson.mode === "bn"
+    ? buildBanglaScreens(lesson, banglaWordBank(), banglaArticles())
+    : buildScreens(lesson, englishWordBank(), englishArticles());
 }

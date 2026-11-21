@@ -19,18 +19,21 @@ const ENGLISH_PLAN = [
   "Professional Typing",
 ];
 
-export default async function LessonsPage({ searchParams }: { searchParams: Promise<{ level?: string }> }) {
-  const { level: wanted } = await searchParams;
+export default async function LessonsPage({ searchParams }: { searchParams: Promise<{ level?: string; mode?: string }> }) {
+  const { level: wanted, mode: rawMode } = await searchParams;
   const { session } = await studentContext(DEFAULT_LOCALE);
   const client = await userDbClient();
   if (!client) throw new Error("SERVICE_UNAVAILABLE");
   const progress = await createLessonStore(client).listProgress(session.userId);
 
-  const built = levelsFor("en");
+  const bnUnlocked = banglaUnlockedBy(progress);
+  const mode: "en" | "bn" = (rawMode === "bn" || wanted?.startsWith("bn-")) && bnUnlocked ? "bn" : "en";
+  const built = levelsFor(mode);
   const level = built.find((l) => l.id === wanted) ?? built[0];
   const states = lessonStates(built, progress);
 
-  const levels: OverviewLevel[] = ENGLISH_PLAN.map((title, i) => {
+  const plan = mode === "en" ? ENGLISH_PLAN : built.map((l) => l.title);
+  const levels: OverviewLevel[] = plan.map((title, i) => {
     const def = built.find((l) => l.number === i + 1);
     return {
       id: def?.id ?? null,
@@ -75,7 +78,8 @@ export default async function LessonsPage({ searchParams }: { searchParams: Prom
         current={levels[level.number - 1]}
         units={units}
         firstVisit={progress.size === 0}
-        banglaUnlocked={banglaUnlockedBy(progress)}
+        banglaUnlocked={bnUnlocked}
+        mode={mode}
       />
     </div>
   );

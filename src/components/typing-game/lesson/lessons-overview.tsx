@@ -41,6 +41,7 @@ interface Props {
   units: OverviewUnit[];
   firstVisit: boolean;
   banglaUnlocked: boolean;
+  mode: "en" | "bn";
 }
 
 const BASE = "/student-dashboard/typing-game/lessons";
@@ -51,7 +52,7 @@ function fmtTime(ms: number | null): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
-export function LessonsOverview({ levels, current, units, firstVisit, banglaUnlocked }: Props) {
+export function LessonsOverview({ levels, current, units, firstVisit, banglaUnlocked, mode }: Props) {
   const router = useRouter();
   const [guide, setGuide] = useState(firstVisit);
   const [busy, setBusy] = useState<string | null>(null);
@@ -109,7 +110,23 @@ export function LessonsOverview({ levels, current, units, firstVisit, banglaUnlo
       <div className="grid gap-5 md:grid-cols-[230px_1fr]">
         {/* Levels */}
         <aside className="flex flex-col gap-2">
-          <p className="px-1 text-xs font-bold uppercase tracking-wide text-ink-faint">English · Learn to Type</p>
+          <div className="tap-tablist mb-1" role="tablist" aria-label="Mode">
+            <Link href={`${BASE}?mode=en`} role="tab" aria-selected={mode === "en"} className={`tap-tab ${mode === "en" ? "tap-tab-active" : ""}`}>
+              English
+            </Link>
+            {banglaUnlocked ? (
+              <Link href={`${BASE}?mode=bn`} role="tab" aria-selected={mode === "bn"} className={`tap-tab ${mode === "bn" ? "tap-tab-active" : ""}`}>
+                বাংলা
+              </Link>
+            ) : (
+              <span className="tap-tab inline-flex items-center gap-1 opacity-60" title="English Level 1-এর Final Assessment পাস করলে খুলবে">
+                বাংলা <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+              </span>
+            )}
+          </div>
+          <p className="px-1 text-xs font-bold uppercase tracking-wide text-ink-faint">
+            {mode === "en" ? "English · Learn to Type" : "বাংলা · Bijoy / Avro"}
+          </p>
           {levels.map((l) => {
             const active = l.id === current.id;
             const inner = (
@@ -139,13 +156,6 @@ export function LessonsOverview({ levels, current, units, firstVisit, banglaUnlo
               </div>
             );
           })}
-          <p className="mt-2 px-1 text-xs font-bold uppercase tracking-wide text-ink-faint">বাংলা</p>
-          <div className="flex flex-col rounded-xl px-3 py-2.5 text-sm opacity-70" style={{ background: "var(--tap-surface)" }}>
-            <span className="flex items-center justify-between font-semibold">
-              Bangla Levels {banglaUnlocked ? null : <Lock className="h-3.5 w-3.5" aria-hidden="true" />}
-            </span>
-            <span className="text-xs">{banglaUnlocked ? "Coming soon" : "English Level 1 পাস করলে খুলবে"}</span>
-          </div>
           <button type="button" className="tap-btn tap-btn-secondary tap-btn-sm mt-2" onClick={() => setGuide(true)}>
             <Hand className="h-4 w-4" aria-hidden="true" /> হাত কীভাবে বসাবেন
           </button>
