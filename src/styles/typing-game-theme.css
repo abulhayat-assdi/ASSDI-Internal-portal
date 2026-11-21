@@ -406,26 +406,6 @@ html[data-theme="dark"] .tap-scope .tap-badge-danger { color: #fda4af; }
   overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
 }
 
-/* =========================================================================
-   Adventure map / worlds
-   ========================================================================= */
-
-.tap-scope .tap-map { position: relative; min-height: 22rem; padding: 2rem 1rem; }
-.tap-scope .tap-map-path {
-  position: absolute; inset: 2rem 1.5rem;
-  border-radius: 2rem;
-  background:
-    repeating-linear-gradient(120deg, transparent 0 18px, var(--tap-border-strong) 18px 20px);
-  opacity: 0.6;
-}
-.tap-scope .tap-map-nodes {
-  /* Callers (e.g. the adventure map page) supply their own responsive grid
-     for the world tiles; this is just a full-width passthrough wrapper so
-     that grid isn't squeezed into a single auto-fill track. */
-  position: relative;
-  width: 100%;
-}
-
 .tap-scope .tap-world {
   background: var(--tap-surface);
   backdrop-filter: var(--tap-blur);
@@ -514,12 +494,6 @@ html[data-theme="dark"] .tap-scope .tap-badge-danger { color: #fda4af; }
 .tap-scope .tap-reward-desc { font-size: 0.8rem; color: var(--tap-ink-muted); }
 .tap-scope .tap-reward-amount { font-weight: 800; color: var(--tap-warning-500); margin: 0.35rem 0; }
 .tap-scope .tap-reward-claimed { opacity: 0.6; }
-
-.tap-scope .tap-shop-glyph {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 3rem; height: 3rem; border-radius: 1rem; font-size: 1.5rem;
-  background: linear-gradient(135deg, var(--tap-accent-from), var(--tap-accent-to));
-}
 
 /* =========================================================================
    Achievement badges
@@ -798,10 +772,6 @@ html[data-theme="dark"] .tap-scope .tap-badge-danger { color: #fda4af; }
 .tap-scope .tap-row-top td { background: linear-gradient(90deg, rgba(245, 158, 11, 0.16), var(--tap-surface)); font-weight: 700; }
 .tap-scope .tap-row-me td, .tap-scope .tap-row-mine td { outline: 2px solid var(--tap-primary-500); outline-offset: -2px; font-weight: 700; }
 
-.tap-scope .tap-bracket { display: flex; gap: 1.5rem; overflow-x: auto; padding-bottom: 0.5rem; }
-.tap-scope .tap-bracket-round { display: flex; flex-direction: column; justify-content: space-around; gap: 0.75rem; min-width: 14rem; }
-.tap-scope .tap-match-card-mine { border: 2px solid var(--tap-primary-500) !important; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18); }
-
 /* =========================================================================
    Per-game accent palette — theme.visual → gradient
    ========================================================================= */
@@ -955,65 +925,6 @@ html[data-theme="dark"] .tap-scope .tap-badge-danger { color: #fda4af; }
   pointer-events: none;
 }
 
-/* =========================================================================
-   Bracket match cards + connectors (tournaments)
-   ========================================================================= */
-
-.tap-scope .tap-match-card {
-  background: var(--tap-surface);
-  backdrop-filter: var(--tap-blur);
-  border: 1px solid var(--tap-border);
-  border-radius: 0.9rem;
-  padding: 0.7rem 0.85rem;
-  box-shadow: var(--tap-shadow);
-  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
-}
-.tap-scope .tap-match-card[data-status="bye"] { opacity: 0.6; border-style: dashed; }
-.tap-scope .tap-match-card[data-status="finalized"] { border-color: var(--tap-border-strong); }
-.tap-scope .tap-bracket-slot { position: relative; display: flex; align-items: center; flex: 1; }
-.tap-scope .tap-bracket-slot > .tap-match-card { width: 100%; }
-.tap-scope .tap-bracket-round:not(:last-child) .tap-bracket-slot::after {
-  content: ""; position: absolute; top: 50%; right: -0.75rem;
-  width: 0.75rem; height: 1px; background: var(--tap-border-strong);
-}
-.tap-scope .tap-bracket-round:not(:first-child) .tap-bracket-slot::before {
-  content: ""; position: absolute; top: 50%; left: -0.75rem;
-  width: 0.75rem; height: 1px; background: var(--tap-border-strong);
-}
-
-/* =========================================================================
-   War battle bars (clan vs clan)
-   ========================================================================= */
-
-.tap-scope .tap-war-vs { display: flex; align-items: center; gap: 0.75rem; }
-.tap-scope .tap-war-side { flex: 1; min-width: 0; }
-.tap-scope .tap-war-side-right { text-align: right; }
-.tap-scope .tap-war-side-name {
-  font-weight: 800; font-size: 0.9rem; white-space: nowrap;
-  overflow: hidden; text-overflow: ellipsis;
-}
-.tap-scope .tap-war-side-score {
-  font-size: 1.4rem; font-weight: 800; font-variant-numeric: tabular-nums;
-  background: var(--tap-primary-grad); -webkit-background-clip: text; background-clip: text; color: transparent;
-}
-.tap-scope .tap-war-side-score-muted { background: none; -webkit-text-fill-color: initial; color: var(--tap-ink-muted); }
-.tap-scope .tap-war-vs-badge {
-  flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
-  width: 2.1rem; height: 2.1rem; border-radius: 9999px;
-  background: var(--tap-surface-solid); border: 1px solid var(--tap-border-strong);
-  font-size: 0.68rem; font-weight: 800; color: var(--tap-ink-muted);
-}
-.tap-scope .tap-war-bar {
-  position: relative; height: 0.65rem; border-radius: 9999px; overflow: hidden;
-  background: var(--tap-border-strong); display: flex;
-}
-.tap-scope .tap-war-bar-a { height: 100%; background: var(--tap-primary-grad); transition: width 0.5s ease; }
-.tap-scope .tap-war-bar-b {
-  height: 100%; margin-left: auto;
-  background: linear-gradient(135deg, #94a3b8, #475569);
-  transition: width 0.5s ease;
-}
-
 .tap-scope .tap-live-dot {
   display: inline-block; width: 0.45rem; height: 0.45rem; border-radius: 9999px;
   background: #fff; animation: tap-live-pulse 1.6s ease-in-out infinite;
@@ -1056,16 +967,6 @@ html[data-theme="dark"] .tap-scope .tap-badge-danger { color: #fda4af; }
 .tap-scope .tap-avatar-stack { display: flex; align-items: center; }
 .tap-scope .tap-avatar-stack > * { margin-left: -0.65rem; border: 2px solid var(--tap-surface-solid); border-radius: 9999px; }
 .tap-scope .tap-avatar-stack > *:first-child { margin-left: 0; }
-
-.tap-scope .tap-owned-ring { position: relative; }
-.tap-scope .tap-owned-ring::after {
-  content: ""; position: absolute; inset: -3px; border-radius: inherit;
-  border: 2px solid var(--tap-success-500); pointer-events: none;
-}
-.tap-scope .tap-equipped-ring::after {
-  border-color: var(--tap-primary-500);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
-}
 .tap-scope .tap-check-badge {
   display: inline-flex; align-items: center; justify-content: center;
   width: 1.3rem; height: 1.3rem; border-radius: 9999px; flex-shrink: 0;
@@ -1178,54 +1079,6 @@ html[data-theme="dark"] .tap-scope .tap-badge-danger { color: #fda4af; }
   position: absolute; inset: 0;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   font-size: 0.72rem; font-weight: 800; color: var(--tap-ink);
-}
-
-/* =========================================================================
-   Boss fight (dedicated screen + strike button)
-   ========================================================================= */
-
-.tap-scope .tap-boss-hp { display: flex; flex-direction: column; gap: 0.6rem; }
-.tap-scope .tap-boss-hp-top { display: flex; align-items: center; gap: 0.75rem; }
-.tap-scope .tap-boss-hp-icon {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 2.75rem; height: 2.75rem; border-radius: 1rem; flex-shrink: 0;
-  background: var(--tap-danger-grad); color: #fff;
-  box-shadow: 0 6px 16px rgba(244, 63, 94, 0.35);
-}
-.tap-scope .tap-boss-hp-body { flex: 1; min-width: 0; }
-.tap-scope .tap-boss-hp-label { font-weight: 800; font-variant-numeric: tabular-nums; }
-.tap-scope .tap-boss-hp-phase { font-size: 0.8rem; color: var(--tap-ink-muted); }
-.tap-scope .tap-boss-hp-track {
-  position: relative;
-  height: 1.1rem;
-  border-radius: 9999px;
-  background: var(--tap-border-strong);
-  overflow: hidden;
-  border: 1px solid var(--tap-border);
-}
-.tap-scope .tap-boss-hp-fill {
-  height: 100%;
-  border-radius: 9999px;
-  box-shadow: 0 0 12px rgba(0, 0, 0, 0.15) inset;
-}
-
-.tap-scope .tap-boss-damage {
-  font-size: 1.9rem;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-  background: var(--tap-legendary-grad);
-  background-size: 300% 100%;
-  -webkit-background-clip: text; background-clip: text; color: transparent;
-  animation: tap-shimmer 3s linear infinite;
-}
-.tap-scope .tap-btn-strike { box-shadow: 0 8px 24px rgba(244, 63, 94, 0.35); }
-.tap-scope .tap-btn-strike:not(:disabled):hover { box-shadow: 0 12px 30px rgba(244, 63, 94, 0.45); }
-
-.tap-scope .tap-boss-rank {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 1.5rem; height: 1.5rem; border-radius: 9999px;
-  background: var(--tap-surface-solid); border: 1px solid var(--tap-border-strong);
-  font-size: 0.68rem; font-weight: 800; color: var(--tap-ink-muted); flex-shrink: 0;
 }
 
 /* Result-screen level-up glow */

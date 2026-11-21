@@ -17,7 +17,7 @@ import {
   isRecord,
 } from "@/lib/typing-game/server/custom-mission-store";
 import { createSupabaseStaffStore } from "@/lib/typing-game/server/staff-store";
-import { formatDateTime } from "@/lib/typing-game/competitions";
+import { formatDateTime } from "@/lib/typing-game/format";
 import { leaderboardMetricKey, missionStatusKey } from "@/lib/typing-game/custom-missions";
 import { CustomMissionLifecycleActions } from "@/components/typing-game/custom-mission-lifecycle-actions";
 import {

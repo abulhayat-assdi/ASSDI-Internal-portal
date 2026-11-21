@@ -179,7 +179,14 @@ export default function TypingField({ examText, typedText, onChange, disabled }:
     if (disabled) return;
     const onKeyDown = (e: KeyboardEvent) => {
       const input = inputRef.current;
-      if (input && document.activeElement !== input && !e.ctrlKey && !e.metaKey && !e.altKey) input.focus();
+      const active = document.activeElement as HTMLElement | null;
+      // Another form control on the page (e.g. a settings box) keeps its keys.
+      const inOtherControl =
+        !!active &&
+        active !== input &&
+        (active.isContentEditable || ["INPUT", "SELECT", "TEXTAREA"].includes(active.tagName));
+      if (inOtherControl || e.key === "Escape") return;
+      if (input && active !== input && !e.ctrlKey && !e.metaKey && !e.altKey) input.focus();
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);

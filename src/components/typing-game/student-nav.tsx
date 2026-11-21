@@ -5,37 +5,28 @@ import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   LayoutDashboard,
-  Map,
   Gamepad2,
   Target,
-  Trophy,
-  Users,
   BarChart3,
-  Swords,
   LineChart,
   UserCircle,
-  ShoppingBag,
-  Medal,
   Dumbbell,
 } from "lucide-react";
 import { getTranslator, type Locale } from "@/lib/typing-game/i18n";
 
-/** Student module nav (translated labels, active section highlighted). */
+/**
+ * Student module nav, in learning order: home, then learn (practice),
+ * then play (games, missions), then compare (leaderboard), then "me".
+ */
 export function StudentNav({ locale }: { locale: Locale }) {
   const pathname = usePathname();
   const t = getTranslator(locale, "nav");
   const items = [
     { href: `/student-dashboard/typing-game/dashboard`, label: t("dashboard"), icon: LayoutDashboard },
-    { href: `/student-dashboard/typing-game/map`, label: t("adventureMap"), icon: Map },
+    { href: `/student-dashboard/typing-game/practice`, label: t("practice"), icon: Dumbbell },
     { href: `/student-dashboard/typing-game/games`, label: t("games"), icon: Gamepad2 },
     { href: `/student-dashboard/typing-game/missions`, label: t("missions"), icon: Target },
-    { href: `/student-dashboard/typing-game/season`, label: t("season"), icon: Trophy },
-    { href: `/student-dashboard/typing-game/clan`, label: t("clan"), icon: Users },
     { href: `/student-dashboard/typing-game/leaderboard`, label: t("leaderboard"), icon: BarChart3 },
-    { href: `/student-dashboard/typing-game/competitions`, label: t("competitions"), icon: Swords },
-    { href: `/student-dashboard/typing-game/tournaments`, label: t("tournaments"), icon: Medal },
-    { href: `/student-dashboard/typing-game/shop`, label: t("shop"), icon: ShoppingBag },
-    { href: `/student-dashboard/typing-game/practice`, label: t("practice"), icon: Dumbbell },
     { href: `/student-dashboard/typing-game/progress`, label: t("progress"), icon: LineChart },
     { href: `/student-dashboard/typing-game/profile`, label: t("profile"), icon: UserCircle },
   ];

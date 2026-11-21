@@ -1,6 +1,6 @@
 /**
  * Custom (teacher-authored) mission presentation helpers. Pure: no
- * Supabase, no network — mirrors src/lib/typing-game/competitions.ts.
+ * Supabase, no network.
  */
 import type {
   CompletionMode,
