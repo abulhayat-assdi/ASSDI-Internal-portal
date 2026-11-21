@@ -1,9 +1,23 @@
 /**
- * Mode gate: Bangla opens after the student passes English Level 1
- * (Foundation). The English lesson track is not built yet, so until it
- * ships there is nothing to pass and Bangla stays open. When lessons land,
- * this reads the student's Level 1 assessment result.
+ * Mode gate: Bangla opens once the student has COMPLETED the English
+ * Foundation Final Assessment (skipping it does not count).
  */
+import { BANGLA_GATE_LESSON_ID } from "@/lib/typing-game/curriculum";
+import type { LessonProgressRow } from "@/lib/typing-game/curriculum/progress";
+import { getSession, userDbClient } from "@/lib/typing-game/server/auth";
+import { createLessonStore } from "@/lib/typing-game/server/lesson-store";
+
+export function banglaUnlockedBy(progress: Map<string, LessonProgressRow>): boolean {
+  return progress.get(BANGLA_GATE_LESSON_ID)?.status === "completed";
+}
+
 export async function isBanglaModeUnlocked(): Promise<boolean> {
-  return true;
+  const session = await getSession();
+  const client = await userDbClient();
+  if (!session || !client) return false;
+  try {
+    return banglaUnlockedBy(await createLessonStore(client).listProgress(session.userId));
+  } catch {
+    return false;
+  }
 }

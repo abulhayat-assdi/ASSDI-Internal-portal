@@ -11,6 +11,7 @@ import {
   LineChart,
   UserCircle,
   Dumbbell,
+  GraduationCap,
 } from "lucide-react";
 import { getTranslator, type Locale } from "@/lib/typing-game/i18n";
 
@@ -23,6 +24,7 @@ export function StudentNav({ locale }: { locale: Locale }) {
   const t = getTranslator(locale, "nav");
   const items = [
     { href: `/student-dashboard/typing-game/dashboard`, label: t("dashboard"), icon: LayoutDashboard },
+    { href: `/student-dashboard/typing-game/lessons`, label: t("lessons"), icon: GraduationCap },
     { href: `/student-dashboard/typing-game/practice`, label: t("practice"), icon: Dumbbell },
     { href: `/student-dashboard/typing-game/games`, label: t("games"), icon: Gamepad2 },
     { href: `/student-dashboard/typing-game/missions`, label: t("missions"), icon: Target },

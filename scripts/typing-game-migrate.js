@@ -53,6 +53,7 @@ async function run() {
 
         const { rows } = await client.query(`SELECT filename FROM typing_game._migrations;`);
         const applied = new Set(rows.map((r) => r.filename));
+        let appliedNow = 0;
 
         for (const file of files) {
             if (applied.has(file)) continue;
@@ -65,12 +66,26 @@ async function run() {
                 await client.query(`INSERT INTO typing_game._migrations (filename) VALUES ($1);`, [file]);
                 await client.query("COMMIT");
                 console.log(`[typing-game-migrate] ✓ ${file}`);
+                appliedNow++;
             } catch (err) {
                 await client.query("ROLLBACK");
                 console.error(`[typing-game-migrate] ✗ ${file} failed:`, err.message);
                 // Later files likely depend on this one (functions/tables
                 // referencing each other in order) — stop rather than skip ahead.
                 break;
+            }
+        }
+
+        // PostgREST caches the schema at its own startup, which in compose
+        // happens BEFORE this script runs — new tables/functions stay
+        // invisible ("Could not find the function ... in the schema cache")
+        // until it reloads. Ask it to, whenever something new was applied.
+        if (appliedNow > 0) {
+            try {
+                await client.query("NOTIFY pgrst, 'reload schema';");
+                console.log("[typing-game-migrate] ✓ asked PostgREST to reload its schema cache");
+            } catch (err) {
+                console.error("[typing-game-migrate] Could not notify PostgREST:", err.message);
             }
         }
 
