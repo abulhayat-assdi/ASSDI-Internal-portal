@@ -9,6 +9,7 @@ import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n"
 import { adaptivePageContext } from "@/lib/typing-game/server/adaptive-pages";
 import { PracticeDrillCard } from "@/components/typing-game/practice-drill";
 import { PracticeTyper } from "@/components/typing-game/practice/practice-typer";
+import { AdSlot } from "@/components/typing-game/ads/ad-slot";
 import { practiceArticles, practiceCategories } from "@/lib/typing-game/practice/text";
 import { isBanglaModeUnlocked } from "@/lib/typing-game/practice/modes";
 
@@ -76,7 +77,12 @@ export default async function PracticePage({}: {}) {
         title="Typing Practice"
         description="সময় বা আর্টিকেল বেছে সরাসরি টাইপ করুন — Beginner থেকে Expert পর্যন্ত।"
       />
-      <PracticeTyper categories={categories} articles={articles} banglaUnlocked={banglaUnlocked} />
+      <div className="flex gap-6">
+        <AdSlot slot="practice_left" className="hidden lg:flex" />
+        <div className="min-w-0 flex-1">
+          <PracticeTyper categories={categories} articles={articles} banglaUnlocked={banglaUnlocked} />
+        </div>
+      </div>
 
       <SectionHeader title={t("practiceTitle")} description={t("practiceSubtitle")} />
       {recommendations.length === 0 ? (

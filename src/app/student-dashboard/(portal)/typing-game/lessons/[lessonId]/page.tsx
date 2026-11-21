@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Lock } from "lucide-react";
 import { LessonPlayer } from "@/components/typing-game/lesson/lesson-player";
+import { AdSlot } from "@/components/typing-game/ads/ad-slot";
 import { DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { studentContext } from "@/lib/typing-game/server/student-pages";
 import { userDbClient } from "@/lib/typing-game/server/auth";
@@ -35,11 +36,16 @@ export default async function LessonPage({ params }: { params: Promise<{ lessonI
   }
 
   return (
+    <div className="flex gap-6">
+      <AdSlot slot="lesson_left" className="hidden lg:flex" />
+      <div className="min-w-0 flex-1">
     <LessonPlayer
       lessonId={hit.lesson.id}
       lessonTitle={`${hit.lesson.number}. ${hit.lesson.title}`}
       levelTitle={`Level ${hit.level.number} · ${hit.level.title}`}
       screens={buildScreens(hit.lesson, englishWordBank(), englishArticles())}
     />
+      </div>
+    </div>
   );
 }

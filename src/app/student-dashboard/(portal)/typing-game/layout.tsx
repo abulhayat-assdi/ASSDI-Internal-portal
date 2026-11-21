@@ -6,6 +6,9 @@ import { userDbClient } from "@/lib/typing-game/server/auth";
 import { getCurrentActor } from "@/lib/typing-game/server/staff";
 import { isLocale, type Locale, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { SuspendedNotice } from "@/components/typing-game/suspended-notice";
+import { AdsProvider, type AllowedSlots } from "@/components/typing-game/ads/ads-context";
+import { createAdsStore } from "@/lib/typing-game/server/ads-store";
+import { AD_SLOTS, displaySlot } from "@/lib/typing-game/ads/settings";
 
 /**
  * Student area gate (backstop — middleware normally redirects first, with
@@ -52,7 +55,21 @@ export default async function StudentLayout({
       </div>
     );
   }
+  // Display-ad slots this student may see (none while ads are off).
+  const slots: AllowedSlots = {};
+  if (client) {
+    const ads = createAdsStore(client);
+    const settings = await ads.settings();
+    if (settings.enabled && settings.displayEnabled) {
+      const batchIds = await ads.myBatchIds(session.userId);
+      for (const s of AD_SLOTS) {
+        const cfg = displaySlot(settings, s.key, batchIds);
+        if (cfg) slots[s.key] = cfg;
+      }
+    }
+  }
   return (
+    <AdsProvider slots={slots}>
     <div className="tap-scope min-h-screen bg-canvas">
       <div className="tap-ambient" aria-hidden="true">
         <span />
@@ -62,5 +79,6 @@ export default async function StudentLayout({
       <StudentNav locale={locale} />
       <div className="mx-auto w-full max-w-5xl px-3 sm:px-4 py-4 sm:py-6">{children}</div>
     </div>
+    </AdsProvider>
   );
 }

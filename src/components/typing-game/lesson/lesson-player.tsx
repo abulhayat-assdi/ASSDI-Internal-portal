@@ -8,6 +8,7 @@ import { fingerFor, keyDisplayName, keyFor, type FingerId } from "@/lib/typing-g
 import { starsFor } from "@/lib/typing-game/curriculum/progress";
 import { OnScreenKeyboard } from "./on-screen-keyboard";
 import { Hands } from "./hands";
+import { AdSlot } from "@/components/typing-game/ads/ad-slot";
 
 interface Props {
   lessonId: string;
@@ -291,6 +292,7 @@ export function LessonPlayer({ lessonId, lessonTitle, levelTitle, screens }: Pro
             সব লেসন
           </Link>
         </div>
+        <AdSlot slot="result" />
       </div>
     );
   }

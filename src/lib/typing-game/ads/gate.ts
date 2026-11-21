@@ -1,11 +1,26 @@
 /**
- * Which actions can ask for rewarded ads, and how many views each needs.
- * Ads are switched OFF platform-wide for now, so every action needs 0
- * views and completes directly. The super-admin ad settings (next step)
- * will feed real numbers in here; callers already go through this gate.
+ * Rewarded-ad gate for actions. With ads off (the default) every action
+ * needs 0 views and completes directly; when the super-admin turns ads on,
+ * the configured number of completed views is spent before the action runs.
  */
-export type AdAction = "lesson_skip" | "lesson_continue_after_fail" | "double_xp" | "streak_restore";
+import type { PostgrestClient } from "@supabase/postgrest-js";
+import { createAdsStore } from "@/lib/typing-game/server/ads-store";
+import { viewsRequired, type AdAction } from "./settings";
 
-export async function adViewsRequired(_action: AdAction): Promise<number> {
-  return 0;
+export type { AdAction } from "./settings";
+
+export type GateResult = { ok: true } | { ok: false; views: number };
+
+/** Spends the views an action needs, or reports how many are still required. */
+export async function payForAction(
+  client: PostgrestClient,
+  userId: string,
+  action: AdAction,
+  target: string,
+): Promise<GateResult> {
+  const store = createAdsStore(client);
+  const settings = await store.settings();
+  const views = viewsRequired(settings, action, await store.myBatchIds(userId));
+  if (views === 0) return { ok: true };
+  return (await store.consume(action, target, views)) ? { ok: true } : { ok: false, views };
 }

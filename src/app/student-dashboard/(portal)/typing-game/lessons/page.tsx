@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/typing-game/ui";
+import { AdSlot } from "@/components/typing-game/ads/ad-slot";
 import { LessonsOverview, type OverviewLevel, type OverviewUnit } from "@/components/typing-game/lesson/lessons-overview";
 import { DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { studentContext } from "@/lib/typing-game/server/student-pages";
@@ -68,6 +69,7 @@ export default async function LessonsPage({ searchParams }: { searchParams: Prom
         title="Typing Lessons"
         description="ধাপে ধাপে সঠিক আঙুলে টাইপিং শিখুন — লেসন শেষ করলেই পরেরটা খুলবে।"
       />
+      <AdSlot slot="top_banner" />
       <LessonsOverview
         levels={levels}
         current={levels[level.number - 1]}

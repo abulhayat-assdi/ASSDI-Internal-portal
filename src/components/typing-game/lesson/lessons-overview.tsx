@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { BookOpen, CheckCircle2, Hand, Lock, Play, RotateCcw, SkipForward, Star } from "lucide-react";
 import { HandPlacementGuide } from "./hand-placement-guide";
+import { RewardedAdModal } from "@/components/typing-game/ads/rewarded-ad-modal";
 
 export interface OverviewLesson {
   id: string;
@@ -55,9 +56,10 @@ export function LessonsOverview({ levels, current, units, firstVisit, banglaUnlo
   const [guide, setGuide] = useState(firstVisit);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState("");
+  const [adFor, setAdFor] = useState<{ lessonId: string; mode: "unlock" | "skip"; views: number } | null>(null);
 
-  const skip = async (lessonId: string, mode: "unlock" | "skip") => {
-    const ok = window.confirm(
+  const skip = async (lessonId: string, mode: "unlock" | "skip", confirmed = false) => {
+    const ok = confirmed || window.confirm(
       mode === "unlock"
         ? "আগের অসম্পূর্ণ লেসনগুলো skip হিসেবে চিহ্নিত হবে এবং এই লেসনটা খুলে যাবে। স্কিপ করা লেসনে স্টার বা XP পাওয়া যায় না। চালিয়ে যাবেন?"
         : "এই লেসনটা skip করে পরেরটা খুলবেন?",
@@ -71,7 +73,12 @@ export function LessonsOverview({ levels, current, units, firstVisit, banglaUnlo
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode }),
       });
-      const data = (await res.json()) as { error?: string };
+      const data = (await res.json()) as { error?: string; views?: number };
+      if (res.status === 402 && data.error === "ADS_REQUIRED") {
+        // Ads are on: watch the required rewarded ads, then this runs again.
+        setAdFor({ lessonId, mode, views: data.views ?? 1 });
+        return;
+      }
       if (!res.ok) throw new Error(data.error ?? String(res.status));
       if (mode === "unlock") router.push(`${BASE}/${lessonId}`);
       else router.refresh();
@@ -85,6 +92,19 @@ export function LessonsOverview({ levels, current, units, firstVisit, banglaUnlo
   return (
     <div className="flex flex-col gap-5">
       {guide ? <HandPlacementGuide onClose={() => setGuide(false)} /> : null}
+      {adFor ? (
+        <RewardedAdModal
+          action="lesson_skip"
+          target={adFor.lessonId}
+          views={adFor.views}
+          onCancel={() => setAdFor(null)}
+          onDone={() => {
+            const a = adFor;
+            setAdFor(null);
+            void skip(a.lessonId, a.mode, true);
+          }}
+        />
+      ) : null}
 
       <div className="grid gap-5 md:grid-cols-[230px_1fr]">
         {/* Levels */}

@@ -10,7 +10,8 @@ import { NextResponse } from "next/server";
 import { lessonContext, lessonError } from "../../_helper";
 import { lessonsToSkip } from "@/lib/typing-game/curriculum/progress";
 import { UNSKIPPABLE, findLesson, levelsFor } from "@/lib/typing-game/curriculum";
-import { adViewsRequired } from "@/lib/typing-game/ads/gate";
+import { payForAction } from "@/lib/typing-game/ads/gate";
+import { userDbClient } from "@/lib/typing-game/server/auth";
 
 export async function POST(req: Request, { params }: { params: Promise<{ lessonId: string }> }): Promise<Response> {
   const { lessonId } = await params;
@@ -28,12 +29,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ lessonI
     return NextResponse.json({ error: "NOT_SKIPPABLE" }, { status: 409 });
   }
 
-  const views = await adViewsRequired("lesson_skip");
-  if (views > 0) {
-    // Ads on: the rewarded-ad flow (next step) must confirm the views first.
-    return NextResponse.json({ error: "ADS_REQUIRED", views }, { status: 402 });
-  }
-
   try {
     const progress = await ctx.store.listProgress(ctx.session.userId);
     const ids = lessonsToSkip(levelsFor(ctx.level.mode), ctx.lesson.id, progress, UNSKIPPABLE);
@@ -42,6 +37,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ lessonI
       return NextResponse.json({ error: "GATE_NOT_PASSED" }, { status: 409 });
     }
     if (mode === "skip" && !progress.has(ctx.lesson.id)) ids.push(ctx.lesson.id);
+    if (ids.length === 0) return NextResponse.json({ skipped: 0 });
+
+    // Ads off → free. Ads on → the student must have watched the configured
+    // number of rewarded ads for this lesson first (spent here, once).
+    const client = await userDbClient();
+    if (!client) return NextResponse.json({ error: "SERVICE_UNAVAILABLE" }, { status: 503 });
+    const paid = await payForAction(client, ctx.session.userId, "lesson_skip", ctx.lesson.id);
+    if (!paid.ok) return NextResponse.json({ error: "ADS_REQUIRED", views: paid.views }, { status: 402 });
     // Each row is stored under its own level.
     const byLevel = new Map<string, string[]>();
     for (const id of ids) {

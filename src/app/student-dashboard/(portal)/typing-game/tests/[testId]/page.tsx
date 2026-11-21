@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { TestPlayer } from "@/components/typing-game/tests/test-player";
+import { AdSlot } from "@/components/typing-game/ads/ad-slot";
 import { findTest } from "@/lib/typing-game/tests/catalog";
 import { isBanglaModeUnlocked } from "@/lib/typing-game/practice/modes";
 
@@ -25,7 +26,12 @@ export default async function TestPage({
         <h1 className="font-display text-xl font-bold">{test.title}</h1>
         {lang === "bn" ? <p className="text-sm text-ink-muted">কম্পিউটারে Bijoy বা Avro চালু করে টাইপ করুন।</p> : null}
       </div>
-      <TestPlayer testId={test.id} lang={lang} title={test.title} />
+      <div className="flex gap-6">
+        <AdSlot slot="practice_left" className="hidden lg:flex" />
+        <div className="min-w-0 flex-1">
+          <TestPlayer testId={test.id} lang={lang} title={test.title} />
+        </div>
+      </div>
     </div>
   );
 }

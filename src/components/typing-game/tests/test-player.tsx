@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Award, RotateCcw } from "lucide-react";
 import ExamRunner, { type ExamRunnerSubmitPayload } from "@/components/typing-exam/ExamRunner";
+import { AdSlot } from "@/components/typing-game/ads/ad-slot";
 
 interface Result {
   sessionId: string;
@@ -119,6 +120,7 @@ export function TestPlayer({ testId, lang, title }: { testId: string; lang: "en"
             সব টেস্ট
           </Link>
         </div>
+        <AdSlot slot="result" />
       </div>
     );
   }
