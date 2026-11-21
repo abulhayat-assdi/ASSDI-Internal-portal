@@ -220,6 +220,14 @@ export function PracticeTyper({ categories, articles, banglaUnlocked }: Props) {
     });
     const isBest = score.correctChars > 0 && saveBest(runKey, score.wpm, score.accuracy);
     setResult({ ...score, elapsedMs: snap.elapsedMs, samples: samplesRef.current.slice(), isBest });
+    // Practice time counts towards today's goal (best-effort).
+    if (snap.elapsedMs > 0) {
+      void fetch("/api/typing-game/activity", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ms: Math.round(snap.elapsedMs) }),
+      }).catch(() => {});
+    }
     setPhase("done");
   }, [text, runKey]);
 

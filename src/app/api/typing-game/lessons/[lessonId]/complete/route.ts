@@ -19,6 +19,8 @@ import { lessonCharCount } from "@/lib/typing-game/curriculum/generate";
 import { lessonScreens } from "@/lib/typing-game/curriculum/word-bank";
 import { BANGLA_GATE_LESSON_ID, levelsFor, nextLesson } from "@/lib/typing-game/curriculum";
 import { isBanglaModeUnlocked } from "@/lib/typing-game/practice/modes";
+import { userDbClient } from "@/lib/typing-game/server/auth";
+import { createActivityStore } from "@/lib/typing-game/server/activity-store";
 
 /** Clock drift allowance for timed screens. */
 const TIMED_SLACK_MS = 1500;
@@ -70,6 +72,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ lessonI
       stars: result.stars,
       elapsedMs: result.elapsedMs,
     });
+    // Lesson time counts towards today's goal.
+    const client = await userDbClient();
+    if (client) await createActivityStore(client).addTime(result.elapsedMs);
     const next = nextLesson(ctx.lesson.id);
     return NextResponse.json({
       result,

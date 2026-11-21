@@ -6,6 +6,7 @@
 import { NextResponse } from "next/server";
 import { getSession, unauthorized, userDbClient } from "@/lib/typing-game/server/auth";
 import { createTestStore } from "@/lib/typing-game/server/test-store";
+import { createActivityStore } from "@/lib/typing-game/server/activity-store";
 import { gradeSnapshot, parseClientSnapshot, readJsonBody } from "@/lib/typing-exam/session";
 
 const NO_THRESHOLDS = { passWpm: 0, passAccuracy: 0, failWpm: 0, failAccuracy: 0 };
@@ -51,6 +52,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ session
       timeMs: Math.round(graded.timeMs),
       finishReason: graded.reason,
     });
+    await createActivityStore(client).addTime(graded.timeMs);
     return NextResponse.json({
       sessionId,
       wpm: graded.score.wpm,
