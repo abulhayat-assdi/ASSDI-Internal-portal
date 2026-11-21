@@ -9,6 +9,8 @@ import { ForbiddenError } from "@/lib/typing-game/server/staff-store";
 import { getTeacherBatch } from "@/lib/typing-game/server/staff-data";
 import { createSupabaseAdaptiveStore } from "@/lib/typing-game/server/adaptive-store";
 import { AdaptiveBatchBoard } from "@/components/typing-game/adaptive-batch-board";
+import { BatchLessonGrid } from "@/components/typing-game/batch-lesson-grid";
+import { loadBatchProgress } from "@/lib/typing-game/server/batch-progress";
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
@@ -17,9 +19,11 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 export default async function TeacherBatchPage(
   props: {
     params: Promise<{ locale: string; batchId: string }>;
+    searchParams: Promise<{ level?: string }>;
   }
 ) {
   const params = await props.params;
+  const { level: levelParam } = await props.searchParams;
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "staff");
   const session = await getSession();
@@ -60,6 +64,11 @@ export default async function TeacherBatchPage(
         .map((m) => (typeof m.mechanic === "string" ? m.mechanic : ""))
         .filter((s) => s.length > 0)
     : [];
+
+  const lessonProgress = await loadBatchProgress(
+    client,
+    data.members.map((m) => m.userId),
+  ).catch(() => new Map());
 
   return (
     <div className="flex flex-col gap-6">
@@ -109,6 +118,13 @@ export default async function TeacherBatchPage(
           </div>
         </CardContent>
       </Card>
+
+      <BatchLessonGrid
+        members={data.members.map((m) => ({ userId: m.userId, fullName: m.fullName, rollNumber: m.rollNumber }))}
+        progress={lessonProgress}
+        levelId={levelParam ?? null}
+        baseHref={`/dashboard/typing-game/teacher/batches/${params.batchId}`}
+      />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
         <StatCard label={t("members")} value={data.members.length} />
