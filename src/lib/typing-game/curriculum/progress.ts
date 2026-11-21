@@ -23,14 +23,22 @@ export function levelLessons(level: LevelDef): LessonDef[] {
   return level.units.flatMap((u) => u.lessons);
 }
 
+/** Lessons of several levels in teaching order (levels sorted by number). */
+export function trackLessons(levels: LevelDef[]): LessonDef[] {
+  return levels
+    .slice()
+    .sort((a, b) => a.number - b.number)
+    .flatMap(levelLessons);
+}
+
 /**
- * A lesson is open when every earlier lesson in its level is completed or
- * skipped. The first lesson is always open.
+ * A lesson is open when every earlier lesson in its track (all earlier
+ * levels too) is completed or skipped. The very first lesson is always open.
  */
-export function lessonStates(level: LevelDef, progress: Map<string, LessonProgressRow>): Map<string, LessonState> {
+export function lessonStates(levels: LevelDef[], progress: Map<string, LessonProgressRow>): Map<string, LessonState> {
   const out = new Map<string, LessonState>();
   let open = true;
-  for (const lesson of levelLessons(level)) {
+  for (const lesson of trackLessons(levels)) {
     const row = progress.get(lesson.id);
     if (row) out.set(lesson.id, row.status);
     else out.set(lesson.id, open ? "available" : "locked");
@@ -39,12 +47,23 @@ export function lessonStates(level: LevelDef, progress: Map<string, LessonProgre
   return out;
 }
 
-/** Earlier lessons that are not done yet — what a skip to `lessonId` marks as skipped. */
-export function lessonsToSkip(level: LevelDef, lessonId: string, progress: Map<string, LessonProgressRow>): string[] {
+/**
+ * Earlier lessons that are not done yet — what a skip to `lessonId` marks
+ * as skipped. Returns null when one of them may never be skipped.
+ */
+export function lessonsToSkip(
+  levels: LevelDef[],
+  lessonId: string,
+  progress: Map<string, LessonProgressRow>,
+  unskippable: ReadonlySet<string> = new Set(),
+): string[] | null {
   const ids: string[] = [];
-  for (const lesson of levelLessons(level)) {
+  for (const lesson of trackLessons(levels)) {
     if (lesson.id === lessonId) return ids;
-    if (!progress.has(lesson.id)) ids.push(lesson.id);
+    if (!progress.has(lesson.id)) {
+      if (unskippable.has(lesson.id)) return null;
+      ids.push(lesson.id);
+    }
   }
   return [];
 }

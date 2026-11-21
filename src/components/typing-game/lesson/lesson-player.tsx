@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, Hand, Keyboard, RotateCcw, Star, Volume2, VolumeX } from "lucide-react";
 import type { LessonScreen } from "@/lib/typing-game/curriculum/types";
-import { fingerFor, keyDisplayName } from "@/lib/typing-game/curriculum/keyboard";
+import { fingerFor, keyDisplayName, keyFor, type FingerId } from "@/lib/typing-game/curriculum/keyboard";
 import { starsFor } from "@/lib/typing-game/curriculum/progress";
 import { OnScreenKeyboard } from "./on-screen-keyboard";
 import { Hands } from "./hands";
@@ -241,6 +241,12 @@ export function LessonPlayer({ lessonId, lessonTitle, levelTitle, screens }: Pro
   }, [pos, index]);
 
   const finger = expected ? fingerFor(expected) : null;
+  // A shifted character also needs the little finger of the other hand on Shift.
+  const activeFingers: FingerId[] = finger
+    ? keyFor(expected)?.shifted
+      ? [finger.id, finger.hand === "left" ? "r-pinky" : "l-pinky"]
+      : [finger.id]
+    : [];
   const liveMs = startRef.current ? (now || Date.now()) - startRef.current : 0;
   const timeLeft = screen.type === "timed" ? Math.max(0, (screen.seconds ?? 60) - Math.floor(liveMs / 1000)) : null;
 
@@ -415,11 +421,12 @@ export function LessonPlayer({ lessonId, lessonTitle, levelTitle, screens }: Pro
         <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-1">
           {finger ? (
             <p className="text-sm font-semibold" style={{ color: finger.color }}>
+              {keyFor(expected)?.shifted ? `Shift + ` : ""}
               {finger.bn} · {keyDisplayName(expected)}
             </p>
           ) : null}
           {prefs.keyboard ? <OnScreenKeyboard next={expected} wrong={wrongKey} /> : null}
-          {prefs.hands ? <Hands finger={finger?.id ?? null} className="w-full max-w-lg" /> : null}
+          {prefs.hands ? <Hands fingers={activeFingers} className="w-full max-w-lg" /> : null}
         </div>
       ) : null}
     </div>

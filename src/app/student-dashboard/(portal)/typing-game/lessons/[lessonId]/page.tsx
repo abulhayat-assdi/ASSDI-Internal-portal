@@ -6,7 +6,7 @@ import { DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { studentContext } from "@/lib/typing-game/server/student-pages";
 import { userDbClient } from "@/lib/typing-game/server/auth";
 import { createLessonStore } from "@/lib/typing-game/server/lesson-store";
-import { findLesson } from "@/lib/typing-game/curriculum";
+import { findLesson, levelsFor } from "@/lib/typing-game/curriculum";
 import { lessonStates } from "@/lib/typing-game/curriculum/progress";
 import { buildScreens } from "@/lib/typing-game/curriculum/generate";
 import { englishWordBank } from "@/lib/typing-game/curriculum/word-bank";
@@ -19,7 +19,7 @@ export default async function LessonPage({ params }: { params: Promise<{ lessonI
   const client = await userDbClient();
   if (!client) throw new Error("SERVICE_UNAVAILABLE");
   const progress = await createLessonStore(client).listProgress(session.userId);
-  const state = lessonStates(hit.level, progress).get(hit.lesson.id);
+  const state = lessonStates(levelsFor(hit.level.mode), progress).get(hit.lesson.id);
 
   if (state === "locked") {
     return (

@@ -3,7 +3,8 @@ import { EN_FOUNDATION, BANGLA_GATE_LESSON_ID } from "./en-foundation";
 import { buildScreens, eligibleWords, hashSeed, lessonCharCount, letterGroups } from "./generate";
 import { englishWordBank } from "./word-bank";
 import { fingerFor, keyFor, KEYBOARD_ROWS } from "./keyboard";
-import { findLesson, nextLesson } from "./index";
+import { findLesson, nextLesson, LEVELS, UNSKIPPABLE } from "./index";
+import { EN_CAPITALS, EN_NUMBERS } from "./en-levels-2-3";
 import {
   evaluateLessonResult,
   lessonStates,
@@ -57,8 +58,8 @@ describe("Foundation level", () => {
     expect(taught.sort().join("")).toBe("abcdefghijklmnopqrstuvwxyz");
   });
 
-  it("every screen only uses keys learned so far", () => {
-    for (const lesson of lessons) {
+  it("every screen only uses keys learned so far (all levels)", () => {
+    for (const lesson of LEVELS.flatMap(levelLessons)) {
       const allowed = new Set([...lesson.allowedKeys, " "]);
       for (const s of buildScreens(lesson, bank)) {
         for (const ch of s.text) expect(allowed.has(ch), `${lesson.id} uses "${ch}"`).toBe(true);
@@ -86,7 +87,7 @@ describe("Foundation level", () => {
   it("lookups", () => {
     expect(findLesson("en-1-05")?.lesson.title).toBe("Review 1");
     expect(nextLesson("en-1-05")?.id).toBe("en-1-06");
-    expect(nextLesson("en-1-16")).toBeNull();
+    expect(nextLesson("en-1-16")?.id).toBe("en-2-01");
     expect(findLesson("nope")).toBeNull();
   });
 });
@@ -109,19 +110,19 @@ describe("generators", () => {
 
 describe("progress rules", () => {
   it("opens lessons in order", () => {
-    const st = lessonStates(EN_FOUNDATION, new Map([["en-1-01", row("en-1-01")]]));
+    const st = lessonStates([EN_FOUNDATION], new Map([["en-1-01", row("en-1-01")]]));
     expect(st.get("en-1-01")).toBe("completed");
     expect(st.get("en-1-02")).toBe("available");
     expect(st.get("en-1-03")).toBe("locked");
   });
   it("skipped lessons also open the next one", () => {
-    const st = lessonStates(EN_FOUNDATION, new Map([["en-1-01", row("en-1-01", "skipped")]]));
+    const st = lessonStates([EN_FOUNDATION], new Map([["en-1-01", row("en-1-01", "skipped")]]));
     expect(st.get("en-1-02")).toBe("available");
   });
   it("skipping to a lesson marks the unfinished ones before it", () => {
     const p = new Map([["en-1-02", row("en-1-02")]]);
-    expect(lessonsToSkip(EN_FOUNDATION, "en-1-04", p)).toEqual(["en-1-01", "en-1-03"]);
-    expect(lessonsToSkip(EN_FOUNDATION, "en-1-01", p)).toEqual([]);
+    expect(lessonsToSkip([EN_FOUNDATION], "en-1-04", p)).toEqual(["en-1-01", "en-1-03"]);
+    expect(lessonsToSkip([EN_FOUNDATION], "en-1-01", p)).toEqual([]);
   });
   it("level percent counts only completed lessons", () => {
     const p = new Map([
@@ -149,5 +150,35 @@ describe("evaluateLessonResult", () => {
   it("a timed lesson needs its full duration", () => {
     expect(evaluateLessonResult({ correctChars: 100, keystrokes: 100, errors: 0, elapsedMs: 30000 }, 0, 59000)).toEqual({ error: "TOO_FAST" });
     expect("error" in evaluateLessonResult({ correctChars: 100, keystrokes: 100, errors: 0, elapsedMs: 60000 }, 0, 59000)).toBe(false);
+  });
+});
+
+describe("Levels 2 and 3", () => {
+  it("level 2 teaches every capital and ? ! : \" - /", () => {
+    const taught = levelLessons(EN_CAPITALS).flatMap((l) => l.newKeys);
+    expect(taught.filter((c) => /[A-Z]/.test(c)).sort().join("")).toBe("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+    for (const c of ["?", "!", ":", '"', "-", "/"]) expect(taught).toContain(c);
+  });
+  it("level 3 teaches every digit and every symbol on the keyboard", () => {
+    const taught = new Set(levelLessons(EN_NUMBERS).flatMap((l) => l.newKeys));
+    for (const c of "0123456789@#$%&*()_+=^[]{}\|<>~`") expect(taught.has(c), c).toBe(true);
+  });
+  it("new symbols actually appear in their lesson's drills", () => {
+    for (const lesson of levelLessons(EN_NUMBERS).filter((l) => l.kind === "keys")) {
+      const text = buildScreens(lesson, bank).filter((s) => s.type !== "key_intro").map((s) => s.text).join(" ");
+      for (const k of lesson.newKeys) expect(text.includes(k), `${lesson.id} never drills "${k}"`).toBe(true);
+    }
+  });
+  it("level 2 sentences start with a capital once capitals are learned", () => {
+    const review = levelLessons(EN_CAPITALS).find((l) => l.kind === "review")!;
+    const line = buildScreens(review, bank).find((s) => s.type === "sentence")!;
+    expect(line.text[0]).toMatch(/[A-Z]/);
+  });
+  it("tracks continue across levels and the gate blocks skipping into level 2", () => {
+    const st = lessonStates(LEVELS, new Map());
+    expect(st.get("en-2-01")).toBe("locked");
+    expect(lessonsToSkip(LEVELS, "en-2-01", new Map(), UNSKIPPABLE)).toBeNull();
+    const passed = new Map([["en-1-16", row("en-1-16")]]);
+    expect(lessonsToSkip(LEVELS, "en-2-01", passed, UNSKIPPABLE)).toHaveLength(15);
   });
 });

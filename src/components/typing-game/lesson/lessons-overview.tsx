@@ -102,13 +102,15 @@ export function LessonsOverview({ levels, current, units, firstVisit, banglaUnlo
               </>
             );
             return l.ready ? (
-              <div
+              <Link
                 key={l.number}
-                className="flex flex-col rounded-xl px-3 py-2.5 text-sm"
+                href={`${BASE}?level=${l.id}`}
+                aria-current={active ? "page" : undefined}
+                className="flex flex-col rounded-xl px-3 py-2.5 text-sm transition-colors"
                 style={active ? { background: "var(--tap-primary-grad)", color: "var(--tap-ink-on-accent)" } : { background: "var(--tap-surface)" }}
               >
                 {inner}
-              </div>
+              </Link>
             ) : (
               <div key={l.number} className="flex flex-col rounded-xl px-3 py-2.5 text-sm opacity-60" style={{ background: "var(--tap-surface)" }}>
                 {inner}
@@ -164,6 +166,7 @@ export function LessonsOverview({ levels, current, units, firstVisit, banglaUnlo
                       <p className="flex items-center gap-2 font-semibold">
                         {l.title}
                         {l.kind === "assessment" ? <span className="tap-badge tap-badge-warning">1:00</span> : null}
+                        {!l.skippable ? <span className="tap-badge tap-badge-primary">Pass required</span> : null}
                         {l.state === "skipped" ? <span className="tap-badge tap-badge-neutral">Skipped</span> : null}
                       </p>
                       {l.state === "completed" ? (

@@ -9,7 +9,7 @@
 import { NextResponse } from "next/server";
 import { lessonContext, lessonError } from "../../_helper";
 import { lessonsToSkip } from "@/lib/typing-game/curriculum/progress";
-import { BANGLA_GATE_LESSON_ID } from "@/lib/typing-game/curriculum";
+import { UNSKIPPABLE, findLesson, levelsFor } from "@/lib/typing-game/curriculum";
 import { adViewsRequired } from "@/lib/typing-game/ads/gate";
 
 export async function POST(req: Request, { params }: { params: Promise<{ lessonId: string }> }): Promise<Response> {
@@ -24,7 +24,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ lessonI
     mode = undefined;
   }
   if (mode !== "unlock" && mode !== "skip") return NextResponse.json({ error: "BAD_INPUT" }, { status: 400 });
-  if (mode === "skip" && ctx.lesson.id === BANGLA_GATE_LESSON_ID) {
+  if (mode === "skip" && UNSKIPPABLE.has(ctx.lesson.id)) {
     return NextResponse.json({ error: "NOT_SKIPPABLE" }, { status: 409 });
   }
 
@@ -36,9 +36,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ lessonI
 
   try {
     const progress = await ctx.store.listProgress(ctx.session.userId);
-    const ids = lessonsToSkip(ctx.level, ctx.lesson.id, progress);
+    const ids = lessonsToSkip(levelsFor(ctx.level.mode), ctx.lesson.id, progress, UNSKIPPABLE);
+    if (ids === null) {
+      // An unpassed Final Assessment sits in between — it must be passed, not skipped.
+      return NextResponse.json({ error: "GATE_NOT_PASSED" }, { status: 409 });
+    }
     if (mode === "skip" && !progress.has(ctx.lesson.id)) ids.push(ctx.lesson.id);
-    const skipped = await ctx.store.skip(ids, ctx.level.id);
+    // Each row is stored under its own level.
+    const byLevel = new Map<string, string[]>();
+    for (const id of ids) {
+      const levelId = findLesson(id)?.level.id ?? ctx.level.id;
+      byLevel.set(levelId, [...(byLevel.get(levelId) ?? []), id]);
+    }
+    let skipped = 0;
+    for (const [levelId, levelIds] of byLevel) skipped += await ctx.store.skip(levelIds, levelId);
     return NextResponse.json({ skipped });
   } catch (e) {
     return lessonError(e);

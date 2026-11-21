@@ -16,18 +16,18 @@ const LEFT: FingerShape[] = [
 const PALM_TOP = 110;
 const FW = 34;
 
-function Hand({ side, active }: { side: "left" | "right"; active: FingerId | null }) {
+function Hand({ side, active }: { side: "left" | "right"; active: FingerId[] }) {
   const fingers = side === "left" ? LEFT : LEFT.map((f) => ({ ...f, id: f.id.replace("l-", "r-") as FingerId, x: 600 - f.x }));
   const palmX = side === "left" ? 52 : 600 - 52 - 168;
   const thumbX = side === "left" ? 236 : 600 - 236;
   const thumbRot = side === "left" ? -38 : 38;
-  const thumbOn = active === "thumb";
+  const thumbOn = active.includes("thumb");
   const skin = "var(--tap-surface-solid)";
   const line = "var(--tap-border-strong)";
   return (
     <g>
       {fingers.map((f) => {
-        const on = active === f.id;
+        const on = active.includes(f.id);
         const color = FINGERS[f.id].color;
         return (
           <g key={f.id}>
@@ -61,12 +61,12 @@ function Hand({ side, active }: { side: "left" | "right"; active: FingerId | nul
   );
 }
 
-/** Two schematic hands; the finger that types the next key is filled with its colour. */
-export function Hands({ finger, className }: { finger: FingerId | null; className?: string }) {
+/** Two schematic hands; the fingers for the next key (and its Shift) are filled with their colour. */
+export function Hands({ fingers, className }: { fingers: FingerId[]; className?: string }) {
   return (
     <svg viewBox="0 0 600 210" className={className ?? "w-full"} aria-hidden="true">
-      <Hand side="left" active={finger} />
-      <Hand side="right" active={finger} />
+      <Hand side="left" active={fingers} />
+      <Hand side="right" active={fingers} />
     </svg>
   );
 }

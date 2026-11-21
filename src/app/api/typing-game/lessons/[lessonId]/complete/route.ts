@@ -9,7 +9,7 @@ import { lessonContext, lessonError } from "../../_helper";
 import { lessonStates, evaluateLessonResult, type LessonResultInput } from "@/lib/typing-game/curriculum/progress";
 import { buildScreens, lessonCharCount } from "@/lib/typing-game/curriculum/generate";
 import { englishWordBank } from "@/lib/typing-game/curriculum/word-bank";
-import { BANGLA_GATE_LESSON_ID, nextLesson } from "@/lib/typing-game/curriculum";
+import { BANGLA_GATE_LESSON_ID, levelsFor, nextLesson } from "@/lib/typing-game/curriculum";
 
 /** Clock drift allowance for timed screens. */
 const TIMED_SLACK_MS = 1500;
@@ -28,7 +28,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ lessonI
 
   try {
     const progress = await ctx.store.listProgress(ctx.session.userId);
-    if (lessonStates(ctx.level, progress).get(ctx.lesson.id) === "locked") {
+    if (lessonStates(levelsFor(ctx.level.mode), progress).get(ctx.lesson.id) === "locked") {
       return NextResponse.json({ error: "LOCKED" }, { status: 409 });
     }
     const screens = buildScreens(ctx.lesson, englishWordBank());

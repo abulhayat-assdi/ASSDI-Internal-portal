@@ -4,7 +4,7 @@ import { DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { studentContext } from "@/lib/typing-game/server/student-pages";
 import { userDbClient } from "@/lib/typing-game/server/auth";
 import { createLessonStore } from "@/lib/typing-game/server/lesson-store";
-import { BANGLA_GATE_LESSON_ID, levelsFor } from "@/lib/typing-game/curriculum";
+import { UNSKIPPABLE, levelsFor } from "@/lib/typing-game/curriculum";
 import { lessonStates, levelPercent } from "@/lib/typing-game/curriculum/progress";
 import { banglaUnlockedBy } from "@/lib/typing-game/practice/modes";
 
@@ -18,15 +18,16 @@ const ENGLISH_PLAN = [
   "Professional Typing",
 ];
 
-export default async function LessonsPage() {
+export default async function LessonsPage({ searchParams }: { searchParams: Promise<{ level?: string }> }) {
+  const { level: wanted } = await searchParams;
   const { session } = await studentContext(DEFAULT_LOCALE);
   const client = await userDbClient();
   if (!client) throw new Error("SERVICE_UNAVAILABLE");
   const progress = await createLessonStore(client).listProgress(session.userId);
 
   const built = levelsFor("en");
-  const level = built[0];
-  const states = lessonStates(level, progress);
+  const level = built.find((l) => l.id === wanted) ?? built[0];
+  const states = lessonStates(built, progress);
 
   const levels: OverviewLevel[] = ENGLISH_PLAN.map((title, i) => {
     const def = built.find((l) => l.number === i + 1);
@@ -55,7 +56,7 @@ export default async function LessonsPage() {
         bestWpm: row?.bestWpm ?? 0,
         bestAccuracy: row?.bestAccuracy ?? 0,
         bestTimeMs: row?.bestTimeMs ?? null,
-        skippable: l.id !== BANGLA_GATE_LESSON_ID,
+        skippable: !UNSKIPPABLE.has(l.id),
       };
     }),
   }));
@@ -68,7 +69,7 @@ export default async function LessonsPage() {
       />
       <LessonsOverview
         levels={levels}
-        current={levels[0]}
+        current={levels[level.number - 1]}
         units={units}
         firstVisit={progress.size === 0}
         banglaUnlocked={banglaUnlockedBy(progress)}
