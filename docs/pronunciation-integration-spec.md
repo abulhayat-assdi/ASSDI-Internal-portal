@@ -90,8 +90,8 @@ same value on both sides). Claims:
 |---|---|
 | `iss` | `"asm-portal"` |
 | `aud` | `"pronunciation"` |
-| `sub` | portal user id (UUID) |
-| `course_id` | portal course id (UUID). The same person in two courses means two separate accounts, as in the portal. |
+| `sub` | portal user id (opaque text id, `[A-Za-z0-9_-]{1,64}`) |
+| `course_id` | portal course id (opaque text id — cuid or UUID, `[A-Za-z0-9_-]{1,64}`). The same person in two courses means two separate accounts, as in the portal. |
 | `role` | `"trainee"`, `"trainer"` or `"admin"` |
 | `name` | display name |
 | `email` | portal login email |
@@ -132,7 +132,7 @@ The portal sends `trainer`/`admin` only to staff it has given the Pronunciation 
 
 ### Schema additions
 
-- On `users` and on the staff/trainer table: `portal_user_id uuid`, `course_id uuid`, and
+- On `users` and on the staff/trainer table: `portal_user_id text`, `course_id text`, and
   `UNIQUE (portal_user_id, course_id)`.
 - `sso_used_jti (jti text primary key, expires_at timestamptz)`.
 
