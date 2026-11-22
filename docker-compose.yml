@@ -55,6 +55,9 @@ services:
       APP_DB_PASSWORD: ${APP_DB_PASSWORD:?APP_DB_PASSWORD must be set}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
       CUSTOMER_SERVICE_DATABASE_URL: ${CUSTOMER_SERVICE_DATABASE_URL:-}
+      # Shared with the Bangla Pronunciation app (its PORTAL_SSO_SECRET). Optional:
+      # without it the menu item shows a "can't open right now" page.
+      PRONUNCIATION_SSO_SECRET: ${PRONUNCIATION_SSO_SECRET:-}
       SETUP_SECRET: ${SETUP_SECRET:-}
       SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL:-}
       SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD:-}
