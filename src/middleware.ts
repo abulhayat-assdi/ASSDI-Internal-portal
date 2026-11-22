@@ -11,6 +11,7 @@ export const runtime = 'nodejs';
 const PUBLIC_API_ROUTES = [
     '/api/incubation/public/',
     '/api/live-chat/public/',
+    '/api/pronunciation/launch', // checks the session itself; signed-out browsers go to the login page
     '/live-chat/',
     '/api/health',
     // Android app location batches: authenticated by a per-track bearer token,
