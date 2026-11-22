@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CheckCircle2, Gauge, Lock, Sparkles, Trophy } from "lucide-react";
 import { Badge, Card, CardContent, LockedGameCard, cx } from "@/components/typing-game/ui";
@@ -33,9 +34,17 @@ export default async function GameDetailPage(
         : t("difficultyExpert");
 
   return (
-    <div className="flex max-w-2xl flex-col gap-6">
-      <div data-visual={visual}>
-        <div className={cx("tap-hero-banner", !game.unlocked && "tap-hero-banner-locked")}>
+    <div className="flex flex-col gap-4">
+      <Link href="/student-dashboard/typing-game/games" className="tap-link-btn w-fit text-sm">
+        ← সব গেম
+      </Link>
+      {/* Wide screens: the game's banner on the left, playing it on the right. */}
+      <div className="grid items-stretch gap-6 lg:grid-cols-[1.6fr_1fr]" style={{ minHeight: "calc(100dvh - 15rem)" }}>
+      <div data-visual={visual} className="flex">
+        <div
+          className={cx("tap-hero-banner flex w-full flex-col justify-center", !game.unlocked && "tap-hero-banner-locked")}
+          style={{ minHeight: "16rem" }}
+        >
           <p className="tap-hero-eyebrow">
             {game.unlocked ? <Sparkles className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
             {game.mode} · {game.category}
@@ -94,10 +103,10 @@ export default async function GameDetailPage(
           }
         />
       ) : (
-        <Card>
-          <CardContent>
-            <div className="flex flex-col items-center gap-3 py-2 text-center">
-              <Gauge className="h-8 w-8 text-primary-500" aria-hidden="true" />
+        <Card className="flex h-full flex-col">
+          <CardContent className="flex flex-1 flex-col justify-between gap-6">
+            <div className="flex flex-col items-center gap-3 py-4 text-center">
+              <Gauge className="h-10 w-10 text-primary-500" aria-hidden="true" />
               <PlayButton
                 gameSlug={game.slug}
                 locale={locale}
@@ -108,9 +117,33 @@ export default async function GameDetailPage(
                 }}
               />
             </div>
+            <dl className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <dt className="text-ink-faint">Level</dt>
+                <dd className="font-semibold">{diffLabel(game.difficulty)}</dd>
+              </div>
+              <div>
+                <dt className="text-ink-faint">Mode</dt>
+                <dd className="font-semibold capitalize">{game.mode}</dd>
+              </div>
+              <div>
+                <dt className="text-ink-faint">Type</dt>
+                <dd className="font-semibold capitalize">{game.category}</dd>
+              </div>
+              <div>
+                <dt className="text-ink-faint">Best score</dt>
+                <dd className="font-semibold tabular-nums">{game.bestScore ?? "—"}</dd>
+              </div>
+            </dl>
+            <ul className="flex flex-col gap-1.5 rounded-xl p-3 text-sm text-ink-muted" style={{ background: "var(--tap-surface)" }}>
+              <li>• আঙুল হোম রো-তে (ASDF / JKL;) রেখে শুরু করুন</li>
+              <li>• আগে নির্ভুলতা, তারপর গতি</li>
+              <li>• খেলা শেষে XP পাবেন — সেরা স্কোর ভাঙার চেষ্টা করুন</li>
+            </ul>
           </CardContent>
         </Card>
       )}
+      </div>
     </div>
   );
 }

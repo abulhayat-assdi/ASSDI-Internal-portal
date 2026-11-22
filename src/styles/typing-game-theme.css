@@ -541,6 +541,11 @@ html[data-theme="dark"] .tap-scope .tap-badge-danger { color: #fda4af; }
 .tap-scope .tap-hud-actions .tap-btn-secondary:hover { background: rgba(255, 255, 255, 0.32); }
 .tap-scope .tap-hud-actions .tap-btn-ghost { color: rgba(255, 255, 255, 0.85); }
 .tap-scope .tap-hud-stage { padding: 1.75rem 1.25rem; display: flex; justify-content: center; }
+/* Fill mode: the game fills the window — the stage takes the remaining
+   height and the typing box grows to use it. */
+.tap-scope .tap-hud.tap-hud-fill { display: flex; flex-direction: column; }
+.tap-scope .tap-hud-fill .tap-hud-stage { flex: 1 1 auto; min-height: 0; align-items: stretch; }
+.tap-scope .tap-preview.tap-preview-fill { max-width: none; flex: 1 1 auto; min-height: 9rem; }
 
 .tap-scope .tap-preview {
   position: relative;

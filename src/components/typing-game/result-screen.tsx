@@ -136,7 +136,9 @@ export function ResultScreen({
       variants={reduceMotion ? undefined : containerVariants}
       initial={reduceMotion ? undefined : "hidden"}
       animate={reduceMotion ? undefined : "show"}
-      className="mx-auto flex w-full max-w-2xl flex-col gap-5"
+      className="mx-auto flex w-full max-w-3xl flex-col justify-center gap-5"
+      // Centred in the window below the header instead of hugging the top.
+      style={{ minHeight: "calc(100dvh - 15rem)" }}
     >
       <motion.div
         variants={reduceMotion ? undefined : itemVariants}

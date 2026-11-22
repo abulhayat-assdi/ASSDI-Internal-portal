@@ -15,6 +15,7 @@
  */
 import type { PostgrestClient } from "@supabase/postgrest-js";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { getServerSessionUser } from "@/lib/auth";
 import { COOKIES } from "@/lib/constants";
 import { typingGameClient } from "@/lib/typing-game/postgrest-client";
@@ -49,6 +50,18 @@ export async function getSession(): Promise<Session | null> {
   }
   if (!user) return null;
   return { userId: user.id, email: user.email ?? null };
+}
+
+/**
+ * What a page does when getSession() came back empty. With no session
+ * cookie the student really is signed out: send them to the student login.
+ * With a cookie the check itself failed (database busy) — throw instead,
+ * so the typing error page offers "try again" on the SAME page rather than
+ * bouncing the student to the portal dashboard via the login redirect.
+ */
+export async function handleMissingSession(): Promise<never> {
+  if (await hasSessionCookie()) throw new Error("SESSION_CHECK_FAILED");
+  redirect("/student-login");
 }
 
 async function hasSessionCookie(): Promise<boolean> {
