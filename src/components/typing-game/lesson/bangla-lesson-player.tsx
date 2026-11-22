@@ -310,7 +310,7 @@ export function BanglaLessonPlayer({ lessonId, lessonTitle, levelTitle, screens 
                 {text}
               </p>
             ) : null}
-            <TypingField examText={text} typedText={typed} onChange={onChange} disabled={false} />
+            <TypingField examText={text} typedText={typed} onChange={onChange} disabled={false} wide fontSize="clamp(1.6rem, 0.9rem + 1.6vw, 2.8rem)" />
             {hint ? (
               <div className="flex flex-wrap items-center justify-center gap-3 rounded-xl px-4 py-3" style={{ background: "var(--tap-primary-50)" }}>
                 <span className="text-sm text-ink-muted">পরের অক্ষর</span>

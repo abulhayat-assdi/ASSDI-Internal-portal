@@ -23,6 +23,7 @@ import {
   type PracticeMode,
 } from "./practice-config";
 import { WpmChart } from "./wpm-chart";
+import { useFitHeight } from "@/components/typing-game/lesson/use-fit-height";
 
 export interface PracticeCategoryOption {
   value: string;
@@ -137,6 +138,8 @@ export function PracticeTyper({ categories, articles, banglaUnlocked }: Props) {
   const engineRef = useRef<TypingExamEngine | null>(null);
   const samplesRef = useRef<number[]>([]);
   const finishedRef = useRef(false);
+  // Settings bar + typing card fill the window below the header.
+  const { ref: fitRef, height: fitHeight } = useFitHeight<HTMLDivElement>(44, 460);
 
   // Restore the last settings once on the client (never during SSR).
   useEffect(() => {
@@ -306,7 +309,7 @@ export function PracticeTyper({ categories, articles, banglaUnlocked }: Props) {
   );
 
   return (
-    <div className="flex flex-col gap-4">
+    <div ref={fitRef} className="flex flex-col gap-4" style={fitHeight ? { minHeight: fitHeight } : undefined}>
       {/* Settings bar */}
       <div className="tap-card flex flex-col gap-3 p-3 sm:p-4">
         <div className="flex flex-wrap items-center gap-2">
@@ -507,7 +510,7 @@ export function PracticeTyper({ categories, articles, banglaUnlocked }: Props) {
           </button>
         </div>
       ) : phase === "done" && result ? (
-        <div className="tap-card flex flex-col gap-4 p-5 sm:p-6">
+        <div className="tap-card flex flex-1 flex-col justify-center gap-4 p-5 sm:p-8">
           <div className="flex flex-wrap items-end gap-6">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-ink-faint">wpm</p>
@@ -556,7 +559,7 @@ export function PracticeTyper({ categories, articles, banglaUnlocked }: Props) {
           </div>
         </div>
       ) : (
-        <div className="tap-card flex flex-col gap-4 p-4 sm:p-6">
+        <div className="tap-card flex flex-1 flex-col justify-center gap-6 p-4 sm:p-8">
           <div className="flex items-end justify-between gap-4">
             <div className="flex items-end gap-5">
               <span className="font-display text-4xl font-bold tabular-nums leading-none" style={{ color: "var(--tap-primary-600)" }}>
@@ -585,7 +588,7 @@ export function PracticeTyper({ categories, articles, banglaUnlocked }: Props) {
           {phase === "loading" ? (
             <div className="tap-skeleton h-32 rounded-xl" />
           ) : (
-            <TypingField examText={text} typedText={typed} onChange={onType} disabled={false} />
+            <TypingField examText={text} typedText={typed} onChange={onType} disabled={false} wide fontSize="clamp(1.3rem, 0.7rem + 1.4vw, 2.4rem)" />
           )}
           <p className="text-center text-xs text-ink-faint">
             {phase === "ready" ? "প্রথম অক্ষর টাইপ করলেই সময় শুরু হবে · " : ""}Esc = আবার শুরু

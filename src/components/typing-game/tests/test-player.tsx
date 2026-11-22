@@ -127,5 +127,5 @@ export function TestPlayer({ testId, lang, title }: { testId: string; lang: "en"
 
   if (!run) return <div className="tap-skeleton mx-auto h-48 max-w-xl rounded-2xl" />;
 
-  return <ExamRunner key={run.sessionId} examText={run.text} durationSeconds={run.seconds} onSubmit={submit} submitting={submitting} />;
+  return <ExamRunner key={run.sessionId} examText={run.text} durationSeconds={run.seconds} onSubmit={submit} submitting={submitting} embedded />;
 }

@@ -103,6 +103,9 @@ export default async function DashboardPage({
         <WelcomeBanner locale={locale} gameHref={recommendedHref} />
       ) : null}
 
+      {/* Wide screens: progress on the left, missions and activity on the right. */}
+      <div className="grid items-start gap-6 xl:grid-cols-3">
+      <div className="flex min-w-0 flex-col gap-6 xl:col-span-2">
       {goal ? <DailyGoalCard goalMinutes={goal.goalMinutes} todayMs={goal.todayMs} week={goal.week} /> : null}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -166,12 +169,14 @@ export default async function DashboardPage({
         </CardContent>
       </Card>
 
-      <MissionWidgets locale={locale} missions={activeCustomMissions} />
-
       <RecommendedNext
         locale={locale}
         recommendation={adaptiveSummary?.recommendations[0] ?? null}
       />
+      </div>
+
+      <div className="flex min-w-0 flex-col gap-6">
+      <MissionWidgets locale={locale} missions={activeCustomMissions} />
 
       {data.latestBadge ? (        <Card>
           <CardContent>
@@ -220,6 +225,8 @@ export default async function DashboardPage({
           )}
         </CardContent>
       </Card>
+      </div>
+      </div>
     </div>
   );
 }

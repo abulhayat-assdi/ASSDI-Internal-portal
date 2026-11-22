@@ -71,7 +71,7 @@ export default async function StudentLayout({
   }
   return (
     <AdsProvider slots={slots}>
-    <div className="tap-scope min-h-[calc(100dvh-8rem)] bg-canvas">
+    <div className="tap-scope bg-canvas" style={{ minHeight: "calc(100dvh - 7rem)" }}>
       <div className="tap-ambient" aria-hidden="true">
         <span />
         <span />

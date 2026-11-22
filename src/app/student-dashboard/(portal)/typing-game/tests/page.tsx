@@ -49,7 +49,8 @@ export default async function TestsPage({ searchParams }: { searchParams: Promis
         )}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid items-start gap-6 xl:grid-cols-[1fr_440px]">
+      <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
         {TYPING_TESTS.map((t) => {
           const Icon = ICON[t.kind];
           const b = best.get(t.id);
@@ -106,6 +107,7 @@ export default async function TestsPage({ searchParams }: { searchParams: Promis
           </div>
         )}
       </section>
+      </div>
     </div>
   );
 }

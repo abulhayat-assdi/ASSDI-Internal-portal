@@ -8,6 +8,10 @@ export interface TypingFieldProps {
   typedText: string;
   onChange: (value: string) => void;
   disabled?: boolean;
+  /** Text size (CSS). Defaults to the exam size. */
+  fontSize?: string;
+  /** Let the passage use the full width of its container. */
+  wide?: boolean;
 }
 
 /** Lines visible at once. The line being typed is always the top one. */
@@ -74,7 +78,7 @@ interface CaretPos {
  * Words wrap with the browser's own layout (no character-count guessing),
  * so it adapts to any width, zoom and font.
  */
-export default function TypingField({ examText, typedText, onChange, disabled }: TypingFieldProps) {
+export default function TypingField({ examText, typedText, onChange, disabled, fontSize, wide }: TypingFieldProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const wordsRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -216,7 +220,7 @@ export default function TypingField({ examText, typedText, onChange, disabled }:
     <div
       ref={rootRef}
       onClick={focusInput}
-      className="relative mx-auto w-full max-w-5xl cursor-text select-none px-1 sm:px-4"
+      className={`relative mx-auto w-full ${wide ? "" : "max-w-5xl"} cursor-text select-none px-1 sm:px-4`}
     >
       {/* Visually-hidden-but-focusable input captures all keystrokes.
           Deliberately NOT display:none/visibility:hidden — those break
@@ -248,7 +252,7 @@ export default function TypingField({ examText, typedText, onChange, disabled }:
           showFocusHint ? "opacity-40 blur-[3px]" : ""
         }`}
         style={{
-          fontSize: "clamp(1.2rem, 0.9rem + 1.1vw, 1.9rem)",
+          fontSize: fontSize ?? "clamp(1.2rem, 0.9rem + 1.1vw, 1.9rem)",
           lineHeight,
           height: `calc(${VISIBLE_LINES} * ${lineHeight})`,
         }}

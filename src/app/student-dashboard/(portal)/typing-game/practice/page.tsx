@@ -77,13 +77,14 @@ export default async function PracticePage({}: {}) {
         title="Typing Practice"
         description="সময় বা আর্টিকেল বেছে সরাসরি টাইপ করুন — Beginner থেকে Expert পর্যন্ত।"
       />
-      <div className="flex gap-6">
+      {/* Wide screens: typing on the left, personal practice in a side column. */}
+      <div className="flex flex-col gap-6 xl:flex-row">
         <AdSlot slot="practice_left" className="hidden lg:flex" />
         <div className="min-w-0 flex-1">
           <PracticeTyper categories={categories} articles={articles} banglaUnlocked={banglaUnlocked} />
         </div>
-      </div>
 
+      <aside className="flex shrink-0 flex-col gap-4 xl:w-80 2xl:w-96">
       <SectionHeader title={t("practiceTitle")} description={t("practiceSubtitle")} />
       {recommendations.length === 0 ? (
         <EmptyState
@@ -119,6 +120,8 @@ export default async function PracticePage({}: {}) {
           {t("band")}: {summary?.band ?? ""}
         </div>
       ) : null}
+      </aside>
+      </div>
     </div>
   );
 }

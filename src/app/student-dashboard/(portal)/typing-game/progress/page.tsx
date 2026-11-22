@@ -59,6 +59,8 @@ export default async function ProgressPage({}: {}) {
         />
       </div>
 
+      {/* Wide screens: cards flow into two balanced columns. */}
+      <div className="gap-6 xl:columns-2 [&>*]:mb-6 [&>*]:break-inside-avoid">
       {data.perWorld.length > 0 ? (
         <Card>
           <CardContent>
@@ -147,6 +149,7 @@ export default async function ProgressPage({}: {}) {
           )}
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }

@@ -14,7 +14,9 @@
  * here keeps working unchanged — only the internals are rebased.
  */
 import type { PostgrestClient } from "@supabase/postgrest-js";
+import { cookies } from "next/headers";
 import { getServerSessionUser } from "@/lib/auth";
+import { COOKIES } from "@/lib/constants";
 import { typingGameClient } from "@/lib/typing-game/postgrest-client";
 
 export interface Session {
@@ -36,9 +38,25 @@ export async function userDbClient(): Promise<PostgrestClient | null> {
 }
 
 export async function getSession(): Promise<Session | null> {
-  const user = await getServerSessionUser();
+  let user = await getServerSessionUser();
+  // getServerSessionUser also answers null when the database is briefly
+  // busy (its user lookup fails). With a session cookie present that is
+  // almost always transient — try once more before treating the student
+  // as signed out, instead of bouncing them out of the page they are on.
+  if (!user && (await hasSessionCookie())) {
+    await new Promise((r) => setTimeout(r, 300));
+    user = await getServerSessionUser();
+  }
   if (!user) return null;
   return { userId: user.id, email: user.email ?? null };
+}
+
+async function hasSessionCookie(): Promise<boolean> {
+  try {
+    return Boolean((await cookies()).get(COOKIES.SESSION)?.value);
+  } catch {
+    return false;
+  }
 }
 
 /** JSON 401 envelope for API routes (pages use login redirects instead). */

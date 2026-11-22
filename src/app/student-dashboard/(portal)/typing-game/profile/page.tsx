@@ -49,6 +49,7 @@ export default async function ProfilePage({}: {}) {
             <div>
               <p className="text-lg font-bold">
                 {t("level")} {p.level}
+                {levelRow?.titleEn ? <span className="ml-2 text-base font-semibold text-ink-muted">· {levelRow.titleEn}</span> : null}
               </p>
               <p className="text-sm text-ink-muted">
                 {t("totalXp")}: {p.xpTotal} · {t("coins")}: {p.coins}
@@ -69,7 +70,7 @@ export default async function ProfilePage({}: {}) {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <StatCard
           label={t("currentStreak")}
           value={p.streak.current}
@@ -103,6 +104,7 @@ export default async function ProfilePage({}: {}) {
         />
       </div>
 
+      <div className="gap-6 xl:columns-2 [&>*]:mb-6 [&>*]:break-inside-avoid">
       <Card>
         <CardContent>
           <SectionHeader title={t("badges")} />
@@ -152,6 +154,7 @@ export default async function ProfilePage({}: {}) {
           )}
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }

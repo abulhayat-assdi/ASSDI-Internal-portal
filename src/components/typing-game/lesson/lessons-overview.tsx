@@ -107,7 +107,7 @@ export function LessonsOverview({ levels, current, units, firstVisit, banglaUnlo
         />
       ) : null}
 
-      <div className="grid gap-5 md:grid-cols-[230px_1fr]">
+      <div className="grid gap-6 md:grid-cols-[250px_1fr] xl:grid-cols-[280px_1fr]">
         {/* Levels */}
         <aside className="flex flex-col gap-2">
           <div className="tap-tablist mb-1" role="tablist" aria-label="Mode">
@@ -184,6 +184,7 @@ export function LessonsOverview({ levels, current, units, firstVisit, banglaUnlo
           {units.map((u) => (
             <div key={u.id} className="flex flex-col gap-2">
               <h3 className="px-1 font-display text-base font-bold">{u.title}</h3>
+              <div className="grid gap-2 xl:grid-cols-2">
               {u.lessons.map((l) => {
                 const open = l.state !== "locked";
                 return (
@@ -234,6 +235,7 @@ export function LessonsOverview({ levels, current, units, firstVisit, banglaUnlo
                   </div>
                 );
               })}
+              </div>
             </div>
           ))}
         </section>
