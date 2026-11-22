@@ -61,9 +61,7 @@ export default async function DashboardPage({
     );
   }
 
-  const recommendedHref = data.recommended
-    ? `/student-dashboard/typing-game/games/${data.recommended.slug}`
-    : `/student-dashboard/typing-game/games`;
+  const recommendedHref = "/student-dashboard/typing-game/games/meteor-shield";
   const goal = missionClient ? await createActivityStore(missionClient).state(session.userId) : null;
   // "Continue" goes to the first open English lesson not yet done.
   let nextLessonHref = "/student-dashboard/typing-game/lessons";

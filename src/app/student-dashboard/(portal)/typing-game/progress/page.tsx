@@ -7,6 +7,8 @@ import { getProgressData } from "@/lib/typing-game/server/student";
 import { userDbClient } from "@/lib/typing-game/server/auth";
 import { loadProgressOverview, type ActivityItem, type LevelSummary } from "@/lib/typing-game/server/progress-overview";
 import { MinutesChart, SpeedChart } from "@/components/typing-game/progress/progress-charts";
+import { createArcadeStore } from "@/lib/typing-game/server/arcade-store";
+import { ARCADE_GAMES } from "@/lib/typing-game/arcade/catalog";
 
 const LESSONS = "/student-dashboard/typing-game/lessons";
 
@@ -21,26 +23,6 @@ function fmtWhen(iso: string): string {
   if (Number.isNaN(d.getTime())) return "";
   return d.toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Dhaka" });
 }
-
-/** Game records grouped per game: one row each, the common metrics as columns. */
-interface GameRow {
-  slug: string;
-  score: number | null;
-  wpm: number | null;
-  accuracy: number | null;
-}
-function groupRecords(records: { gameSlug: string; metric: string; value: number }[]): GameRow[] {
-  const by = new Map<string, GameRow>();
-  for (const r of records) {
-    const row = by.get(r.gameSlug) ?? { slug: r.gameSlug, score: null, wpm: null, accuracy: null };
-    if (r.metric === "best_score") row.score = r.value;
-    else if (r.metric === "best_wpm") row.wpm = r.value;
-    else if (r.metric === "best_accuracy") row.accuracy = r.value;
-    by.set(r.gameSlug, row);
-  }
-  return [...by.values()].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
-}
-const cell = (v: number | null, unit = "") => (v === null ? "—" : `${Math.round(v)}${unit}`);
 
 const KIND_ICON: Record<ActivityItem["kind"], typeof Star> = {
   lesson: GraduationCap,
@@ -105,7 +87,11 @@ export default async function ProgressPage() {
   const { session, store } = await studentContext(locale);
   const client = await userDbClient();
   if (!client) throw new Error("SERVICE_UNAVAILABLE");
-  const [o, games] = await Promise.all([loadProgressOverview(client, session.userId), getProgressData(session.userId, store)]);
+  const [o, games, arcade] = await Promise.all([
+    loadProgressOverview(client, session.userId),
+    getProgressData(session.userId, store),
+    createArcadeStore(client).overview(session.userId),
+  ]);
 
   if (!games) {
     return (
@@ -124,7 +110,7 @@ export default async function ProgressPage() {
   const bnStarted = bnLevels.some((l) => l.completed + l.skipped > 0);
   const bestSpeed = o.bestTest ? Math.round(o.bestTest.wpm) : Math.round(o.lessons.bestWpm);
   const weekMinutes = o.days.slice(-7).reduce((n, d) => n + d.minutes, 0);
-  const gameRows = groupRecords(games.records);
+  const gameRows = ARCADE_GAMES.map((g) => ({ info: g, state: arcade.games.get(g.slug) })).filter((r) => r.state?.unlocked);
 
   return (
     <div className="flex flex-col gap-6">
@@ -246,7 +232,7 @@ export default async function ProgressPage() {
         {/* Games */}
         <Card>
           <CardContent>
-            <SectionHeader title="গেমে সেরা রেকর্ড" description="প্রতিটা গেমে আপনার সেরা ফল।" />
+            <SectionHeader title="গেমে সেরা রেকর্ড" description={`প্রতিটা খোলা গেমে আপনার সেরা স্কোর · এখন ${arcade.coins} কয়েন আছে`} />
             {gameRows.length === 0 ? (
               <p className="text-sm text-ink-muted">
                 এখনো কোনো গেম খেলেননি।{" "}
@@ -259,18 +245,22 @@ export default async function ProgressPage() {
                 <thead>
                   <tr>
                     <th className="text-left">গেম</th>
+                    <th className="text-right" style={{ textAlign: "right" }}>খেলেছেন</th>
+                    <th className="text-right" style={{ textAlign: "right" }}>সেরা লেভেল</th>
                     <th className="text-right" style={{ textAlign: "right" }}>সেরা স্কোর</th>
-                    <th className="text-right" style={{ textAlign: "right" }}>সেরা গতি</th>
-                    <th className="text-right" style={{ textAlign: "right" }}>নির্ভুলতা</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {gameRows.map((g) => (
-                    <tr key={g.slug}>
-                      <td className="capitalize">{g.slug.replace(/-/g, " ")}</td>
-                      <td className="text-right font-semibold tabular-nums">{cell(g.score)}</td>
-                      <td className="text-right tabular-nums">{cell(g.wpm, " wpm")}</td>
-                      <td className="text-right tabular-nums">{cell(g.accuracy, "%")}</td>
+                  {gameRows.map(({ info, state }) => (
+                    <tr key={info.slug}>
+                      <td>
+                        <Link href={`/student-dashboard/typing-game/games/${info.slug}`} className="font-semibold hover:underline">
+                          {info.title}
+                        </Link>
+                      </td>
+                      <td className="text-right tabular-nums">{state?.plays ?? 0} বার</td>
+                      <td className="text-right tabular-nums">{state?.bestLevel ?? "—"}</td>
+                      <td className="text-right font-semibold tabular-nums">{state?.best != null ? state.best.toLocaleString("en-US") : "—"}</td>
                     </tr>
                   ))}
                 </tbody>

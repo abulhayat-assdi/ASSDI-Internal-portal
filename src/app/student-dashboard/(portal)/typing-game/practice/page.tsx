@@ -41,30 +41,14 @@ export default async function PracticePage({}: {}) {
     .map((w) => w.target);
   const drill =
     weakKeys.length > 0 ? buildPracticeDrill(weakKeys, contentLists()) : null;
-  const top = recommendations[0] ?? null;
 
+  // Quick actions open the arcade game that trains that skill.
   const actions: { key: string; label: string; game: string | null; icon: LucideIcon }[] = [
-    { key: "need-most", label: t("needMost"), game: top?.gameSlug ?? null, icon: Sparkles },
-    { key: "weak-keys", label: t("weakKeys"), game: top?.gameSlug ?? null, icon: KeyRound },
-    {
-      key: "accuracy",
-      label: t("accuracy"),
-      game:
-        recommendations.find((r) => r.reason === "LOW_ACCURACY")?.gameSlug ??
-        top?.gameSlug ??
-        null,
-      icon: Target,
-    },
-    {
-      key: "speed",
-      label: t("speed"),
-      game:
-        recommendations.find((r) => r.reason === "LOW_WPM")?.gameSlug ??
-        top?.gameSlug ??
-        null,
-      icon: Zap,
-    },
-    { key: "sentences", label: t("sentences"), game: top?.gameSlug ?? null, icon: Type },
+    { key: "need-most", label: t("needMost"), game: "meteor-shield", icon: Sparkles },
+    { key: "weak-keys", label: t("weakKeys"), game: "bubble-burst", icon: KeyRound },
+    { key: "accuracy", label: t("accuracy"), game: "combo-blitz", icon: Target },
+    { key: "speed", label: t("speed"), game: "runner-rush", icon: Zap },
+    { key: "sentences", label: t("sentences"), game: "turbo-racer", icon: Type },
   ];
 
   const categories = { en: practiceCategories("en"), bn: practiceCategories("bn") };

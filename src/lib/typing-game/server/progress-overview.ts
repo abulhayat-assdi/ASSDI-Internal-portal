@@ -8,6 +8,7 @@ import { LEVELS, findLesson } from "@/lib/typing-game/curriculum";
 import { levelLessons } from "@/lib/typing-game/curriculum/progress";
 import { findTest } from "@/lib/typing-game/tests/catalog";
 import { GAMES } from "@/lib/typing-game/content";
+import { findArcadeGame } from "@/lib/typing-game/arcade/catalog";
 import { bdToday } from "./activity-store";
 
 export interface LevelSummary {
@@ -161,6 +162,10 @@ export async function loadProgressOverview(client: PostgrestClient, userId: stri
     if (e.reason === "lesson completed") return { at, kind: "lesson", label: `লেসন সম্পূর্ণ — ${lessonTitle(meta.lesson_id)}`, xp: amount };
     if (e.reason === "lesson star") return { at, kind: "star", label: `${num(meta.star)} নম্বর স্টার — ${lessonTitle(meta.lesson_id)}`, xp: amount };
     if (e.reason === "typing test") return { at, kind: "test", label: "টাইপিং টেস্ট শেষ", xp: amount };
+    if (e.source === "arcade") {
+      const title = findArcadeGame(String(meta.game))?.title ?? String(meta.game ?? "গেম");
+      return { at, kind: "game", label: `গেম খেলা — ${title} (স্কোর ${num(meta.score).toLocaleString("en-US")})${meta.personal_best === true ? " · নতুন সেরা!" : ""}`, xp: amount };
+    }
     if (e.source === "attempt") {
       return { at, kind: "game", label: `গেম খেলা — ${gameTitle(meta.game_id)}${meta.personal_best === true ? " (নতুন সেরা!)" : ""}`, xp: amount };
     }

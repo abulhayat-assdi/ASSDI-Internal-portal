@@ -1,11 +1,12 @@
 /** Ad settings shape and the pure rules on top of it (shared by server, admin UI and tests). */
 
-export type AdAction = "lesson_skip" | "lesson_continue_after_fail" | "double_xp" | "streak_restore";
+export type AdAction = "lesson_skip" | "lesson_continue_after_fail" | "double_xp" | "streak_restore" | "game_unlock";
 export const AD_ACTIONS: { key: AdAction; label: string }[] = [
   { key: "lesson_skip", label: "লেসন / লেভেল Skip বা Unlock" },
   { key: "lesson_continue_after_fail", label: "পরীক্ষায় ফেল করার পর এগোনো" },
   { key: "double_xp", label: "2× XP" },
   { key: "streak_restore", label: "ভাঙা স্ট্রিক ফেরানো" },
+  { key: "game_unlock", label: "গেম আনলক (কয়েনের বদলে)" },
 ];
 
 /** Where display ads may appear. */
@@ -39,7 +40,7 @@ export const ADS_OFF: AdSettings = {
   provider: "mock",
   publisherId: "",
   slots: {},
-  actionViews: { lesson_skip: 2, lesson_continue_after_fail: 1, double_xp: 1, streak_restore: 1 },
+  actionViews: { lesson_skip: 2, lesson_continue_after_fail: 1, double_xp: 1, streak_restore: 1, game_unlock: 2 },
   rewardedDailyLimit: 10,
   minWatchSeconds: 15,
   noFill: "allow",

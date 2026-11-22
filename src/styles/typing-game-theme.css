@@ -1331,3 +1331,172 @@ html[data-theme="dark"] .tap-scope .tap-badge-danger { color: #fda4af; }
   .tap-scope .tap-scene-bar-track { width: 4.2rem; }
   .tap-scope .tap-scene-bar-lg .tap-scene-bar-track { width: 5.5rem; }
 }
+
+/* ---- Typing Arcade (new Games page) ---------------------------------- */
+.arcade-hero {
+  background: radial-gradient(circle at 15% 20%, rgba(236, 72, 153, 0.55), transparent 45%),
+    radial-gradient(circle at 85% 80%, rgba(34, 211, 238, 0.45), transparent 45%),
+    linear-gradient(120deg, #1e1b4b, #6d28d9 55%, #db2777);
+  box-shadow: 0 18px 40px -18px rgba(109, 40, 217, 0.6);
+}
+.arcade-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.5) 1px, transparent 1px);
+  background-size: 26px 26px;
+  opacity: 0.12;
+}
+.arcade-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 1.5rem;
+  background: var(--tap-surface-solid, #fff);
+  border: 1px solid var(--tap-border, rgba(148, 163, 184, 0.3));
+  box-shadow: 0 10px 30px -18px rgba(15, 23, 42, 0.45);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.arcade-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 22px 40px -20px rgba(109, 40, 217, 0.55);
+}
+.arcade-card .arcade-art {
+  transition: transform 0.4s ease, filter 0.3s ease;
+}
+.arcade-card:hover .arcade-art {
+  transform: scale(1.05);
+}
+.arcade-card.is-locked .arcade-art {
+  filter: saturate(0.55) brightness(0.8);
+}
+.arcade-card.is-fresh {
+  animation: arcade-glow 1.4s ease-out 2;
+}
+.arcade-play-btn,
+.arcade-unlock-btn,
+.arcade-ad-btn,
+.arcade-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border-radius: 9999px;
+  font-weight: 800;
+  padding: 0.6rem 1.25rem;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+.arcade-play-btn {
+  width: 100%;
+  justify-content: center;
+  color: #fff;
+  background: linear-gradient(90deg, #059669, #10b981);
+  box-shadow: 0 8px 20px -10px rgba(5, 150, 105, 0.8);
+}
+.arcade-play-btn:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+.arcade-unlock-btn {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  justify-content: center;
+  color: #3b1d00;
+  background: linear-gradient(90deg, #fbbf24, #f59e0b, #fb7185, #f59e0b, #fbbf24);
+  background-size: 300% 100%;
+  animation: arcade-flow 4s linear infinite, arcade-pulse 2.2s ease-in-out infinite;
+  box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7), 0 10px 24px -10px rgba(245, 158, 11, 0.9);
+}
+.arcade-unlock-btn::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -60%;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.75), transparent);
+  transform: skewX(-20deg);
+  animation: arcade-shine 2.6s ease-in-out infinite;
+}
+.arcade-unlock-btn:hover:not(:disabled) {
+  transform: translateY(-2px) scale(1.02);
+}
+.arcade-unlock-btn:disabled {
+  animation: none;
+  filter: grayscale(0.6);
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.arcade-unlock-btn:disabled::after {
+  display: none;
+}
+.arcade-ad-btn {
+  color: #fff;
+  background: linear-gradient(90deg, #6366f1, #8b5cf6);
+  box-shadow: 0 8px 20px -10px rgba(99, 102, 241, 0.9);
+}
+.arcade-ad-btn:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+.arcade-ad-btn:disabled {
+  opacity: 0.6;
+}
+.arcade-cta {
+  color: #1f1300;
+  background: linear-gradient(90deg, #fde047, #f59e0b);
+  box-shadow: 0 10px 30px -10px rgba(250, 204, 21, 0.9);
+  padding: 0.75rem 1.6rem;
+}
+.arcade-cta:hover:not(:disabled) {
+  transform: translateY(-2px) scale(1.03);
+}
+.arcade-unlocked-pop {
+  animation: arcade-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes arcade-flow {
+  to {
+    background-position: 300% 0;
+  }
+}
+@keyframes arcade-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.55), 0 10px 24px -10px rgba(245, 158, 11, 0.9);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(245, 158, 11, 0), 0 10px 24px -10px rgba(245, 158, 11, 0.9);
+  }
+}
+@keyframes arcade-shine {
+  0%, 55% {
+    left: -60%;
+  }
+  100% {
+    left: 130%;
+  }
+}
+@keyframes arcade-pop {
+  from {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@keyframes arcade-glow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.8);
+  }
+  100% {
+    box-shadow: 0 0 0 22px rgba(16, 185, 129, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .arcade-unlock-btn,
+  .arcade-unlock-btn::after,
+  .arcade-card.is-fresh,
+  .arcade-unlocked-pop {
+    animation: none;
+  }
+}
