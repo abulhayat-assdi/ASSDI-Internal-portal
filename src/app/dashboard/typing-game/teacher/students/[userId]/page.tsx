@@ -1,85 +1,30 @@
 import { notFound } from "next/navigation";
-import { Badge, Card, CardContent, EmptyState, PageHeader, SectionHeader, StatCard } from "@/components/typing-game/ui";
-import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
-import { getSession } from "@/lib/typing-game/server/auth";
-import { userDbClient } from "@/lib/typing-game/server/auth";
-import { createSupabaseStaffStore } from "@/lib/typing-game/server/staff-store";
-import { ForbiddenError } from "@/lib/typing-game/server/staff-store";
-import { createSupabaseStudentStore } from "@/lib/typing-game/server/student-store";
-import { getTeacherStudent } from "@/lib/typing-game/server/staff-data";
+import { getSession, userDbClient } from "@/lib/typing-game/server/auth";
+import { loadStaffStudentProgress } from "@/lib/typing-game/server/insights";
+import { ConsoleHero, HeroLink } from "@/components/typing-game/staff/blocks";
+import { StudentProgress } from "@/components/typing-game/staff/student-progress";
 
-export default async function TeacherStudentPage(
-  props: {
-    params: Promise<{ locale: string; userId: string }>;
-  }
-) {
-  const params = await props.params;
-  const locale = DEFAULT_LOCALE;
-  const t = getTranslator(locale, "staff");
+export const dynamic = "force-dynamic";
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** A student of one of my batches: lessons, tests, daily time, games and challenges. */
+export default async function TeacherStudentPage(props: { params: Promise<{ userId: string }> }) {
+  const { userId } = await props.params;
+  if (!UUID.test(userId)) notFound();
   const session = await getSession();
   const client = session ? await userDbClient() : null;
   if (!session || !client) notFound();
-  let data;
-  try {
-    data = await getTeacherStudent(
-      session.userId,
-      params.userId,
-      createSupabaseStaffStore(client),
-      createSupabaseStudentStore(client),
-    );
-  } catch (e) {
-    if (e instanceof ForbiddenError) notFound();
-    throw e;
-  }
+  // The database refuses students outside the teacher's batches.
+  const p = await loadStaffStudentProgress(client, userId);
+  if (!p?.profile) notFound();
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader
-        title={data.detail.fullName}
-        description={data.detail.email}
-      />
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label={t("level")} value={data.detail.level} />
-        <StatCard label={t("xp")} value={data.detail.xpTotal} />
-        <StatCard
-          label={t("averageWpm")}
-          value={Math.round(data.aggregates.avgWpm)}
-        />
-        <StatCard
-          label={t("averageAccuracy")}
-          value={`${String(Math.round(data.aggregates.avgAccuracy))}%`}
-        />
-      </div>
-      <Card>
-        <CardContent>
-          <SectionHeader title={t("records")} />
-          {data.records.length === 0 ? (
-            <EmptyState title={t("records")} description={t("noResults")} />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="tap-table">
-                <thead>
-                  <tr>
-                    <th scope="col">{t("records")}</th>
-                    <th scope="col">{t("xp")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.records.slice(0, 12).map((r) => (
-                    <tr key={`${r.gameSlug}-${r.metric}`}>
-                      <th scope="row">
-                        <span className="font-mono text-xs">{r.gameSlug}</span>{" "}
-                        <Badge tone="neutral">{r.metric}</Badge>
-                      </th>
-                      <td className="font-semibold">{Math.round(r.value)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+    <div className="flex flex-col gap-5">
+      <ConsoleHero tone="teacher" kicker="স্টুডেন্ট" title={p.profile.name} desc={p.profile.email}>
+        <HeroLink href="/dashboard/typing-game/teacher">ড্যাশবোর্ডে ফিরুন</HeroLink>
+      </ConsoleHero>
+      <StudentProgress p={p} />
     </div>
   );
 }

@@ -13,31 +13,51 @@ import {
   Dumbbell,
   GraduationCap,
   Timer,
+  Swords,
 } from "lucide-react";
 import { getTranslator, type Locale } from "@/lib/typing-game/i18n";
+import { FEATURES_DEFAULT, type FeatureMap } from "@/lib/typing-game/features";
+import { LEARN_BASE, STUDENT_BASE } from "@/lib/typing-game/base";
 
 /**
  * Student module nav, in learning order: home, then learn (practice),
  * then play (games, missions), then compare (leaderboard), then "me".
  */
-export function StudentNav({ locale }: { locale: Locale }) {
+export function StudentNav({
+  locale,
+  features = FEATURES_DEFAULT,
+  competeBadge = 0,
+  staff = false,
+}: {
+  locale: Locale;
+  features?: FeatureMap;
+  /** Invitations / turns waiting for this student. */
+  competeBadge?: number;
+  /** A teacher/admin practising for themselves: no missions, competition, leaderboard or student profile. */
+  staff?: boolean;
+}) {
+  const base = staff ? LEARN_BASE : STUDENT_BASE;
   const pathname = usePathname();
   const t = getTranslator(locale, "nav");
-  const items = [
-    { href: `/student-dashboard/typing-game/dashboard`, label: t("dashboard"), icon: LayoutDashboard },
-    { href: `/student-dashboard/typing-game/lessons`, label: t("lessons"), icon: GraduationCap },
-    { href: `/student-dashboard/typing-game/practice`, label: t("practice"), icon: Dumbbell },
-    { href: `/student-dashboard/typing-game/tests`, label: t("tests"), icon: Timer },
-    { href: `/student-dashboard/typing-game/games`, label: t("games"), icon: Gamepad2 },
-    { href: `/student-dashboard/typing-game/missions`, label: t("missions"), icon: Target },
-    { href: `/student-dashboard/typing-game/leaderboard`, label: t("leaderboard"), icon: BarChart3 },
-    { href: `/student-dashboard/typing-game/progress`, label: t("progress"), icon: LineChart },
-    { href: `/student-dashboard/typing-game/profile`, label: t("profile"), icon: UserCircle },
+  const all = [
+    { href: `${base}/dashboard`, label: t("dashboard"), icon: LayoutDashboard },
+    { href: `${base}/lessons`, label: t("lessons"), icon: GraduationCap },
+    { href: `${base}/practice`, label: t("practice"), icon: Dumbbell },
+    { href: `${base}/tests`, label: t("tests"), icon: Timer },
+    { href: `${base}/games`, label: t("games"), icon: Gamepad2, flag: features.ARCADE_GAMES_ENABLED },
+    { href: `${base}/compete`, label: "Compete", icon: Swords, flag: !staff && features.BATCH_COMPETITION_ENABLED, badge: competeBadge },
+    { href: `${base}/missions`, label: t("missions"), icon: Target, flag: !staff && features.MISSIONS_ENABLED },
+    { href: `${base}/leaderboard`, label: t("leaderboard"), icon: BarChart3, flag: !staff },
+    { href: `${base}/progress`, label: t("progress"), icon: LineChart },
+    { href: `${base}/profile`, label: t("profile"), icon: UserCircle, flag: !staff },
   ];
+  const items: { href: string; label: string; icon: typeof Swords; flag?: boolean; badge?: number }[] = all.filter(
+    (i: { flag?: boolean }) => i.flag !== false,
+  );
   return (
     // Same width and side padding as the page content below, so the bar
     // lines up with it; tabs share the width evenly on large screens.
-    <nav aria-label={t("dashboard")} className="sticky top-16 z-20 px-3 pt-3 sm:px-5 xl:px-8">
+    <nav aria-label={t("dashboard")} className={staff ? "px-3 pt-3 sm:px-5 xl:px-8" : "sticky top-16 z-20 px-3 pt-3 sm:px-5 xl:px-8"}>
       <div
         className="mx-auto flex w-full max-w-[1680px] gap-1 overflow-x-auto rounded-2xl border p-1.5 shadow-sm [scrollbar-width:none]"
         style={{
@@ -69,6 +89,15 @@ export function StudentNav({ locale }: { locale: Locale }) {
               )}
               <Icon className="relative h-[18px] w-[18px]" strokeWidth={2.25} />
               <span className="relative">{item.label}</span>
+              {item.badge ? (
+                <span
+                  className="relative flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-bold"
+                  style={{ background: "#f43f5e", color: "#fff" }}
+                  aria-label={`${item.badge}টা অপেক্ষায়`}
+                >
+                  {item.badge}
+                </span>
+              ) : null}
             </Link>
           );
         })}

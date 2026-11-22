@@ -20,7 +20,10 @@ export async function payForAction(
 ): Promise<GateResult> {
   const store = createAdsStore(client);
   const settings = await store.settings();
-  const views = viewsRequired(settings, action, await store.myBatchIds(userId));
+  const batchIds = await store.myBatchIds(userId);
+  // Teachers and admins practising for themselves are in no batch: never ads.
+  if (batchIds.length === 0) return { ok: true };
+  const views = viewsRequired(settings, action, batchIds);
   if (views === 0) return { ok: true };
   return (await store.consume(action, target, views)) ? { ok: true } : { ok: false, views };
 }

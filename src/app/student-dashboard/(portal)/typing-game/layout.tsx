@@ -9,6 +9,8 @@ import { TypingContainer } from "@/components/typing-game/typing-container";
 import { AdsProvider, type AllowedSlots } from "@/components/typing-game/ads/ads-context";
 import { createAdsStore } from "@/lib/typing-game/server/ads-store";
 import { AD_SLOTS, displaySlot } from "@/lib/typing-game/ads/settings";
+import { myFeatures } from "@/lib/typing-game/server/features";
+import { createChallengeStore } from "@/lib/typing-game/server/challenge-store";
 
 /**
  * Student area gate (backstop — middleware normally redirects first, with
@@ -68,6 +70,10 @@ export default async function StudentLayout({
       }
     }
   }
+  // Feature switches (admin-controlled) and waiting challenges for the nav.
+  const features = await myFeatures(client);
+  const competeBadge =
+    client && features.BATCH_COMPETITION_ENABLED ? await createChallengeStore(client).inboxCount() : 0;
   return (
     <AdsProvider slots={slots}>
     <div className="tap-scope bg-canvas" style={{ minHeight: "calc(100dvh - 7rem)" }}>
@@ -76,7 +82,7 @@ export default async function StudentLayout({
         <span />
         <span />
       </div>
-      <StudentNav locale={locale} />
+      <StudentNav locale={locale} features={features} competeBadge={competeBadge} />
       <TypingContainer>{children}</TypingContainer>
     </div>
     </AdsProvider>

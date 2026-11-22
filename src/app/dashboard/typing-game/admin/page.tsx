@@ -1,105 +1,162 @@
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
-import { Badge, Card, CardContent, EmptyState, PageHeader, SectionHeader, StatCard } from "@/components/typing-game/ui";
-import { getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
-import { getSession } from "@/lib/typing-game/server/auth";
-import { userDbClient } from "@/lib/typing-game/server/auth";
+import { BookOpenCheck, Clock3, Flame, Gauge, Layers, Plus, Search, Users } from "lucide-react";
+import { DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
+import { getSession, userDbClient } from "@/lib/typing-game/server/auth";
 import { requireAdmin } from "@/lib/typing-game/server/staff";
 import { createSupabaseStaffStore } from "@/lib/typing-game/server/staff-store";
 import { getAdminOverview } from "@/lib/typing-game/server/staff-data";
+import { loadInsights } from "@/lib/typing-game/server/insights";
+import { createAdsStore } from "@/lib/typing-game/server/ads-store";
+import { FEATURES } from "@/lib/typing-game/features";
 import { ForbiddenBlock } from "@/components/typing-game/forbidden-block";
+import { ActivityChart } from "@/components/typing-game/staff/activity-chart";
+import {
+  AttentionList,
+  AuditFeed,
+  BatchHealth,
+  ConsoleHero,
+  HeroLink,
+  Kpi,
+  NextSteps,
+  Panel,
+  PanelLink,
+  TopStudents,
+} from "@/components/typing-game/staff/blocks";
 
-export default async function AdminDashboardPage({
-  params,
-}: {
-  params: Promise<{ locale: string }>;
-}) {
+export const dynamic = "force-dynamic";
+
+const BASE = "/dashboard/typing-game/admin";
+
+export default async function AdminDashboardPage() {
   const locale = DEFAULT_LOCALE;
-  const t = getTranslator(locale, "staff");
-  const tn = getTranslator(locale, "nav");
   const session = await getSession();
   const client = session ? await userDbClient() : null;
   if (!session || !client) return <ForbiddenBlock locale={locale} />;
   let overview;
+  let orgIds: string[] | null;
   try {
-    const { orgIds } = await requireAdmin(client);
+    ({ orgIds } = await requireAdmin(client));
     overview = await getAdminOverview(orgIds, createSupabaseStaffStore(client));
   } catch {
     return <ForbiddenBlock locale={locale} />;
   }
-
-  const base = `/dashboard/typing-game/admin`;
-  const actions: Array<{ href: string; label: string }> = [
-    { href: `${base}/courses`, label: t("courses") },
-    { href: `${base}/batches`, label: t("batches") },
-    { href: `${base}/students`, label: t("students") },
-    { href: `${base}/teachers`, label: t("teachers") },
-    { href: `${base}/missions`, label: tn("adminMissions") },
-    { href: `${base}/adaptive`, label: tn("adminAdaptive") },
-    { href: `${base}/flags`, label: t("featureFlags") },
-  ];
+  const [ins, ads] = await Promise.all([loadInsights(client), createAdsStore(client).settings()]);
+  const t = ins.totals;
+  const flags = new Map(overview.flags.map((f) => [f.key, f.enabled]));
+  const orgName = overview.orgs.length === 1 ? overview.orgs[0].name : orgIds === null ? "সব কোর্স" : "আপনার কোর্স";
+  const noTeacher = ins.batches.filter((b) => b.active && b.teachers.length === 0).length;
+  const pct = (n: number) => (t.students ? `${Math.round((100 * n) / t.students)}%` : "—");
+  const student = (id: string) => `${BASE}/students/${id}`;
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader title={t("adminDashboard")} />
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label={t("courses")} value={overview.courses} />
-        <StatCard label={t("batches")} value={overview.batches} />
-        <StatCard label={t("teachers")} value={overview.teachers} />
-        <StatCard label={t("organizations")} value={overview.orgs.length} />
+    <div className="flex flex-col gap-5">
+      <ConsoleHero
+        kicker={orgName}
+        title="Admin Dashboard"
+        desc={
+          t.students === 0
+            ? "এখনো কোনো স্টুডেন্ট নেই। ব্যাচ তৈরি করে স্টুডেন্টদের জয়েন কোড দিন।"
+            : `আজ ${t.activeToday} জন স্টুডেন্ট ${t.minutesToday} মিনিট টাইপ করেছে। গত ৭ দিনে সক্রিয় ${t.active7d}/${t.students} জন।`
+        }
+      >
+        <HeroLink href={`${BASE}/batches`}>
+          <Plus className="h-4 w-4" aria-hidden="true" /> নতুন ব্যাচ
+        </HeroLink>
+        <HeroLink href={`${BASE}/students`}>
+          <Search className="h-4 w-4" aria-hidden="true" /> স্টুডেন্ট খুঁজুন
+        </HeroLink>
+      </ConsoleHero>
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <Kpi icon={Users} label="স্টুডেন্ট" value={t.students} hint={`${t.activeBatches}টা চালু ব্যাচে`} tone="indigo" />
+        <Kpi icon={Flame} label="আজ সক্রিয়" value={t.activeToday} hint={`মোটের ${pct(t.activeToday)}`} tone="rose" />
+        <Kpi icon={Layers} label="৭ দিনে সক্রিয়" value={t.active7d} hint={`${t.neverStarted} জন এখনো শুরু করেনি`} tone="emerald" />
+        <Kpi icon={Clock3} label="টাইপিং মিনিট (৭ দিন)" value={t.minutes7d} hint={`আজ ${t.minutesToday} মিনিট`} tone="sky" />
+        <Kpi icon={BookOpenCheck} label="লেসন শেষ (৭ দিন)" value={t.lessons7d} hint={`মোট ${t.lessonsTotal}টা`} tone="violet" />
+        <Kpi
+          icon={Gauge}
+          label="গড় সেরা WPM"
+          value={t.avgBestWpm ?? "—"}
+          hint={t.avgAccuracy != null ? `টেস্টে গড় নির্ভুলতা ${t.avgAccuracy}%` : "৩০ দিনে কোনো টেস্ট নেই"}
+          tone="amber"
+        />
       </div>
-      <Card>
-        <CardContent>
-          <SectionHeader title={t("quickActions")} />
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {actions.map((a) => (
-              <Link
-                key={a.href}
-                href={a.href}
-                className="tap-card tap-card-interactive flex items-center justify-between gap-2 p-3"
-              >
-                <span className="text-sm font-semibold">{a.label}</span>
-                <ArrowRight className="h-4 w-4 shrink-0 opacity-60" aria-hidden="true" />
-              </Link>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardContent>
-          <SectionHeader title={t("auditLog")} />
-          {overview.recentAudit.length === 0 ? (
-            <EmptyState title={t("auditLog")} description={t("noResults")} />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="tap-table">
-                <thead>
-                  <tr>
-                    <th scope="col">{t("action")}</th>
-                    <th scope="col">{t("entity")}</th>
-                    <th scope="col">{t("time")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {overview.recentAudit.slice(0, 8).map((a) => (
-                    <tr key={a.id}>
-                      <td>
-                        <Badge tone="primary">{a.action}</Badge>
-                      </td>
-                      <td>
-                        <Badge tone="neutral">{a.entity}</Badge>
-                      </td>
-                      <td className="text-ink-muted">
-                        {a.createdAt.slice(0, 16).replace("T", " ")}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+
+      <div className="grid gap-5 lg:grid-cols-3">
+        <Panel className="lg:col-span-2" title="দৈনিক টাইপিং" desc="গত ১৪ দিনে সব স্টুডেন্ট মিলে কত মিনিট টাইপ করেছে (বারের উপর মাউস রাখুন)">
+          <ActivityChart days={ins.days} />
+        </Panel>
+        <Panel title="পরের কাজ" desc="কোর্স ঠিকঠাক চালাতে যা বাকি">
+          <NextSteps
+            steps={[
+              { done: overview.courses > 0, label: "কোর্স তৈরি", href: `${BASE}/courses` },
+              { done: t.batches > 0, label: "অন্তত একটা ব্যাচ", hint: "ব্যাচ তৈরি করলে একটা জয়েন কোড পাবেন", href: `${BASE}/batches` },
+              {
+                done: t.batches > 0 && noTeacher === 0,
+                label: noTeacher ? `${noTeacher}টা ব্যাচে টিচার নেই` : "প্রতিটা ব্যাচে টিচার",
+                hint: "টিচার অ্যাসাইন করলে তারা নিজের ব্যাচের অগ্রগতি দেখতে পারবে",
+                href: `${BASE}/teachers`,
+              },
+              { done: t.students > 0, label: "স্টুডেন্ট যোগ হয়েছে", hint: "স্টুডেন্টরা ASM ব্যাচ থেকে নিজেই যোগ হয়", href: `${BASE}/batches` },
+              {
+                done: t.students > 0 && t.neverStarted === 0,
+                label: t.neverStarted ? `${t.neverStarted} জন এখনো একটাও লেসন করেনি` : "সবাই শুরু করেছে",
+                hint: "তালিকা দেখে মনে করিয়ে দিন",
+                href: `${BASE}/students?filter=never`,
+              },
+            ]}
+          />
+        </Panel>
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <Panel
+          title={`নজর দিন (${ins.attentionCount})`}
+          desc="যারা ৭ দিন টাইপ করেনি, শুরুই করেনি, বা টেস্টে নির্ভুলতা ৮৫%-এর নিচে"
+          action={<PanelLink href={`${BASE}/students?filter=attention`}>সব দেখুন</PanelLink>}
+        >
+          <AttentionList data={ins} studentHref={student} />
+        </Panel>
+        <Panel title="এই সপ্তাহের সেরা" desc="গত ৭ দিনে সবচেয়ে বেশি সময় টাইপ করেছে">
+          <TopStudents items={ins.top} studentHref={student} />
+        </Panel>
+      </div>
+
+      <Panel title="ব্যাচগুলোর অবস্থা" desc="কোন ব্যাচ কতটা সক্রিয়, কার টিচার নেই" action={<PanelLink href={`${BASE}/batches`}>ব্যাচ ম্যানেজ করুন</PanelLink>}>
+        <BatchHealth batches={ins.batches} hrefFor={(id) => `${BASE}/students?batch=${id}`} />
+      </Panel>
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <Panel title="স্টুডেন্টদের জন্য কী চালু আছে" action={<PanelLink href={`${BASE}/flags`}>বদলান</PanelLink>}>
+          <ul className="flex flex-col gap-2">
+            {FEATURES.map((f) => {
+              const on = flags.get(f.key) ?? false;
+              return (
+                <li key={f.key} className="flex items-center justify-between gap-3 rounded-xl border border-[var(--tap-border)] px-3 py-2">
+                  <span className="text-sm font-semibold">{f.title}</span>
+                  <span className={`tap-badge ${on ? "tap-badge-success" : "tap-badge-neutral"}`}>{on ? "চালু" : "বন্ধ"}</span>
+                </li>
+              );
+            })}
+            <li className="flex items-center justify-between gap-3 rounded-xl border border-dashed border-[var(--tap-border-strong)] px-3 py-2">
+              <span className="text-sm">
+                <span className="font-semibold">বিজ্ঞাপন (Ads)</span>
+                <span className="block text-xs text-ink-muted">পুরো সিস্টেমের জন্য শুধু Super Admin চালু/বন্ধ করেন</span>
+              </span>
+              <span className={`tap-badge ${ads.enabled ? "tap-badge-warning" : "tap-badge-neutral"}`}>{ads.enabled ? "চালু" : "বন্ধ"}</span>
+            </li>
+          </ul>
+        </Panel>
+        <Panel title="সাম্প্রতিক পরিবর্তন" desc="ব্যাচ, কোর্স, রোল ও টিচারে কী বদলেছে">
+          <AuditFeed entries={overview.recentAudit.slice(0, 8)} />
+        </Panel>
+      </div>
+      <p className="text-center text-xs text-ink-faint">
+        তারিখ ও “আজ” বাংলাদেশ সময় অনুযায়ী ·{" "}
+        <Link href={`${BASE}/analytics`} className="underline">
+          বিস্তারিত অ্যানালিটিক্স
+        </Link>
+      </p>
     </div>
   );
 }

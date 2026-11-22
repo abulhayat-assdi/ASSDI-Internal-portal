@@ -1,5 +1,6 @@
 "use client";
 
+import { useTypingBase } from "@/components/typing-game/use-typing-base";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, Coins, Heart, Pause, Play, RotateCcw, Trophy, Volume2, VolumeX, X, Zap } from "lucide-react";
@@ -21,7 +22,6 @@ import type { BombSquadSim } from "@/lib/typing-game/arcade/games/bomb-squad";
 import type { LavaClimbSim } from "@/lib/typing-game/arcade/games/lava-climb";
 import type { DragonKeepSim } from "@/lib/typing-game/arcade/games/dragon-keep";
 
-const LIBRARY = "/student-dashboard/typing-game/games";
 /** Headings in the typing theme use gradient text; on dark game screens they must be plain white. */
 const WHITE = { background: "none", color: "#fff", WebkitTextFillColor: "#fff" } as const;
 
@@ -86,6 +86,7 @@ const STAT_LABEL: Record<string, string> = {
 };
 
 export function ArcadePlayer({ game, best: initialBest }: { game: ArcadeGameInfo; best: number | null }) {
+  const LIBRARY = `${useTypingBase()}/games`;
   const slug = game.slug;
   const [phase, setPhase] = useState<Phase>("intro");
   const [count, setCount] = useState(3);

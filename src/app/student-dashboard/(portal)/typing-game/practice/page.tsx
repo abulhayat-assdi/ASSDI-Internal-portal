@@ -1,3 +1,4 @@
+import { typingBase } from "@/lib/typing-game/server/base";
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import { Gauge, KeyRound, Sparkles, Target, Type, Zap } from "lucide-react";
@@ -29,7 +30,8 @@ function contentLists(): { words: string[]; sentences: string[] } {
  * Practice: free typing (time / words / article, four difficulty levels),
  * then the personal weak-key drill and quick actions underneath.
  */
-export default async function PracticePage({}: {}) {
+export default async function PracticePage() {
+  const base = await typingBase();
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "adaptive");
   const { store } = await adaptivePageContext(locale);
@@ -85,7 +87,7 @@ export default async function PracticePage({}: {}) {
               return (
                 <Link
                   key={a.key}
-                  href={`/student-dashboard/typing-game/games/${a.game}`}
+                  href={`${base}/games/${a.game}`}
                   className="tap-btn tap-btn-secondary tap-btn-sm justify-start tap-anim-in"
                   style={{ "--tap-i": i } as CSSProperties}
                 >

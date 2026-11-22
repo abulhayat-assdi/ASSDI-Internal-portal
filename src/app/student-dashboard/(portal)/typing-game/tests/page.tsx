@@ -1,3 +1,4 @@
+import { typingBase } from "@/lib/typing-game/server/base";
 import Link from "next/link";
 import { Award, BriefcaseBusiness, FileText, Lock, Timer } from "lucide-react";
 import { PageHeader } from "@/components/typing-game/ui";
@@ -8,7 +9,6 @@ import { createTestStore } from "@/lib/typing-game/server/test-store";
 import { TYPING_TESTS, findTest } from "@/lib/typing-game/tests/catalog";
 import { isBanglaModeUnlocked } from "@/lib/typing-game/practice/modes";
 
-const BASE = "/student-dashboard/typing-game/tests";
 const ICON = { timed: Timer, page: FileText, job: BriefcaseBusiness };
 
 function fmt(seconds: number): string {
@@ -16,6 +16,8 @@ function fmt(seconds: number): string {
 }
 
 export default async function TestsPage({ searchParams }: { searchParams: Promise<{ lang?: string }> }) {
+  const base = await typingBase();
+  const BASE = `${base}/tests`;
   const { session } = await studentContext(DEFAULT_LOCALE);
   const client = await userDbClient();
   if (!client) throw new Error("SERVICE_UNAVAILABLE");

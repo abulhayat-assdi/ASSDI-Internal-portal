@@ -1,83 +1,64 @@
-import Link from "next/link";
-import { Badge, Card, CardContent, EmptyState, PageHeader, SectionHeader, StatCard } from "@/components/typing-game/ui";
-import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
-import { getSession } from "@/lib/typing-game/server/auth";
-import { userDbClient } from "@/lib/typing-game/server/auth";
-import { createSupabaseStaffStore } from "@/lib/typing-game/server/staff-store";
-import { getTeacherDashboard } from "@/lib/typing-game/server/staff-data";
+import { Clock3, Flame, Gauge, Layers, Target, Users } from "lucide-react";
+import { getSession, userDbClient } from "@/lib/typing-game/server/auth";
+import { loadInsights } from "@/lib/typing-game/server/insights";
+import { ActivityChart } from "@/components/typing-game/staff/activity-chart";
+import { BatchCards } from "@/components/typing-game/staff/batch-cards";
+import { AttentionList, ConsoleHero, HeroLink, Kpi, Panel, TopStudents } from "@/components/typing-game/staff/blocks";
+import { EmptyState } from "@/components/typing-game/ui";
 
-export default async function TeacherDashboardPage({
-  params,
-}: {
-  params: Promise<{ locale: string }>;
-}) {
-  const locale = DEFAULT_LOCALE;
-  const t = getTranslator(locale, "staff");
+export const dynamic = "force-dynamic";
+
+const BASE = "/dashboard/typing-game/teacher";
+
+export default async function TeacherDashboardPage() {
   const session = await getSession();
   const client = session ? await userDbClient() : null;
-  if (!session || !client) return <EmptyState title={t("teacherDashboard")} />;
-  const data = await getTeacherDashboard(
-    session.userId,
-    createSupabaseStaffStore(client),
-  );
+  if (!session || !client) return <EmptyState title="Teacher Console" />;
+  const ins = await loadInsights(client);
+  const t = ins.totals;
+  const student = (id: string) => `${BASE}/students/${id}`;
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader title={t("teacherDashboard")} />
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-        <StatCard label={t("assignedBatches")} value={data.batches.length} />
-        <StatCard label={t("assignedStudents")} value={data.students} />
-        <StatCard
-          label={t("recentActivity")}
-          value={data.batches.reduce((a, b) => a + b.activeRuns, 0)}
-        />
+    <div className="flex flex-col gap-5">
+      <ConsoleHero
+        tone="teacher"
+        kicker="Teacher Console"
+        title="আমার ক্লাস"
+        desc={
+          t.students === 0
+            ? "আপনার ব্যাচে এখনো কোনো স্টুডেন্ট নেই।"
+            : `আজ ${t.activeToday}/${t.students} জন টাইপ করেছে। ${ins.attentionCount} জনের দিকে নজর দেওয়া দরকার।`
+        }
+      >
+        <HeroLink href={`${BASE}/missions/new`}>
+          <Target className="h-4 w-4" aria-hidden="true" /> নতুন মিশন দিন
+        </HeroLink>
+      </ConsoleHero>
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+        <Kpi icon={Users} label="আমার স্টুডেন্ট" value={t.students} hint={`${t.batches}টা ব্যাচে`} tone="emerald" />
+        <Kpi icon={Flame} label="আজ সক্রিয়" value={t.activeToday} hint={`আজ ${t.minutesToday} মিনিট টাইপ`} tone="rose" />
+        <Kpi icon={Layers} label="৭ দিনে সক্রিয়" value={t.active7d} hint={`${t.neverStarted} জন শুরুই করেনি`} tone="sky" />
+        <Kpi icon={Clock3} label="লেসন শেষ (৭ দিন)" value={t.lessons7d} hint={`${t.minutes7d} মিনিট টাইপ`} tone="violet" />
+        <Kpi icon={Gauge} label="গড় সেরা WPM" value={t.avgBestWpm ?? "—"} hint={t.avgAccuracy != null ? `নির্ভুলতা ${t.avgAccuracy}%` : "৩০ দিনে টেস্ট নেই"} tone="amber" />
       </div>
 
-      {data.batches.length === 0 ? (
-        <EmptyState title={t("assignedBatches")} description={t("noStudents")} />
-      ) : (
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          {data.batches.map((b) => (
-            <Link
-              key={b.batchId}
-              href={`/dashboard/typing-game/teacher/batches/${b.batchId}`}
-              className="tap-card tap-card-interactive flex flex-col gap-1 p-4"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <h2 className="tap-card-title">{b.batchName}</h2>
-                <Badge tone="primary">
-                  {t("members")}: {b.members}
-                </Badge>
-              </div>
-              <p className="text-sm text-ink-muted">{b.courseName}</p>
-              <p className="mt-1 text-sm text-ink-muted">
-                {t("averageWpm")}: {Math.round(b.avgWpm)} · {t("averageAccuracy")}:{" "}
-                {Math.round(b.avgAccuracy)}%
-              </p>
-            </Link>
-          ))}
-        </div>
-      )}
+      <Panel title="আমার ব্যাচ" desc="ব্যাচে ক্লিক করলে প্রত্যেক স্টুডেন্টের লেসন-ভিত্তিক অগ্রগতি দেখা যাবে">
+        <BatchCards batches={ins.batches} hrefFor={(id) => `${BASE}/batches/${id}`} />
+      </Panel>
 
-      {data.attention.length > 0 ? (
-        <Card>
-          <CardContent>
-            <SectionHeader title={t("needsAttention")} />
-            <div className="flex flex-wrap gap-2">
-              {data.attention.slice(0, 10).map((s) => (
-                <Link
-                  key={s.userId}
-                  href={`/dashboard/typing-game/teacher/students/${s.userId}`}
-                  className="tap-card tap-card-interactive px-3 py-2 text-sm font-semibold"
-                >
-                  {s.fullName}{" "}
-                  <span className="font-normal text-ink-muted">({s.rollNumber})</span>
-                </Link>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
+      <div className="grid gap-5 lg:grid-cols-2">
+        <Panel title={`নজর দিন (${ins.attentionCount})`} desc="৭ দিন টাইপ করেনি, শুরুই করেনি, বা টেস্টে নির্ভুলতা ৮৫%-এর নিচে">
+          <AttentionList data={ins} studentHref={student} />
+        </Panel>
+        <Panel title="এই সপ্তাহের সেরা" desc="সবচেয়ে বেশি সময় টাইপ করেছে">
+          <TopStudents items={ins.top} studentHref={student} />
+        </Panel>
+      </div>
+
+      <Panel title="দৈনিক টাইপিং" desc="আমার সব স্টুডেন্ট মিলে, গত ১৪ দিন">
+        <ActivityChart days={ins.days} />
+      </Panel>
     </div>
   );
 }

@@ -1,156 +1,92 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Badge, Card, CardContent, PageHeader, SectionHeader, StatCard } from "@/components/typing-game/ui";
-import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
-import { getSession } from "@/lib/typing-game/server/auth";
-import { userDbClient } from "@/lib/typing-game/server/auth";
-import { createSupabaseStaffStore } from "@/lib/typing-game/server/staff-store";
-import { ForbiddenError } from "@/lib/typing-game/server/staff-store";
-import { getTeacherBatch } from "@/lib/typing-game/server/staff-data";
-import { createSupabaseAdaptiveStore } from "@/lib/typing-game/server/adaptive-store";
-import { AdaptiveBatchBoard } from "@/components/typing-game/adaptive-batch-board";
-import { BatchLessonGrid } from "@/components/typing-game/batch-lesson-grid";
+import { Clock3, Flame, Gauge, Users } from "lucide-react";
+import { getSession, userDbClient } from "@/lib/typing-game/server/auth";
+import { dhakaToday, loadInsights, loadStaffStudents } from "@/lib/typing-game/server/insights";
 import { loadBatchProgress } from "@/lib/typing-game/server/batch-progress";
+import { BatchLessonGrid } from "@/components/typing-game/batch-lesson-grid";
+import { ActivityChart } from "@/components/typing-game/staff/activity-chart";
+import { AttentionList, ConsoleHero, HeroLink, Kpi, Panel } from "@/components/typing-game/staff/blocks";
+import {
+  STUDENT_FILTERS,
+  StudentFilters,
+  StudentTable,
+  applyStudentFilter,
+  type StudentFilter,
+} from "@/components/typing-game/staff/student-table";
 
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
-}
+export const dynamic = "force-dynamic";
 
-export default async function TeacherBatchPage(
-  props: {
-    params: Promise<{ locale: string; batchId: string }>;
-    searchParams: Promise<{ level?: string }>;
-  }
-) {
-  const params = await props.params;
-  const { level: levelParam } = await props.searchParams;
-  const locale = DEFAULT_LOCALE;
-  const t = getTranslator(locale, "staff");
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export default async function TeacherBatchPage(props: {
+  params: Promise<{ batchId: string }>;
+  searchParams: Promise<{ level?: string; q?: string; filter?: string }>;
+}) {
+  const { batchId } = await props.params;
+  const sp = await props.searchParams;
+  if (!UUID.test(batchId)) notFound();
   const session = await getSession();
   const client = session ? await userDbClient() : null;
   if (!session || !client) notFound();
-  let data;
-  try {
-    data = await getTeacherBatch(
-      session.userId,
-      params.batchId,
-      createSupabaseStaffStore(client),
-    );
-  } catch (e) {
-    if (e instanceof ForbiddenError) notFound();
-    throw e;
-  }
-  let adaptive: Record<string, unknown> = {};
-  try {
-    adaptive = await createSupabaseAdaptiveStore(client).batchSummary(
-      params.batchId,
-    );
-  } catch {
-    adaptive = {};
-  }
-  const attention = Array.isArray(adaptive.attention)
-    ? adaptive.attention.filter(isRecord).map((a, i) => ({
-        userId: typeof a.user_id === "string" ? a.user_id : `learner-${String(i)}`,
-        accuracyDeclining: a.accuracy_declining === true,
-        wpmDeclining: a.wpm_declining === true,
-        criticalKeys:
-          typeof a.critical_keys === "number" ? a.critical_keys : 0,
-      }))
-    : [];
-  const averages = isRecord(adaptive.averages) ? adaptive.averages : null;
-  const mechanics = Array.isArray(adaptive.weak_mechanics)
-    ? adaptive.weak_mechanics
-        .filter(isRecord)
-        .map((m) => (typeof m.mechanic === "string" ? m.mechanic : ""))
-        .filter((s) => s.length > 0)
-    : [];
+  // Scope is the database's: a batch the teacher does not teach comes back empty.
+  const ins = await loadInsights(client, [batchId]);
+  const batch = ins.batches.find((b) => b.id === batchId);
+  if (!batch) notFound();
 
+  const today = dhakaToday();
+  const q = sp.q ?? "";
+  const filter = (STUDENT_FILTERS.some((f) => f.key === sp.filter) ? sp.filter : "all") as StudentFilter;
+  const all = await loadStaffStudents(client, { batchIds: [batchId], q, limit: 1000 });
+  const counts = Object.fromEntries(STUDENT_FILTERS.map((f) => [f.key, applyStudentFilter(all, f.key, today).length])) as Record<
+    StudentFilter,
+    number
+  >;
+  const rows = applyStudentFilter(all, filter, today);
+  const base = `/dashboard/typing-game/teacher/batches/${batchId}`;
   const lessonProgress = await loadBatchProgress(
     client,
-    data.members.map((m) => m.userId),
+    all.map((r) => r.userId),
   ).catch(() => new Map());
+  const t = ins.totals;
+  const student = (id: string) => `/dashboard/typing-game/teacher/students/${id}`;
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader
-        title={`${data.info.name} (${data.info.joinCode})`}
-        description={data.info.courseName}
-      />
-      <Card>
-        <CardContent>
-          <SectionHeader
-            title={`${t("members")} (${data.members.length})`}
-          />
-          <div className="overflow-x-auto">
-            <table className="tap-table">
-              <thead>
-                <tr>
-                  <th scope="col">{t("colRoll")}</th>
-                  <th scope="col">{t("colName")}</th>
-                  <th scope="col">{t("level")}</th>
-                  <th scope="col">{t("xp")}</th>
-                  <th scope="col">{t("streak")}</th>
-                  <th scope="col">{t("colActions")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.members.map((m) => (
-                  <tr key={m.memberId}>
-                    <td>{m.rollNumber}</td>
-                    <th scope="row">{m.fullName}</th>
-                    <td>
-                      <Badge tone="primary">{m.level}</Badge>
-                    </td>
-                    <td>{m.xpTotal}</td>
-                    <td>{m.streak}</td>
-                    <td>
-                      <Link
-                        href={`/dashboard/typing-game/teacher/students/${m.userId}`}
-                        className="tap-link-btn"
-                      >
-                        {t("viewStudent")}
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+    <div className="flex flex-col gap-5">
+      <ConsoleHero
+        tone="teacher"
+        kicker={`${batch.course} · জয়েন কোড ${batch.joinCode}`}
+        title={batch.name}
+        desc={batch.teachers.length ? `টিচার: ${batch.teachers.join(", ")}` : undefined}
+      >
+        <HeroLink href="/dashboard/typing-game/teacher/missions/new">এই ব্যাচকে মিশন দিন</HeroLink>
+      </ConsoleHero>
 
-      <BatchLessonGrid
-        members={data.members.map((m) => ({ userId: m.userId, fullName: m.fullName, rollNumber: m.rollNumber }))}
-        progress={lessonProgress}
-        levelId={levelParam ?? null}
-        baseHref={`/dashboard/typing-game/teacher/batches/${params.batchId}`}
-      />
-
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-        <StatCard label={t("members")} value={data.members.length} />
-        <StatCard label={t("recentActivity")} value={data.recent.length} />
-        <StatCard
-          label={t("averageWpm")}
-          value={
-            averages && typeof averages.wpm === "number"
-              ? Math.round(averages.wpm)
-              : "—"
-          }
-        />
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <Kpi icon={Users} label="স্টুডেন্ট" value={t.students} hint={`${t.neverStarted} জন শুরু করেনি`} tone="emerald" />
+        <Kpi icon={Flame} label="আজ / ৭ দিনে সক্রিয়" value={`${t.activeToday} / ${t.active7d}`} tone="rose" />
+        <Kpi icon={Clock3} label="মিনিট (৭ দিন)" value={t.minutes7d} hint={`${t.lessons7d}টা লেসন শেষ`} tone="sky" />
+        <Kpi icon={Gauge} label="গড় সেরা WPM" value={t.avgBestWpm ?? "—"} hint={t.avgAccuracy != null ? `নির্ভুলতা ${t.avgAccuracy}%` : undefined} tone="amber" />
       </div>
 
-      <AdaptiveBatchBoard
-        locale={locale}
-        attention={attention}
-        avgAccuracy={
-          averages && typeof averages.accuracy === "number"
-            ? averages.accuracy
-            : null
-        }
-        avgWpm={
-          averages && typeof averages.wpm === "number" ? averages.wpm : null
-        }
-        mechanics={mechanics}
+      <div className="grid gap-5 lg:grid-cols-2">
+        <Panel title="দৈনিক টাইপিং" desc="এই ব্যাচ, গত ১৪ দিন">
+          <ActivityChart days={ins.days} />
+        </Panel>
+        <Panel title={`নজর দিন (${ins.attentionCount})`}>
+          <AttentionList data={ins} studentHref={student} />
+        </Panel>
+      </div>
+
+      <Panel title="স্টুডেন্ট" desc="নামে ক্লিক করলে লেসন, টেস্ট, গেম ও কম্পিটিশনের বিস্তারিত">
+        <StudentFilters action={base} q={q} batch="" filter={filter} counts={counts} />
+        <StudentTable rows={rows} today={today} hrefFor={student} showBatch={false} />
+      </Panel>
+
+      <BatchLessonGrid
+        members={all.map((m) => ({ userId: m.userId, fullName: m.name, rollNumber: m.roll }))}
+        progress={lessonProgress}
+        levelId={sp.level ?? null}
+        baseHref={base}
       />
     </div>
   );

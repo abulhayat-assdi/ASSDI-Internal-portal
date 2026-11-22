@@ -93,6 +93,7 @@ export async function GET(req: NextRequest) {
                 permissions,
                 createdAt: user.createdAt,
                 lastLoginAt: user.lastLoginAt,
+                isPlatformSuperAdmin: user.role === 'super_admin' || user.isSuperAdminShadow === true,
             };
             return fields;
         });

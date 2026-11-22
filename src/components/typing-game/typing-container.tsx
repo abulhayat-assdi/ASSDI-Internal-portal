@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 
 /** Pages that should use the whole content area (lesson player). */
-const FULL_WIDTH = /^\/student-dashboard\/typing-game\/lessons\/[^/]+$/;
+const FULL_WIDTH = /^\/(student-dashboard\/typing-game|dashboard\/typing-game\/learn)\/lessons\/[^/]+$/;
 
 /**
  * Page container for the typing area: every page uses the full width of

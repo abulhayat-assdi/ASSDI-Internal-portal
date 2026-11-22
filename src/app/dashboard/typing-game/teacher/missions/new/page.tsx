@@ -6,7 +6,7 @@ import { getTeacherDashboard } from "@/lib/typing-game/server/staff-data";
 import { CustomMissionForm } from "@/components/typing-game/custom-mission-form";
 
 /** Teacher custom-mission creation: passage, completion rule, reward, batches. */
-export default async function TeacherMissionNewPage({}: {}) {
+export default async function TeacherMissionNewPage() {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "missions");
   const session = await getSession();

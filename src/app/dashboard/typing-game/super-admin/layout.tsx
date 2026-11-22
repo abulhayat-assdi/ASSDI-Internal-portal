@@ -5,7 +5,7 @@ import { getSession } from "@/lib/typing-game/server/auth";
 import { userDbClient } from "@/lib/typing-game/server/auth";
 import { requireSuperAdmin } from "@/lib/typing-game/server/staff";
 import { AuthApiError } from "@/lib/typing-game/server/staff";
-import { isLocale, getTranslator, type Locale, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
+import { type Locale, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -32,21 +32,22 @@ export default async function SuperAdminLayout({
     }
   }
   if (!allowed) return <ForbiddenBlock locale={locale} />;
-  const t = getTranslator(locale, "staff");
   const base = `/dashboard/typing-game/super-admin`;
   return (
     <div className="tap-scope min-h-screen bg-canvas">
       <StaffNav
         locale={locale}
         homeHref={base}
+        role="Super Admin"
         items={[
-          { href: base, label: t("superDashboard") },
-          { href: `${base}/audit`, label: t("auditLog") },
-          { href: `${base}/flags`, label: t("featureFlags") },
-          { href: `${base}/ads`, label: "Ads" },
+          { href: base, label: "Overview", icon: "overview", exact: true },
+          { href: `${base}/ads`, label: "Ads", icon: "ads" },
+          { href: `${base}/flags`, label: "Features", icon: "features" },
+          { href: `${base}/audit`, label: "Audit log", icon: "audit" },
+          { href: `/dashboard/typing-game/admin`, label: "Admin console", icon: "students" },
         ]}
       />
-      <div className="mx-auto w-full max-w-6xl px-4 py-6">{children}</div>
+      <div className="mx-auto w-full max-w-7xl px-4 py-6">{children}</div>
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { typingBase } from "@/lib/typing-game/server/base";
 import Link from "next/link";
 import { ArrowRight, Award, BookOpen, Clock, Gamepad2, GraduationCap, Medal, Star, Target, Timer, Trophy, Zap } from "lucide-react";
 import { Card, CardContent, EmptyState, PageHeader, ProgressBar, SectionHeader } from "@/components/typing-game/ui";
@@ -10,7 +11,6 @@ import { MinutesChart, SpeedChart } from "@/components/typing-game/progress/prog
 import { createArcadeStore } from "@/lib/typing-game/server/arcade-store";
 import { ARCADE_GAMES } from "@/lib/typing-game/arcade/catalog";
 
-const LESSONS = "/student-dashboard/typing-game/lessons";
 
 function fmtDuration(ms: number): string {
   const m = Math.round(ms / 60000);
@@ -47,7 +47,7 @@ function Tile({ icon: Icon, label, value, hint, children }: { icon: typeof Star;
   );
 }
 
-function LevelRow({ l }: { l: LevelSummary }) {
+function LevelRow({ l, LESSONS }: { l: LevelSummary; LESSONS: string }) {
   const done = l.completed === l.total;
   return (
     <li className="flex flex-col gap-1.5">
@@ -82,6 +82,8 @@ function LevelRow({ l }: { l: LevelSummary }) {
 }
 
 export default async function ProgressPage() {
+  const base = await typingBase();
+  const LESSONS = `${base}/lessons`;
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "progress");
   const { session, store } = await studentContext(locale);
@@ -152,7 +154,7 @@ export default async function ProgressPage() {
             <SectionHeader title="লেভেল অনুযায়ী লেসন" description="প্রতিটা লেভেলে কয়টা লেসন শেষ, কত স্টার, আর পরের লেসন কোনটা।" />
             <ul className="flex flex-col gap-4">
               {enLevels.map((l) => (
-                <LevelRow key={l.id} l={l} />
+                <LevelRow key={l.id} l={l} LESSONS={LESSONS} />
               ))}
             </ul>
             <div className="mt-5 border-t pt-4" style={{ borderColor: "var(--tap-border)" }}>
@@ -160,7 +162,7 @@ export default async function ProgressPage() {
               {bnStarted ? (
                 <ul className="flex flex-col gap-4">
                   {bnLevels.map((l) => (
-                    <LevelRow key={l.id} l={l} />
+                    <LevelRow key={l.id} l={l} LESSONS={LESSONS} />
                   ))}
                 </ul>
               ) : (
@@ -184,7 +186,7 @@ export default async function ProgressPage() {
               ) : (
                 <p className="py-6 text-center text-sm text-ink-muted">
                   গ্রাফ দেখতে অন্তত দুটো টেস্ট দিন।{" "}
-                  <Link href="/student-dashboard/typing-game/tests" className="tap-link-btn">
+                  <Link href={`${base}/tests`} className="tap-link-btn">
                     টেস্ট দিন
                   </Link>
                 </p>
@@ -236,7 +238,7 @@ export default async function ProgressPage() {
             {gameRows.length === 0 ? (
               <p className="text-sm text-ink-muted">
                 এখনো কোনো গেম খেলেননি।{" "}
-                <Link href="/student-dashboard/typing-game/games" className="tap-link-btn">
+                <Link href={`${base}/games`} className="tap-link-btn">
                   গেম খেলুন
                 </Link>
               </p>
@@ -254,7 +256,7 @@ export default async function ProgressPage() {
                   {gameRows.map(({ info, state }) => (
                     <tr key={info.slug}>
                       <td>
-                        <Link href={`/student-dashboard/typing-game/games/${info.slug}`} className="font-semibold hover:underline">
+                        <Link href={`${base}/games/${info.slug}`} className="font-semibold hover:underline">
                           {info.title}
                         </Link>
                       </td>

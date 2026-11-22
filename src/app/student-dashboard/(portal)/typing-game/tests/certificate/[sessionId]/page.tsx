@@ -17,6 +17,11 @@ export default async function CertificatePage({ params }: { params: Promise<{ se
   const row = await createTestStore(client).get(sessionId);
   if (!row || row.status !== "graded" || row.wpm === null) notFound();
   const profile = await getStudentProfile(session.userId, store);
+  // Teachers practising for themselves have no student profile: use their own name.
+  const ownName = profile
+    ? null
+    : (((await client.from("profiles").select("full_name").eq("id", session.userId).maybeSingle()).data as { full_name?: string } | null)
+        ?.full_name ?? null);
   const test = findTest(row.testId);
   const date = new Date(row.gradedAt ?? row.startedAt).toLocaleDateString("en-GB", {
     day: "numeric",
@@ -43,7 +48,7 @@ export default async function CertificatePage({ params }: { params: Promise<{ se
       >
         <p className="text-sm uppercase tracking-[0.35em] text-slate-500">Certificate of Typing Proficiency</p>
         <h1 className="mt-4 text-4xl font-bold" style={{ color: "#1e3a5f" }}>
-          {profile?.fullName ?? "Student"}
+          {profile?.fullName ?? ownName ?? "Student"}
         </h1>
         {profile ? (
           <p className="mt-1 text-sm text-slate-500">

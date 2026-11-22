@@ -1,106 +1,57 @@
-import Link from "next/link";
-import { Badge, Card, CardContent, EmptyState, PageHeader } from "@/components/typing-game/ui";
-import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
-import { getSession } from "@/lib/typing-game/server/auth";
-import { userDbClient } from "@/lib/typing-game/server/auth";
+import { DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
+import { getSession, userDbClient } from "@/lib/typing-game/server/auth";
 import { requireAdmin } from "@/lib/typing-game/server/staff";
 import { createSupabaseStaffStore } from "@/lib/typing-game/server/staff-store";
+import { dhakaToday, loadStaffStudents } from "@/lib/typing-game/server/insights";
 import { ForbiddenBlock } from "@/components/typing-game/forbidden-block";
+import { ConsoleHero, Panel } from "@/components/typing-game/staff/blocks";
+import {
+  STUDENT_FILTERS,
+  StudentFilters,
+  StudentTable,
+  applyStudentFilter,
+  type StudentFilter,
+} from "@/components/typing-game/staff/student-table";
 
-export default async function StudentsPage(
-  props: {
-    params: Promise<{ locale: string }>;
-    searchParams: Promise<{ q?: string }>;
-  }
-) {
-  const searchParams = await props.searchParams;
+export const dynamic = "force-dynamic";
+
+const BASE = "/dashboard/typing-game/admin/students";
+
+export default async function StudentsPage(props: { searchParams: Promise<{ q?: string; batch?: string; filter?: string }> }) {
+  const sp = await props.searchParams;
   const locale = DEFAULT_LOCALE;
-  const t = getTranslator(locale, "staff");
   const session = await getSession();
   const client = session ? await userDbClient() : null;
   if (!session || !client) return <ForbiddenBlock locale={locale} />;
-  let students: Array<{
-    userId: string;
-    fullName: string;
-    email: string;
-    rollNumber: string;
-    batchName: string;
-    status: string;
-  }> = [];
+  let batches: { id: string; name: string }[] = [];
   try {
-    await requireAdmin(client);
-    students = await createSupabaseStaffStore(client).searchUsers(
-      searchParams.q ?? "",
-      50,
-    );
+    const { orgIds } = await requireAdmin(client);
+    batches = (await createSupabaseStaffStore(client).listBatches(orgIds)).map((b) => ({ id: b.id, name: b.name }));
   } catch {
     return <ForbiddenBlock locale={locale} />;
   }
+  const q = sp.q ?? "";
+  const batch = batches.some((b) => b.id === sp.batch) ? (sp.batch as string) : "";
+  const filter = (STUDENT_FILTERS.some((f) => f.key === sp.filter) ? sp.filter : "all") as StudentFilter;
+  const today = dhakaToday();
+  const all = await loadStaffStudents(client, { q, batchIds: batch ? [batch] : undefined, limit: 1000 });
+  const counts = Object.fromEntries(STUDENT_FILTERS.map((f) => [f.key, applyStudentFilter(all, f.key, today).length])) as Record<
+    StudentFilter,
+    number
+  >;
+  const rows = applyStudentFilter(all, filter, today);
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader title={t("students")} />
-      <Card>
-        <CardContent>
-          <form method="get" className="mb-3 flex gap-2">
-            <input
-              type="search"
-              name="q"
-              defaultValue={searchParams.q ?? ""}
-              placeholder={t("searchPlaceholder")}
-              aria-label={t("search")}
-              className="tap-input-wrap tap-input"
-            />
-            <button type="submit" className="tap-btn tap-btn-primary tap-btn-md">
-              {t("search")}
-            </button>
-          </form>
-          {students.length === 0 ? (
-            <EmptyState title={t("students")} description={t("noResults")} />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="tap-table">
-                <thead>
-                  <tr>
-                    <th scope="col">{t("colName")}</th>
-                    <th scope="col">{t("colRoll")}</th>
-                    <th scope="col">{t("colBatch")}</th>
-                    <th scope="col">{t("colStatus")}</th>
-                    <th scope="col">{t("colActions")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {students.map((s) => (
-                    <tr key={`${s.userId}-${s.rollNumber}`}>
-                      <th scope="row">
-                        {s.fullName}
-                        <span className="block text-xs font-normal text-ink-faint">
-                          {s.email}
-                        </span>
-                      </th>
-                      <td>{s.rollNumber}</td>
-                      <td>{s.batchName}</td>
-                      <td>
-                        <Badge tone={s.status === "active" ? "success" : "neutral"}>
-                          {s.status}
-                        </Badge>
-                      </td>
-                      <td>
-                        <Link
-                          href={`/dashboard/typing-game/admin/students/${s.userId}`}
-                          className="tap-link-btn"
-                        >
-                          {t("viewStudent")}
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+    <div className="flex flex-col gap-5">
+      <ConsoleHero
+        kicker="Students"
+        title="স্টুডেন্ট"
+        desc="প্রত্যেকের লেভেল, শেষ করা লেসন, সেরা টেস্ট স্পিড আর শেষ কবে টাইপ করেছে। নামে ক্লিক করলে বিস্তারিত ও ব্যাচ/রোল/স্ট্যাটাস বদলানো যায়।"
+      />
+      <Panel title={`${rows.length} জন`} desc={batch ? batches.find((b) => b.id === batch)?.name : "সব ব্যাচ"}>
+        <StudentFilters action={BASE} q={q} batch={batch} filter={filter} batches={batches} counts={counts} />
+        <StudentTable rows={rows} today={today} hrefFor={(id) => `${BASE}/${id}`} />
+      </Panel>
     </div>
   );
 }
