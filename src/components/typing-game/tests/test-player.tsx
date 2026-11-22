@@ -1,5 +1,6 @@
 "use client";
 
+import { useTypingBase } from "@/components/typing-game/use-typing-base";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Award, RotateCcw } from "lucide-react";
@@ -17,7 +18,6 @@ interface Result {
   xp: number;
 }
 
-const BASE = "/student-dashboard/typing-game/tests";
 
 function fmt(ms: number): string {
   const s = Math.round(ms / 1000);
@@ -26,6 +26,7 @@ function fmt(ms: number): string {
 
 /** Opens a server session, runs the shared exam runner, shows the server-graded result. */
 export function TestPlayer({ testId, lang, title }: { testId: string; lang: "en" | "bn"; title: string }) {
+  const BASE = `${useTypingBase()}/tests`;
   const [run, setRun] = useState<{ sessionId: string; text: string; seconds: number } | null>(null);
   const [result, setResult] = useState<Result | null>(null);
   const [submitting, setSubmitting] = useState(false);

@@ -20,6 +20,7 @@ export default async function TeacherLayout({
   const session = await getSession();
   const client = session ? await userDbClient() : null;
   let allowed = false;
+  let canLearn = false;
   if (client) {
     try {
       await client.rpc("fn_provision_staff_from_asm");
@@ -36,6 +37,7 @@ export default async function TeacherLayout({
       allowed =
         !!asmUser &&
         hasPermission(asmUser.role, asmUser.permissions ?? null, "typing_game_teacher");
+      canLearn = !!asmUser && hasPermission(asmUser.role, asmUser.permissions ?? null, "typing_game_learn");
     } catch (e) {
       if (!(e instanceof AuthApiError)) throw e;
     }
@@ -52,6 +54,7 @@ export default async function TeacherLayout({
           { href: base, label: "Overview", icon: "overview", exact: true },
           { href: `${base}/batches`, label: "My batches", icon: "batches" },
           { href: `${base}/missions`, label: "Missions", icon: "missions" },
+          ...(canLearn ? [{ href: "/dashboard/typing-game/learn", label: "আমার প্র্যাকটিস", icon: "lessons" as const }] : []),
         ]}
       />
       <div className="mx-auto w-full max-w-7xl px-4 py-6">{children}</div>

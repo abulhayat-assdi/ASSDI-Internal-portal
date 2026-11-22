@@ -1,6 +1,8 @@
 import { ForbiddenBlock } from "@/components/typing-game/forbidden-block";
 import { StaffNav } from "@/components/typing-game/staff-nav";
 import "@/styles/typing-game-theme.css";
+import { getServerSessionUser } from "@/lib/auth";
+import { hasPermission } from "@/lib/permissions";
 import { getSession } from "@/lib/typing-game/server/auth";
 import { userDbClient } from "@/lib/typing-game/server/auth";
 import { requireAdmin } from "@/lib/typing-game/server/staff";
@@ -36,6 +38,8 @@ export default async function AdminLayout({
   }
   if (!allowed) return <ForbiddenBlock locale={locale} />;
   const base = `/dashboard/typing-game/admin`;
+  const asmUser = await getServerSessionUser();
+  const canLearn = !!asmUser && hasPermission(asmUser.role, asmUser.permissions ?? null, "typing_game_learn");
   return (
     <div className="tap-scope min-h-screen bg-canvas">
       <StaffNav
@@ -51,6 +55,7 @@ export default async function AdminLayout({
           { href: `${base}/missions`, label: "Missions", icon: "missions" },
           { href: `${base}/analytics`, label: "Analytics", icon: "analytics" },
           { href: `${base}/flags`, label: "Features", icon: "features" },
+          ...(canLearn ? [{ href: "/dashboard/typing-game/learn", label: "আমার প্র্যাকটিস", icon: "lessons" as const }] : []),
         ]}
       />
       <div className="mx-auto w-full max-w-7xl px-4 py-6">{children}</div>

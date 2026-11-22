@@ -1,5 +1,6 @@
 "use client";
 
+import { useTypingBase } from "@/components/typing-game/use-typing-base";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -44,7 +45,6 @@ interface Props {
   mode: "en" | "bn";
 }
 
-const BASE = "/student-dashboard/typing-game/lessons";
 
 function fmtTime(ms: number | null): string {
   if (ms == null) return "—";
@@ -53,6 +53,7 @@ function fmtTime(ms: number | null): string {
 }
 
 export function LessonsOverview({ levels, current, units, firstVisit, banglaUnlocked, mode }: Props) {
+  const BASE = `${useTypingBase()}/lessons`;
   const router = useRouter();
   const [guide, setGuide] = useState(firstVisit);
   const [busy, setBusy] = useState<string | null>(null);

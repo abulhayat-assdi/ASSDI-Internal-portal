@@ -1,5 +1,6 @@
 "use client";
 
+import { useTypingBase } from "@/components/typing-game/use-typing-base";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -16,9 +17,9 @@ export interface LibraryGame {
   plays: number;
 }
 
-const BASE = "/student-dashboard/typing-game/games";
 
 export function ArcadeLibrary({ games, coins: initialCoins }: { games: LibraryGame[]; coins: number }) {
+  const BASE = `${useTypingBase()}/games`;
   const router = useRouter();
   const [coins, setCoins] = useState(initialCoins);
   const [opened, setOpened] = useState<Set<string>>(() => new Set(games.filter((g) => g.unlocked).map((g) => g.info.slug)));

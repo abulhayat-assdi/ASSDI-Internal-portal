@@ -1,5 +1,6 @@
 "use client";
 
+import { useTypingBase } from "@/components/typing-game/use-typing-base";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, RotateCcw, Star } from "lucide-react";
@@ -28,7 +29,6 @@ interface Outcome {
 
 type Phase = "typing" | "screen_done" | "submitting" | "done" | "error";
 
-const LESSONS_HREF = "/student-dashboard/typing-game/lessons";
 const LAYOUT_KEY = "tap.bangla.layout.v1";
 /** Untimed screens still need a ceiling for the engine. */
 const UNTIMED_MS = 30 * 60 * 1000;
@@ -54,6 +54,7 @@ function Stars({ n, size = "h-6 w-6" }: { n: number; size?: string }) {
  * text is sent to the server, which scores it against its own copy.
  */
 export function BanglaLessonPlayer({ lessonId, lessonTitle, levelTitle, screens }: Props) {
+  const LESSONS_HREF = `${useTypingBase()}/lessons`;
   const [index, setIndex] = useState(0);
   const [phase, setPhase] = useState<Phase>("typing");
   const [typed, setTyped] = useState("");

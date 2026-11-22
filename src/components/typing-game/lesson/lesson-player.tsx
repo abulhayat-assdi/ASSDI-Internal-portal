@@ -1,5 +1,6 @@
 "use client";
 
+import { useTypingBase } from "@/components/typing-game/use-typing-base";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, Hand, Keyboard, RotateCcw, Star, Volume2, VolumeX } from "lucide-react";
@@ -33,7 +34,6 @@ interface LessonOutcome {
 
 type Phase = "typing" | "screen_done" | "submitting" | "done" | "error";
 
-const LESSONS_HREF = "/student-dashboard/typing-game/lessons";
 const PREFS_KEY = "tap.lesson.prefs.v1";
 
 function loadPrefs(): { keyboard: boolean; hands: boolean; voice: boolean } {
@@ -69,6 +69,7 @@ function Stars({ n, size = "h-6 w-6" }: { n: number; size?: string }) {
 }
 
 export function LessonPlayer({ lessonId, lessonTitle, levelTitle, screens }: Props) {
+  const LESSONS_HREF = `${useTypingBase()}/lessons`;
   const [index, setIndex] = useState(0);
   const [pos, setPos] = useState(0);
   const [found, setFound] = useState(false);

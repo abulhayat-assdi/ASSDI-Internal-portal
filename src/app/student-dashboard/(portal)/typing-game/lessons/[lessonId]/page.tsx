@@ -1,3 +1,4 @@
+import { typingBase } from "@/lib/typing-game/server/base";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Lock } from "lucide-react";
@@ -14,6 +15,7 @@ import { lessonStates } from "@/lib/typing-game/curriculum/progress";
 import { lessonScreens } from "@/lib/typing-game/curriculum/word-bank";
 
 export default async function LessonPage({ params }: { params: Promise<{ lessonId: string }> }) {
+  const base = await typingBase();
   const { lessonId } = await params;
   const hit = findLesson(lessonId);
   if (!hit) notFound();
@@ -34,7 +36,7 @@ export default async function LessonPage({ params }: { params: Promise<{ lessonI
             ? "English Level 1-এর Final Assessment পাস করলে বাংলা লেসন খুলবে।"
             : "আগের লেসনগুলো শেষ করলে এই লেসনটা খুলবে। চাইলে লেসন তালিকা থেকে Unlock করতে পারেন।"}
         </p>
-        <Link href="/student-dashboard/typing-game/lessons" className="tap-btn tap-btn-primary tap-btn-md">
+        <Link href={`${base}/lessons`} className="tap-btn tap-btn-primary tap-btn-md">
           লেসন তালিকা
         </Link>
       </div>

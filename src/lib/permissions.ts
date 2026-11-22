@@ -44,6 +44,7 @@ export type PermissionKey =
     | "admin_deployments"
     | "access_management"
     | "typing_game_teacher"
+    | "typing_game_learn"
     | "admin_typing_game"
     | "typing_exam"
     | "admin_competitions"
@@ -99,6 +100,7 @@ export const PERMISSION_META: Record<PermissionKey, PermissionMeta> = {
     admin_deployments: { label: "Student Deployments", path: "/dashboard/admin/deployments", group: "admin", icon: "🚀" },
     access_management: { label: "Access Management", path: "/dashboard/admin/access-management", group: "system", icon: "🔑" },
     typing_game_teacher: { label: "Typing Adventure (Teacher)", path: "/dashboard/typing-game/teacher", group: "teacher", icon: "⌨️" },
+    typing_game_learn: { label: "Typing Adventure (নিজের প্র্যাকটিস)", path: "/dashboard/typing-game/learn", group: "teacher", icon: "⌨️" },
     admin_typing_game: { label: "Typing Adventure (Admin)", path: "/dashboard/typing-game/admin", group: "admin", icon: "⌨️" },
     typing_exam: { label: "Typing Test Exam", path: "/dashboard/typing-exam", group: "teacher", icon: "📝" },
     admin_competitions: { label: "Competitions", path: "/dashboard/competitions", group: "admin", icon: "🏆" },
@@ -174,7 +176,7 @@ export const DEFAULT_TEACHER_PERMISSIONS: PermissionKey[] = [
     'competitions_view','business_incubation',
     "schedule", "routine", "batch_info", "resources", "course_modules",
     "policies", "feedback", "homework", "quiz", "attendance", "teacher_attendance",
-    "teachers", "admin_results", "typing_exam",
+    "teachers", "admin_results", "typing_exam", "typing_game_learn",
 ];
 
 // Default admin permissions (management/admin pages only — no teacher features)
@@ -191,7 +193,7 @@ export const DEFAULT_ADMIN_PERMISSIONS: PermissionKey[] = [
     "admin_attendance", "admin_teacher_class_report", "teacher_attendance",
     "admin_routine", "reports", "access_management",
     "admin_competitions", "admin_cv", "admin_batch_forms", "admin_branding",
-    "admin_user_management",
+    "admin_user_management", "typing_game_learn",
 ];
 
 // Teacher-feature permissions added to admin when "Include teacher features" is checked

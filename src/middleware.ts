@@ -169,7 +169,9 @@ async function legacySingleTenantGuard(request: NextRequest): Promise<NextRespon
         if (isDashboardPath) return NextResponse.redirect(new URL(APP_PATHS.LOGIN, request.url));
     }
 
-    return NextResponse.next();
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set('x-pathname', pathname);
+    return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
 const SUPER_ADMIN_LOGIN_PATH = '/super-admin/login';
@@ -236,6 +238,9 @@ async function courseGuard(request: NextRequest, course: { id: string; slug: str
     const requestHeaders = new Headers(request.headers);
     requestHeaders.set('x-course-id', course.id);
     requestHeaders.set('x-course-slug', course.slug);
+    // Lets a shared Typing Adventure page know whether it is the student's
+    // copy or the teacher's own-practice copy (see lib/typing-game/base.ts).
+    requestHeaders.set('x-pathname', pathname);
     const passThrough = () => {
         const res = NextResponse.next({ request: { headers: requestHeaders } });
         res.headers.set('x-course-id', course.id);
