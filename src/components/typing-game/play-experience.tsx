@@ -86,7 +86,7 @@ export function PlayExperience({
 
   if (rejected) {
     return (
-      <div className="mx-auto flex w-full max-w-xl flex-col gap-4">
+      <div className="mx-auto flex w-full max-w-xl flex-col justify-center gap-4" style={{ minHeight: "calc(100dvh - 15rem)" }}>
         <Alert tone="warning" title={strings.result.rejectedTitle}>
           {strings.result.rejectedDescription.replace("{reason}", rejected)}
         </Alert>
@@ -104,7 +104,7 @@ export function PlayExperience({
 
   if (expired) {
     return (
-      <div className="mx-auto flex w-full max-w-xl flex-col gap-4">
+      <div className="mx-auto flex w-full max-w-xl flex-col justify-center gap-4" style={{ minHeight: "calc(100dvh - 15rem)" }}>
         <Alert tone="warning" title={strings.result.expiredTitle}>
           {strings.result.expiredDescription}
         </Alert>

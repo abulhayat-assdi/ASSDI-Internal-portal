@@ -15,6 +15,6 @@ export function TypingContainer({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? "";
   const full = FULL_WIDTH.test(pathname);
   return (
-    <div className={full ? "w-full px-2 pt-3 sm:px-4" : "mx-auto w-full max-w-[1680px] px-3 py-4 sm:px-5 sm:py-5 xl:px-8"}>{children}</div>
+    <div className={full ? "mx-auto w-full max-w-[1680px] px-3 pt-3 sm:px-5 xl:px-8" : "mx-auto w-full max-w-[1680px] px-3 py-4 sm:px-5 sm:py-5 xl:px-8"}>{children}</div>
   );
 }
