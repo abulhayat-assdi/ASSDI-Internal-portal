@@ -23,6 +23,11 @@ import { XpCounter } from "@/components/typing-game/xp-counter";
 import { MissionWidgets } from "@/components/typing-game/mission-widgets";
 import { RecommendedNext } from "@/components/typing-game/recommendation-card";
 import { createSupabaseAdaptiveStore } from "@/lib/typing-game/server/adaptive-store";
+import { createActivityStore } from "@/lib/typing-game/server/activity-store";
+import { DailyGoalCard } from "@/components/typing-game/daily-goal-card";
+import { createLessonStore } from "@/lib/typing-game/server/lesson-store";
+import { levelsFor } from "@/lib/typing-game/curriculum";
+import { lessonStates, trackLessons } from "@/lib/typing-game/curriculum/progress";
 
 export default async function DashboardPage({
   params,
@@ -56,9 +61,19 @@ export default async function DashboardPage({
     );
   }
 
-  const recommendedHref = data.recommended
-    ? `/student-dashboard/typing-game/games/${data.recommended.slug}`
-    : `/student-dashboard/typing-game/games`;
+  const recommendedHref = "/student-dashboard/typing-game/games/meteor-shield";
+  const goal = missionClient ? await createActivityStore(missionClient).state(session.userId) : null;
+  // "Continue" goes to the first open English lesson not yet done.
+  let nextLessonHref = "/student-dashboard/typing-game/lessons";
+  if (missionClient) {
+    const progress = await createLessonStore(missionClient).listProgress(session.userId).catch(() => null);
+    if (progress) {
+      const levels = levelsFor("en");
+      const states = lessonStates(levels, progress);
+      const next = trackLessons(levels).find((l) => states.get(l.id) === "available");
+      if (next) nextLessonHref = `/student-dashboard/typing-game/lessons/${next.id}`;
+    }
+  }
   const adaptiveSummary = missionClient
     ? await createSupabaseAdaptiveStore(missionClient)
         .getSummary()
@@ -72,8 +87,8 @@ export default async function DashboardPage({
         description={`${data.membership.batchName} · ${data.membership.courseName}`}
         actions={
           <>
-            <Link href={recommendedHref} className="tap-btn tap-btn-primary tap-btn-md">
-              {t("continueAdventure")}
+            <Link href={nextLessonHref} className="tap-btn tap-btn-primary tap-btn-md">
+              লেসন চালিয়ে যান
             </Link>
             <Link href={`/student-dashboard/typing-game/games`} className="tap-btn tap-btn-secondary tap-btn-md">
               {t("exploreGames")}
@@ -85,6 +100,11 @@ export default async function DashboardPage({
       {data.isNew ? (
         <WelcomeBanner locale={locale} gameHref={recommendedHref} />
       ) : null}
+
+      {/* Wide screens: progress on the left, missions and activity on the right. */}
+      <div className="grid items-start gap-6 xl:grid-cols-3">
+      <div className="flex min-w-0 flex-col gap-6 xl:col-span-2">
+      {goal ? <DailyGoalCard goalMinutes={goal.goalMinutes} todayMs={goal.todayMs} week={goal.week} /> : null}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {[
@@ -147,12 +167,14 @@ export default async function DashboardPage({
         </CardContent>
       </Card>
 
-      <MissionWidgets locale={locale} missions={activeCustomMissions} />
-
       <RecommendedNext
         locale={locale}
         recommendation={adaptiveSummary?.recommendations[0] ?? null}
       />
+      </div>
+
+      <div className="flex min-w-0 flex-col gap-6">
+      <MissionWidgets locale={locale} missions={activeCustomMissions} />
 
       {data.latestBadge ? (        <Card>
           <CardContent>
@@ -201,6 +223,8 @@ export default async function DashboardPage({
           )}
         </CardContent>
       </Card>
+      </div>
+      </div>
     </div>
   );
 }

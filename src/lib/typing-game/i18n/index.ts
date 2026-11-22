@@ -12,19 +12,13 @@
 import enA11y from "@/messages/typing-game/en/a11y.json";
 import enAuth from "@/messages/typing-game/en/auth.json";
 import enCommon from "@/messages/typing-game/en/common.json";
-import enClans from "@/messages/typing-game/en/clans.json";
-import enCompetitions from "@/messages/typing-game/en/competitions.json";
 import enDashboard from "@/messages/typing-game/en/dashboard.json";
 import enErrors from "@/messages/typing-game/en/errors.json";
 import enGames from "@/messages/typing-game/en/games.json";
 import enHome from "@/messages/typing-game/en/home.json";
 import enLeaderboard from "@/messages/typing-game/en/leaderboard.json";
 import enLesson from "@/messages/typing-game/en/lesson.json";
-import enMap from "@/messages/typing-game/en/map.json";
 import enMissions from "@/messages/typing-game/en/missions.json";
-import enWars from "@/messages/typing-game/en/wars.json";
-import enBosses from "@/messages/typing-game/en/bosses.json";
-import enSeasons from "@/messages/typing-game/en/seasons.json";
 import enNav from "@/messages/typing-game/en/nav.json";
 import enOnboarding from "@/messages/typing-game/en/onboarding.json";
 import enPlay from "@/messages/typing-game/en/play.json";
@@ -32,26 +26,17 @@ import enProfile from "@/messages/typing-game/en/profile.json";
 import enProgress from "@/messages/typing-game/en/progress.json";
 import enResult from "@/messages/typing-game/en/result.json";
 import enStaff from "@/messages/typing-game/en/staff.json";
-import enTournaments from "@/messages/typing-game/en/tournaments.json";
 import enAdaptive from "@/messages/typing-game/en/adaptive.json";
-import enShop from "@/messages/typing-game/en/shop.json";
-import enRewards from "@/messages/typing-game/en/rewards.json";
 import bnA11y from "@/messages/typing-game/bn/a11y.json";
 import bnAuth from "@/messages/typing-game/bn/auth.json";
 import bnCommon from "@/messages/typing-game/bn/common.json";
-import bnClans from "@/messages/typing-game/bn/clans.json";
-import bnCompetitions from "@/messages/typing-game/bn/competitions.json";
 import bnDashboard from "@/messages/typing-game/bn/dashboard.json";
 import bnErrors from "@/messages/typing-game/bn/errors.json";
 import bnGames from "@/messages/typing-game/bn/games.json";
 import bnHome from "@/messages/typing-game/bn/home.json";
 import bnLeaderboard from "@/messages/typing-game/bn/leaderboard.json";
 import bnLesson from "@/messages/typing-game/bn/lesson.json";
-import bnMap from "@/messages/typing-game/bn/map.json";
 import bnMissions from "@/messages/typing-game/bn/missions.json";
-import bnWars from "@/messages/typing-game/bn/wars.json";
-import bnBosses from "@/messages/typing-game/bn/bosses.json";
-import bnSeasons from "@/messages/typing-game/bn/seasons.json";
 import bnNav from "@/messages/typing-game/bn/nav.json";
 import bnOnboarding from "@/messages/typing-game/bn/onboarding.json";
 import bnPlay from "@/messages/typing-game/bn/play.json";
@@ -59,10 +44,7 @@ import bnProfile from "@/messages/typing-game/bn/profile.json";
 import bnProgress from "@/messages/typing-game/bn/progress.json";
 import bnResult from "@/messages/typing-game/bn/result.json";
 import bnStaff from "@/messages/typing-game/bn/staff.json";
-import bnTournaments from "@/messages/typing-game/bn/tournaments.json";
 import bnAdaptive from "@/messages/typing-game/bn/adaptive.json";
-import bnShop from "@/messages/typing-game/bn/shop.json";
-import bnRewards from "@/messages/typing-game/bn/rewards.json";
 
 export const LOCALES = ["en", "bn"] as const;
 export type Locale = (typeof LOCALES)[number];
@@ -72,19 +54,13 @@ export interface Messages {
   a11y: typeof enA11y;
   auth: typeof enAuth;
   common: typeof enCommon;
-  clans: typeof enClans;
-  competitions: typeof enCompetitions;
   dashboard: typeof enDashboard;
   errors: typeof enErrors;
   games: typeof enGames;
   home: typeof enHome;
   leaderboard: typeof enLeaderboard;
   lesson: typeof enLesson;
-  map: typeof enMap;
   missions: typeof enMissions;
-  wars: typeof enWars;
-  bosses: typeof enBosses;
-  seasons: typeof enSeasons;
   nav: typeof enNav;
   onboarding: typeof enOnboarding;
   play: typeof enPlay;
@@ -92,10 +68,7 @@ export interface Messages {
   progress: typeof enProgress;
   result: typeof enResult;
   staff: typeof enStaff;
-  tournaments: typeof enTournaments;
   adaptive: typeof enAdaptive;
-  shop: typeof enShop;
-  rewards: typeof enRewards;
 }
 
 export type Namespace = keyof Messages;
@@ -105,19 +78,13 @@ const en: Messages = {
   a11y: enA11y,
   auth: enAuth,
   common: enCommon,
-  clans: enClans,
-  competitions: enCompetitions,
   dashboard: enDashboard,
   errors: enErrors,
   games: enGames,
   home: enHome,
   leaderboard: enLeaderboard,
   lesson: enLesson,
-  map: enMap,
   missions: enMissions,
-  wars: enWars,
-  bosses: enBosses,
-  seasons: enSeasons,
   nav: enNav,
   onboarding: enOnboarding,
   play: enPlay,
@@ -125,10 +92,7 @@ const en: Messages = {
   progress: enProgress,
   result: enResult,
   staff: enStaff,
-  tournaments: enTournaments,
   adaptive: enAdaptive,
-  shop: enShop,
-  rewards: enRewards,
 };
 
 /** Bangla may omit keys; anything missing falls back to English. */
@@ -137,19 +101,13 @@ const bnRaw: PartialMessages = {
   a11y: bnA11y,
   auth: bnAuth,
   common: bnCommon,
-  clans: bnClans,
-  competitions: bnCompetitions,
   dashboard: bnDashboard,
   errors: bnErrors,
   games: bnGames,
   home: bnHome,
   leaderboard: bnLeaderboard,
   lesson: bnLesson,
-  map: bnMap,
   missions: bnMissions,
-  wars: bnWars,
-  bosses: bnBosses,
-  seasons: bnSeasons,
   nav: bnNav,
   onboarding: bnOnboarding,
   play: bnPlay,
@@ -157,10 +115,7 @@ const bnRaw: PartialMessages = {
   progress: bnProgress,
   result: bnResult,
   staff: bnStaff,
-  tournaments: bnTournaments,
   adaptive: bnAdaptive,
-  shop: bnShop,
-  rewards: bnRewards,
 };
 
 function mergeNamespace<K extends Namespace>(
@@ -206,22 +161,13 @@ export function getMessages(locale: Locale): Messages {
     a11y: mergeNamespace<"a11y">(en.a11y, bnRaw.a11y),
     auth: mergeNamespace<"auth">(en.auth, bnRaw.auth),
     common: mergeNamespace<"common">(en.common, bnRaw.common),
-    clans: mergeNamespace<"clans">(en.clans, bnRaw.clans),
-    competitions: mergeNamespace<"competitions">(
-      en.competitions,
-      bnRaw.competitions,
-    ),
     dashboard: mergeNamespace<"dashboard">(en.dashboard, bnRaw.dashboard),
     errors: mergeNamespace<"errors">(en.errors, bnRaw.errors),
     games: mergeNamespace<"games">(en.games, bnRaw.games),
     home: mergeNamespace<"home">(en.home, bnRaw.home),
     leaderboard: mergeNamespace<"leaderboard">(en.leaderboard, bnRaw.leaderboard),
     lesson: mergeNamespace<"lesson">(en.lesson, bnRaw.lesson),
-    map: mergeNamespace<"map">(en.map, bnRaw.map),
     missions: mergeNamespace<"missions">(en.missions, bnRaw.missions),
-    wars: mergeNamespace<"wars">(en.wars, bnRaw.wars),
-    bosses: mergeNamespace<"bosses">(en.bosses, bnRaw.bosses),
-    seasons: mergeNamespace<"seasons">(en.seasons, bnRaw.seasons),
     nav: mergeNamespace<"nav">(en.nav, bnRaw.nav),
     onboarding: mergeNamespace<"onboarding">(en.onboarding, bnRaw.onboarding),
     play: mergeNamespace<"play">(en.play, bnRaw.play),
@@ -229,10 +175,7 @@ export function getMessages(locale: Locale): Messages {
     progress: mergeNamespace<"progress">(en.progress, bnRaw.progress),
     result: mergeNamespace<"result">(en.result, bnRaw.result),
     staff: mergeNamespace<"staff">(en.staff, bnRaw.staff),
-    tournaments: mergeNamespace<"tournaments">(en.tournaments, bnRaw.tournaments),
     adaptive: mergeNamespace<"adaptive">(en.adaptive, bnRaw.adaptive),
-    shop: mergeNamespace<"shop">(en.shop, bnRaw.shop),
-    rewards: mergeNamespace<"rewards">(en.rewards, bnRaw.rewards),
   };
 }
 

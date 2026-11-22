@@ -91,7 +91,9 @@ export function classifyRoute(pathname: string): RouteInfo {
 
 /** Locale-aware login URL, preserving the intended destination. */
 export function loginUrl(locale: Locale, next?: string): string {
-  const base = `/login`;
+  // Students sign in on the student login page (the staff /login would
+  // bounce a signed-in student to the portal dashboard).
+  const base = `/student-login`;
   if (!next || next === "/" || next === base) return base;
   return `${base}?next=${encodeURIComponent(next)}`;
 }

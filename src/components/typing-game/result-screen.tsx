@@ -136,7 +136,9 @@ export function ResultScreen({
       variants={reduceMotion ? undefined : containerVariants}
       initial={reduceMotion ? undefined : "hidden"}
       animate={reduceMotion ? undefined : "show"}
-      className="mx-auto flex w-full max-w-2xl flex-col gap-5"
+      // Narrow: one centred column. Wide: the same blocks flow into two
+      // columns so the whole result fits on one screen.
+      className="mx-auto flex w-full max-w-3xl flex-col justify-center gap-5 xl:block xl:max-w-6xl xl:columns-2 xl:gap-8 xl:pt-4 xl:[&>*]:mb-5 xl:[&>*]:break-inside-avoid"
     >
       <motion.div
         variants={reduceMotion ? undefined : itemVariants}

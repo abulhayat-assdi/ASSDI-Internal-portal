@@ -2,12 +2,16 @@ import type { CSSProperties } from "react";
 import Link from "next/link";
 import { Gauge, KeyRound, Sparkles, Target, Type, Zap } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { Card, CardContent, EmptyState, PageHeader } from "@/components/typing-game/ui";
+import { Card, CardContent, EmptyState, PageHeader, SectionHeader } from "@/components/typing-game/ui";
 import { PROMPT_SETS } from "@/lib/typing-game/content";
 import { buildPracticeDrill } from "@/lib/typing-game/adaptive";
 import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { adaptivePageContext } from "@/lib/typing-game/server/adaptive-pages";
 import { PracticeDrillCard } from "@/components/typing-game/practice-drill";
+import { PracticeTyper } from "@/components/typing-game/practice/practice-typer";
+import { AdSlot } from "@/components/typing-game/ads/ad-slot";
+import { practiceArticles, practiceCategories } from "@/lib/typing-game/practice/text";
+import { isBanglaModeUnlocked } from "@/lib/typing-game/practice/modes";
 
 function contentLists(): { words: string[]; sentences: string[] } {
   const words: string[] = [];
@@ -21,7 +25,10 @@ function contentLists(): { words: string[]; sentences: string[] } {
   return { words, sentences };
 }
 
-/** Personal practice: quick actions plus a curated weak-key drill. */
+/**
+ * Practice: free typing (time / words / article, four difficulty levels),
+ * then the personal weak-key drill and quick actions underneath.
+ */
 export default async function PracticePage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "adaptive");
@@ -34,35 +41,35 @@ export default async function PracticePage({}: {}) {
     .map((w) => w.target);
   const drill =
     weakKeys.length > 0 ? buildPracticeDrill(weakKeys, contentLists()) : null;
-  const top = recommendations[0] ?? null;
 
+  // Quick actions open the arcade game that trains that skill.
   const actions: { key: string; label: string; game: string | null; icon: LucideIcon }[] = [
-    { key: "need-most", label: t("needMost"), game: top?.gameSlug ?? null, icon: Sparkles },
-    { key: "weak-keys", label: t("weakKeys"), game: top?.gameSlug ?? null, icon: KeyRound },
-    {
-      key: "accuracy",
-      label: t("accuracy"),
-      game:
-        recommendations.find((r) => r.reason === "LOW_ACCURACY")?.gameSlug ??
-        top?.gameSlug ??
-        null,
-      icon: Target,
-    },
-    {
-      key: "speed",
-      label: t("speed"),
-      game:
-        recommendations.find((r) => r.reason === "LOW_WPM")?.gameSlug ??
-        top?.gameSlug ??
-        null,
-      icon: Zap,
-    },
-    { key: "sentences", label: t("sentences"), game: top?.gameSlug ?? null, icon: Type },
+    { key: "need-most", label: t("needMost"), game: "meteor-shield", icon: Sparkles },
+    { key: "weak-keys", label: t("weakKeys"), game: "bubble-burst", icon: KeyRound },
+    { key: "accuracy", label: t("accuracy"), game: "combo-blitz", icon: Target },
+    { key: "speed", label: t("speed"), game: "runner-rush", icon: Zap },
+    { key: "sentences", label: t("sentences"), game: "turbo-racer", icon: Type },
   ];
+
+  const categories = { en: practiceCategories("en"), bn: practiceCategories("bn") };
+  const articles = { en: practiceArticles("en"), bn: practiceArticles("bn") };
+  const banglaUnlocked = await isBanglaModeUnlocked();
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title={t("practiceTitle")} description={t("practiceSubtitle")} />
+      <PageHeader
+        title="Typing Practice"
+        description="সময় বা আর্টিকেল বেছে সরাসরি টাইপ করুন — Beginner থেকে Expert পর্যন্ত।"
+      />
+      {/* Wide screens: typing on the left, personal practice in a side column. */}
+      <div className="flex flex-col gap-6 xl:flex-row">
+        <AdSlot slot="practice_left" className="hidden lg:flex" />
+        <div className="min-w-0 flex-1">
+          <PracticeTyper categories={categories} articles={articles} banglaUnlocked={banglaUnlocked} />
+        </div>
+
+      <aside className="flex shrink-0 flex-col gap-4 xl:w-80 2xl:w-96">
+      <SectionHeader title={t("practiceTitle")} description={t("practiceSubtitle")} />
       {recommendations.length === 0 ? (
         <EmptyState
           title={t("practiceTitle")}
@@ -97,6 +104,8 @@ export default async function PracticePage({}: {}) {
           {t("band")}: {summary?.band ?? ""}
         </div>
       ) : null}
+      </aside>
+      </div>
     </div>
   );
 }

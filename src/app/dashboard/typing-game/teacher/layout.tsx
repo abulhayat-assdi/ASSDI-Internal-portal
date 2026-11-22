@@ -54,14 +54,6 @@ export default async function TeacherLayout({
             href: `/dashboard/typing-game/teacher/missions`,
             label: tn("missions"),
           },
-          {
-            href: `/dashboard/typing-game/teacher/competitions`,
-            label: tn("competitions"),
-          },
-          {
-            href: `/dashboard/typing-game/teacher/clan`,
-            label: tn("clan"),
-          },
         ]}
       />
       <div className="mx-auto w-full max-w-6xl px-4 py-6">{children}</div>

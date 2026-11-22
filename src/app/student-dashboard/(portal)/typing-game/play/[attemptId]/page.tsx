@@ -69,8 +69,9 @@ export default async function PlayPage(
 
   const gameTitle = locale === "bn" && def.title.bn ? def.title.bn : def.title.en;
   const links = {
-    gameHref: `/student-dashboard/typing-game/games/${def.slug}`,
-    mapHref: `/student-dashboard/typing-game/map`,
+    // Old games are only played from missions now.
+    gameHref: `/student-dashboard/typing-game/missions`,
+    mapHref: `/student-dashboard/typing-game/games`,
     dashboardHref: `/student-dashboard/typing-game/dashboard`,
   };
 

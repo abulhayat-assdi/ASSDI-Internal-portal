@@ -189,7 +189,7 @@ export function GamesExplorer({
           variants={gridVariants}
           initial="hidden"
           animate="show"
-          className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+          className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4"
         >
           {visible.map((g) => {
             const recommended = g.slug === recommendedSlug;

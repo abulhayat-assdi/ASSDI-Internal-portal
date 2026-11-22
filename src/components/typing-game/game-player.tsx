@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Crosshair, Flag, Link2, Shield, Users, Waves } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Alert, GameHudShell, ProgressBar, ProgressRing } from "@/components/typing-game/ui";
+import { useFitHeight } from "@/components/typing-game/lesson/use-fit-height";
 import {
   createTypingSession,
   type GameMechanic,
@@ -318,6 +319,8 @@ export function GamePlayer({
     [inputRules?.allowBackspace, inputRules?.caseSensitive],
   );
   const inputRef = useRef<HTMLInputElement>(null);
+  // The game fills the window below the header (no empty half-screen).
+  const { ref: fitRef, height: fitHeight } = useFitHeight<HTMLDivElement>(44, 420);
   const submittedRef = useRef(false);
   const endAtRef = useRef(0);  const [phase, setPhase] = useState<Phase>("ready");
   const [tick, setTick] = useState(0);
@@ -577,6 +580,7 @@ export function GamePlayer({
     phase === "playing";
   const previewClassName = [
     "tap-preview",
+    "tap-preview-fill",
     pulseMechanic && phase === "playing" ? "tap-preview-pulse" : "",
     urgent ? "tap-preview-urgent" : "",
   ]
@@ -584,8 +588,15 @@ export function GamePlayer({
     .join(" ");
 
   return (
-    <div className="flex flex-col gap-4" data-visual={visual} data-mechanic={mechanic}>
+    <div
+      ref={fitRef}
+      className="flex flex-col gap-4"
+      style={fitHeight ? { height: fitHeight } : undefined}
+      data-visual={visual}
+      data-mechanic={mechanic}
+    >
       <GameHudShell
+        className="tap-hud-fill min-h-0 flex-1"
         label={gameTitle}
         score={<span>{Math.round(liveWpm)} {s.wpm}</span>}
         accuracy={<span>{Math.round(liveAcc)}%</span>}
@@ -623,7 +634,7 @@ export function GamePlayer({
           </>
         }
       >
-        <div className="w-full">
+        <div className="flex min-h-0 w-full flex-col">
           <div
             className={previewClassName}
             role="textbox"
@@ -639,7 +650,7 @@ export function GamePlayer({
             }}
           >
             <MechanicAmbient mechanic={mechanic} expected={expected} />
-            <p className="tap-preview-text max-w-2xl px-6 font-mono text-xl leading-9 md:text-2xl md:leading-10">
+            <p className="tap-preview-text max-w-5xl px-6 font-mono text-2xl leading-10 md:text-3xl md:leading-[3rem] xl:text-4xl xl:leading-[3.5rem]">
               {expected.map((ch, i) => {
                 const typed = typedChars[i];
                 const cls =

@@ -1,71 +1,26 @@
-import { PageHeader } from "@/components/typing-game/ui";
-import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
+import { DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { studentContext } from "@/lib/typing-game/server/student-pages";
-import { recommendFromEnriched } from "@/lib/typing-game/server/student";
-import { enrichGames } from "@/lib/typing-game/server/games";
-import { GamesExplorer } from "@/components/typing-game/games-explorer";
+import { userDbClient } from "@/lib/typing-game/server/auth";
+import { createArcadeStore } from "@/lib/typing-game/server/arcade-store";
+import { ARCADE_GAMES } from "@/lib/typing-game/arcade/catalog";
+import { ArcadeLibrary, type LibraryGame } from "@/components/typing-game/arcade/arcade-library";
 
-export default async function GamesPage({}: {}) {
-  const locale = DEFAULT_LOCALE;
-  const t = getTranslator(locale, "games");
-  const { session, store } = await studentContext(locale);
+export default async function GamesPage() {
+  const { session } = await studentContext(DEFAULT_LOCALE);
+  const client = await userDbClient();
+  if (!client) throw new Error("SERVICE_UNAVAILABLE");
+  const { coins, games } = await createArcadeStore(client).overview(session.userId);
 
-  const [games, worlds] = await Promise.all([
-    enrichGames(session.userId, store),
-    store.listWorlds(),
-  ]);
-  // Recommendation is derived from the ENRICHED rows (effective unlocks),
-  // never from the raw game_unlocks cache which only holds manual unlocks.
-  const recommended = recommendFromEnriched(games);
+  const list: LibraryGame[] = ARCADE_GAMES.map((info) => {
+    const s = games.get(info.slug);
+    return {
+      info,
+      price: s?.price ?? info.price,
+      unlocked: s?.unlocked ?? info.price === 0,
+      best: s?.best ?? null,
+      plays: s?.plays ?? 0,
+    };
+  });
 
-  return (
-    <div className="flex flex-col gap-6">
-      <PageHeader title={t("title")} description={t("subtitle")} />
-      <GamesExplorer
-        locale={locale}
-        games={games}
-        worlds={worlds.map((w) => ({
-          slug: w.slug,
-          name: locale === "bn" && w.nameBn ? w.nameBn : w.nameEn,
-        }))}
-        modes={[...new Set(games.map((g) => g.mode))].sort()}
-        recommendedSlug={recommended?.slug ?? null}
-        strings={{
-          search: t("search"),
-          searchPlaceholder: t("searchPlaceholder"),
-          filterWorld: t("filterWorld"),
-          filterDifficulty: t("filterDifficulty"),
-          filterMode: t("filterMode"),
-          filterStatus: t("filterStatus"),
-          statusAll: t("statusAll"),
-          statusUnlocked: t("statusUnlocked"),
-          statusLocked: t("statusLocked"),
-          statusCompleted: t("statusCompleted"),
-          sortBy: t("sortBy"),
-          sortRecommended: t("sortRecommended"),
-          sortEasiest: t("sortEasiest"),
-          sortBest: t("sortBest"),
-          noResults: t("noResults"),
-          play: t("play"),
-          lockedReason: t("lockedReason"),
-          viewDetails: t("viewDetails"),
-          bestScore: t("bestScore"),
-          beginner: t("difficultyBeginner"),
-          intermediate: t("difficultyIntermediate"),
-          expert: t("difficultyExpert"),
-          adUnlock: t("adUnlock"),
-          adUnlockHint: t("adUnlockHint"),
-          adUnlocking: t("adUnlocking"),
-          adUnlockFailed: t("adUnlockFailed"),
-          adModalTitle: t("adModalTitle"),
-          adModalBody: t("adModalBody"),
-          adWatching: t("adWatching"),
-          adClaim: t("adClaim"),
-          adCancel: t("adCancel"),
-          adSponsored: t("adSponsored"),
-          adReady: t("adReady"),
-        }}
-      />
-    </div>
-  );
+  return <ArcadeLibrary games={list} coins={coins} />;
 }

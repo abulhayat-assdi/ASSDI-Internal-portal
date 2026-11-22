@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { Backpack, Coins, Flame, Gamepad2, Gift, Map, Target, Zap } from "lucide-react";
+import { Coins, Flame, Gamepad2, Map, Target, Zap } from "lucide-react";
 import {
   AchievementBadge,
   Avatar,
@@ -19,8 +18,6 @@ import { getStudentProfile } from "@/lib/typing-game/server/student";
 export default async function ProfilePage({}: {}) {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "profile");
-  const tsh = getTranslator(locale, "shop");
-  const tr = getTranslator(locale, "rewards");
   const { session, store } = await studentContext(locale);
   const p = await getStudentProfile(session.userId, store);
 
@@ -42,25 +39,7 @@ export default async function ProfilePage({}: {}) {
       <PageHeader
         title={p.fullName}
         description={`${t("rollNumber")}: ${p.rollNumber} · ${p.batchName} · ${p.courseName}`}
-        actions={
-          <>
-            {p.skillTrack ? <Badge tone="primary">{p.skillTrack}</Badge> : null}
-            <Link
-              href={`/student-dashboard/typing-game/inventory`}
-              className="tap-btn tap-btn-secondary tap-btn-sm"
-            >
-              <Backpack className="h-4 w-4" aria-hidden="true" />
-              {tsh("inventoryTitle")}
-            </Link>
-            <Link
-              href={`/student-dashboard/typing-game/rewards`}
-              className="tap-btn tap-btn-secondary tap-btn-sm"
-            >
-              <Gift className="h-4 w-4" aria-hidden="true" />
-              {tr("rewardsTitle")}
-            </Link>
-          </>
-        }
+        actions={p.skillTrack ? <Badge tone="primary">{p.skillTrack}</Badge> : null}
       />
 
       <Card>
@@ -70,6 +49,7 @@ export default async function ProfilePage({}: {}) {
             <div>
               <p className="text-lg font-bold">
                 {t("level")} {p.level}
+                {levelRow?.titleEn ? <span className="ml-2 text-base font-semibold text-ink-muted">· {levelRow.titleEn}</span> : null}
               </p>
               <p className="text-sm text-ink-muted">
                 {t("totalXp")}: {p.xpTotal} · {t("coins")}: {p.coins}
@@ -90,7 +70,7 @@ export default async function ProfilePage({}: {}) {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <StatCard
           label={t("currentStreak")}
           value={p.streak.current}
@@ -124,6 +104,7 @@ export default async function ProfilePage({}: {}) {
         />
       </div>
 
+      <div className="gap-6 xl:columns-2 [&>*]:mb-6 [&>*]:break-inside-avoid">
       <Card>
         <CardContent>
           <SectionHeader title={t("badges")} />
@@ -173,6 +154,7 @@ export default async function ProfilePage({}: {}) {
           )}
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }

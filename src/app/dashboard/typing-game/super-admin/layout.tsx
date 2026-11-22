@@ -43,6 +43,7 @@ export default async function SuperAdminLayout({
           { href: base, label: t("superDashboard") },
           { href: `${base}/audit`, label: t("auditLog") },
           { href: `${base}/flags`, label: t("featureFlags") },
+          { href: `${base}/ads`, label: "Ads" },
         ]}
       />
       <div className="mx-auto w-full max-w-6xl px-4 py-6">{children}</div>

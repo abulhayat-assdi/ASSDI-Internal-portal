@@ -1,11 +1,14 @@
-import { redirect } from "next/navigation";
 import "@/styles/typing-game-theme.css";
 import { StudentNav } from "@/components/typing-game/student-nav";
-import { getSession } from "@/lib/typing-game/server/auth";
+import { getSession, handleMissingSession } from "@/lib/typing-game/server/auth";
 import { userDbClient } from "@/lib/typing-game/server/auth";
 import { getCurrentActor } from "@/lib/typing-game/server/staff";
 import { isLocale, type Locale, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { SuspendedNotice } from "@/components/typing-game/suspended-notice";
+import { TypingContainer } from "@/components/typing-game/typing-container";
+import { AdsProvider, type AllowedSlots } from "@/components/typing-game/ads/ads-context";
+import { createAdsStore } from "@/lib/typing-game/server/ads-store";
+import { AD_SLOTS, displaySlot } from "@/lib/typing-game/ads/settings";
 
 /**
  * Student area gate (backstop — middleware normally redirects first, with
@@ -27,7 +30,7 @@ export default async function StudentLayout({
 }) {
   const locale: Locale = DEFAULT_LOCALE;
   const session = await getSession();
-  if (!session) redirect("/student-login");
+  if (!session) return await handleMissingSession();
   const client = await userDbClient();
   // First-time visit: no typing_game.profiles/user_roles/batch_members row
   // exists for this ASM student yet. Provisioning is idempotent (ON CONFLICT
@@ -52,15 +55,30 @@ export default async function StudentLayout({
       </div>
     );
   }
+  // Display-ad slots this student may see (none while ads are off).
+  const slots: AllowedSlots = {};
+  if (client) {
+    const ads = createAdsStore(client);
+    const settings = await ads.settings();
+    if (settings.enabled && settings.displayEnabled) {
+      const batchIds = await ads.myBatchIds(session.userId);
+      for (const s of AD_SLOTS) {
+        const cfg = displaySlot(settings, s.key, batchIds);
+        if (cfg) slots[s.key] = cfg;
+      }
+    }
+  }
   return (
-    <div className="tap-scope min-h-screen bg-canvas">
+    <AdsProvider slots={slots}>
+    <div className="tap-scope bg-canvas" style={{ minHeight: "calc(100dvh - 7rem)" }}>
       <div className="tap-ambient" aria-hidden="true">
         <span />
         <span />
         <span />
       </div>
       <StudentNav locale={locale} />
-      <div className="mx-auto w-full max-w-5xl px-3 sm:px-4 py-4 sm:py-6">{children}</div>
+      <TypingContainer>{children}</TypingContainer>
     </div>
+    </AdsProvider>
   );
 }

@@ -38,7 +38,7 @@ export function RecommendationCard({
         </p>
         <div className="relative mt-3 flex flex-wrap items-center gap-2">
           <Link
-            href={`/student-dashboard/typing-game/games/${recommendation.gameSlug}`}
+            href={`/student-dashboard/typing-game/games`}
             className="tap-btn tap-btn-primary tap-btn-sm"
           >
             {t("startPractice")}
@@ -74,7 +74,7 @@ export function RecommendedNext({
           </div>
           <div className="flex flex-wrap gap-2">
             <Link
-              href={`/student-dashboard/typing-game/games/${recommendation.gameSlug}`}
+              href={`/student-dashboard/typing-game/games`}
               className="tap-btn tap-btn-primary tap-btn-sm"
             >
               {t("startPractice")}

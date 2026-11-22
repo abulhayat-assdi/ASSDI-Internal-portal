@@ -5,7 +5,7 @@ import { getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { getSession, userDbClient } from "@/lib/typing-game/server/auth";
 import { createSupabaseCustomMissionStore } from "@/lib/typing-game/server/custom-mission-store";
 import { missionStatusKey } from "@/lib/typing-game/custom-missions";
-import { formatDateTime } from "@/lib/typing-game/competitions";
+import { formatDateTime } from "@/lib/typing-game/format";
 
 const STATUS_TONE: Record<string, BadgeTone> = {
   draft: "neutral",

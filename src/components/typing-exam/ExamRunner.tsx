@@ -43,6 +43,11 @@ export interface ExamRunnerProps {
   attemptsUsed?: number;
   /** Verifies a retry password against the server; resolve `true`/`false`. Required only when `attemptsUsed` can be > 0. */
   onVerifyRetryPassword?: (password: string) => Promise<boolean>;
+  /**
+   * Rendered inside another page (typing tests): sits in the page instead of
+   * covering the window until the browser really goes fullscreen.
+   */
+  embedded?: boolean;
 }
 
 /** Keeps a ref pointing at the latest value, so effects never read a stale prop. */
@@ -79,11 +84,12 @@ export default function ExamRunner({
   submitting,
   attemptsUsed,
   onVerifyRetryPassword,
+  embedded = false,
 }: ExamRunnerProps) {
   const [phase, setPhase] = useState<Phase>("ready");
   const [typedText, setTypedText] = useState("");
   const [clock, setClock] = useState(0);
-  const [isFullscreen, setIsFullscreen] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(!embedded);
   const engineRef = useRef<TypingExamEngine | null>(null);
   const submittedRef = useRef(false);
   const pendingRetryPasswordRef = useRef<string | undefined>(undefined);
