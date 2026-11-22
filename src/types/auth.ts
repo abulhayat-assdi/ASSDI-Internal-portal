@@ -21,6 +21,8 @@ export interface UserProfile {
     /** Set when this session is a super-admin "Login as admin" session */
     impersonatedBy?: string | null;
     impersonatedAt?: string | null;
+    /** The platform super admin, also when signed in to a course as their hidden shadow admin. */
+    isPlatformSuperAdmin?: boolean;
 }
 
 export interface AuthContextType {

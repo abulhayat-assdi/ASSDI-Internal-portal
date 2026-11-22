@@ -1,6 +1,8 @@
+import { loadStaffStudentProgress } from "@/lib/typing-game/server/insights";
+import { ConsoleHero, HeroLink, Panel } from "@/components/typing-game/staff/blocks";
+import { StudentProgress } from "@/components/typing-game/staff/student-progress";
 import { notFound } from "next/navigation";
-import { Badge, Card, CardContent, PageHeader, SectionHeader, StatCard } from "@/components/typing-game/ui";
-import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
+import { DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { getSession } from "@/lib/typing-game/server/auth";
 import { userDbClient } from "@/lib/typing-game/server/auth";
 import { requireAdmin } from "@/lib/typing-game/server/staff";
@@ -20,7 +22,6 @@ export default async function AdminStudentPage(
 ) {
   const params = await props.params;
   const locale = DEFAULT_LOCALE;
-  const t = getTranslator(locale, "staff");
   const session = await getSession();
   const client = session ? await userDbClient() : null;
   if (!session || !client) return <ForbiddenBlock locale={locale} />;
@@ -56,71 +57,47 @@ export default async function AdminStudentPage(
     throw e;
   }
   const active = memberships.find((m) => m.isActive);
+  const progress = await loadStaffStudentProgress(client, params.id);
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader
+    <div className="flex flex-col gap-5">
+      <ConsoleHero
+        kicker={active ? `${active.batchName} · রোল ${active.rollNumber}` : "কোনো চালু ব্যাচ নেই"}
         title={detail.fullName}
-        description={
+        desc={
           <>
-            {detail.email}{" "}
-            <Badge tone={detail.status === "active" ? "success" : "neutral"}>
-              {detail.status}
-            </Badge>
+            {detail.email} · {detail.status === "active" ? "অ্যাকাউন্ট সক্রিয়" : `অ্যাকাউন্ট: ${detail.status}`}
           </>
         }
-      />
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label={t("level")} value={detail.level} />
-        <StatCard label={t("xp")} value={detail.xpTotal} />
-        <StatCard
-          label={t("colBatch")}
-          value={active ? active.batchName : "—"}
-        />
-        <StatCard
-          label={t("colRoll")}
-          value={active ? active.rollNumber : "—"}
-        />
-      </div>
-      <Card>
-        <CardContent>
-          <SectionHeader title={t("colStatus")} />
-          <AccountStatusSelect
-            locale={locale}
-            userId={detail.userId}
-            status={detail.status}
-          />
-        </CardContent>
-      </Card>
-      <Card>
-        <CardContent>
-          <SectionHeader title={t("roles")} />
-          <RoleEditor locale={locale} userId={detail.userId} />
-        </CardContent>
-      </Card>
-      {active ? (
-        <Card>
-          <CardContent>
-            <SectionHeader
-              title={`${active.batchName} · ${active.rollNumber}`}
-            />
-            <MembershipEditor
-              locale={locale}
-              userId={detail.userId}
-              rollNumber={active.rollNumber}
-              isActive={active.isActive}
-              batches={batches}
-              currentBatchId={active.batchId}
-            />
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardContent>
-            <Badge tone="warning">{t("statusInactive")}</Badge>
-          </CardContent>
-        </Card>
-      )}
+      >
+        <HeroLink href="/dashboard/typing-game/admin/students">সব স্টুডেন্ট</HeroLink>
+      </ConsoleHero>
+      {progress ? <StudentProgress p={progress} /> : null}
+      <Panel title="অ্যাকাউন্ট ও ব্যাচ" desc="স্ট্যাটাস, রোল আর ব্যাচ/রোল নম্বর বদলান">
+        <div className="grid gap-5 lg:grid-cols-2">
+          <div className="flex flex-col gap-2">
+            <h3 className="text-sm font-bold">অ্যাকাউন্টের অবস্থা</h3>
+            <AccountStatusSelect locale={locale} userId={detail.userId} status={detail.status} />
+            <h3 className="mt-3 text-sm font-bold">রোল</h3>
+            <RoleEditor locale={locale} userId={detail.userId} />
+          </div>
+          <div className="flex flex-col gap-2">
+            <h3 className="text-sm font-bold">ব্যাচ</h3>
+            {active ? (
+              <MembershipEditor
+                locale={locale}
+                userId={detail.userId}
+                rollNumber={active.rollNumber}
+                isActive={active.isActive}
+                batches={batches}
+                currentBatchId={active.batchId}
+              />
+            ) : (
+              <span className="tap-badge tap-badge-warning">কোনো চালু ব্যাচে নেই</span>
+            )}
+          </div>
+        </div>
+      </Panel>
     </div>
   );
 }

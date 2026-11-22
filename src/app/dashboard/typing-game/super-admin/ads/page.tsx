@@ -1,4 +1,4 @@
-import { PageHeader } from "@/components/typing-game/ui";
+import { ConsoleHero } from "@/components/typing-game/staff/blocks";
 import { AdsSettingsForm } from "@/components/typing-game/ads/ads-settings-form";
 import { userDbClient } from "@/lib/typing-game/server/auth";
 import { createAdsStore } from "@/lib/typing-game/server/ads-store";
@@ -21,9 +21,11 @@ export default async function AdsAdminPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader
-        title="Typing — Ads"
-        description="Google ডিসপ্লে ও রিওয়ার্ডেড অ্যাডের সেটিংস। ডিফল্টে সব বন্ধ — বন্ধ থাকলে student-রা কোনো অ্যাড দেখে না।"
+      <ConsoleHero
+        tone="super"
+        kicker="Ads · পুরো সিস্টেম"
+        title={settings.enabled ? "বিজ্ঞাপন চালু আছে" : "বিজ্ঞাপন বন্ধ আছে"}
+        desc="Google ডিসপ্লে ও রিওয়ার্ডেড অ্যাডের সেটিংস সব কোর্সের জন্য। শুধু Super Admin বদলাতে পারেন। বন্ধ থাকলে স্টুডেন্টরা কোনো অ্যাড দেখে না, আর “অ্যাড দেখে আনলক” সরাসরি আনলক করে।"
       />
       <AdsSettingsForm initial={settings} batches={batches} />
       <section className="tap-card p-4">

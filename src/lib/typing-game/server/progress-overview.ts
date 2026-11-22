@@ -166,6 +166,10 @@ export async function loadProgressOverview(client: PostgrestClient, userId: stri
       const title = findArcadeGame(String(meta.game))?.title ?? String(meta.game ?? "গেম");
       return { at, kind: "game", label: `গেম খেলা — ${title} (স্কোর ${num(meta.score).toLocaleString("en-US")})${meta.personal_best === true ? " · নতুন সেরা!" : ""}`, xp: amount };
     }
+    if (e.source === "challenge") {
+      const r = meta.result === "win" ? "জয়" : meta.result === "draw" ? "ড্র" : "হার";
+      return { at, kind: "game", label: `ব্যাচ চ্যালেঞ্জ — ${r}`, xp: amount };
+    }
     if (e.source === "attempt") {
       return { at, kind: "game", label: `গেম খেলা — ${gameTitle(meta.game_id)}${meta.personal_best === true ? " (নতুন সেরা!)" : ""}`, xp: amount };
     }

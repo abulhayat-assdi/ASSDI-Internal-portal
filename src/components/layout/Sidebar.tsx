@@ -21,6 +21,8 @@ interface NavItem {
     icon: string;
     permission: PermissionKey | null;
     feature?: string;
+    /** Shown to the platform super admin only. */
+    superAdminOnly?: boolean;
 }
 
 interface NavSection {
@@ -91,7 +93,7 @@ const teacherAdminNavSections: NavSection[] = [
         icon: "⌨️",
         items: [
             { href: "/dashboard/typing-game/admin", label: "Admin Console", icon: "⌨️", permission: "admin_typing_game", feature: "typing_game" },
-            { href: "/dashboard/typing-game/admin/flags", label: "Typing Adventure Flags", icon: "🚩", permission: "admin_typing_game", feature: "typing_game" },
+            { href: "/dashboard/typing-game/super-admin", label: "Super Admin (Ads)", icon: "🛡️", permission: null, feature: "typing_game", superAdminOnly: true },
             { href: "/dashboard/typing-game/teacher", label: "Teacher Console", icon: "⌨️", permission: "typing_game_teacher", feature: "typing_game" },
         ]
     },
@@ -223,6 +225,7 @@ export default function Sidebar({ variant }: SidebarProps = {}) {
 
     // Filter helper function
     const isNavItemAllowed = (item: NavItem) => {
+        if (item.superAdminOnly && userProfile?.role !== "super_admin" && !userProfile?.isPlatformSuperAdmin) return false;
         if (isStudent && inApp && item.feature && APP_HIDDEN_STUDENT_FEATURES.has(item.feature)) return false;
         if(item.feature === "competitions" && !loading) return (features.competitions !== false || features.business_incubation === true) && (isStudent || hasPermission("competitions_view"));
         if (item.feature === "live_chat" && (loading || features.live_chat !== true || features.crm !== true)) return false;

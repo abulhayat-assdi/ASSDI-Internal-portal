@@ -6,6 +6,7 @@
 import { NextResponse } from "next/server";
 import { findArcadeGame } from "@/lib/typing-game/arcade/catalog";
 import { buildArcadeContent } from "@/lib/typing-game/arcade/content.server";
+import { featureOn } from "@/lib/typing-game/server/features";
 import { arcadeContext, arcadeError } from "../../_helper";
 
 export async function POST(_req: Request, { params }: { params: Promise<{ slug: string }> }): Promise<Response> {
@@ -13,6 +14,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ slug: 
   if (!findArcadeGame(slug)) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
   const ctx = await arcadeContext();
   if (ctx instanceof Response) return ctx;
+  if (!(await featureOn(ctx.client, "ARCADE_GAMES_ENABLED"))) return NextResponse.json({ error: "FEATURE_OFF" }, { status: 403 });
   try {
     const { id, seed } = await ctx.store.start(slug);
     return NextResponse.json({ sessionId: id, seed, content: buildArcadeContent(seed) });

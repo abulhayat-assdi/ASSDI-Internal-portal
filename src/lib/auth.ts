@@ -119,6 +119,8 @@ export interface CachedProfileFields {
     permissions: string[];
     createdAt: Date;
     lastLoginAt: Date | null;
+    /** The platform super admin, also when signed in to a course as their hidden shadow admin. */
+    isPlatformSuperAdmin?: boolean;
 }
 
 interface CachedProfileEntry extends CachedProfileFields {

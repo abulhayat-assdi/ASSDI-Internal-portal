@@ -5,7 +5,7 @@ import { getSession } from "@/lib/typing-game/server/auth";
 import { userDbClient } from "@/lib/typing-game/server/auth";
 import { requireTeacher } from "@/lib/typing-game/server/staff";
 import { AuthApiError } from "@/lib/typing-game/server/staff";
-import { isLocale, getTranslator, type Locale, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
+import { type Locale, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { getServerSessionUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 
@@ -41,22 +41,20 @@ export default async function TeacherLayout({
     }
   }
   if (!allowed) return <ForbiddenBlock locale={locale} />;
-  const t = getTranslator(locale, "staff");
-  const tn = getTranslator(locale, "nav");
+  const base = `/dashboard/typing-game/teacher`;
   return (
     <div className="tap-scope min-h-screen bg-canvas">
       <StaffNav
         locale={locale}
-        homeHref={`/dashboard/typing-game/teacher`}
+        homeHref={base}
+        role="Teacher"
         items={[
-          { href: `/dashboard/typing-game/teacher`, label: t("teacherDashboard") },
-          {
-            href: `/dashboard/typing-game/teacher/missions`,
-            label: tn("missions"),
-          },
+          { href: base, label: "Overview", icon: "overview", exact: true },
+          { href: `${base}/batches`, label: "My batches", icon: "batches" },
+          { href: `${base}/missions`, label: "Missions", icon: "missions" },
         ]}
       />
-      <div className="mx-auto w-full max-w-6xl px-4 py-6">{children}</div>
+      <div className="mx-auto w-full max-w-7xl px-4 py-6">{children}</div>
     </div>
   );
 }

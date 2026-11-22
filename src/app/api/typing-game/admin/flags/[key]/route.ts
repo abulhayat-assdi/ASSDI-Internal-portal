@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { isFeatureKey } from "@/lib/typing-game/features";
 import { adminContext, readJson, toError } from "../../_helper";
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -30,13 +31,16 @@ export async function PATCH(
 ): Promise<Response> {
   const ctx = await adminContext();
   if (ctx instanceof NextResponse) return ctx;
+  const key = (await routeCtx.params).key;
+  // Only real student features are switchable here (ads belong to the super admin's Ads page).
+  if (!isFeatureKey(key)) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
   const body = await readJson(req);
   if (!isRecord(body) || typeof body.enabled !== "boolean") {
     return toError(new Error("MALFORMED"));
   }
   try {
     const orgId = ctx.orgIds === null ? null : (ctx.orgIds[0] ?? null);
-    await ctx.store.setFlag((await routeCtx.params).key, body.enabled, orgId);
+    await ctx.store.setFlag(key, body.enabled, orgId);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return toError(e);

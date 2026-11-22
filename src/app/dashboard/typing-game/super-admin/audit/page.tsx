@@ -1,75 +1,55 @@
-import { Badge, Card, CardContent, EmptyState, PageHeader } from "@/components/typing-game/ui";
-import { isLocale, getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
-import { getSession } from "@/lib/typing-game/server/auth";
-import { userDbClient } from "@/lib/typing-game/server/auth";
+import { DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
+import { getSession, userDbClient } from "@/lib/typing-game/server/auth";
 import { requireSuperAdmin } from "@/lib/typing-game/server/staff";
 import { createSupabaseStaffStore } from "@/lib/typing-game/server/staff-store";
-import { getAdminOverview } from "@/lib/typing-game/server/staff-data";
 import { ForbiddenBlock } from "@/components/typing-game/forbidden-block";
+import { ConsoleHero, Empty, Panel, auditLabel } from "@/components/typing-game/staff/blocks";
 
-export default async function SuperAuditPage({}: {}) {
+export const dynamic = "force-dynamic";
+
+export default async function SuperAuditPage() {
   const locale = DEFAULT_LOCALE;
-  const t = getTranslator(locale, "staff");
   const session = await getSession();
   const client = session ? await userDbClient() : null;
   if (!session || !client) return <ForbiddenBlock locale={locale} />;
-  let rows: Array<{
-    id: number;
-    actor: string | null;
-    action: string;
-    entity: string;
-    entityId: string;
-    createdAt: string;
-  }> = [];
+  let rows: { id: number | string; action: string; entity: string; entityId: string; createdAt: string }[] = [];
   try {
     await requireSuperAdmin(client);
-    const overview = await getAdminOverview(null, createSupabaseStaffStore(client));
-    rows = overview.recentAudit;
+    rows = await createSupabaseStaffStore(client).getAudit(100);
   } catch {
     return <ForbiddenBlock locale={locale} />;
   }
-
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader title={t("auditLog")} />
-      <Card>
-        <CardContent>
-          {rows.length === 0 ? (
-            <EmptyState title={t("auditLog")} description={t("noResults")} />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="tap-table">
-                <thead>
-                  <tr>
-                    <th scope="col">{t("time")}</th>
-                    <th scope="col">{t("actor")}</th>
-                    <th scope="col">{t("action")}</th>
-                    <th scope="col">{t("entity")}</th>
+    <div className="flex flex-col gap-5">
+      <ConsoleHero tone="super" kicker="Audit log" title="পরিবর্তনের খাতা" desc="কোর্স, ব্যাচ, টিচার অ্যাসাইনমেন্ট, রোল আর ব্যাচ মেম্বারশিপে শেষ ১০০টা পরিবর্তন।" />
+      <Panel title={`${rows.length}টা এন্ট্রি`}>
+        {rows.length === 0 ? (
+          <Empty>এখনো কোনো পরিবর্তন নেই।</Empty>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="tap-table w-full text-sm">
+              <thead>
+                <tr>
+                  <th className="text-left">কী হয়েছে</th>
+                  <th className="text-left">টেবিল</th>
+                  <th className="text-left">আইডি</th>
+                  <th className="text-right">সময় (UTC)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((a) => (
+                  <tr key={a.id}>
+                    <td className="font-semibold">{auditLabel(a.action)}</td>
+                    <td className="font-mono text-xs">{a.entity}</td>
+                    <td className="font-mono text-xs text-ink-faint">{a.entityId.slice(0, 8)}</td>
+                    <td className="text-right text-xs tabular-nums">{a.createdAt.slice(0, 16).replace("T", " ")}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {rows.map((a) => (
-                    <tr key={a.id}>
-                      <td>{a.createdAt.slice(0, 16).replace("T", " ")}</td>
-                      <td className="font-mono text-xs">
-                        {a.actor ? `${a.actor.slice(0, 8)}…` : "—"}
-                      </td>
-                      <td>
-                        <Badge tone="primary">{a.action}</Badge>
-                      </td>
-                      <td>
-                        <Badge tone="neutral">
-                          {a.entity} · {a.entityId.slice(0, 8)}
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
     </div>
   );
 }

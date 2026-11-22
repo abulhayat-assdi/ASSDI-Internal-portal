@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Plus, ScrollText } from "lucide-react";
 import { Badge, EmptyState, PageHeader, type BadgeTone } from "@/components/typing-game/ui";
+import { ConsoleHero, HeroLink } from "@/components/typing-game/staff/blocks";
 import { getTranslator, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 import { getSession, userDbClient } from "@/lib/typing-game/server/auth";
 import { createSupabaseCustomMissionStore } from "@/lib/typing-game/server/custom-mission-store";
@@ -14,7 +15,7 @@ const STATUS_TONE: Record<string, BadgeTone> = {
 };
 
 /** Teacher's custom missions: list + entry to create a new one. */
-export default async function TeacherMissionsPage({}: {}) {
+export default async function TeacherMissionsPage() {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "missions");
   const session = await getSession();
@@ -27,19 +28,11 @@ export default async function TeacherMissionsPage({}: {}) {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader
-        title={t("teacherHubTitle")}
-        description={t("teacherHubSubtitle")}
-        actions={
-          <Link
-            href="/dashboard/typing-game/teacher/missions/new"
-            className="tap-btn tap-btn-primary"
-          >
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            <span>{t("createTitle")}</span>
-          </Link>
-        }
-      />
+      <ConsoleHero tone="teacher" kicker="Missions" title={t("teacherHubTitle")} desc={t("teacherHubSubtitle")}>
+        <HeroLink href="/dashboard/typing-game/teacher/missions/new">
+          <Plus className="h-4 w-4" aria-hidden="true" /> {t("createTitle")}
+        </HeroLink>
+      </ConsoleHero>
 
       {missions.length === 0 ? (
         <EmptyState

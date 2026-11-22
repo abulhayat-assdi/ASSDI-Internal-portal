@@ -5,7 +5,7 @@ import { getSession } from "@/lib/typing-game/server/auth";
 import { userDbClient } from "@/lib/typing-game/server/auth";
 import { requireAdmin } from "@/lib/typing-game/server/staff";
 import { AuthApiError } from "@/lib/typing-game/server/staff";
-import { isLocale, getTranslator, type Locale, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
+import { type Locale, DEFAULT_LOCALE } from "@/lib/typing-game/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -35,26 +35,25 @@ export default async function AdminLayout({
     }
   }
   if (!allowed) return <ForbiddenBlock locale={locale} />;
-  const t = getTranslator(locale, "staff");
-  const tn = getTranslator(locale, "nav");
   const base = `/dashboard/typing-game/admin`;
   return (
     <div className="tap-scope min-h-screen bg-canvas">
       <StaffNav
         locale={locale}
         homeHref={base}
+        role="Admin"
         items={[
-          { href: base, label: t("adminDashboard") },
-          { href: `${base}/courses`, label: t("courses") },
-          { href: `${base}/batches`, label: t("batches") },
-          { href: `${base}/students`, label: t("students") },
-          { href: `${base}/teachers`, label: t("teachers") },
-          { href: `${base}/missions`, label: tn("adminMissions") },
-          { href: `${base}/adaptive`, label: tn("adminAdaptive") },
-          { href: `${base}/flags`, label: t("featureFlags") },
+          { href: base, label: "Overview", icon: "overview", exact: true },
+          { href: `${base}/batches`, label: "Batches", icon: "batches" },
+          { href: `${base}/students`, label: "Students", icon: "students" },
+          { href: `${base}/teachers`, label: "Teachers", icon: "teachers" },
+          { href: `${base}/courses`, label: "Courses", icon: "courses" },
+          { href: `${base}/missions`, label: "Missions", icon: "missions" },
+          { href: `${base}/analytics`, label: "Analytics", icon: "analytics" },
+          { href: `${base}/flags`, label: "Features", icon: "features" },
         ]}
       />
-      <div className="mx-auto w-full max-w-6xl px-4 py-6">{children}</div>
+      <div className="mx-auto w-full max-w-7xl px-4 py-6">{children}</div>
     </div>
   );
 }

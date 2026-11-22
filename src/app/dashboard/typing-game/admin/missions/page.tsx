@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ScrollText } from "lucide-react";
-import { Badge, EmptyState, PageHeader, type BadgeTone } from "@/components/typing-game/ui";
+import { Badge, EmptyState, type BadgeTone } from "@/components/typing-game/ui";
+import { ConsoleHero } from "@/components/typing-game/staff/blocks";
 import { getTranslator, DEFAULT_LOCALE, type Messages } from "@/lib/typing-game/i18n";
 import { missionPageContext } from "@/lib/typing-game/server/mission-pages";
 
@@ -23,7 +24,7 @@ function statusLabel(status: string): keyof Messages["missions"] | null {
 }
 
 /** Admin global mission definitions (drafts included via RLS admin policy). */
-export default async function AdminMissionsPage({}: {}) {
+export default async function AdminMissionsPage() {
   const locale = DEFAULT_LOCALE;
   const t = getTranslator(locale, "missions");
   const { store } = await missionPageContext(locale);
@@ -31,7 +32,7 @@ export default async function AdminMissionsPage({}: {}) {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title={t("globalHubTitle")} description={t("globalHubSubtitle")} />
+      <ConsoleHero kicker="Missions" title={t("globalHubTitle")} desc={t("globalHubSubtitle")} />
       {missions.length === 0 ? (
         <EmptyState
           icon={<ScrollText className="h-8 w-8" aria-hidden="true" />}
