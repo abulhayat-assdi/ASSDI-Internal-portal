@@ -13,7 +13,7 @@ export const ALL_FEATURES: FeatureDefinition[] = [
     { key: 'business_incubation', label: 'Business Incubation', description: 'Team business incubation, stock, field work and financial reporting', defaultEnabled: false },
     { key: 'live_chat', label: 'Live Chat Training', description: 'Customer service chat practice, assessment and coaching (requires CRM)', defaultEnabled: false },
     { key: 'crm', label: 'Customer Service CRM', description: 'Batch customer service training workspace', defaultEnabled: false },
-    { key: 'pronunciation', label: 'বাংলা উচ্চারণ', description: 'বাংলা উচ্চারণ অনুশীলন ও অগ্রগতি — আলাদা ট্যাবে খোলে, পোর্টালের লগইনেই চলে', defaultEnabled: false },
+    { key: 'pronunciation', label: 'Bangla Pronunciation', description: 'বাংলা উচ্চারণ অনুশীলন ও অগ্রগতি — পোর্টালের ভিতরেই খোলে, পোর্টালের লগইনেই চলে', defaultEnabled: false },
     { key: 'homework', label: 'হোমওয়ার্ক', description: 'হোমওয়ার্ক জমা ও ম্যানেজমেন্ট সিস্টেম', defaultEnabled: true },
     { key: 'resources', label: 'Resource Library', description: 'ফাইল শেয়ারিং ও রিসোর্স লাইব্রেরি', defaultEnabled: true },
     { key: 'course_modules', label: 'Course Modules', description: 'কোর্স মডিউল ম্যানেজমেন্ট', defaultEnabled: true },

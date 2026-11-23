@@ -73,7 +73,9 @@ export default function ProtectedRoute({ children, minimalLoading = false }: { c
     const denied = requiredPermission === UNREGISTERED_PAGE
         ? userProfile.role !== "super_admin"
         : requiredPermission !== null && !hasPermission(requiredPermission) &&
-          !((pathname === "/dashboard/live-chat" || pathname?.startsWith("/dashboard/live-chat/")) && hasPermission("crm_admin"));
+          !((pathname === "/dashboard/live-chat" || pathname?.startsWith("/dashboard/live-chat/")) && hasPermission("crm_admin")) &&
+          // The menu shows Bangla Pronunciation to its admins too; the app itself picks their role.
+          !(pathname === "/dashboard/pronunciation" && hasPermission("pronunciation_admin"));
     if (denied) {
         return (
             <div className="flex items-center justify-center min-h-[60vh]">
