@@ -42,7 +42,7 @@ export function FeatureSwitches({ features, scopeNote }: { features: (FeatureMet
               <div className="min-w-0 flex-1">
                 <p className="flex items-center gap-2 font-semibold">
                   {f.title}
-                  <span className={`tap-badge ${on ? "tap-badge-success" : "tap-badge-neutral"}`}>{on ? "চালু" : "বন্ধ"}</span>
+                  <span className={`tap-badge ${on ? "tap-badge-success" : "tap-badge-neutral"}`}>{on ? "On" : "Off"}</span>
                 </p>
                 <p className="mt-1 text-sm text-ink-muted">{on ? f.on : f.off}</p>
               </div>
@@ -50,7 +50,7 @@ export function FeatureSwitches({ features, scopeNote }: { features: (FeatureMet
                 type="button"
                 role="switch"
                 aria-checked={on}
-                aria-label={`${f.title} ${on ? "বন্ধ করুন" : "চালু করুন"}`}
+                aria-label={`${on ? "Turn off" : "Turn on"} ${f.title}`}
                 disabled={busy !== null}
                 onClick={() => toggle(f.key)}
                 className="sc-switch mt-1"

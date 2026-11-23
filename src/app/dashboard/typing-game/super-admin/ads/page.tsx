@@ -23,23 +23,23 @@ export default async function AdsAdminPage() {
     <div className="flex flex-col gap-6">
       <ConsoleHero
         tone="super"
-        kicker="Ads · পুরো সিস্টেম"
-        title={settings.enabled ? "বিজ্ঞাপন চালু আছে" : "বিজ্ঞাপন বন্ধ আছে"}
+        kicker="Ads · Whole system"
+        title={settings.enabled ? "Ads are ON" : "Ads are OFF"}
         desc="Google ডিসপ্লে ও রিওয়ার্ডেড অ্যাডের সেটিংস সব কোর্সের জন্য। শুধু Super Admin বদলাতে পারেন। বন্ধ থাকলে স্টুডেন্টরা কোনো অ্যাড দেখে না, আর “অ্যাড দেখে আনলক” সরাসরি আনলক করে।"
       />
       <AdsSettingsForm initial={settings} batches={batches} />
       <section className="tap-card p-4">
-        <h2 className="mb-2 font-display text-lg font-bold">শেষ ১৪ দিনের রিওয়ার্ডেড অ্যাড</h2>
+        <h2 className="mb-2 font-display text-lg font-bold">Rewarded ads, last 14 days</h2>
         {report.length === 0 ? (
-          <p className="text-sm text-ink-muted">কোনো অ্যাড দেখা হয়নি।</p>
+          <p className="text-sm text-ink-muted">No ads watched.</p>
         ) : (
           <table className="tap-table w-full text-sm">
             <thead>
               <tr>
-                <th className="text-left">তারিখ</th>
-                <th className="text-left">কাজ</th>
-                <th className="text-right">দেখা হয়েছে</th>
-                <th className="text-right">অ্যাড পাওয়া যায়নি</th>
+                <th className="text-left">Date</th>
+                <th className="text-left">Action</th>
+                <th className="text-right">Completed</th>
+                <th className="text-right">No fill</th>
               </tr>
             </thead>
             <tbody>

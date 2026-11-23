@@ -16,16 +16,16 @@ export function BatchCards({ batches, hrefFor }: { batches: InsightBatch[]; href
               <div className="min-w-0">
                 <p className="truncate font-display text-lg font-extrabold">{b.name}</p>
                 <p className="truncate text-xs text-ink-muted">
-                  {b.course} · কোড <code>{b.joinCode}</code>
+                  {b.course} · Code <code>{b.joinCode}</code>
                 </p>
               </div>
-              {!b.active ? <span className="tap-badge tap-badge-neutral">বন্ধ</span> : <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" aria-hidden="true" />}
+              {!b.active ? <span className="tap-badge tap-badge-neutral">Inactive</span> : <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" aria-hidden="true" />}
             </div>
             <div>
               <div className="flex items-baseline justify-between text-xs">
-                <span className="font-semibold">৭ দিনে সক্রিয়</span>
+                <span className="font-semibold">Active (7 days)</span>
                 <span className="tabular-nums">
-                  {b.active7d}/{b.members} জন
+                  {b.active7d}/{b.members}
                 </span>
               </div>
               <span className="sc-meter mt-1 block">
@@ -34,9 +34,9 @@ export function BatchCards({ batches, hrefFor }: { batches: InsightBatch[]; href
             </div>
             <dl className="grid grid-cols-3 gap-2 text-center">
               {[
-                { k: "মিনিট (৭ দিন)", v: b.minutes7d },
-                { k: "গড় লেসন", v: b.lessonsAvg },
-                { k: "গড় সেরা WPM", v: b.avgWpm ?? "—" },
+                { k: "Minutes (7d)", v: b.minutes7d },
+                { k: "Avg lessons", v: b.lessonsAvg },
+                { k: "Avg best WPM", v: b.avgWpm ?? "—" },
               ].map((x) => (
                 <div key={x.k} className="rounded-xl bg-[var(--tap-primary-50)] px-2 py-2">
                   <dt className="text-[11px] text-ink-muted">{x.k}</dt>

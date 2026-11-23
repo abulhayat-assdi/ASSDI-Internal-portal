@@ -62,27 +62,27 @@ export default async function AdminStudentPage(
   return (
     <div className="flex flex-col gap-5">
       <ConsoleHero
-        kicker={active ? `${active.batchName} · রোল ${active.rollNumber}` : "কোনো চালু ব্যাচ নেই"}
+        kicker={active ? `${active.batchName} · Roll ${active.rollNumber}` : "No active batch"}
         title={detail.fullName}
         desc={
           <>
-            {detail.email} · {detail.status === "active" ? "অ্যাকাউন্ট সক্রিয়" : `অ্যাকাউন্ট: ${detail.status}`}
+            {detail.email} · {detail.status === "active" ? "Account active" : `Account: ${detail.status}`}
           </>
         }
       >
-        <HeroLink href="/dashboard/typing-game/admin/students">সব স্টুডেন্ট</HeroLink>
+        <HeroLink href="/dashboard/typing-game/admin/students">All students</HeroLink>
       </ConsoleHero>
       {progress ? <StudentProgress p={progress} /> : null}
-      <Panel title="অ্যাকাউন্ট ও ব্যাচ" desc="স্ট্যাটাস, রোল আর ব্যাচ/রোল নম্বর বদলান">
+      <Panel title="Account & batch" desc="স্ট্যাটাস, রোল আর ব্যাচ/রোল নম্বর বদলান">
         <div className="grid gap-5 lg:grid-cols-2">
           <div className="flex flex-col gap-2">
-            <h3 className="text-sm font-bold">অ্যাকাউন্টের অবস্থা</h3>
+            <h3 className="text-sm font-bold">Account status</h3>
             <AccountStatusSelect locale={locale} userId={detail.userId} status={detail.status} />
-            <h3 className="mt-3 text-sm font-bold">রোল</h3>
+            <h3 className="mt-3 text-sm font-bold">Roles</h3>
             <RoleEditor locale={locale} userId={detail.userId} />
           </div>
           <div className="flex flex-col gap-2">
-            <h3 className="text-sm font-bold">ব্যাচ</h3>
+            <h3 className="text-sm font-bold">Batch</h3>
             {active ? (
               <MembershipEditor
                 locale={locale}
@@ -93,7 +93,7 @@ export default async function AdminStudentPage(
                 currentBatchId={active.batchId}
               />
             ) : (
-              <span className="tap-badge tap-badge-warning">কোনো চালু ব্যাচে নেই</span>
+              <span className="tap-badge tap-badge-warning">Not in an active batch</span>
             )}
           </div>
         </div>

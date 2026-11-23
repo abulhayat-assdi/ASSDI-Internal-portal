@@ -34,13 +34,13 @@ export default async function BatchesPage() {
     <div className="flex flex-col gap-5">
       <ConsoleHero
         kicker="Batches"
-        title="ব্যাচ"
+        title="Batches"
         desc="প্রতিটা ব্যাচের স্টুডেন্ট, সাপ্তাহিক সক্রিয়তা আর টিচার এক জায়গায়। ব্যাচ বন্ধ করলে নতুন কেউ জয়েন করতে পারবে না, ব্যাচের ভেতরে কম্পিটিশনও বন্ধ থাকবে।"
       />
-      <Panel title="নতুন ব্যাচ" desc="ASM-এর ব্যাচ থেকে স্টুডেন্টরা নিজে থেকেই যোগ হয়। আলাদা ব্যাচ লাগলে এখানে তৈরি করুন।">
+      <Panel title="New batch" desc="ASM-এর ব্যাচ থেকে স্টুডেন্টরা নিজে থেকেই যোগ হয়। আলাদা ব্যাচ লাগলে এখানে তৈরি করুন।">
         <CreateBatchForm locale={locale} courses={courses} />
       </Panel>
-      <Panel title={`সব ব্যাচ (${batches.length})`}>
+      <Panel title={`All batches (${batches.length})`}>
         {sorted.length === 0 ? (
           <Empty>এখনো কোনো ব্যাচ নেই। উপরের ফর্ম থেকে প্রথম ব্যাচটা তৈরি করুন।</Empty>
         ) : (
@@ -48,14 +48,14 @@ export default async function BatchesPage() {
             <table className="tap-table w-full text-sm">
               <thead>
                 <tr>
-                  <th scope="col" className="text-left">ব্যাচ</th>
-                  <th scope="col" className="text-left">জয়েন কোড</th>
-                  <th scope="col" className="text-left">টিচার</th>
-                  <th scope="col" className="text-right">স্টুডেন্ট</th>
-                  <th scope="col" className="text-right">৭ দিনে সক্রিয়</th>
-                  <th scope="col" className="text-right">মিনিট (৭ দিন)</th>
-                  <th scope="col" className="text-left">অবস্থা</th>
-                  <th scope="col" className="text-right">কাজ</th>
+                  <th scope="col" className="text-left">Batch</th>
+                  <th scope="col" className="text-left">Join code</th>
+                  <th scope="col" className="text-left">Teacher</th>
+                  <th scope="col" className="text-right">Students</th>
+                  <th scope="col" className="text-right">Active (7d)</th>
+                  <th scope="col" className="text-right">Minutes (7d)</th>
+                  <th scope="col" className="text-left">Status</th>
+                  <th scope="col" className="text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -77,7 +77,7 @@ export default async function BatchesPage() {
                           s.teachers.join(", ")
                         ) : (
                           <Link href="/dashboard/typing-game/admin/teachers" className="font-semibold text-amber-600 hover:underline">
-                            টিচার দিন
+                            Assign teacher
                           </Link>
                         )}
                       </td>
@@ -85,14 +85,14 @@ export default async function BatchesPage() {
                       <td className="text-right tabular-nums">{s?.active7d ?? 0}</td>
                       <td className="text-right tabular-nums">{s?.minutes7d ?? 0}</td>
                       <td>
-                        <span className={`tap-badge ${b.isActive ? "tap-badge-success" : "tap-badge-neutral"}`}>{b.isActive ? "চালু" : "বন্ধ"}</span>
+                        <span className={`tap-badge ${b.isActive ? "tap-badge-success" : "tap-badge-neutral"}`}>{b.isActive ? "Active" : "Inactive"}</span>
                       </td>
                       <td className="text-right">
                         <PatchToggle
                           locale={locale}
                           url={`/api/typing-game/admin/batches/${b.id}`}
                           body={{ isActive: !b.isActive }}
-                          label={b.isActive ? "বন্ধ করুন" : "চালু করুন"}
+                          label={b.isActive ? "Deactivate" : "Activate"}
                           active={b.isActive}
                         />
                       </td>

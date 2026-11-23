@@ -21,8 +21,8 @@ export default async function TeacherStudentPage(props: { params: Promise<{ user
 
   return (
     <div className="flex flex-col gap-5">
-      <ConsoleHero tone="teacher" kicker="স্টুডেন্ট" title={p.profile.name} desc={p.profile.email}>
-        <HeroLink href="/dashboard/typing-game/teacher">ড্যাশবোর্ডে ফিরুন</HeroLink>
+      <ConsoleHero tone="teacher" kicker="Student" title={p.profile.name} desc={p.profile.email}>
+        <HeroLink href="/dashboard/typing-game/teacher">Back to dashboard</HeroLink>
       </ConsoleHero>
       <StudentProgress p={p} />
     </div>

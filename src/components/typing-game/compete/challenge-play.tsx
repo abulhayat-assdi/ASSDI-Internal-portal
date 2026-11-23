@@ -183,7 +183,7 @@ export function ChallengePlay({ id }: { id: string }) {
       router.push(`${BASE}/${(d as { id: string }).id}`);
     } catch (e) {
       const code = e instanceof Error ? e.message : "ERROR";
-      setError(code === "ALREADY_OPEN" ? "এই বন্ধুর সাথে আরেকটা চ্যালেঞ্জ আগেই চলছে।" : code);
+      setError(code === "ALREADY_OPEN" ? "You already have an open challenge with this batchmate." : code);
       setBusy(false);
     }
   }
@@ -191,22 +191,22 @@ export function ChallengePlay({ id }: { id: string }) {
   if (!st) {
     return error ? (
       <div className="compete-card mx-auto max-w-md p-6 text-center">
-        <p className="font-semibold">চ্যালেঞ্জটা পাওয়া যায়নি ({error})।</p>
-        <Link href={BASE} className="tap-btn tap-btn-secondary tap-btn-sm mt-3">ফিরে যান</Link>
+        <p className="font-semibold">Challenge not found ({error}).</p>
+        <Link href={BASE} className="tap-btn tap-btn-secondary tap-btn-sm mt-3">Back</Link>
       </div>
     ) : (
       <div className="tap-skeleton mx-auto h-64 max-w-3xl rounded-3xl" />
     );
   }
 
-  const opponentName = them?.name ?? "প্রতিপক্ষ";
+  const opponentName = them?.name ?? "Opponent";
   const header = (
     <div className="flex flex-wrap items-center justify-between gap-2">
       <Link href={BASE} className="inline-flex items-center gap-1 text-sm font-semibold text-ink-muted hover:text-ink">
         <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Compete
       </Link>
       <span className={"tap-badge " + (live ? "tap-badge-danger" : "tap-badge-primary")}>
-        {live ? "লাইভ রেস" : "চ্যালেঞ্জ"} · vs {opponentName}
+        {live ? "Live race" : "Challenge"} · vs {opponentName}
       </span>
     </div>
   );
@@ -218,27 +218,27 @@ export function ChallengePlay({ id }: { id: string }) {
     const draw = st.status === "finished" && st.winnerId === null;
     const title =
       st.status === "declined"
-        ? `${opponentName} চ্যালেঞ্জটা নেয়নি`
+        ? `${opponentName} declined`
         : st.status === "cancelled"
-          ? "চ্যালেঞ্জ বাতিল হয়েছে"
+          ? "Challenge cancelled"
           : !finalised
-            ? "আপনার খেলা শেষ!"
+            ? "Your run is done!"
             : st.status === "expired"
               ? won
-                ? "প্রতিপক্ষ খেলেনি, ওয়াকওভার জয়"
-                : "সময় শেষ, চ্যালেঞ্জ হয়নি"
+                ? "Walkover win"
+                : "Challenge expired"
               : draw
-                ? "ড্র!"
+                ? "Draw!"
                 : won
-                  ? "আপনি জিতেছেন! 🏆"
-                  : `${opponentName} জিতেছে`;
+                  ? "You win! 🏆"
+                  : `${opponentName} wins`;
     const row = (p: ChallengePlayer | null, label: string) => (
       <tr>
         <th scope="row" className="text-left">{label}</th>
         <td className="tabular-nums">{p?.wpm != null ? Math.round(p.wpm) : "—"}</td>
         <td className="tabular-nums">{p?.accuracy != null ? `${Math.round(p.accuracy)}%` : "—"}</td>
         <td className="tabular-nums">{p?.timeMs != null ? fmt(p.timeMs) : "—"}</td>
-        <td>{p?.completed ? "শেষ করেছে" : p?.finished ? `${Math.round((100 * (p.progress ?? 0)) / st.textLength)}%` : "খেলেনি"}</td>
+        <td>{p?.completed ? "Finished" : p?.finished ? `${Math.round((100 * (p.progress ?? 0)) / st.textLength)}%` : "Not played"}</td>
       </tr>
     );
     return (
@@ -257,7 +257,7 @@ export function ChallengePlay({ id }: { id: string }) {
             ) : null}
             {me && (me.xp > 0 || me.coins > 0) ? (
               <div className="flex gap-2">
-                {me.coins > 0 ? <span className="tap-badge tap-badge-legendary">+{me.coins} কয়েন</span> : null}
+                {me.coins > 0 ? <span className="tap-badge tap-badge-legendary">+{me.coins} coins</span> : null}
                 {me.xp > 0 ? <span className="tap-badge tap-badge-primary">+{me.xp} XP</span> : null}
               </div>
             ) : null}
@@ -268,15 +268,15 @@ export function ChallengePlay({ id }: { id: string }) {
             <table className="tap-table w-full text-sm">
               <thead>
                 <tr>
-                  <th className="text-left">খেলোয়াড়</th>
+                  <th className="text-left">Player</th>
                   <th>WPM</th>
-                  <th>নির্ভুলতা</th>
-                  <th>সময়</th>
-                  <th>অবস্থা</th>
+                  <th>Accuracy</th>
+                  <th>Time</th>
+                  <th>Status</th>
                 </tr>
               </thead>
               <tbody>
-                {row(me, `আপনি`)}
+                {row(me, `You`)}
                 {row(them, opponentName)}
               </tbody>
             </table>
@@ -285,11 +285,11 @@ export function ChallengePlay({ id }: { id: string }) {
         <div className="flex flex-wrap justify-center gap-2">
           {finalised || st.status === "declined" || st.status === "cancelled" ? (
             <button type="button" disabled={busy} onClick={rematch} className={"tap-btn tap-btn-md " + (live ? "compete-btn-race" : "compete-btn-challenge")}>
-              <RotateCcw className="h-4 w-4" aria-hidden="true" /> আবার চ্যালেঞ্জ
+              <RotateCcw className="h-4 w-4" aria-hidden="true" /> Rematch
             </button>
           ) : null}
           <Link href={BASE} className="tap-btn tap-btn-md tap-btn-secondary">
-            সব কম্পিটিশন
+            All challenges
           </Link>
         </div>
         {error ? <p role="alert" className="text-center text-sm text-rose-600">{error}</p> : null}
@@ -311,15 +311,15 @@ export function ChallengePlay({ id }: { id: string }) {
           <div className="flex justify-center gap-2">
             {live ? (
               <button type="button" disabled={busy} onClick={() => act("accept")} className="tap-btn tap-btn-lg compete-btn-race">
-                <Check className="h-5 w-5" aria-hidden="true" /> গ্রহণ করুন
+                <Check className="h-5 w-5" aria-hidden="true" /> Accept
               </button>
             ) : (
               <button type="button" disabled={busy} onClick={() => act("begin")} className="tap-btn tap-btn-lg compete-btn-challenge">
-                <Zap className="h-5 w-5" aria-hidden="true" /> গ্রহণ করে খেলুন
+                <Zap className="h-5 w-5" aria-hidden="true" /> Accept & play
               </button>
             )}
             <button type="button" disabled={busy} onClick={() => act("decline")} className="tap-btn tap-btn-lg tap-btn-ghost">
-              <X className="h-5 w-5" aria-hidden="true" /> না
+              <X className="h-5 w-5" aria-hidden="true" /> Decline
             </button>
           </div>
         </>
@@ -330,18 +330,18 @@ export function ChallengePlay({ id }: { id: string }) {
           <p className="text-lg">{opponentName}-কে লাইভ রেসের আমন্ত্রণ পাঠানো হয়েছে।</p>
           <p className="text-sm text-ink-muted">গ্রহণ করলেই এখানে কাউন্টডাউন শুরু হবে। এই পেজটা খোলা রাখুন।</p>
           <div className="flex justify-center"><span className="tap-skeleton h-2 w-40 rounded-full" /></div>
-          <button type="button" disabled={busy} onClick={() => act("cancel")} className="tap-btn tap-btn-sm tap-btn-ghost mx-auto">বাতিল করুন</button>
+          <button type="button" disabled={busy} onClick={() => act("cancel")} className="tap-btn tap-btn-sm tap-btn-ghost mx-auto">Cancel</button>
         </>
       );
     } else if (live && st.status === "accepted") {
       body = (
         <>
-          <p className="text-lg font-semibold">রেসের লবি</p>
+          <p className="text-lg font-semibold">Race lobby</p>
           <div className="flex justify-center gap-6 text-sm">
             {st.players.map((p) => (
               <span key={p.userId} className="flex items-center gap-2">
                 <span className={"compete-dot " + (p.present || p.userId === st.me ? "on" : "")} />
-                {p.userId === st.me ? "আপনি" : p.name}
+                {p.userId === st.me ? "You" : p.name}
               </span>
             ))}
           </div>
@@ -351,7 +351,7 @@ export function ChallengePlay({ id }: { id: string }) {
     } else if (countdown > 0) {
       body = (
         <>
-          <p className="text-sm font-semibold uppercase tracking-widest text-ink-muted">তৈরি হোন</p>
+          <p className="text-sm font-semibold uppercase tracking-widest text-ink-muted">Get ready</p>
           <p className="compete-countdown" key={countdown} aria-live="assertive">{countdown}</p>
           <p className="text-sm text-ink-muted">আঙুল হোম রো-তে রাখুন। ভুল অক্ষর ঠিকটা না দেওয়া পর্যন্ত এগোবে না।</p>
         </>
@@ -360,15 +360,15 @@ export function ChallengePlay({ id }: { id: string }) {
       body = (
         <>
           <p className="text-lg">
-            {st.createdBy === st.me ? `${opponentName}-কে চ্যালেঞ্জ পাঠানো হয়েছে। আপনার অংশটা খেলে ফেলুন।` : `${opponentName}-এর চ্যালেঞ্জ`}
+            {st.createdBy === st.me ? `${opponentName}-কে চ্যালেঞ্জ পাঠানো হয়েছে। আপনার অংশটা খেলে ফেলুন।` : `Challenge from ${opponentName}`}
           </p>
           <ul className="mx-auto max-w-md list-disc pl-5 text-left text-sm text-ink-muted">
             <li>প্রায় {Math.round(st.textLength / 5)} শব্দের একটা লেখা, সময় সর্বোচ্চ {Math.round(st.timeLimitS / 60)} মিনিট।</li>
-            <li>“শুরু করুন” চাপলেই ঘড়ি চালু হবে। পেজ রিলোড করলেও ঘড়ি থামবে না।</li>
+            <li>“Start” চাপলেই ঘড়ি চালু হবে। পেজ রিলোড করলেও ঘড়ি থামবে না।</li>
             <li>ভুল অক্ষর দিলে এগোবে না, আর নির্ভুলতা কমবে।</li>
           </ul>
           <button type="button" disabled={busy} onClick={() => act("begin")} className="tap-btn tap-btn-lg compete-btn-challenge mx-auto">
-            <Timer className="h-5 w-5" aria-hidden="true" /> শুরু করুন
+            <Timer className="h-5 w-5" aria-hidden="true" /> Start
           </button>
         </>
       );
@@ -393,7 +393,7 @@ export function ChallengePlay({ id }: { id: string }) {
     <div className="mx-auto flex max-w-4xl flex-col gap-4">
       {header}
       <section className="compete-card flex flex-col gap-3 p-4 sm:p-5">
-        <Track p={pos} total={text.length} color="#6366f1" car="🏎️" label="আপনি" />
+        <Track p={pos} total={text.length} color="#6366f1" car="🏎️" label="You" />
         {live ? <Track p={theirPos} total={text.length} color="#f43f5e" car="🚙" label={opponentName} /> : null}
       </section>
       <section className="compete-card p-5 sm:p-7">
@@ -402,12 +402,12 @@ export function ChallengePlay({ id }: { id: string }) {
             <Timer className="h-4 w-4" aria-hidden="true" /> {fmt(remaining)}
           </span>
           <span className="tabular-nums"><b>{wpm}</b> wpm</span>
-          <span className="tabular-nums">ভুল: <b>{errors}</b></span>
+          <span className="tabular-nums">Errors: <b>{errors}</b></span>
           <span className="ml-auto inline-flex items-center gap-1 text-xs text-ink-faint">
-            <Flag className="h-3.5 w-3.5" aria-hidden="true" /> কিবোর্ডে টাইপ শুরু করুন
+            <Flag className="h-3.5 w-3.5" aria-hidden="true" /> Start typing
           </span>
         </div>
-        <p className="compete-text" aria-label="টাইপ করার লেখা">
+        <p className="compete-text" aria-label="Text to type">
           <span className="done">{text.slice(0, pos)}</span>
           <span className={"cur" + (flash ? " err" : "")}>{text[pos] === " " ? " " : text[pos]}</span>
           <span className="todo">{text.slice(pos + 1)}</span>

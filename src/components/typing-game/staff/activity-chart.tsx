@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-const BN_DAYS = ["রবি", "সোম", "মঙ্গল", "বুধ", "বৃহ", "শুক্র", "শনি"];
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 /**
  * Typing minutes per day (one series, so no legend): thin bars on a quiet
@@ -28,19 +28,19 @@ export function ActivityChart({ days }: { days: { day: string; minutes: number; 
         {d ? (
           <p className="text-sm">
             <span className="font-display text-2xl font-extrabold tabular-nums">{d.minutes}</span>{" "}
-            <span className="text-ink-muted">মিনিট টাইপ · {d.active} জন স্টুডেন্ট</span>
+            <span className="text-ink-muted">min typed · {d.active} {d.active === 1 ? "student" : "students"}</span>
             <span className="block text-xs text-ink-faint">
-              {shown === last ? "আজ" : `${BN_DAYS[new Date(d.day).getUTCDay()]}, ${d.day.slice(5).replace("-", "/")}`}
+              {shown === last ? "Today" : `${DAYS[new Date(d.day).getUTCDay()]}, ${d.day.slice(5).replace("-", "/")}`}
             </span>
           </p>
         ) : null}
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="গত ১৪ দিনের টাইপিং মিনিট">
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Typing minutes, last 14 days">
         {[0.5, 1].map((f) => (
           <line key={f} x1={0} x2={W} y1={base - (base - top) * f} y2={base - (base - top) * f} stroke="var(--tap-border)" strokeDasharray="3 4" />
         ))}
         <text x={W} y={top - 6} textAnchor="end" fontSize="10" fill="var(--tap-ink-faint)">
-          {max} মি.
+          {max} min
         </text>
         <line x1={0} x2={W} y1={base} y2={base} stroke="var(--tap-border-strong)" />
         {days.map((x, i) => {
@@ -57,7 +57,7 @@ export function ActivityChart({ days }: { days: { day: string; minutes: number; 
               onBlur={() => setHover(null)}
               style={{ outline: "none", cursor: "default" }}
             >
-              <title>{`${x.day}: ${x.minutes} মিনিট, ${x.active} জন`}</title>
+              <title>{`${x.day}: ${x.minutes} min, ${x.active} students`}</title>
               <rect x={i * slot} y={top} width={slot} height={base - top + 20} fill="transparent" />
               {bh > 0 ? (
                 <path
@@ -69,7 +69,7 @@ export function ActivityChart({ days }: { days: { day: string; minutes: number; 
               )}
               {i % 2 === last % 2 ? (
                 <text x={cx} y={H - 6} textAnchor="middle" fontSize="10" fill={on ? "var(--tap-ink)" : "var(--tap-ink-faint)"}>
-                  {i === last ? "আজ" : x.day.slice(8)}
+                  {i === last ? "Today" : x.day.slice(8)}
                 </text>
               ) : null}
             </g>

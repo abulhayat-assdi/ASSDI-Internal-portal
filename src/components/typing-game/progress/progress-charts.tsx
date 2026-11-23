@@ -4,7 +4,7 @@
  * text stays in ink colours, never the series colour.
  */
 
-const DAY = ["রবি", "সোম", "মঙ্গল", "বুধ", "বৃহঃ", "শুক্র", "শনি"];
+const DAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const dayName = (iso: string) => DAY[new Date(`${iso}T12:00:00Z`).getUTCDay()];
 
 /** Typing minutes per day with the daily goal as a dashed reference line. */
@@ -38,7 +38,7 @@ export function MinutesChart({ days, goal }: { days: { day: string; minutes: num
         const today = i === days.length - 1;
         return (
           <g key={d.day}>
-            <title>{`${d.day} (${dayName(d.day)}): ${d.minutes} মিনিট${d.minutes >= goal ? " — লক্ষ্য পূরণ" : ""}`}</title>
+            <title>{`${d.day} (${dayName(d.day)}): ${d.minutes} min${d.minutes >= goal ? " — goal reached" : ""}`}</title>
             {/* Wide invisible hit target for the hover title. */}
             <rect x={padL + i * slot} y={padT} width={slot} height={plotH} fill="transparent" />
             {h > 0 ? (
@@ -49,7 +49,7 @@ export function MinutesChart({ days, goal }: { days: { day: string; minutes: num
               />
             ) : null}
             <text x={x + barW / 2} y={H - 8} fontSize="10" textAnchor="middle" fill={today ? "var(--tap-ink)" : "var(--tap-ink-faint)"} fontWeight={today ? 700 : 400}>
-              {today ? "আজ" : dayName(d.day)}
+              {today ? "Today" : dayName(d.day)}
             </text>
             {today && d.minutes > 0 ? (
               <text x={x + barW / 2} y={top - 5} fontSize="11" textAnchor="middle" fill="var(--tap-ink)" fontWeight={700}>
@@ -61,7 +61,7 @@ export function MinutesChart({ days, goal }: { days: { day: string; minutes: num
       })}
       <line x1={padL} x2={W} y1={goalY} y2={goalY} stroke="var(--tap-ink-muted)" strokeWidth={1.5} strokeDasharray="5 4" />
       <text x={W - 2} y={goalY - 5} fontSize="10" textAnchor="end" fill="var(--tap-ink-muted)">
-        লক্ষ্য {goal} মি.
+        Goal {goal} min
       </text>
     </svg>
   );
@@ -107,14 +107,14 @@ export function SpeedChart({ points }: { points: { wpm: number; accuracy: number
         .filter((i, k, a) => a.indexOf(i) === k)
         .map((i) => (
           <text key={i} x={Math.min(x(i) + 8, W - 4)} y={y(points[i].wpm) - 8} fontSize="11" fontWeight={700} fill="var(--tap-ink)" textAnchor={i === last ? "end" : "start"}>
-            {i === best ? `সেরা ${Math.round(points[i].wpm)}` : `${Math.round(points[i].wpm)}`}
+            {i === best ? `Best ${Math.round(points[i].wpm)}` : `${Math.round(points[i].wpm)}`}
           </text>
         ))}
       <text x={padL} y={H - 4} fontSize="10" fill="var(--tap-ink-faint)">
-        প্রথম টেস্ট
+        First test
       </text>
       <text x={W - padR} y={H - 4} fontSize="10" textAnchor="end" fill="var(--tap-ink-faint)">
-        সর্বশেষ
+        Latest
       </text>
     </svg>
   );

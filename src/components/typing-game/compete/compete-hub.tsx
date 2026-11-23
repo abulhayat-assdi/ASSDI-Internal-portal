@@ -20,16 +20,16 @@ const ERRORS: Record<string, string> = {
 
 function left(ms: number): string {
   const m = Math.max(0, Math.round(ms / 60000));
-  if (m >= 60) return `${Math.floor(m / 60)} ঘণ্টা ${m % 60} মিনিট`;
-  return `${m} মিনিট`;
+  if (m >= 60) return `${Math.floor(m / 60)}h ${m % 60}m left`;
+  return `${m}m left`;
 }
 
 function resultOf(c: ChallengeSummary, me: string): { label: string; tone: string } {
-  if (c.status === "declined") return { label: "ফিরিয়ে দিয়েছে", tone: "tap-badge-neutral" };
-  if (c.status === "cancelled") return { label: "বাতিল", tone: "tap-badge-neutral" };
-  if (c.status === "expired") return { label: c.winnerId === me ? "ওয়াকওভার জয়" : "সময় শেষ", tone: "tap-badge-neutral" };
-  if (c.winnerId === null) return { label: "ড্র", tone: "tap-badge-warning" };
-  return c.winnerId === me ? { label: "জিতেছেন", tone: "tap-badge-success" } : { label: "হেরেছেন", tone: "tap-badge-danger" };
+  if (c.status === "declined") return { label: "Declined", tone: "tap-badge-neutral" };
+  if (c.status === "cancelled") return { label: "Cancelled", tone: "tap-badge-neutral" };
+  if (c.status === "expired") return { label: c.winnerId === me ? "Walkover win" : "Expired", tone: "tap-badge-neutral" };
+  if (c.winnerId === null) return { label: "Draw", tone: "tap-badge-warning" };
+  return c.winnerId === me ? { label: "Won", tone: "tap-badge-success" } : { label: "Lost", tone: "tap-badge-danger" };
 }
 
 export function CompeteHub() {
@@ -70,7 +70,7 @@ export function CompeteHub() {
       router.push(`${BASE}/${d.id}`);
     } catch (e) {
       const code = e instanceof Error ? e.message : "ERROR";
-      setError(ERRORS[code] ?? `পাঠানো যায়নি (${code})।`);
+      setError(ERRORS[code] ?? `Could not send (${code}).`);
       setBusy(null);
     }
   }
@@ -99,7 +99,7 @@ export function CompeteHub() {
 
   if (!data) {
     return error ? (
-      <div className="compete-card p-6 text-center">লোড করা যায়নি ({error})।</div>
+      <div className="compete-card p-6 text-center">Could not load ({error}).</div>
     ) : (
       <div className="tap-skeleton h-64 rounded-3xl" />
     );
@@ -109,7 +109,7 @@ export function CompeteHub() {
     return (
       <div className="compete-card mx-auto max-w-lg p-8 text-center">
         <Swords className="mx-auto h-10 w-10 text-ink-faint" aria-hidden="true" />
-        <p className="mt-3 font-display text-lg font-bold">কম্পিটিশন এখন বন্ধ</p>
+        <p className="mt-3 font-display text-lg font-bold">Competition is off</p>
         <p className="mt-1 text-sm text-ink-muted">আপনার কোর্সের অ্যাডমিন এটা চালু করলে এখানে ব্যাচমেটদের চ্যালেঞ্জ করতে পারবেন।</p>
       </div>
     );
@@ -120,17 +120,17 @@ export function CompeteHub() {
       <section className="compete-hero p-5 sm:p-7">
         <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="max-w-xl">
-            <p className="text-xs font-bold uppercase tracking-[0.2em]" style={{ color: "#fde68a" }}>ব্যাচ কম্পিটিশন</p>
-            <h1 className="mt-1 font-display text-3xl font-extrabold sm:text-4xl" style={WHITE}>বন্ধুকে চ্যালেঞ্জ করুন</h1>
+            <p className="text-xs font-bold uppercase tracking-[0.2em]" style={{ color: "#fde68a" }}>Batch Competition</p>
+            <h1 className="mt-1 font-display text-3xl font-extrabold sm:text-4xl" style={WHITE}>Challenge a batchmate</h1>
             <p className="mt-2 text-sm sm:text-base" style={{ color: "rgba(255,255,255,0.85)" }}>
               একই লেখা দুজনেই টাইপ করবেন। যে কম সময়ে নির্ভুলভাবে শেষ করবে সে জিতবে। জিতলে <b>+20 কয়েন</b>, ড্র হলে <b>+10</b>।
             </p>
           </div>
           <div className="grid grid-cols-3 gap-2 text-center">
             {[
-              { k: "জয়", v: data.record.wins },
-              { k: "হার", v: data.record.losses },
-              { k: "ড্র", v: data.record.draws },
+              { k: "Wins", v: data.record.wins },
+              { k: "Losses", v: data.record.losses },
+              { k: "Draws", v: data.record.draws },
             ].map((s) => (
               <div key={s.k} className="rounded-2xl px-4 py-3" style={{ background: "rgba(255,255,255,0.14)" }}>
                 <p className="font-display text-3xl font-extrabold tabular-nums" style={WHITE}>{s.v}</p>
@@ -149,7 +149,7 @@ export function CompeteHub() {
 
       {open.length > 0 ? (
         <section className="flex flex-col gap-3">
-          <h2 className="font-display text-lg font-bold">চলমান</h2>
+          <h2 className="font-display text-lg font-bold">In progress</h2>
           <div className="grid gap-3 md:grid-cols-2">
             {open.map((c) => {
               const waitingForMe = c.incoming && c.status === "pending";
@@ -159,7 +159,7 @@ export function CompeteHub() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-xs font-bold uppercase tracking-wide text-ink-faint">
-                        {live ? "লাইভ রেস" : "চ্যালেঞ্জ"} · {c.incoming ? "আপনাকে ডেকেছে" : "আপনি ডেকেছেন"}
+                        {live ? "Live race" : "Challenge"} · {c.incoming ? "Invited you" : "You invited"}
                       </p>
                       <p className="mt-0.5 font-display text-lg font-bold">{c.opponentName}</p>
                     </div>
@@ -184,21 +184,21 @@ export function CompeteHub() {
                     {waitingForMe ? (
                       <>
                         <button type="button" disabled={busy !== null} onClick={() => respond(c.id, "accept")} className="tap-btn tap-btn-md compete-btn-race">
-                          <Check className="h-4 w-4" aria-hidden="true" /> গ্রহণ করুন
+                          <Check className="h-4 w-4" aria-hidden="true" /> Accept
                         </button>
                         <button type="button" disabled={busy !== null} onClick={() => respond(c.id, "decline")} className="tap-btn tap-btn-md tap-btn-ghost">
-                          <X className="h-4 w-4" aria-hidden="true" /> না
+                          <X className="h-4 w-4" aria-hidden="true" /> Decline
                         </button>
                       </>
                     ) : (
                       <Link href={`${BASE}/${c.id}`} className={"tap-btn tap-btn-md " + (live ? "compete-btn-race" : "compete-btn-challenge")}>
                         {live ? <Flag className="h-4 w-4" aria-hidden="true" /> : <Zap className="h-4 w-4" aria-hidden="true" />}
-                        {live ? "রেস পেজে যান" : c.iPlayed ? "দেখুন" : "খেলুন"}
+                        {live ? "Go to race" : c.iPlayed ? "View" : "Play"}
                       </Link>
                     )}
                     {!c.incoming && !c.iStarted && c.status !== "running" ? (
                       <button type="button" disabled={busy !== null} onClick={() => respond(c.id, "cancel")} className="tap-btn tap-btn-md tap-btn-ghost">
-                        বাতিল
+                        Cancel
                       </button>
                     ) : null}
                   </div>
@@ -214,7 +214,7 @@ export function CompeteHub() {
           <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
               <h2 className="flex items-center gap-2 font-display text-lg font-bold">
-                <Users className="h-5 w-5" aria-hidden="true" /> ব্যাচমেট ({data.batchmates.length})
+                <Users className="h-5 w-5" aria-hidden="true" /> Batchmates ({data.batchmates.length})
               </h2>
               <p className="text-xs text-ink-muted">
                 <b>চ্যালেঞ্জ</b>: যে যার সময়মতো খেলবে · <b>লাইভ রেস</b>: দুজন একসাথে, লাইভ দেখা যাবে
@@ -224,8 +224,8 @@ export function CompeteHub() {
               type="search"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="নাম বা রোল খুঁজুন"
-              aria-label="ব্যাচমেট খুঁজুন"
+              placeholder="Search name or roll"
+              aria-label="Search batchmates"
               className="tap-input w-full rounded-xl border border-[var(--tap-border-strong)] bg-transparent px-3 py-2 text-sm sm:w-56"
             />
           </div>
@@ -243,26 +243,26 @@ export function CompeteHub() {
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-semibold">
-                        {m.name} {m.activeToday ? <span className="compete-dot on ml-1 align-middle" title="আজ টাইপ করেছে" /> : null}
+                        {m.name} {m.activeToday ? <span className="compete-dot on ml-1 align-middle" title="Typed today" /> : null}
                       </p>
                       <p className="text-xs text-ink-muted">
-                        রোল {m.roll} · লেভেল {m.level}
-                        {m.bestWpm ? ` · সেরা ${m.bestWpm} wpm` : ""}
-                        {m.wins ? ` · ${m.wins} জয়` : ""}
+                        Roll {m.roll} · Level {m.level}
+                        {m.bestWpm ? ` · Best ${m.bestWpm} wpm` : ""}
+                        {m.wins ? ` · ${m.wins} wins` : ""}
                       </p>
                     </div>
                   </div>
                   {m.openId ? (
                     <Link href={`${BASE}/${m.openId}`} className="tap-btn tap-btn-sm tap-btn-secondary">
-                      চলমান চ্যালেঞ্জ দেখুন
+                      View open challenge
                     </Link>
                   ) : (
                     <div className="grid grid-cols-2 gap-2">
                       <button type="button" disabled={busy !== null} onClick={() => invite(m.userId, "async")} className="tap-btn tap-btn-sm compete-btn-challenge">
-                        <Zap className="h-4 w-4" aria-hidden="true" /> {busy === `${m.userId}:async` ? "পাঠানো হচ্ছে…" : "চ্যালেঞ্জ"}
+                        <Zap className="h-4 w-4" aria-hidden="true" /> {busy === `${m.userId}:async` ? "Sending…" : "Challenge"}
                       </button>
                       <button type="button" disabled={busy !== null} onClick={() => invite(m.userId, "live")} className="tap-btn tap-btn-sm compete-btn-race">
-                        <Flag className="h-4 w-4" aria-hidden="true" /> {busy === `${m.userId}:live` ? "পাঠানো হচ্ছে…" : "লাইভ রেস"}
+                        <Flag className="h-4 w-4" aria-hidden="true" /> {busy === `${m.userId}:live` ? "Sending…" : "Live race"}
                       </button>
                     </div>
                   )}
@@ -275,7 +275,7 @@ export function CompeteHub() {
         <aside className="flex flex-col gap-5">
           <section className="compete-card p-4">
             <h2 className="flex items-center gap-2 font-display text-base font-bold">
-              <Trophy className="h-5 w-5 text-amber-500" aria-hidden="true" /> এই মাসের ব্যাচ সেরা
+              <Trophy className="h-5 w-5 text-amber-500" aria-hidden="true" /> Batch top this month
             </h2>
             {data.standings.length === 0 ? (
               <p className="mt-3 text-sm text-ink-muted">এই মাসে এখনো কোনো চ্যালেঞ্জ শেষ হয়নি। প্রথম জয়টা আপনার হোক!</p>
@@ -285,7 +285,7 @@ export function CompeteHub() {
                   <li key={s.userId} className={"flex items-center gap-2 rounded-xl px-2 py-1.5 text-sm " + (s.userId === data.me ? "bg-[var(--tap-primary-50)] font-bold" : "")}>
                     <span className="w-6 text-center font-display font-bold text-ink-faint">{i + 1}</span>
                     <span className="min-w-0 flex-1 truncate">{s.name}</span>
-                    <span className="tabular-nums">{s.wins} জয়</span>
+                    <span className="tabular-nums">{s.wins} wins</span>
                     <span className="text-xs text-ink-faint tabular-nums">/{s.played}</span>
                   </li>
                 ))}
@@ -294,9 +294,9 @@ export function CompeteHub() {
           </section>
 
           <section className="compete-card p-4">
-            <h2 className="font-display text-base font-bold">সাম্প্রতিক ফলাফল</h2>
+            <h2 className="font-display text-base font-bold">Recent results</h2>
             {done.length === 0 ? (
-              <p className="mt-3 text-sm text-ink-muted">এখনো কোনো ফলাফল নেই।</p>
+              <p className="mt-3 text-sm text-ink-muted">No results yet.</p>
             ) : (
               <ul className="mt-3 flex flex-col gap-1">
                 {done.slice(0, 8).map((c) => {

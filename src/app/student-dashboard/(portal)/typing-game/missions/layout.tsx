@@ -6,6 +6,6 @@ export const dynamic = "force-dynamic";
 
 /** Switched off by the course admin (Features page) → nothing here is reachable. */
 export default async function Layout({ children }: { children: React.ReactNode }) {
-  if (!(await featureOn(await userDbClient(), "MISSIONS_ENABLED"))) return <FeatureOff title="মিশন" />;
+  if (!(await featureOn(await userDbClient(), "MISSIONS_ENABLED"))) return <FeatureOff title="Missions" />;
   return <>{children}</>;
 }

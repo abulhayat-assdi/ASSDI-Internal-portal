@@ -125,9 +125,9 @@ export function Empty({ children }: { children: ReactNode }) {
 }
 
 const REASON: Record<string, { label: string; icon: LucideIcon; cls: string }> = {
-  never: { label: "এখনো শুরু করেনি", icon: Circle, cls: "tap-badge-neutral" },
-  inactive: { label: "৭ দিন+ নিষ্ক্রিয়", icon: Moon, cls: "tap-badge-warning" },
-  accuracy: { label: "নির্ভুলতা কম", icon: AlertTriangle, cls: "tap-badge-danger" },
+  never: { label: "Not started", icon: Circle, cls: "tap-badge-neutral" },
+  inactive: { label: "Inactive 7d+", icon: Moon, cls: "tap-badge-warning" },
+  accuracy: { label: "Low accuracy", icon: AlertTriangle, cls: "tap-badge-danger" },
 };
 
 export function AttentionList({
@@ -154,8 +154,8 @@ export function AttentionList({
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-semibold">{a.name}</span>
                   <span className="block truncate text-xs text-ink-muted">
-                    {a.batch} · রোল {a.roll} · শেষ টাইপ {daysAgo(a.lastDay, data.today)}
-                    {a.reason === "accuracy" && a.accuracy != null ? ` · গড় নির্ভুলতা ${a.accuracy}%` : ""}
+                    {a.batch} · Roll {a.roll} · Last typed {daysAgo(a.lastDay, data.today)}
+                    {a.reason === "accuracy" && a.accuracy != null ? ` · Avg accuracy ${a.accuracy}%` : ""}
                   </span>
                 </span>
                 <span className={`tap-badge ${r.cls} hidden shrink-0 sm:inline-flex`}>{r.label}</span>
@@ -165,7 +165,7 @@ export function AttentionList({
         })}
       </ul>
       {data.attentionCount > data.attention.length && moreHref ? (
-        <PanelLink href={moreHref}>আরো {data.attentionCount - data.attention.length} জন</PanelLink>
+        <PanelLink href={moreHref}>{data.attentionCount - data.attention.length} more</PanelLink>
       ) : null}
     </div>
   );
@@ -183,15 +183,15 @@ export function TopStudents({ items, studentHref }: { items: Insights["top"]; st
             <span className="min-w-0 flex-1">
               <span className="flex items-baseline justify-between gap-2">
                 <span className="truncate text-sm font-semibold">{t.name}</span>
-                <span className="shrink-0 text-xs font-bold tabular-nums">{t.minutes} মি.</span>
+                <span className="shrink-0 text-xs font-bold tabular-nums">{t.minutes} min</span>
               </span>
               <span className="sc-meter mt-1 block">
                 <span style={{ width: `${(100 * t.minutes) / max}%` }} />
               </span>
               <span className="mt-0.5 block text-xs text-ink-muted">
-                {t.batch} · লেভেল {t.level}
+                {t.batch} · Level {t.level}
                 {t.wpm ? ` · ${t.wpm} wpm` : ""}
-                {t.lessons7d ? ` · ${t.lessons7d}টা লেসন` : ""}
+                {t.lessons7d ? ` · ${t.lessons7d} lessons` : ""}
               </span>
             </span>
           </Link>
@@ -202,19 +202,19 @@ export function TopStudents({ items, studentHref }: { items: Insights["top"]; st
 }
 
 export function BatchHealth({ batches, hrefFor }: { batches: InsightBatch[]; hrefFor?: (id: string) => string }) {
-  if (batches.length === 0) return <Empty>এখনো কোনো ব্যাচ নেই।</Empty>;
+  if (batches.length === 0) return <Empty>No batches yet.</Empty>;
   return (
     <div className="overflow-x-auto">
       <table className="tap-table w-full text-sm">
         <thead>
           <tr>
-            <th scope="col" className="text-left">ব্যাচ</th>
-            <th scope="col" className="text-left">টিচার</th>
-            <th scope="col" className="text-right">স্টুডেন্ট</th>
-            <th scope="col" className="text-left">৭ দিনে সক্রিয়</th>
-            <th scope="col" className="text-right">মিনিট (৭ দিন)</th>
-            <th scope="col" className="text-right">গড় লেসন</th>
-            <th scope="col" className="text-right">গড় সেরা WPM</th>
+            <th scope="col" className="text-left">Batch</th>
+            <th scope="col" className="text-left">Teachers</th>
+            <th scope="col" className="text-right">Students</th>
+            <th scope="col" className="text-left">Active (7d)</th>
+            <th scope="col" className="text-right">Minutes (7d)</th>
+            <th scope="col" className="text-right">Avg lessons</th>
+            <th scope="col" className="text-right">Avg best WPM</th>
           </tr>
         </thead>
         <tbody>
@@ -223,9 +223,9 @@ export function BatchHealth({ batches, hrefFor }: { batches: InsightBatch[]; hre
             const name = (
               <>
                 <span className="font-semibold">{b.name}</span>
-                {!b.active ? <span className="tap-badge tap-badge-neutral ml-2">বন্ধ</span> : null}
+                {!b.active ? <span className="tap-badge tap-badge-neutral ml-2">Inactive</span> : null}
                 <span className="block text-xs text-ink-faint">
-                  {b.course} · কোড <code>{b.joinCode}</code>
+                  {b.course} · Code <code>{b.joinCode}</code>
                 </span>
               </>
             );
@@ -240,7 +240,7 @@ export function BatchHealth({ batches, hrefFor }: { batches: InsightBatch[]; hre
                     name
                   )}
                 </th>
-                <td className="text-xs">{b.teachers.length ? b.teachers.join(", ") : <span className="text-amber-600">টিচার নেই</span>}</td>
+                <td className="text-xs">{b.teachers.length ? b.teachers.join(", ") : <span className="text-amber-600">No teacher</span>}</td>
                 <td className="text-right tabular-nums">{b.members}</td>
                 <td>
                   <span className="flex items-center gap-2">
@@ -277,7 +277,7 @@ export function NextSteps({ steps }: { steps: Step[] }) {
     <div className="flex flex-col gap-2">
       {left === 0 ? (
         <p className="flex items-center gap-2 text-sm font-semibold text-emerald-600">
-          <Sparkles className="h-4 w-4" aria-hidden="true" /> সব ঠিকঠাক সেট করা আছে।
+          <Sparkles className="h-4 w-4" aria-hidden="true" /> All set up.
         </p>
       ) : null}
       <ul className="flex flex-col gap-1">
@@ -311,21 +311,21 @@ export function NextSteps({ steps }: { steps: Step[] }) {
 }
 
 const AUDIT: Record<string, string> = {
-  "batch_member.created": "স্টুডেন্ট ব্যাচে যোগ হয়েছে",
-  "batch_member.updated": "স্টুডেন্টের ব্যাচ তথ্য বদলেছে",
-  "batch.insert": "নতুন ব্যাচ তৈরি",
-  "batch.update": "ব্যাচ আপডেট",
-  "course.insert": "নতুন কোর্স তৈরি",
-  "course.update": "কোর্স আপডেট",
-  "course.delete": "কোর্স মুছে ফেলা",
-  "batch.delete": "ব্যাচ মুছে ফেলা",
-  "user_role.insert": "রোল দেওয়া হয়েছে",
-  "user_role.delete": "রোল সরানো হয়েছে",
-  "teacher_assignment.insert": "টিচার অ্যাসাইন",
-  "teacher_assignment.delete": "টিচার অ্যাসাইনমেন্ট সরানো",
-  "profile.status": "অ্যাকাউন্টের অবস্থা বদলেছে",
-  "feature_flag.update": "ফিচার চালু/বন্ধ",
-  "ad_settings.update": "অ্যাড সেটিংস বদলেছে",
+  "batch_member.created": "Student joined a batch",
+  "batch_member.updated": "Student batch details changed",
+  "batch.insert": "Batch created",
+  "batch.update": "Batch updated",
+  "course.insert": "Course created",
+  "course.update": "Course updated",
+  "course.delete": "Course deleted",
+  "batch.delete": "Batch deleted",
+  "user_role.insert": "Role granted",
+  "user_role.delete": "Role removed",
+  "teacher_assignment.insert": "Teacher assigned",
+  "teacher_assignment.delete": "Teacher unassigned",
+  "profile.status": "Account status changed",
+  "feature_flag.update": "Feature switched",
+  "ad_settings.update": "Ad settings changed",
 };
 
 export function auditLabel(action: string): string {
@@ -333,7 +333,7 @@ export function auditLabel(action: string): string {
 }
 
 export function AuditFeed({ entries }: { entries: { id: string | number; action: string; entity: string; createdAt: string }[] }) {
-  if (entries.length === 0) return <Empty>এখনো কোনো পরিবর্তন নেই।</Empty>;
+  if (entries.length === 0) return <Empty>No changes yet.</Empty>;
   return (
     <ul className="flex flex-col">
       {entries.map((a) => (

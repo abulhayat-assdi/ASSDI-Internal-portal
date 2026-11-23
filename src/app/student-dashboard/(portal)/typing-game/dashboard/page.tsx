@@ -88,7 +88,7 @@ export default async function DashboardPage({
         actions={
           <>
             <Link href={nextLessonHref} className="tap-btn tap-btn-primary tap-btn-md">
-              লেসন চালিয়ে যান
+              Continue lessons
             </Link>
             <Link href={`/student-dashboard/typing-game/games`} className="tap-btn tap-btn-secondary tap-btn-md">
               {t("exploreGames")}

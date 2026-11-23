@@ -112,7 +112,7 @@ export function drawPassage(
         ctx.fillRect(x, y + size * 0.62, cw, 3);
       }
       ctx.fillStyle = at < pos ? TYPED : at === pos ? "#fff" : opts.dim ? "rgba(248,250,252,0.55)" : "#e2e8f0";
-      ctx.fillText(l.text[i] === " " && at === pos ? "·" : l.text[i], x, y);
+      ctx.fillText(l.text[i], x, y);
     }
   }
 }

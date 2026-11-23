@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Target } from "lucide-react";
 
 const CHOICES = [5, 10, 15, 20, 30, 45, 60];
-const DAY = ["রবি", "সোম", "মঙ্গল", "বুধ", "বৃহঃ", "শুক্র", "শনি"];
+const DAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 interface Props {
   goalMinutes: number;
@@ -58,20 +58,20 @@ export function DailyGoalCard({ goalMinutes, todayMs, week }: Props) {
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span className="font-display text-2xl font-extrabold tabular-nums">{minutes}</span>
-          <span className="text-[11px] text-ink-muted">/ {goalMinutes} মিনিট</span>
+          <span className="text-[11px] text-ink-muted">/ {goalMinutes} min</span>
         </div>
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <div className="flex items-center justify-between gap-2">
           <h2 className="flex items-center gap-2 font-display text-base font-bold">
-            <Target className="h-4 w-4" aria-hidden="true" /> আজকের লক্ষ্য
+            <Target className="h-4 w-4" aria-hidden="true" /> Today's goal
           </h2>
           <button type="button" className="tap-btn tap-btn-ghost tap-btn-sm" onClick={() => setEditing((e) => !e)}>
-            বদলান
+            Change
           </button>
         </div>
         <p className="text-sm text-ink-muted">
-          {done ? "আজকের লক্ষ্য পূরণ হয়েছে! 🎉" : `লক্ষ্য পূরণে আর ${Math.max(0, goalMinutes - minutes)} মিনিট — লেসন, Practice বা Test দিন।`}
+          {done ? "Goal reached! 🎉" : `${Math.max(0, goalMinutes - minutes)} min to go · লেসন, Practice বা Test দিন।`}
         </p>
         {editing ? (
           <div className="flex flex-wrap gap-1">
@@ -83,17 +83,17 @@ export function DailyGoalCard({ goalMinutes, todayMs, week }: Props) {
                 onClick={() => void choose(m)}
                 className={`tap-btn tap-btn-sm ${m === goalMinutes ? "tap-btn-primary" : "tap-btn-secondary"}`}
               >
-                {m} মিনিট
+                {m} min
               </button>
             ))}
           </div>
         ) : (
-          <div className="flex items-end gap-1.5" aria-label="শেষ ৭ দিন">
+          <div className="flex items-end gap-1.5" aria-label="Last 7 days">
             {week.map((d) => {
               const h = Math.max(4, Math.min(40, (d.ms / (goalMinutes * 60000)) * 40));
               const met = d.ms >= goalMinutes * 60000;
               return (
-                <div key={d.day} className="flex flex-col items-center gap-1" title={`${d.day}: ${Math.floor(d.ms / 60000)} মিনিট`}>
+                <div key={d.day} className="flex flex-col items-center gap-1" title={`${d.day}: ${Math.floor(d.ms / 60000)} min`}>
                   <span className="w-6 rounded" style={{ height: h, background: met ? "var(--tap-success-500)" : "var(--tap-primary-300)" }} />
                   <span className="text-[10px] text-ink-faint">{DAY[new Date(`${d.day}T12:00:00Z`).getUTCDay()]}</span>
                 </div>

@@ -215,7 +215,7 @@ export function BanglaLessonPlayer({ lessonId, lessonTitle, levelTitle, screens 
     return (
       <div className="tap-card mx-auto flex max-w-xl flex-col items-center gap-4 p-6 text-center">
         <p className="text-xs font-semibold uppercase tracking-wide text-ink-faint">{levelTitle}</p>
-        <h2 className="font-display text-2xl font-extrabold">{lessonTitle} — সম্পূর্ণ!</h2>
+        <h2 className="font-display text-2xl font-extrabold">{lessonTitle} — Complete!</h2>
         <Stars n={r.stars} size="h-10 w-10" />
         <p className="text-sm text-ink-muted">
           Speed <b>{Math.round(r.wpm)} wpm</b> · Accuracy <b>{Math.round(r.accuracy)}%</b> · Time <b>{fmt(r.elapsedMs)}</b>
@@ -224,14 +224,14 @@ export function BanglaLessonPlayer({ lessonId, lessonTitle, levelTitle, screens 
         <div className="flex flex-wrap justify-center gap-2">
           {outcome.nextLessonId ? (
             <Link href={`${LESSONS_HREF}/${outcome.nextLessonId}`} className="tap-btn tap-btn-primary tap-btn-md">
-              পরের লেসন <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              Next lesson <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Link>
           ) : null}
           <button type="button" className="tap-btn tap-btn-secondary tap-btn-md" onClick={() => window.location.reload()}>
-            <RotateCcw className="h-4 w-4" aria-hidden="true" /> আবার করুন
+            <RotateCcw className="h-4 w-4" aria-hidden="true" /> Try again
           </button>
           <Link href={`${LESSONS_HREF}?mode=bn`} className="tap-btn tap-btn-ghost tap-btn-md">
-            সব লেসন
+            All lessons
           </Link>
         </div>
         <AdSlot slot="result" />
@@ -267,9 +267,9 @@ export function BanglaLessonPlayer({ lessonId, lessonTitle, levelTitle, screens 
       <div className="tap-card flex min-h-0 flex-1 flex-col justify-center gap-4 overflow-y-auto p-5 sm:p-8 lg:px-12">
         {phase === "error" ? (
           <div className="text-center">
-            <p className="font-semibold">ফল সেভ করা যায়নি ({errorMsg})।</p>
+            <p className="font-semibold">Could not save your result ({errorMsg}).</p>
             <button type="button" className="tap-btn tap-btn-primary tap-btn-sm mt-3" onClick={() => void submit(snaps)}>
-              আবার চেষ্টা করুন
+              Try again
             </button>
           </div>
         ) : phase === "submitting" ? (
@@ -314,11 +314,11 @@ export function BanglaLessonPlayer({ lessonId, lessonTitle, levelTitle, screens 
             <TypingField examText={text} typedText={typed} onChange={onChange} disabled={false} wide fontSize="clamp(1.6rem, 0.9rem + 1.6vw, 2.8rem)" />
             {hint ? (
               <div className="flex flex-wrap items-center justify-center gap-3 rounded-xl px-4 py-3" style={{ background: "var(--tap-primary-50)" }}>
-                <span className="text-sm text-ink-muted">পরের অক্ষর</span>
+                <span className="text-sm text-ink-muted">Next letter</span>
                 <span className="font-display text-3xl font-bold" lang="bn">
                   {hint.cluster}
                 </span>
-                <span className="text-sm text-ink-muted">{layout === "bijoy" ? "Bijoy-তে চাপুন" : "Avro-তে লিখুন"}</span>
+                <span className="text-sm text-ink-muted">{layout === "bijoy" ? "Bijoy keys" : "Avro (phonetic)"}</span>
                 <span className="flex gap-1">
                   {hint.keys.split(" ").map((k, i) => (
                     <kbd key={i} className="tap-kbd px-2 py-1 font-mono text-base">

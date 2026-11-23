@@ -48,7 +48,7 @@ export default async function LearnLayout({ children }: { children: React.ReactN
   } else if (admin) {
     items.push({ href: "/dashboard/typing-game/admin", label: "Admin console", icon: "overview", exact: true });
   }
-  items.push({ href: LEARN_BASE, label: "আমার প্র্যাকটিস", icon: "lessons" });
+  items.push({ href: LEARN_BASE, label: "My Practice", icon: "lessons" });
   const features = await myFeatures(client);
 
   return (

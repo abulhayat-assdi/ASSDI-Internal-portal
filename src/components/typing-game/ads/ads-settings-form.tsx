@@ -54,10 +54,10 @@ export function AdsSettingsForm({ initial, batches }: Props) {
       });
       const d = (await res.json()) as { error?: string };
       if (!res.ok) throw new Error(d.error ?? String(res.status));
-      setMsg("সেভ হয়েছে ✓");
+      setMsg("Saved ✓");
       router.refresh();
     } catch (e) {
-      setMsg(`সেভ হয়নি: ${e instanceof Error ? e.message : ""}`);
+      setMsg(`Not saved: ${e instanceof Error ? e.message : ""}`);
     } finally {
       setSaving(false);
     }
@@ -66,15 +66,15 @@ export function AdsSettingsForm({ initial, batches }: Props) {
   return (
     <div className="flex flex-col gap-5">
       <section className="tap-card p-4">
-        <h2 className="font-display text-lg font-bold">মূল সুইচ</h2>
+        <h2 className="font-display text-lg font-bold">Master switches</h2>
         <Toggle
-          label="অ্যাড চালু"
+          label="Ads on"
           hint="বন্ধ থাকলে কোথাও কোনো অ্যাড দেখাবে না, আর অ্যাড-নির্ভর কাজগুলো (Skip ইত্যাদি) সরাসরি হয়ে যাবে।"
           checked={s.enabled}
           onChange={(v) => set({ enabled: v })}
         />
-        <Toggle label="ডিসপ্লে অ্যাড (পাশে/উপরে/নিচে)" checked={s.displayEnabled} onChange={(v) => set({ displayEnabled: v })} />
-        <Toggle label="রিওয়ার্ডেড অ্যাড (দেখে কাজ খোলা)" checked={s.rewardedEnabled} onChange={(v) => set({ rewardedEnabled: v })} />
+        <Toggle label="Display ads (side / top / bottom)" checked={s.displayEnabled} onChange={(v) => set({ displayEnabled: v })} />
+        <Toggle label="Rewarded ads (watch to unlock)" checked={s.rewardedEnabled} onChange={(v) => set({ rewardedEnabled: v })} />
       </section>
 
       <section className="tap-card flex flex-col gap-3 p-4">
@@ -84,19 +84,19 @@ export function AdsSettingsForm({ initial, batches }: Props) {
           <input className={FIELD} placeholder="ca-pub-0000000000000000" value={s.publisherId} onChange={(e) => set({ publisherId: e.target.value })} />
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          রিওয়ার্ডেড অ্যাড provider
+          Rewarded ad provider
           <select className={FIELD} value={s.provider} onChange={(e) => set({ provider: e.target.value === "google" ? "google" : "mock" })}>
-            <option value="mock">Test (mock) — পরীক্ষার জন্য</option>
-            <option value="google">Google (Ad Manager অ্যাকাউন্ট সংযোগের পর)</option>
+            <option value="mock">Test (mock)</option>
+            <option value="google">Google (after connecting Ad Manager)</option>
           </select>
         </label>
         <table className="tap-table w-full text-sm">
           <thead>
             <tr>
-              <th className="text-left">জায়গা</th>
-              <th className="text-left">সাইজ</th>
+              <th className="text-left">Placement</th>
+              <th className="text-left">Size</th>
               <th className="text-left">Slot ID</th>
-              <th>চালু</th>
+              <th>On</th>
             </tr>
           </thead>
           <tbody>
@@ -129,7 +129,7 @@ export function AdsSettingsForm({ initial, batches }: Props) {
       </section>
 
       <section className="tap-card flex flex-col gap-3 p-4">
-        <h2 className="font-display text-lg font-bold">রিওয়ার্ডেড অ্যাড — কোন কাজে কয়টা</h2>
+        <h2 className="font-display text-lg font-bold">Rewarded ads per action</h2>
         {AD_ACTIONS.map((a) => (
           <label key={a.key} className="flex items-center justify-between gap-3 text-sm">
             {a.label}
@@ -146,25 +146,25 @@ export function AdsSettingsForm({ initial, batches }: Props) {
         ))}
         <p className="text-xs text-ink-muted">০ দিলে সেই কাজের জন্য অ্যাড লাগবে না।</p>
         <label className="flex items-center justify-between gap-3 text-sm">
-          একজন দিনে সর্বোচ্চ কয়টা রিওয়ার্ডেড অ্যাড
+          Max rewarded ads per student per day
           <input type="number" min={0} max={100} className={FIELD} style={{ width: "5rem" }} value={s.rewardedDailyLimit} onChange={(e) => set({ rewardedDailyLimit: Number(e.target.value) || 0 })} />
         </label>
         <label className="flex items-center justify-between gap-3 text-sm">
-          একটা অ্যাড ন্যূনতম কত সেকেন্ড দেখতে হবে
+          Minimum seconds to watch an ad
           <input type="number" min={5} max={120} className={FIELD} style={{ width: "5rem" }} value={s.minWatchSeconds} onChange={(e) => set({ minWatchSeconds: Number(e.target.value) || 15 })} />
         </label>
         <label className="flex items-center justify-between gap-3 text-sm">
-          অ্যাড পাওয়া না গেলে (ad-blocker / Google-এর কাছে অ্যাড নেই)
+          When no ad is available (ad-blocker / no fill)
           <select className={FIELD} value={s.noFill} onChange={(e) => set({ noFill: e.target.value === "block" ? "block" : "allow" })}>
-            <option value="allow">কাজটা হতে দাও</option>
-            <option value="block">আটকে দাও</option>
+            <option value="allow">Allow the action</option>
+            <option value="block">Block it</option>
           </select>
         </label>
       </section>
 
       <section className="tap-card flex flex-col gap-2 p-4">
-        <h2 className="font-display text-lg font-bold">অ্যাড-মুক্ত ব্যাচ</h2>
-        {batches.length === 0 ? <p className="text-sm text-ink-muted">কোনো ব্যাচ পাওয়া যায়নি।</p> : null}
+        <h2 className="font-display text-lg font-bold">Ad-free batches</h2>
+        {batches.length === 0 ? <p className="text-sm text-ink-muted">No batches found.</p> : null}
         <div className="grid gap-1 sm:grid-cols-2">
           {batches.map((b) => (
             <label key={b.id} className="flex items-center gap-2 text-sm">
@@ -183,7 +183,7 @@ export function AdsSettingsForm({ initial, batches }: Props) {
 
       <div className="flex items-center gap-3">
         <button type="button" className="tap-btn tap-btn-primary tap-btn-md" disabled={saving} onClick={() => void save()}>
-          {saving ? "সেভ হচ্ছে…" : "সেভ করুন"}
+          {saving ? "Saving…" : "Save"}
         </button>
         {msg ? <span className="text-sm">{msg}</span> : null}
       </div>

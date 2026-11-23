@@ -31,7 +31,7 @@ export default async function SuperAdminPage() {
   const [ins, ads] = await Promise.all([loadInsights(client), createAdsStore(client).settings()]);
   const t = ins.totals;
   const flags = new Map(overview.flags.map((f) => [f.key, f.enabled]));
-  const adsMode = !ads.enabled ? "বন্ধ" : ads.provider === "google" ? "Google" : "টেস্ট (mock)";
+  const adsMode = !ads.enabled ? "Off" : ads.provider === "google" ? "Google" : "Test (mock)";
 
   return (
     <div className="flex flex-col gap-5">
@@ -42,22 +42,22 @@ export default async function SuperAdminPage() {
         desc={`${overview.orgs.length}টা কোর্সে ${t.students} জন স্টুডেন্ট। আজ ${t.activeToday} জন ${t.minutesToday} মিনিট টাইপ করেছে।`}
       >
         <HeroLink href={`${BASE}/ads`}>
-          <Megaphone className="h-4 w-4" aria-hidden="true" /> Ads সেটিংস
+          <Megaphone className="h-4 w-4" aria-hidden="true" /> Ads settings
         </HeroLink>
       </ConsoleHero>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Kpi icon={Building2} label="কোর্স (প্রতিষ্ঠান)" value={overview.orgs.length} hint={`${t.activeBatches}/${t.batches}টা ব্যাচ চালু`} tone="amber" />
-        <Kpi icon={Users} label="স্টুডেন্ট" value={t.students} hint={`${t.neverStarted} জন শুরু করেনি`} tone="indigo" />
-        <Kpi icon={Flame} label="৭ দিনে সক্রিয়" value={t.active7d} hint={`আজ ${t.activeToday} জন`} tone="rose" />
-        <Kpi icon={Clock3} label="টাইপিং মিনিট (৭ দিন)" value={t.minutes7d} hint={`${t.lessons7d}টা লেসন · ${t.games7d}টা গেম`} tone="sky" />
+        <Kpi icon={Building2} label="Courses" value={overview.orgs.length} hint={`${t.activeBatches}/${t.batches} batches active`} tone="amber" />
+        <Kpi icon={Users} label="Students" value={t.students} hint={`${t.neverStarted} not started`} tone="indigo" />
+        <Kpi icon={Flame} label="Active (7 days)" value={t.active7d} hint={`${t.activeToday} today`} tone="rose" />
+        <Kpi icon={Clock3} label="Typing minutes (7d)" value={t.minutes7d} hint={`${t.lessons7d} lessons · ${t.games7d} games`} tone="sky" />
       </div>
 
       <div className="grid gap-5 lg:grid-cols-3">
         <Panel
-          title="বিজ্ঞাপন (পুরো সিস্টেম)"
+          title="Ads (whole system)"
           desc="অ্যাড চালু/বন্ধ শুধু আপনি করতে পারেন। কোনো কোর্সের অ্যাডমিন এটা বদলাতে পারেন না।"
-          action={<PanelLink href={`${BASE}/ads`}>বদলান</PanelLink>}
+          action={<PanelLink href={`${BASE}/ads`}>Change</PanelLink>}
         >
           <div className="flex items-center gap-3">
             <span className={`sc-kpi-icon ${ads.enabled ? "sc-tone-amber" : "sc-tone-indigo"}`}>
@@ -67,28 +67,28 @@ export default async function SuperAdminPage() {
               <p className="font-display text-xl font-extrabold">{adsMode}</p>
               <p className="text-xs text-ink-muted">
                 {ads.enabled
-                  ? `ডিসপ্লে ${ads.displayEnabled ? "চালু" : "বন্ধ"} · রিওয়ার্ডেড ${ads.rewardedEnabled ? "চালু" : "বন্ধ"}`
+                  ? `Display ${ads.displayEnabled ? "on" : "off"} · Rewarded ${ads.rewardedEnabled ? "on" : "off"}`
                   : "স্টুডেন্টরা কোনো অ্যাড দেখে না; “অ্যাড দেখে আনলক” সরাসরি আনলক করে।"}
               </p>
             </div>
           </div>
         </Panel>
-        <Panel title="ফিচারের ডিফল্ট" action={<PanelLink href={`${BASE}/flags`}>বদলান</PanelLink>}>
+        <Panel title="Feature defaults" action={<PanelLink href={`${BASE}/flags`}>Change</PanelLink>}>
           <ul className="flex flex-col gap-1.5">
             {FEATURES.map((f) => (
               <li key={f.key} className="flex items-center justify-between gap-2 text-sm">
                 <span>{f.title}</span>
-                <span className={`tap-badge ${flags.get(f.key) ? "tap-badge-success" : "tap-badge-neutral"}`}>{flags.get(f.key) ? "চালু" : "বন্ধ"}</span>
+                <span className={`tap-badge ${flags.get(f.key) ? "tap-badge-success" : "tap-badge-neutral"}`}>{flags.get(f.key) ? "On" : "Off"}</span>
               </li>
             ))}
           </ul>
         </Panel>
-        <Panel title="সাম্প্রতিক পরিবর্তন" action={<PanelLink href={`${BASE}/audit`}>সব</PanelLink>}>
+        <Panel title="Recent changes" action={<PanelLink href={`${BASE}/audit`}>All</PanelLink>}>
           <AuditFeed entries={overview.recentAudit.slice(0, 5)} />
         </Panel>
       </div>
 
-      <Panel title="দৈনিক টাইপিং" desc="সব কোর্স মিলে, গত ১৪ দিন">
+      <Panel title="Daily typing" desc="সব কোর্স মিলে, গত ১৪ দিন">
         <ActivityChart days={ins.days} />
       </Panel>
 
@@ -96,9 +96,9 @@ export default async function SuperAdminPage() {
         <BatchHealth batches={ins.batches} hrefFor={(id) => `/dashboard/typing-game/admin/students?batch=${id}`} />
       </Panel>
       <p className="text-center text-xs text-ink-faint">
-        কোর্স: {overview.orgs.map((o) => o.name).join(", ") || "—"} ·{" "}
+        Courses: {overview.orgs.map((o) => o.name).join(", ") || "—"} ·{" "}
         <Link href="/dashboard/typing-game/admin/analytics" className="underline">
-          অ্যানালিটিক্স
+          Analytics
         </Link>
       </p>
     </div>

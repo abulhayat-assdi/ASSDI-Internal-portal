@@ -93,7 +93,7 @@ export function StudentNav({
                 <span
                   className="relative flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-bold"
                   style={{ background: "#f43f5e", color: "#fff" }}
-                  aria-label={`${item.badge}টা অপেক্ষায়`}
+                  aria-label={`${item.badge} waiting`}
                 >
                   {item.badge}
                 </span>

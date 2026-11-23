@@ -37,7 +37,7 @@ export function RewardedAdModal({ action, target, views, onDone, onCancel }: Pro
     });
     const d = (await r.json()) as { viewId?: string; minWatchSeconds?: number; noFill?: string; error?: string };
     if (!r.ok || !d.viewId) {
-      setMsg(d.error === "DAILY_LIMIT" ? "আজকের অ্যাডের সীমা শেষ। কাল আবার চেষ্টা করুন।" : `অ্যাড চালানো যায়নি (${d.error ?? r.status})।`);
+      setMsg(d.error === "DAILY_LIMIT" ? "আজকের অ্যাডের সীমা শেষ। কাল আবার চেষ্টা করুন।" : `Could not play the ad (${d.error ?? r.status}).`);
       setPhase("error");
       return;
     }
@@ -93,7 +93,7 @@ export function RewardedAdModal({ action, target, views, onDone, onCancel }: Pro
             <PlayCircle className="h-12 w-12" style={{ color: "var(--tap-primary-500)" }} aria-hidden="true" />
             <p className="text-sm">এই কাজটার জন্য {views}টা ছোট অ্যাড দেখতে হবে।</p>
             <button type="button" className="tap-btn tap-btn-primary tap-btn-md" onClick={() => void watchOne()}>
-              অ্যাড দেখুন
+              Watch ad
             </button>
           </>
         ) : phase === "watching" || phase === "completing" ? (
@@ -109,7 +109,7 @@ export function RewardedAdModal({ action, target, views, onDone, onCancel }: Pro
           <>
             <p className="text-sm">{msg}</p>
             <button type="button" className="tap-btn tap-btn-secondary tap-btn-sm" onClick={() => void watchOne()}>
-              আবার চেষ্টা করুন
+              Try again
             </button>
           </>
         )}

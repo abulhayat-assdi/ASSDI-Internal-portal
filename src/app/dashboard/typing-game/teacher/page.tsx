@@ -23,7 +23,7 @@ export default async function TeacherDashboardPage() {
       <ConsoleHero
         tone="teacher"
         kicker="Teacher Console"
-        title="আমার ক্লাস"
+        title="My Classes"
         desc={
           t.students === 0
             ? "আপনার ব্যাচে এখনো কোনো স্টুডেন্ট নেই।"
@@ -31,32 +31,32 @@ export default async function TeacherDashboardPage() {
         }
       >
         <HeroLink href={`${BASE}/missions/new`}>
-          <Target className="h-4 w-4" aria-hidden="true" /> নতুন মিশন দিন
+          <Target className="h-4 w-4" aria-hidden="true" /> New mission
         </HeroLink>
       </ConsoleHero>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-        <Kpi icon={Users} label="আমার স্টুডেন্ট" value={t.students} hint={`${t.batches}টা ব্যাচে`} tone="emerald" />
-        <Kpi icon={Flame} label="আজ সক্রিয়" value={t.activeToday} hint={`আজ ${t.minutesToday} মিনিট টাইপ`} tone="rose" />
-        <Kpi icon={Layers} label="৭ দিনে সক্রিয়" value={t.active7d} hint={`${t.neverStarted} জন শুরুই করেনি`} tone="sky" />
-        <Kpi icon={Clock3} label="লেসন শেষ (৭ দিন)" value={t.lessons7d} hint={`${t.minutes7d} মিনিট টাইপ`} tone="violet" />
-        <Kpi icon={Gauge} label="গড় সেরা WPM" value={t.avgBestWpm ?? "—"} hint={t.avgAccuracy != null ? `নির্ভুলতা ${t.avgAccuracy}%` : "৩০ দিনে টেস্ট নেই"} tone="amber" />
+        <Kpi icon={Users} label="My students" value={t.students} hint={`In ${t.batches} batches`} tone="emerald" />
+        <Kpi icon={Flame} label="Active today" value={t.activeToday} hint={`${t.minutesToday} min typed today`} tone="rose" />
+        <Kpi icon={Layers} label="Active (7 days)" value={t.active7d} hint={`${t.neverStarted} not started`} tone="sky" />
+        <Kpi icon={Clock3} label="Lessons done (7d)" value={t.lessons7d} hint={`${t.minutes7d} min typed`} tone="violet" />
+        <Kpi icon={Gauge} label="Avg best WPM" value={t.avgBestWpm ?? "—"} hint={t.avgAccuracy != null ? `Accuracy ${t.avgAccuracy}%` : "No tests in 30 days"} tone="amber" />
       </div>
 
-      <Panel title="আমার ব্যাচ" desc="ব্যাচে ক্লিক করলে প্রত্যেক স্টুডেন্টের লেসন-ভিত্তিক অগ্রগতি দেখা যাবে">
+      <Panel title="My batches" desc="ব্যাচে ক্লিক করলে প্রত্যেক স্টুডেন্টের লেসন-ভিত্তিক অগ্রগতি দেখা যাবে">
         <BatchCards batches={ins.batches} hrefFor={(id) => `${BASE}/batches/${id}`} />
       </Panel>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <Panel title={`নজর দিন (${ins.attentionCount})`} desc="৭ দিন টাইপ করেনি, শুরুই করেনি, বা টেস্টে নির্ভুলতা ৮৫%-এর নিচে">
+        <Panel title={`Needs attention (${ins.attentionCount})`} desc="৭ দিন টাইপ করেনি, শুরুই করেনি, বা টেস্টে নির্ভুলতা ৮৫%-এর নিচে">
           <AttentionList data={ins} studentHref={student} />
         </Panel>
-        <Panel title="এই সপ্তাহের সেরা" desc="সবচেয়ে বেশি সময় টাইপ করেছে">
+        <Panel title="Top this week" desc="সবচেয়ে বেশি সময় টাইপ করেছে">
           <TopStudents items={ins.top} studentHref={student} />
         </Panel>
       </div>
 
-      <Panel title="দৈনিক টাইপিং" desc="আমার সব স্টুডেন্ট মিলে, গত ১৪ দিন">
+      <Panel title="Daily typing" desc="আমার সব স্টুডেন্ট মিলে, গত ১৪ দিন">
         <ActivityChart days={ins.days} />
       </Panel>
     </div>

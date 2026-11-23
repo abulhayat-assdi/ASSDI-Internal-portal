@@ -37,7 +37,7 @@ export default async function LessonPage({ params }: { params: Promise<{ lessonI
             : "আগের লেসনগুলো শেষ করলে এই লেসনটা খুলবে। চাইলে লেসন তালিকা থেকে Unlock করতে পারেন।"}
         </p>
         <Link href={`${base}/lessons`} className="tap-btn tap-btn-primary tap-btn-md">
-          লেসন তালিকা
+          All lessons
         </Link>
       </div>
     );
@@ -51,7 +51,7 @@ export default async function LessonPage({ params }: { params: Promise<{ lessonI
       <BanglaLessonPlayer
         lessonId={hit.lesson.id}
         lessonTitle={`${hit.lesson.number}. ${hit.lesson.title}`}
-        levelTitle={`বাংলা · Level ${hit.level.number} · ${hit.level.title}`}
+        levelTitle={`Bangla · Level ${hit.level.number} · ${hit.level.title}`}
         screens={lessonScreens(hit.lesson)}
       />
     ) : (

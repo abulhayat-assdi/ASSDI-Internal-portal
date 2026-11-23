@@ -43,7 +43,7 @@ export default async function AdminDashboardPage() {
   const [ins, ads] = await Promise.all([loadInsights(client), createAdsStore(client).settings()]);
   const t = ins.totals;
   const flags = new Map(overview.flags.map((f) => [f.key, f.enabled]));
-  const orgName = overview.orgs.length === 1 ? overview.orgs[0].name : orgIds === null ? "সব কোর্স" : "আপনার কোর্স";
+  const orgName = overview.orgs.length === 1 ? overview.orgs[0].name : orgIds === null ? "All courses" : "Your course";
   const noTeacher = ins.batches.filter((b) => b.active && b.teachers.length === 0).length;
   const pct = (n: number) => (t.students ? `${Math.round((100 * n) / t.students)}%` : "—");
   const student = (id: string) => `${BASE}/students/${id}`;
@@ -60,47 +60,47 @@ export default async function AdminDashboardPage() {
         }
       >
         <HeroLink href={`${BASE}/batches`}>
-          <Plus className="h-4 w-4" aria-hidden="true" /> নতুন ব্যাচ
+          <Plus className="h-4 w-4" aria-hidden="true" /> New batch
         </HeroLink>
         <HeroLink href={`${BASE}/students`}>
-          <Search className="h-4 w-4" aria-hidden="true" /> স্টুডেন্ট খুঁজুন
+          <Search className="h-4 w-4" aria-hidden="true" /> Find student
         </HeroLink>
       </ConsoleHero>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-        <Kpi icon={Users} label="স্টুডেন্ট" value={t.students} hint={`${t.activeBatches}টা চালু ব্যাচে`} tone="indigo" />
-        <Kpi icon={Flame} label="আজ সক্রিয়" value={t.activeToday} hint={`মোটের ${pct(t.activeToday)}`} tone="rose" />
-        <Kpi icon={Layers} label="৭ দিনে সক্রিয়" value={t.active7d} hint={`${t.neverStarted} জন এখনো শুরু করেনি`} tone="emerald" />
-        <Kpi icon={Clock3} label="টাইপিং মিনিট (৭ দিন)" value={t.minutes7d} hint={`আজ ${t.minutesToday} মিনিট`} tone="sky" />
-        <Kpi icon={BookOpenCheck} label="লেসন শেষ (৭ দিন)" value={t.lessons7d} hint={`মোট ${t.lessonsTotal}টা`} tone="violet" />
+        <Kpi icon={Users} label="Students" value={t.students} hint={`In ${t.activeBatches} active batches`} tone="indigo" />
+        <Kpi icon={Flame} label="Active today" value={t.activeToday} hint={`${pct(t.activeToday)} of all`} tone="rose" />
+        <Kpi icon={Layers} label="Active (7 days)" value={t.active7d} hint={`${t.neverStarted} not started yet`} tone="emerald" />
+        <Kpi icon={Clock3} label="Typing minutes (7d)" value={t.minutes7d} hint={`${t.minutesToday} min today`} tone="sky" />
+        <Kpi icon={BookOpenCheck} label="Lessons done (7d)" value={t.lessons7d} hint={`${t.lessonsTotal} in total`} tone="violet" />
         <Kpi
           icon={Gauge}
-          label="গড় সেরা WPM"
+          label="Avg best WPM"
           value={t.avgBestWpm ?? "—"}
-          hint={t.avgAccuracy != null ? `টেস্টে গড় নির্ভুলতা ${t.avgAccuracy}%` : "৩০ দিনে কোনো টেস্ট নেই"}
+          hint={t.avgAccuracy != null ? `Avg test accuracy ${t.avgAccuracy}%` : "No tests in 30 days"}
           tone="amber"
         />
       </div>
 
       <div className="grid gap-5 lg:grid-cols-3">
-        <Panel className="lg:col-span-2" title="দৈনিক টাইপিং" desc="গত ১৪ দিনে সব স্টুডেন্ট মিলে কত মিনিট টাইপ করেছে (বারের উপর মাউস রাখুন)">
+        <Panel className="lg:col-span-2" title="Daily typing" desc="গত ১৪ দিনে সব স্টুডেন্ট মিলে কত মিনিট টাইপ করেছে (বারের উপর মাউস রাখুন)">
           <ActivityChart days={ins.days} />
         </Panel>
-        <Panel title="পরের কাজ" desc="কোর্স ঠিকঠাক চালাতে যা বাকি">
+        <Panel title="Next steps" desc="কোর্স ঠিকঠাক চালাতে যা বাকি">
           <NextSteps
             steps={[
-              { done: overview.courses > 0, label: "কোর্স তৈরি", href: `${BASE}/courses` },
-              { done: t.batches > 0, label: "অন্তত একটা ব্যাচ", hint: "ব্যাচ তৈরি করলে একটা জয়েন কোড পাবেন", href: `${BASE}/batches` },
+              { done: overview.courses > 0, label: "Course created", href: `${BASE}/courses` },
+              { done: t.batches > 0, label: "At least one batch", hint: "ব্যাচ তৈরি করলে একটা জয়েন কোড পাবেন", href: `${BASE}/batches` },
               {
                 done: t.batches > 0 && noTeacher === 0,
-                label: noTeacher ? `${noTeacher}টা ব্যাচে টিচার নেই` : "প্রতিটা ব্যাচে টিচার",
+                label: noTeacher ? `${noTeacher} batches without a teacher` : "Every batch has a teacher",
                 hint: "টিচার অ্যাসাইন করলে তারা নিজের ব্যাচের অগ্রগতি দেখতে পারবে",
                 href: `${BASE}/teachers`,
               },
-              { done: t.students > 0, label: "স্টুডেন্ট যোগ হয়েছে", hint: "স্টুডেন্টরা ASM ব্যাচ থেকে নিজেই যোগ হয়", href: `${BASE}/batches` },
+              { done: t.students > 0, label: "Students joined", hint: "স্টুডেন্টরা ASM ব্যাচ থেকে নিজেই যোগ হয়", href: `${BASE}/batches` },
               {
                 done: t.students > 0 && t.neverStarted === 0,
-                label: t.neverStarted ? `${t.neverStarted} জন এখনো একটাও লেসন করেনি` : "সবাই শুরু করেছে",
+                label: t.neverStarted ? `${t.neverStarted} students have not started` : "Everyone has started",
                 hint: "তালিকা দেখে মনে করিয়ে দিন",
                 href: `${BASE}/students?filter=never`,
               },
@@ -111,50 +111,50 @@ export default async function AdminDashboardPage() {
 
       <div className="grid gap-5 lg:grid-cols-2">
         <Panel
-          title={`নজর দিন (${ins.attentionCount})`}
+          title={`Needs attention (${ins.attentionCount})`}
           desc="যারা ৭ দিন টাইপ করেনি, শুরুই করেনি, বা টেস্টে নির্ভুলতা ৮৫%-এর নিচে"
-          action={<PanelLink href={`${BASE}/students?filter=attention`}>সব দেখুন</PanelLink>}
+          action={<PanelLink href={`${BASE}/students?filter=attention`}>View all</PanelLink>}
         >
           <AttentionList data={ins} studentHref={student} />
         </Panel>
-        <Panel title="এই সপ্তাহের সেরা" desc="গত ৭ দিনে সবচেয়ে বেশি সময় টাইপ করেছে">
+        <Panel title="Top this week" desc="গত ৭ দিনে সবচেয়ে বেশি সময় টাইপ করেছে">
           <TopStudents items={ins.top} studentHref={student} />
         </Panel>
       </div>
 
-      <Panel title="ব্যাচগুলোর অবস্থা" desc="কোন ব্যাচ কতটা সক্রিয়, কার টিচার নেই" action={<PanelLink href={`${BASE}/batches`}>ব্যাচ ম্যানেজ করুন</PanelLink>}>
+      <Panel title="Batch health" desc="কোন ব্যাচ কতটা সক্রিয়, কার টিচার নেই" action={<PanelLink href={`${BASE}/batches`}>Manage batches</PanelLink>}>
         <BatchHealth batches={ins.batches} hrefFor={(id) => `${BASE}/students?batch=${id}`} />
       </Panel>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <Panel title="স্টুডেন্টদের জন্য কী চালু আছে" action={<PanelLink href={`${BASE}/flags`}>বদলান</PanelLink>}>
+        <Panel title="Student features" action={<PanelLink href={`${BASE}/flags`}>Change</PanelLink>}>
           <ul className="flex flex-col gap-2">
             {FEATURES.map((f) => {
               const on = flags.get(f.key) ?? false;
               return (
                 <li key={f.key} className="flex items-center justify-between gap-3 rounded-xl border border-[var(--tap-border)] px-3 py-2">
                   <span className="text-sm font-semibold">{f.title}</span>
-                  <span className={`tap-badge ${on ? "tap-badge-success" : "tap-badge-neutral"}`}>{on ? "চালু" : "বন্ধ"}</span>
+                  <span className={`tap-badge ${on ? "tap-badge-success" : "tap-badge-neutral"}`}>{on ? "On" : "Off"}</span>
                 </li>
               );
             })}
             <li className="flex items-center justify-between gap-3 rounded-xl border border-dashed border-[var(--tap-border-strong)] px-3 py-2">
               <span className="text-sm">
-                <span className="font-semibold">বিজ্ঞাপন (Ads)</span>
+                <span className="font-semibold">Ads</span>
                 <span className="block text-xs text-ink-muted">পুরো সিস্টেমের জন্য শুধু Super Admin চালু/বন্ধ করেন</span>
               </span>
-              <span className={`tap-badge ${ads.enabled ? "tap-badge-warning" : "tap-badge-neutral"}`}>{ads.enabled ? "চালু" : "বন্ধ"}</span>
+              <span className={`tap-badge ${ads.enabled ? "tap-badge-warning" : "tap-badge-neutral"}`}>{ads.enabled ? "On" : "Off"}</span>
             </li>
           </ul>
         </Panel>
-        <Panel title="সাম্প্রতিক পরিবর্তন" desc="ব্যাচ, কোর্স, রোল ও টিচারে কী বদলেছে">
+        <Panel title="Recent changes" desc="ব্যাচ, কোর্স, রোল ও টিচারে কী বদলেছে">
           <AuditFeed entries={overview.recentAudit.slice(0, 8)} />
         </Panel>
       </div>
       <p className="text-center text-xs text-ink-faint">
         তারিখ ও “আজ” বাংলাদেশ সময় অনুযায়ী ·{" "}
         <Link href={`${BASE}/analytics`} className="underline">
-          বিস্তারিত অ্যানালিটিক্স
+          Analytics
         </Link>
       </p>
     </div>

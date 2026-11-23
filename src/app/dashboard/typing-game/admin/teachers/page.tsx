@@ -32,29 +32,29 @@ export default async function TeachersPage() {
     <div className="flex flex-col gap-5">
       <ConsoleHero
         kicker="Teachers"
-        title="টিচার"
+        title="Teachers"
         desc="টিচারকে কোর্স বা নির্দিষ্ট ব্যাচে অ্যাসাইন করুন। অ্যাসাইন করা টিচার Teacher Console-এ নিজের স্টুডেন্টদের লেসন, টেস্ট, গেম আর কম্পিটিশনের অগ্রগতি দেখতে পায়।"
       />
       {uncovered.length ? (
         <div role="status" className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <b>{uncovered.length}টা চালু ব্যাচে টিচার নেই:</b> {uncovered.map((b) => b.name).join(", ")}
+          <b>{uncovered.length} active batches without a teacher:</b> {uncovered.map((b) => b.name).join(", ")}
         </div>
       ) : null}
-      <Panel title="টিচার অ্যাসাইন করুন" desc="টিচারের ASM ইমেইল দিন। কোর্স বেছে নিলে ঐ কোর্সের সব ব্যাচ তার আওতায় আসবে।">
+      <Panel title="Assign a teacher" desc="টিচারের ASM ইমেইল দিন। কোর্স বেছে নিলে ঐ কোর্সের সব ব্যাচ তার আওতায় আসবে।">
         <AssignmentForm locale={locale} courses={courses} batches={batches} />
       </Panel>
-      <Panel title={`অ্যাসাইনমেন্ট (${rows.length})`}>
+      <Panel title={`Assignments (${rows.length})`}>
         {rows.length === 0 ? (
-          <Empty>এখনো কোনো টিচার অ্যাসাইন করা হয়নি।</Empty>
+          <Empty>No teachers assigned yet.</Empty>
         ) : (
           <div className="overflow-x-auto">
             <table className="tap-table w-full text-sm">
               <thead>
                 <tr>
-                  <th scope="col" className="text-left">টিচার</th>
-                  <th scope="col" className="text-left">দায়িত্ব</th>
-                  <th scope="col" className="text-right">স্টুডেন্ট</th>
-                  <th scope="col" className="text-right">কাজ</th>
+                  <th scope="col" className="text-left">Teacher</th>
+                  <th scope="col" className="text-left">Assigned to</th>
+                  <th scope="col" className="text-right">Students</th>
+                  <th scope="col" className="text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -66,13 +66,13 @@ export default async function TeachersPage() {
                     </th>
                     <td>
                       <span className={`tap-badge ${a.scope === "course" ? "tap-badge-primary" : "tap-badge-neutral"}`}>
-                        {a.scope === "course" ? "পুরো কোর্স" : "ব্যাচ"}
+                        {a.scope === "course" ? "Whole course" : "Batch"}
                       </span>{" "}
                       {a.target}
                     </td>
                     <td className="text-right tabular-nums">{a.students}</td>
                     <td className="text-right">
-                      <DeleteButton locale={locale} url={`/api/typing-game/admin/assignments/${a.id}`} label="সরান" />
+                      <DeleteButton locale={locale} url={`/api/typing-game/admin/assignments/${a.id}`} label="Remove" />
                     </td>
                   </tr>
                 ))}
