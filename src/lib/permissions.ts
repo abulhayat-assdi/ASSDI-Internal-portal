@@ -16,6 +16,8 @@ export type PermissionKey =
     | "admin_incubation"
     | "crm_supervisor"
     | "crm_admin"
+    | "pronunciation_trainer"
+    | "pronunciation_admin"
     | "schedule"
     | "routine"
     | "batch_info"
@@ -72,6 +74,9 @@ export const PERMISSION_META: Record<PermissionKey, PermissionMeta> = {
     admin_incubation: { label: "Incubation Administration", path: "/dashboard/incubation/settings", group: "admin", icon: "🌱" },
     crm_supervisor: { label: "CRM Supervisor", path: "/dashboard/crm", group: "management", icon: "\uD83C\uDFA7" },
     crm_admin: { label: "CRM Administration", path: "/dashboard/crm/settings", group: "admin", icon: "\uD83C\uDFA7" },
+    // Both open the separate Pronunciation app (new tab); the key decides the role there.
+    pronunciation_trainer: { label: "Bangla Pronunciation (Trainer)", path: "/dashboard/pronunciation", group: "teacher", icon: "\uD83D\uDDE3\uFE0F" },
+    pronunciation_admin: { label: "Bangla Pronunciation (Admin)", path: "/dashboard/pronunciation/admin", group: "admin", icon: "\uD83D\uDDE3\uFE0F" },
     schedule: { label: "Class Schedule", path: "/dashboard/schedule", group: "teacher", icon: "📅" },
     routine: { label: "Routine (view)", path: "/dashboard/manage-routine", group: "teacher", icon: "📆" },
     batch_info: { label: "All Batch Info", path: "/dashboard/all-batch-info", group: "teacher", icon: "📊" },

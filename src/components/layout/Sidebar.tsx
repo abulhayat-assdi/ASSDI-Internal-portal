@@ -15,6 +15,11 @@ import { useIsAsmApp } from "@/lib/tracking/client";
 /** Student pages hidden inside the Android app (the middleware also redirects them). */
 const APP_HIDDEN_STUDENT_FEATURES = new Set(["typing_game", "typing_exam"]);
 
+/** Links to the separate Bangla Pronunciation app (see src/lib/pronunciation/launch.ts). */
+const LAUNCHER_HREFS = new Set(["/student-dashboard/pronunciation", "/dashboard/pronunciation"]);
+/** Opened in their own tab, like the CRM and Live Chat workspaces. */
+const NEW_TAB_HREFS = new Set(["/student-dashboard/crm", "/student-dashboard/live-chat", ...LAUNCHER_HREFS]);
+
 interface NavItem {
     href: string;
     label: string;
@@ -39,6 +44,7 @@ const teacherAdminTopNavItems: NavItem[] = [
     { href: "/dashboard/crm", label: "Customer Service CRM", icon: "\uD83C\uDFA7", permission: "crm_supervisor", feature: "crm" },
     { href: "/dashboard/crm/settings", label: "CRM Settings", icon: "\u2699\uFE0F", permission: "crm_admin", feature: "crm" },
     { href: "/dashboard", label: "Dashboard", icon: "🏠", permission: null },
+    { href: "/dashboard/pronunciation", label: "বাংলা উচ্চারণ", icon: "🗣️", permission: "pronunciation_trainer", feature: "pronunciation" },
     { href: "/dashboard/all-batch-info", label: "All Batch Info", icon: "📊", permission: "batch_info", feature: "batch_info" },
     { href: "/dashboard/admin/contact-messages", label: "Messages", icon: "💬", permission: "admin_contact" },
     { href: "/dashboard/course-modules", label: "Course Modules", icon: "📚", permission: "course_modules", feature: "course_modules" },
@@ -129,6 +135,7 @@ const studentNavItems: NavItem[] = [
     { href: "/student-dashboard/live-chat", label: "Live Chat Training", icon: "\uD83D\uDCAC", permission: null, feature: "live_chat" },
     { href: "/student-dashboard/crm", label: "Customer Service CRM", icon: "\uD83C\uDFA7", permission: null, feature: "crm" },
     { href: "/student-dashboard", label: "Dashboard", icon: "🏠", permission: null },
+    { href: "/student-dashboard/pronunciation", label: "বাংলা উচ্চারণ", icon: "🗣️", permission: null, feature: "pronunciation" },
     { href: "/student-dashboard/routine", label: "Class Routine", icon: "🗓️", permission: null },
     { href: "/student-dashboard/resource", label: "Resource", icon: "📚", permission: null, feature: "resources" },
     { href: "/student-dashboard/course-outline", label: "Course Outline", icon: "📋", permission: null, feature: "course_modules" },
@@ -234,13 +241,14 @@ export default function Sidebar({ variant }: SidebarProps = {}) {
         if(item.feature === "competitions" && !loading) return (features.competitions !== false || features.business_incubation === true) && (isStudent || hasPermission("competitions_view"));
         if (item.feature === "live_chat" && (loading || features.live_chat !== true || features.crm !== true)) return false;
         if (item.feature === "crm" && (loading || features.crm !== true)) return false;
+        if (item.feature === "pronunciation" && (loading || features.pronunciation !== true)) return false;
         if (loading) return true; // show all while loading
         if (item.feature && Object.keys(features).length > 0) {
             if (item.feature === 'crm' ? features.crm !== true : features[item.feature] === false) return false;
         }
         if (isStudent) return true;
         if (!item.permission) return true; // dashboard — always visible
-        return hasPermission(item.permission) || (item.feature === "live_chat" && hasPermission("crm_admin"));
+        return hasPermission(item.permission) || (item.feature === "live_chat" && hasPermission("crm_admin")) || (item.feature === "pronunciation" && hasPermission("pronunciation_admin"));
     };
 
     // Filter top nav items
@@ -357,8 +365,8 @@ export default function Sidebar({ variant }: SidebarProps = {}) {
                             return (
                                 <li key={item.href}>
                                     <Link
-                                        href={item.href} target={['/student-dashboard/crm','/student-dashboard/live-chat'].includes(item.href) ? '_blank' : undefined} rel={['/student-dashboard/crm','/student-dashboard/live-chat'].includes(item.href) ? 'noopener noreferrer' : undefined}
-                                        prefetch={true}
+                                        href={item.href} target={NEW_TAB_HREFS.has(item.href) ? '_blank' : undefined} rel={NEW_TAB_HREFS.has(item.href) ? 'noopener noreferrer' : undefined}
+                                        prefetch={!LAUNCHER_HREFS.has(item.href)}
                                         onClick={() => {
                                             setIsMobileMenuOpen(false);
                                             markPageAsVisited(item.href);
@@ -437,7 +445,7 @@ export default function Sidebar({ variant }: SidebarProps = {}) {
                                                     return (
                                                         <li key={item.href}>
                                                             <Link
-                                                                href={item.href} target={['/student-dashboard/crm','/student-dashboard/live-chat'].includes(item.href) ? '_blank' : undefined} rel={['/student-dashboard/crm','/student-dashboard/live-chat'].includes(item.href) ? 'noopener noreferrer' : undefined}
+                                                                href={item.href} target={NEW_TAB_HREFS.has(item.href) ? '_blank' : undefined} rel={NEW_TAB_HREFS.has(item.href) ? 'noopener noreferrer' : undefined}
                                                                 prefetch={true}
                                                                 onClick={() => {
                                                                     setIsMobileMenuOpen(false);
