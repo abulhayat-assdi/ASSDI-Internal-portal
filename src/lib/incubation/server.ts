@@ -27,6 +27,7 @@ import { catalogCommand, catalogUsage, CATALOG_ACTIONS } from "./catalog-server"
 import { groupKey } from "./catalog";
 import {
   calculateLedger,
+  decimal,
   FINANCIAL_KINDS,
   insist,
   IncubationError,
@@ -215,6 +216,10 @@ async function ledger(
   tx: Tx,
   programId: string,
   replacement?: IncubationRecord,
+  // A late transfer still waiting for teacher review: check it now as if it
+  // were already waiting for the receiving team, so the student sees a stock
+  // problem at submit time instead of the teacher at approval time.
+  extraPending?: IncubationRecord,
 ) {
   const [records, products] = await Promise.all([
     tx.incubationRecord.findMany({ where: { programId, status: "posted" } }),
@@ -244,17 +249,35 @@ async function ledger(
   const pending = await tx.incubationRecord.findMany({
     where: { programId, kind: "transfer", status: "transfer_pending" },
   });
+  if (extraPending && !pending.some((r) => r.id === extraPending.id))
+    pending.push(extraPending);
   const reserved: Record<string, number> = {};
   for (const r of pending)
     for (const l of (r.data as EntryData).lines || []) {
       const key = `${r.teamId}|${l.productId}`;
       reserved[key] = (reserved[key] || 0) + scaled(l.quantity, 3);
     }
-  for (const [key, q] of Object.entries(reserved))
-    insist(
-      (computed.stocks[key]?.quantity || 0) >= q,
-      "Keep enough stock for transfers that are waiting to be accepted.",
+  for (const [key, q] of Object.entries(reserved)) {
+    const have = computed.stocks[key]?.quantity || 0;
+    if (have >= q) continue;
+    // Name the team and product so staff/students know exactly what to fix
+    // (e.g. the same product added on several lines adding up to more than
+    // the team owns).
+    const [teamId, productId] = key.split("|");
+    const team = await tx.incubationTeam.findUnique({
+      where: { id: teamId },
+      select: { name: true },
+    });
+    const p = products.find((x) => x.id === productId);
+    const product = p
+      ? [p.name, p.variant].filter(Boolean).join(" · ")
+      : "Product";
+    throw new IncubationError(
+      `Team "${team?.name ?? "?"}" — ${product}: not enough stock for transfers waiting to be accepted (in stock: ${decimal(have, 3)}, in transfers: ${decimal(q, 3)}).`,
+      400,
+      { code: "transfer_reserve_short", teamId, productId },
     );
+  }
   return { ...computed, reserved };
 }
 function financialAccess(
@@ -1511,6 +1534,8 @@ export async function command(actor: Actor, input: unknown) {
       });
       if (record.status === "posted" || record.status === "transfer_pending")
         await ledger(tx, pid);
+      else if (record.kind === "transfer")
+        await ledger(tx, pid, undefined, record);
       await audit(tx, actor, pid, "record.created", record.id, null, record);
       return record;
     }

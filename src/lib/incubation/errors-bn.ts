@@ -482,6 +482,16 @@ const STOCK_FIX_CORRECTION =
 
 const RULES: Rule[] = [
   [
+    /^Team "(.+?)" — (.+?): not enough stock for transfers waiting to be accepted \(in stock: ([\d.]+), in transfers: ([\d.]+)\)\.$/,
+    (m) => {
+      const [, team, product, have, need] = m;
+      return [
+        `“${team}” টিমের “${product}” — ট্রান্সফারে মোট ${Number(need)} টি দেখানো হয়েছে, কিন্তু টিমের স্টকে আছে মাত্র ${Number(have)} টি।`,
+        "ট্রান্সফারের লাইনগুলো দেখুন — একই পণ্য একাধিক লাইনে দিলে সব লাইনের পরিমাণ যোগ হয়। পরিমাণ ঠিক না থাকলে অনুরোধটি Reject করে সঠিক পরিমাণ দিয়ে আবার পাঠাতে বলুন, অথবা আগে ঝুলে থাকা অন্য ট্রান্সফার গ্রহণ/বাতিল করুন।",
+      ];
+    },
+  ],
+  [
     /^(Approving this correction would break stock: )?(?:Team "(.+?)" — )?(.+?): more than the available stock on (\S+) \(in stock: ([\d.]+)(?:, needed: ([\d.]+); entry: (.+?))?\)\.$/,
     (m) => {
       const [, correction, team, product, date, have, need, kind] = m;

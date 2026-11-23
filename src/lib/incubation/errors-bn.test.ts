@@ -15,6 +15,16 @@ describe("Bangla error messages", () => {
     expect(t).toContain("\nকী করবেন: ");
   });
 
+  it("names the product when pending transfers exceed team stock", () => {
+    const t = toBangla(
+      'Team "TEAM 2" — USB Cable · 60 Tk: not enough stock for transfers waiting to be accepted (in stock: 8.000, in transfers: 9.000).',
+    );
+    expect(t).toContain("“TEAM 2” টিমের “USB Cable · 60 Tk”");
+    expect(t).toContain("মোট 9 টি");
+    expect(t).toContain("মাত্র 8 টি");
+    expect(t).toContain("\nকী করবেন: ");
+  });
+
   it("still understands the old stock message format", () => {
     expect(
       translate("Water Bottle: more than the available stock on 2026-11-15 (in stock: 4.000).").problem,
