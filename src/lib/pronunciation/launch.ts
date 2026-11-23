@@ -86,12 +86,12 @@ export async function buildLaunch(req: NextRequest, asStaff: boolean): Promise<L
     return { ok: false, reason: "signed_out", loginPath };
   }
   if (!isFeatureEnabled(course.settings, PRONUNCIATION_FEATURE)) {
-    return { ok: false, reason: "denied", status: 403, message: "এই কোর্সে বাংলা উচ্চারণ চালু নেই।" };
+    return { ok: false, reason: "denied", status: 403, message: "এই কোর্সে Bangla Pronunciation চালু নেই।" };
   }
 
   const role = pronunciationRoleFor(user);
   if (!role) {
-    return { ok: false, reason: "denied", status: 403, message: "বাংলা উচ্চারণ খোলার অনুমতি আপনার নেই। অ্যাডমিনের সাথে যোগাযোগ করুন।" };
+    return { ok: false, reason: "denied", status: 403, message: "Bangla Pronunciation খোলার অনুমতি আপনার নেই। অ্যাডমিনের সাথে যোগাযোগ করুন।" };
   }
 
   const ctx = { courseId: course.id, isSuperAdmin: false };

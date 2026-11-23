@@ -80,9 +80,22 @@ const nextConfig: NextConfig = {
                     { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
                 ],
             },
+            // The microphone is for Bangla Pronunciation, which runs in a frame on
+            // these pages (same site, /pronunciation). Like location above, it has
+            // to be allowed for the whole area because of client-side navigation.
             {
                 source: '/student-dashboard/:path*',
-                headers: [{ key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(self)' }],
+                headers: [{ key: 'Permissions-Policy', value: 'camera=(), microphone=(self), geolocation=(self)' }],
+            },
+            {
+                source: '/dashboard/:path*',
+                headers: [{ key: 'Permissions-Policy', value: 'camera=(), microphone=(self), geolocation=()' }],
+            },
+            // The Bangla Pronunciation launcher answers inside that frame (its
+            // "can't open" page), so the portal's own pages may frame it.
+            {
+                source: '/api/pronunciation/launch',
+                headers: [{ key: 'X-Frame-Options', value: 'SAMEORIGIN' }],
             },
         ];
     },
