@@ -321,7 +321,7 @@ export function PracticeTyper({ categories, articles, banglaUnlocked }: Props) {
               { value: "en", label: "English" },
               {
                 value: "bn",
-                label: banglaUnlocked ? "বাংলা" : "বাংলা 🔒",
+                label: banglaUnlocked ? "Bangla" : "Bangla 🔒",
                 disabled: !banglaUnlocked,
                 title: banglaUnlocked ? undefined : "English Level 1 পাস করলে বাংলা খুলবে",
               },
@@ -504,9 +504,9 @@ export function PracticeTyper({ categories, articles, banglaUnlocked }: Props) {
       {/* Typing area */}
       {phase === "error" ? (
         <div className="tap-card p-6 text-center">
-          <p className="text-sm text-ink-muted">টেক্সট লোড করা যায়নি।</p>
+          <p className="text-sm text-ink-muted">Could not load the text.</p>
           <button type="button" className="tap-btn tap-btn-primary tap-btn-sm mt-3" onClick={nextText}>
-            আবার চেষ্টা করুন
+            Try again
           </button>
         </div>
       ) : phase === "done" && result ? (
@@ -591,7 +591,7 @@ export function PracticeTyper({ categories, articles, banglaUnlocked }: Props) {
             <TypingField examText={text} typedText={typed} onChange={onType} disabled={false} wide fontSize="clamp(1.3rem, 0.7rem + 1.4vw, 2.4rem)" />
           )}
           <p className="text-center text-xs text-ink-faint">
-            {phase === "ready" ? "প্রথম অক্ষর টাইপ করলেই সময় শুরু হবে · " : ""}Esc = আবার শুরু
+            {phase === "ready" ? "The timer starts with your first key · " : ""}Esc = Restart
             {sources.length > 0 ? ` · Source: ${sources.slice(0, 2).join(", ")}${sources.length > 2 ? "…" : ""}` : ""}
           </p>
         </div>

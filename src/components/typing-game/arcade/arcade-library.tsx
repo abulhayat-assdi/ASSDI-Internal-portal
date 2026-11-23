@@ -45,7 +45,7 @@ export function ArcadeLibrary({ games, coins: initialCoins }: { games: LibraryGa
         return;
       }
       if (!r.ok) {
-        setMsg(d.error === "NOT_ENOUGH_COINS" ? "পর্যাপ্ত কয়েন নেই।" : `আনলক করা যায়নি (${d.error ?? r.status})।`);
+        setMsg(d.error === "NOT_ENOUGH_COINS" ? "Not enough coins." : `Could not unlock (${d.error ?? r.status}).`);
         return;
       }
       if (typeof d.balance === "number") setCoins(d.balance);
@@ -55,7 +55,7 @@ export function ArcadeLibrary({ games, coins: initialCoins }: { games: LibraryGa
       setTimeout(() => setCelebrate(null), 2200);
       router.refresh();
     } catch {
-      setMsg("নেটওয়ার্ক সমস্যা — আবার চেষ্টা করুন।");
+      setMsg("Network problem. Please try again.");
     } finally {
       setBusy("");
     }
@@ -70,7 +70,7 @@ export function ArcadeLibrary({ games, coins: initialCoins }: { games: LibraryGa
         <div className="relative z-10 flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-sm font-bold uppercase tracking-[0.2em] text-white/80">Typing Arcade</p>
-            <h1 className="font-display text-3xl font-black sm:text-4xl" style={{ background: "none", color: "#fff", WebkitTextFillColor: "#fff" }}>টাইপ করো, জেতো, আনলক করো!</h1>
+            <h1 className="font-display text-3xl font-black sm:text-4xl" style={{ background: "none", color: "#fff", WebkitTextFillColor: "#fff" }}>Type. Win. Unlock!</h1>
             <p className="mt-1 max-w-2xl text-white/85">
               ৮টা চ্যালেঞ্জিং গেম — প্রতিটা ধাপে আরও দ্রুত, আরও কঠিন। খেলে কয়েন জেতো, তারপর যেকোনো গেম যেকোনো সময় আনলক করো।
             </p>
@@ -79,7 +79,7 @@ export function ArcadeLibrary({ games, coins: initialCoins }: { games: LibraryGa
             <span className="inline-flex items-center gap-2 rounded-2xl bg-black/25 px-4 py-2.5 text-lg font-extrabold backdrop-blur">
               <Coins className="h-6 w-6 text-yellow-300" aria-hidden="true" />
               <span className="tabular-nums">{coins.toLocaleString("en-US")}</span>
-              <span className="text-sm font-semibold text-white/75">কয়েন</span>
+              <span className="text-sm font-semibold text-white/75">Coins</span>
             </span>
           </div>
         </div>
@@ -108,7 +108,7 @@ export function ArcadeLibrary({ games, coins: initialCoins }: { games: LibraryGa
                     </span>
                   </div>
                 ) : null}
-                <span className="absolute left-3 top-3 inline-flex items-center gap-0.5 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-bold text-white" title="কঠিনতা">
+                <span className="absolute left-3 top-3 inline-flex items-center gap-0.5 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-bold text-white" title="Difficulty">
                   {Array.from({ length: 5 }, (_, i) => (
                     <Star key={i} className="h-3 w-3" fill={i < g.info.difficulty ? "#facc15" : "transparent"} stroke="#facc15" aria-hidden="true" />
                   ))}
@@ -129,11 +129,11 @@ export function ArcadeLibrary({ games, coins: initialCoins }: { games: LibraryGa
                   ) : null}
                 </div>
                 <p className="text-sm text-ink-muted">{g.info.tagline}</p>
-                <p className="text-xs font-semibold text-ink-faint">দক্ষতা: {g.info.skill}</p>
+                <p className="text-xs font-semibold text-ink-faint">Skill: {g.info.skill}</p>
                 <div className="mt-auto pt-2">
                   {open ? (
                     <Link href={`${BASE}/${g.info.slug}`} className="arcade-play-btn">
-                      <Play className="h-4 w-4" aria-hidden="true" /> খেলুন
+                      <Play className="h-4 w-4" aria-hidden="true" /> Play
                     </Link>
                   ) : (
                     <button
@@ -175,20 +175,20 @@ export function ArcadeLibrary({ games, coins: initialCoins }: { games: LibraryGa
               <h2 className="font-display text-2xl font-black text-slate-900">Unlock {target.info.title}</h2>
               <p className="text-sm text-slate-600">{target.info.tagline}</p>
               <button type="button" className="arcade-unlock-btn w-full justify-center py-3 text-base" disabled={busy !== "" || coins < target.price} onClick={() => void unlock("coins")}>
-                <Coins className="h-5 w-5" aria-hidden="true" /> {busy === "coins" ? "আনলক হচ্ছে…" : `${target.price} কয়েন দিয়ে আনলক`}
+                <Coins className="h-5 w-5" aria-hidden="true" /> {busy === "coins" ? "Unlocking…" : `Unlock for ${target.price} coins`}
               </button>
               {coins < target.price ? (
                 <p className="-mt-1 text-center text-xs font-semibold text-rose-600">
-                  আপনার আছে {coins} কয়েন — আরও {target.price - coins} কয়েন লাগবে।
+                  You have {coins} coins · {target.price - coins} more needed
                 </p>
               ) : (
-                <p className="-mt-1 text-center text-xs text-slate-500">আনলকের পর থাকবে {coins - target.price} কয়েন</p>
+                <p className="-mt-1 text-center text-xs text-slate-500">{coins - target.price} coins left after unlocking</p>
               )}
               <div className="flex items-center gap-3 text-xs font-semibold uppercase text-slate-400">
-                <span className="h-px flex-1 bg-slate-200" /> অথবা <span className="h-px flex-1 bg-slate-200" />
+                <span className="h-px flex-1 bg-slate-200" /> or <span className="h-px flex-1 bg-slate-200" />
               </div>
               <button type="button" className="arcade-ad-btn w-full justify-center py-3" disabled={busy !== ""} onClick={() => void unlock("ad")}>
-                <Clapperboard className="h-5 w-5" aria-hidden="true" /> {busy === "ad" ? "আনলক হচ্ছে…" : "অ্যাড দেখে ফ্রি আনলক"}
+                <Clapperboard className="h-5 w-5" aria-hidden="true" /> {busy === "ad" ? "Unlocking…" : "Watch an ad · Unlock free"}
               </button>
               {msg ? <p className="text-center text-sm font-semibold text-rose-600">{msg}</p> : null}
             </div>

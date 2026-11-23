@@ -36,18 +36,18 @@ export default async function AdminFlagsPage() {
     <div className="flex flex-col gap-5">
       <ConsoleHero
         kicker="Features"
-        title="স্টুডেন্টরা কী কী পাবে"
+        title="Student Features"
         desc="কোনো ফিচার বন্ধ করলে স্টুডেন্টদের মেনু থেকে সেটা সরে যায় আর ঐ পেজ খোলা যায় না। লেসন, প্র্যাকটিস, টেস্ট আর লিডারবোর্ড সবসময় চালু থাকে।"
       />
-      <Panel title="ফিচার">
+      <Panel title="Features">
         <FeatureSwitches
           features={FEATURES.map((f) => ({ ...f, enabled: byKey.get(f.key) ?? false }))}
           scopeNote={global ? "আপনি Super Admin: এখানে বদলালে সব কোর্সের ডিফল্ট বদলাবে (যে কোর্স নিজে আলাদা করে রেখেছে, সেটা ছাড়া)।" : "শুধু আপনার কোর্সের স্টুডেন্টদের জন্য বদলাবে।"}
         />
       </Panel>
-      <Panel title="বিজ্ঞাপন (Ads)" desc="পুরো সিস্টেমের জন্য শুধু Super Admin চালু বা বন্ধ করেন, এখান থেকে বদলানো যায় না।">
+      <Panel title="Ads" desc="পুরো সিস্টেমের জন্য শুধু Super Admin চালু বা বন্ধ করেন, এখান থেকে বদলানো যায় না।">
         <p className="flex items-center gap-2 text-sm">
-          এখন: <span className={`tap-badge ${ads.enabled ? "tap-badge-warning" : "tap-badge-neutral"}`}>{ads.enabled ? "চালু" : "বন্ধ"}</span>
+          Status: <span className={`tap-badge ${ads.enabled ? "tap-badge-warning" : "tap-badge-neutral"}`}>{ads.enabled ? "On" : "Off"}</span>
           {ads.enabled ? null : <span className="text-ink-muted">অ্যাড বন্ধ থাকলে “অ্যাড দেখে আনলক” করলে সরাসরি আনলক হয়ে যায়।</span>}
         </p>
       </Panel>

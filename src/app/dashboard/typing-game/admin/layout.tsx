@@ -55,7 +55,7 @@ export default async function AdminLayout({
           { href: `${base}/missions`, label: "Missions", icon: "missions" },
           { href: `${base}/analytics`, label: "Analytics", icon: "analytics" },
           { href: `${base}/flags`, label: "Features", icon: "features" },
-          ...(canLearn ? [{ href: "/dashboard/typing-game/learn", label: "আমার প্র্যাকটিস", icon: "lessons" as const }] : []),
+          ...(canLearn ? [{ href: "/dashboard/typing-game/learn", label: "My Practice", icon: "lessons" as const }] : []),
         ]}
       />
       <div className="mx-auto w-full max-w-7xl px-4 py-6">{children}</div>

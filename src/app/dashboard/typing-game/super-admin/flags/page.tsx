@@ -28,10 +28,10 @@ export default async function SuperFlagsPage() {
       <ConsoleHero
         tone="super"
         kicker="Features"
-        title="ফিচারের ডিফল্ট"
+        title="Feature Defaults"
         desc="নতুন ও সব কোর্সের জন্য ডিফল্ট। কোনো কোর্সের অ্যাডমিন নিজের কোর্সে আলাদা করে চালু/বন্ধ করলে সেটাই ঐ কোর্সে চলবে। বিজ্ঞাপন এখানে নেই, Ads পেজে।"
       />
-      <Panel title="ফিচার">
+      <Panel title="Features">
         <FeatureSwitches
           features={FEATURES.map((f) => ({ ...f, enabled: byKey.get(f.key) ?? false }))}
           scopeNote="এখানে বদলালে সব কোর্সের ডিফল্ট বদলাবে।"

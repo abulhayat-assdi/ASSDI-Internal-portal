@@ -11,11 +11,11 @@ import { Empty } from "./blocks";
 export type StudentFilter = "all" | "today" | "inactive" | "never" | "attention";
 
 export const STUDENT_FILTERS: { key: StudentFilter; label: string }[] = [
-  { key: "all", label: "সবাই" },
-  { key: "today", label: "আজ সক্রিয়" },
-  { key: "attention", label: "নজর দিন" },
-  { key: "inactive", label: "৭ দিন+ নিষ্ক্রিয়" },
-  { key: "never", label: "শুরু করেনি" },
+  { key: "all", label: "All" },
+  { key: "today", label: "Active today" },
+  { key: "attention", label: "Needs attention" },
+  { key: "inactive", label: "Inactive 7d+" },
+  { key: "never", label: "Not started" },
 ];
 
 export function applyStudentFilter(rows: StaffStudentRow[], filter: StudentFilter, today: string): StaffStudentRow[] {
@@ -61,13 +61,13 @@ export function StudentFilters({
     <div className="flex flex-col gap-3">
       <form method="get" action={action} className="flex flex-col gap-2 sm:flex-row">
         <label className="relative flex-1">
-          <span className="sr-only">খুঁজুন</span>
+          <span className="sr-only">Search</span>
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" aria-hidden="true" />
           <input
             type="search"
             name="q"
             defaultValue={q}
-            placeholder="নাম, ইমেইল বা রোল"
+            placeholder="Name, email or roll"
             className="w-full rounded-xl border border-[var(--tap-border-strong)] bg-[var(--tap-surface-solid)] py-2 pl-9 pr-3 text-sm"
           />
         </label>
@@ -75,10 +75,10 @@ export function StudentFilters({
           <select
             name="batch"
             defaultValue={batch}
-            aria-label="ব্যাচ"
+            aria-label="Batch"
             className="rounded-xl border border-[var(--tap-border-strong)] bg-[var(--tap-surface-solid)] px-3 py-2 text-sm"
           >
-            <option value="">সব ব্যাচ</option>
+            <option value="">All batches</option>
             {batches.map((b) => (
               <option key={b.id} value={b.id}>
                 {b.name}
@@ -88,10 +88,10 @@ export function StudentFilters({
         ) : null}
         {filter !== "all" ? <input type="hidden" name="filter" value={filter} /> : null}
         <button type="submit" className="tap-btn tap-btn-primary tap-btn-md">
-          খুঁজুন
+          Search
         </button>
       </form>
-      <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="স্টুডেন্ট ফিল্টার">
+      <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Student filter">
         {STUDENT_FILTERS.map((f) => (
           <Link
             key={f.key}
@@ -124,19 +124,19 @@ export function StudentTable({
   hrefFor: (userId: string) => string;
   showBatch?: boolean;
 }) {
-  if (rows.length === 0) return <Empty>এই ফিল্টারে কোনো স্টুডেন্ট নেই।</Empty>;
+  if (rows.length === 0) return <Empty>No students match this filter.</Empty>;
   return (
     <div className="overflow-x-auto">
       <table className="tap-table w-full text-sm">
         <thead>
           <tr>
-            <th scope="col" className="text-left">স্টুডেন্ট</th>
-            {showBatch ? <th scope="col" className="text-left">ব্যাচ · রোল</th> : <th scope="col" className="text-left">রোল</th>}
-            <th scope="col" className="text-right">লেভেল</th>
-            <th scope="col" className="text-right">লেসন</th>
-            <th scope="col" className="text-right">সেরা WPM</th>
-            <th scope="col" className="text-right">মিনিট (৭ দিন)</th>
-            <th scope="col" className="text-left">শেষ টাইপ</th>
+            <th scope="col" className="text-left">Student</th>
+            {showBatch ? <th scope="col" className="text-left">Batch · Roll</th> : <th scope="col" className="text-left">Roll</th>}
+            <th scope="col" className="text-right">Level</th>
+            <th scope="col" className="text-right">Lessons</th>
+            <th scope="col" className="text-right">Best WPM</th>
+            <th scope="col" className="text-right">Minutes (7d)</th>
+            <th scope="col" className="text-left">Last typed</th>
           </tr>
         </thead>
         <tbody>

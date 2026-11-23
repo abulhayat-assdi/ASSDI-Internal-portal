@@ -54,7 +54,7 @@ export default async function TeacherLayout({
           { href: base, label: "Overview", icon: "overview", exact: true },
           { href: `${base}/batches`, label: "My batches", icon: "batches" },
           { href: `${base}/missions`, label: "Missions", icon: "missions" },
-          ...(canLearn ? [{ href: "/dashboard/typing-game/learn", label: "আমার প্র্যাকটিস", icon: "lessons" as const }] : []),
+          ...(canLearn ? [{ href: "/dashboard/typing-game/learn", label: "My Practice", icon: "lessons" as const }] : []),
         ]}
       />
       <div className="mx-auto w-full max-w-7xl px-4 py-6">{children}</div>

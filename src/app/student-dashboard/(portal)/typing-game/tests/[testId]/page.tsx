@@ -23,7 +23,7 @@ export default async function TestPage({
     <div className="flex flex-col gap-4">
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-ink-faint">
-          {lang === "bn" ? "বাংলা" : "English"} Typing Test
+          {lang === "bn" ? "Bangla" : "English"} Typing Test
         </p>
         <h1 className="font-display text-xl font-bold">{test.title}</h1>
         {lang === "bn" ? <p className="text-sm text-ink-muted">কম্পিউটারে Bijoy বা Avro চালু করে টাইপ করুন।</p> : null}

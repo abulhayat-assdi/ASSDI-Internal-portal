@@ -2,20 +2,20 @@
 
 export type AdAction = "lesson_skip" | "lesson_continue_after_fail" | "double_xp" | "streak_restore" | "game_unlock";
 export const AD_ACTIONS: { key: AdAction; label: string }[] = [
-  { key: "lesson_skip", label: "লেসন / লেভেল Skip বা Unlock" },
-  { key: "lesson_continue_after_fail", label: "পরীক্ষায় ফেল করার পর এগোনো" },
+  { key: "lesson_skip", label: "Skip / unlock a lesson or level" },
+  { key: "lesson_continue_after_fail", label: "Continue after failing an assessment" },
   { key: "double_xp", label: "2× XP" },
-  { key: "streak_restore", label: "ভাঙা স্ট্রিক ফেরানো" },
-  { key: "game_unlock", label: "গেম আনলক (কয়েনের বদলে)" },
+  { key: "streak_restore", label: "Restore a broken streak" },
+  { key: "game_unlock", label: "Unlock a game (instead of coins)" },
 ];
 
 /** Where display ads may appear. */
 export type AdSlotKey = "lesson_left" | "practice_left" | "top_banner" | "result";
 export const AD_SLOTS: { key: AdSlotKey; label: string; size: string }[] = [
-  { key: "lesson_left", label: "লেসন — বাম কলাম (ডেস্কটপ)", size: "160×600 / 300×600" },
-  { key: "practice_left", label: "Practice ও Tests — বাম কলাম (ডেস্কটপ)", size: "160×600 / 300×600" },
-  { key: "top_banner", label: "উপরের ব্যানার (Lessons, Games, Leaderboard)", size: "728×90 · মোবাইলে 320×50" },
-  { key: "result", label: "রেজাল্ট স্ক্রিনের নিচে", size: "300×250" },
+  { key: "lesson_left", label: "Lessons — left column (desktop)", size: "160×600 / 300×600" },
+  { key: "practice_left", label: "Practice & Tests — left column (desktop)", size: "160×600 / 300×600" },
+  { key: "top_banner", label: "Top banner (Lessons, Games, Leaderboard)", size: "728×90 · mobile 320×50" },
+  { key: "result", label: "Below result screens", size: "300×250" },
 ];
 
 export interface AdSettings {

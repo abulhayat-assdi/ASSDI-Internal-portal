@@ -18,19 +18,19 @@ export interface FeatureMeta {
 export const FEATURES: FeatureMeta[] = [
   {
     key: "ARCADE_GAMES_ENABLED",
-    title: "Typing Arcade গেম",
+    title: "Typing Arcade games",
     on: "স্টুডেন্টরা Games পেজে ৮টা টাইপিং গেম খেলতে, কয়েন দিয়ে আনলক করতে পারে।",
     off: "Games মেনু লুকানো থাকবে, গেম শুরু করা যাবে না।",
   },
   {
     key: "BATCH_COMPETITION_ENABLED",
-    title: "ব্যাচ কম্পিটিশন",
+    title: "Batch Competition",
     on: "ব্যাচমেটকে চ্যালেঞ্জ বা লাইভ রেসে ইনভাইট করে টাইপিং প্রতিযোগিতা করা যায়।",
     off: "Compete মেনু লুকানো থাকবে, নতুন চ্যালেঞ্জ পাঠানো যাবে না।",
   },
   {
     key: "MISSIONS_ENABLED",
-    title: "মিশন",
+    title: "Missions",
     on: "দৈনিক/সাপ্তাহিক মিশন আর টিচারের দেওয়া মিশন দেখা ও খেলা যায়।",
     off: "Missions মেনু লুকানো থাকবে।",
   },

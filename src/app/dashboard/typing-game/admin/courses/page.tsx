@@ -29,24 +29,24 @@ export default async function CoursesPage() {
     <div className="flex flex-col gap-5">
       <ConsoleHero
         kicker="Courses"
-        title="কোর্স"
+        title="Courses"
         desc="কোর্স হলো ব্যাচগুলোর ঘর। সাধারণত একটাই কোর্স (Typing Adventure) যথেষ্ট; লেসন, টেস্ট ও গেম সব কোর্সে একই থাকে।"
       />
-      <Panel title="নতুন কোর্স">
+      <Panel title="New course">
         <CreateCourseForm locale={locale} orgId={orgId} />
       </Panel>
-      <Panel title={`সব কোর্স (${courses.length})`}>
+      <Panel title={`All courses (${courses.length})`}>
         {courses.length === 0 ? (
-          <Empty>এখনো কোনো কোর্স নেই।</Empty>
+          <Empty>No courses yet.</Empty>
         ) : (
           <div className="overflow-x-auto">
             <table className="tap-table w-full text-sm">
               <thead>
                 <tr>
-                  <th scope="col" className="text-left">কোর্স</th>
-                  <th scope="col" className="text-right">ব্যাচ</th>
-                  <th scope="col" className="text-left">অবস্থা</th>
-                  <th scope="col" className="text-right">কাজ</th>
+                  <th scope="col" className="text-left">Course</th>
+                  <th scope="col" className="text-right">Batches</th>
+                  <th scope="col" className="text-left">Status</th>
+                  <th scope="col" className="text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -59,17 +59,17 @@ export default async function CoursesPage() {
                         <span className="block font-mono text-xs font-normal text-ink-faint">{c.slug}</span>
                       </th>
                       <td className="text-right tabular-nums">
-                        {n.filter((b) => b.isActive).length} চালু / {n.length}
+                        {n.filter((b) => b.isActive).length} active / {n.length}
                       </td>
                       <td>
-                        <span className={`tap-badge ${c.isActive ? "tap-badge-success" : "tap-badge-neutral"}`}>{c.isActive ? "চালু" : "বন্ধ"}</span>
+                        <span className={`tap-badge ${c.isActive ? "tap-badge-success" : "tap-badge-neutral"}`}>{c.isActive ? "Active" : "Inactive"}</span>
                       </td>
                       <td className="text-right">
                         <PatchToggle
                           locale={locale}
                           url={`/api/typing-game/admin/courses/${c.id}`}
                           body={{ isActive: !c.isActive }}
-                          label={c.isActive ? "বন্ধ করুন" : "চালু করুন"}
+                          label={c.isActive ? "Deactivate" : "Activate"}
                           active={c.isActive}
                         />
                       </td>

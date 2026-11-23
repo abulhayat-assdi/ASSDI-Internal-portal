@@ -149,31 +149,31 @@ export async function loadProgressOverview(client: PostgrestClient, userId: stri
   for (const g of (gamesRes.data ?? []) as { id: string; slug: string }[]) gameSlug.set(String(g.id), String(g.slug));
   const gameTitle = (id: unknown) => {
     const slug = gameSlug.get(String(id));
-    return GAMES.find((g) => g.slug === slug)?.title.en ?? slug ?? "গেম";
+    return GAMES.find((g) => g.slug === slug)?.title.en ?? slug ?? "Game";
   };
   const lessonTitle = (id: unknown) => {
     const hit = findLesson(String(id));
-    return hit ? `${hit.level.mode === "bn" ? "বাংলা " : ""}L${hit.level.number} · ${hit.lesson.title}` : String(id);
+    return hit ? `${hit.level.mode === "bn" ? "Bangla " : ""}L${hit.level.number} · ${hit.lesson.title}` : String(id);
   };
   const activity: ActivityItem[] = ((xpRes.data ?? []) as Record<string, unknown>[]).map((e) => {
     const meta = (e.metadata ?? {}) as Record<string, unknown>;
     const at = String(e.created_at);
     const amount = num(e.amount);
-    if (e.reason === "lesson completed") return { at, kind: "lesson", label: `লেসন সম্পূর্ণ — ${lessonTitle(meta.lesson_id)}`, xp: amount };
-    if (e.reason === "lesson star") return { at, kind: "star", label: `${num(meta.star)} নম্বর স্টার — ${lessonTitle(meta.lesson_id)}`, xp: amount };
-    if (e.reason === "typing test") return { at, kind: "test", label: "টাইপিং টেস্ট শেষ", xp: amount };
+    if (e.reason === "lesson completed") return { at, kind: "lesson", label: `Lesson completed — ${lessonTitle(meta.lesson_id)}`, xp: amount };
+    if (e.reason === "lesson star") return { at, kind: "star", label: `Star ${num(meta.star)} — ${lessonTitle(meta.lesson_id)}`, xp: amount };
+    if (e.reason === "typing test") return { at, kind: "test", label: "Typing test finished", xp: amount };
     if (e.source === "arcade") {
-      const title = findArcadeGame(String(meta.game))?.title ?? String(meta.game ?? "গেম");
-      return { at, kind: "game", label: `গেম খেলা — ${title} (স্কোর ${num(meta.score).toLocaleString("en-US")})${meta.personal_best === true ? " · নতুন সেরা!" : ""}`, xp: amount };
+      const title = findArcadeGame(String(meta.game))?.title ?? String(meta.game ?? "Game");
+      return { at, kind: "game", label: `Game — ${title} (score ${num(meta.score).toLocaleString("en-US")})${meta.personal_best === true ? " · New best!" : ""}`, xp: amount };
     }
     if (e.source === "challenge") {
-      const r = meta.result === "win" ? "জয়" : meta.result === "draw" ? "ড্র" : "হার";
-      return { at, kind: "game", label: `ব্যাচ চ্যালেঞ্জ — ${r}`, xp: amount };
+      const r = meta.result === "win" ? "Win" : meta.result === "draw" ? "Draw" : "Loss";
+      return { at, kind: "game", label: `Batch challenge — ${r}`, xp: amount };
     }
     if (e.source === "attempt") {
-      return { at, kind: "game", label: `গেম খেলা — ${gameTitle(meta.game_id)}${meta.personal_best === true ? " (নতুন সেরা!)" : ""}`, xp: amount };
+      return { at, kind: "game", label: `Game — ${gameTitle(meta.game_id)}${meta.personal_best === true ? " (New best!)" : ""}`, xp: amount };
     }
-    if (String(e.source).includes("mission")) return { at, kind: "mission", label: "মিশন সম্পূর্ণ", xp: amount };
+    if (String(e.source).includes("mission")) return { at, kind: "mission", label: "Mission completed", xp: amount };
     return { at, kind: "other", label: String(e.reason || e.source), xp: amount };
   });
 

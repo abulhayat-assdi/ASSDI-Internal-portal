@@ -81,9 +81,9 @@ export function TestPlayer({ testId, lang, title }: { testId: string; lang: "en"
   if (error) {
     return (
       <div className="tap-card mx-auto max-w-md p-6 text-center">
-        <p className="font-semibold">টেস্ট চালানো যায়নি ({error})।</p>
+        <p className="font-semibold">Could not start the test ({error}).</p>
         <button type="button" className="tap-btn tap-btn-primary tap-btn-sm mt-3" onClick={() => setAttempt((a) => a + 1)}>
-          আবার চেষ্টা করুন
+          Try again
         </button>
       </div>
     );
@@ -112,13 +112,13 @@ export function TestPlayer({ testId, lang, title }: { testId: string; lang: "en"
         {result.xp > 0 ? <span className="tap-badge tap-badge-legendary">+{result.xp} XP</span> : null}
         <div className="flex flex-wrap justify-center gap-2">
           <Link href={`${BASE}/certificate/${result.sessionId}`} className="tap-btn tap-btn-primary tap-btn-md">
-            <Award className="h-4 w-4" aria-hidden="true" /> সার্টিফিকেট
+            <Award className="h-4 w-4" aria-hidden="true" /> Certificate
           </Link>
           <button type="button" className="tap-btn tap-btn-secondary tap-btn-md" onClick={() => setAttempt((a) => a + 1)}>
-            <RotateCcw className="h-4 w-4" aria-hidden="true" /> আবার দিন
+            <RotateCcw className="h-4 w-4" aria-hidden="true" /> Retake
           </button>
           <Link href={`${BASE}?lang=${lang}`} className="tap-btn tap-btn-ghost tap-btn-md">
-            সব টেস্ট
+            All tests
           </Link>
         </div>
         <AdSlot slot="result" />

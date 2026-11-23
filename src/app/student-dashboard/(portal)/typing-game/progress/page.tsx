@@ -14,8 +14,8 @@ import { ARCADE_GAMES } from "@/lib/typing-game/arcade/catalog";
 
 function fmtDuration(ms: number): string {
   const m = Math.round(ms / 60000);
-  if (m < 60) return `${m} মিনিট`;
-  return `${Math.floor(m / 60)} ঘণ্টা ${m % 60} মিনিট`;
+  if (m < 60) return `${m} min`;
+  return `${Math.floor(m / 60)}h ${m % 60}m`;
 }
 
 function fmtWhen(iso: string): string {
@@ -57,16 +57,16 @@ function LevelRow({ l, LESSONS }: { l: LevelSummary; LESSONS: string }) {
         </Link>
         <span className="flex items-center gap-3 text-xs text-ink-muted">
           <span className="tabular-nums">
-            {l.completed}/{l.total} লেসন
+            {l.completed}/{l.total} lessons
           </span>
           <span className="inline-flex items-center gap-0.5 tabular-nums">
             <Star className="h-3 w-3" fill="#f59e0b" stroke="#f59e0b" aria-hidden="true" />
             {l.stars}/{l.maxStars}
           </span>
-          {l.skipped > 0 ? <span>{l.skipped}টি skip</span> : null}
+          {l.skipped > 0 ? <span>{l.skipped} skipped</span> : null}
           {done ? (
             <span className="font-semibold" style={{ color: "var(--tap-success-600, #16a34a)" }}>
-              ✓ সম্পূর্ণ
+              ✓ Complete
             </span>
           ) : null}
         </span>
@@ -74,7 +74,7 @@ function LevelRow({ l, LESSONS }: { l: LevelSummary; LESSONS: string }) {
       <ProgressBar value={l.completed} max={l.total} label={`Level ${l.number}`} />
       {!done && l.nextLessonId && l.completed + l.skipped > 0 ? (
         <Link href={`${LESSONS}/${l.nextLessonId}`} className="tap-link-btn w-fit text-xs">
-          চালিয়ে যান: {l.nextLessonTitle} →
+          Continue: {l.nextLessonTitle} →
         </Link>
       ) : null}
     </li>
@@ -116,33 +116,33 @@ export default async function ProgressPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="আমার অগ্রগতি" description="কী শিখেছেন, কতটা এগিয়েছেন আর কোথায় উন্নতি হচ্ছে — সব এক জায়গায়।" />
+      <PageHeader title="My Progress" description="কী শিখেছেন, কতটা এগিয়েছেন আর কোথায় উন্নতি হচ্ছে — সব এক জায়গায়।" />
 
       {/* Headline numbers */}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Tile icon={Trophy} label="র‍্যাঙ্ক" value={`Level ${r.level} · ${r.title}`} hint={r.next === null ? "সর্বোচ্চ র‍্যাঙ্ক!" : `${r.xp} XP · আর ${r.next - r.xp} XP পেলে ${r.nextTitle}`}>
+        <Tile icon={Trophy} label="Rank" value={`Level ${r.level} · ${r.title}`} hint={r.next === null ? "Top rank!" : `${r.xp} XP · ${r.next - r.xp} XP to ${r.nextTitle}`}>
           <ProgressBar value={rankPct} max={100} label="Rank progress" />
         </Tile>
-        <Tile icon={BookOpen} label="লেসন সম্পূর্ণ" value={`${o.lessons.completed} / ${o.lessons.total}`} hint={`${o.lessons.stars} / ${o.lessons.maxStars} স্টার · লেসনে মোট ${fmtDuration(o.lessons.timeMs)}`}>
+        <Tile icon={BookOpen} label="Lessons completed" value={`${o.lessons.completed} / ${o.lessons.total}`} hint={`${o.lessons.stars} / ${o.lessons.maxStars} stars · ${fmtDuration(o.lessons.timeMs)} in lessons`}>
           {nextLevel?.nextLessonId ? (
             <Link href={`${LESSONS}/${nextLevel.nextLessonId}`} className="tap-link-btn inline-flex items-center gap-1 text-xs">
-              পরের লেসন: {nextLevel.nextLessonTitle} <ArrowRight className="h-3 w-3" aria-hidden="true" />
+              Next lesson: {nextLevel.nextLessonTitle} <ArrowRight className="h-3 w-3" aria-hidden="true" />
             </Link>
           ) : null}
         </Tile>
         <Tile
           icon={Zap}
-          label="সেরা গতি"
+          label="Best speed"
           value={bestSpeed > 0 ? `${bestSpeed} wpm` : "—"}
           hint={
             o.bestTest
-              ? `${o.bestTest.title} · ${Math.round(o.bestTest.accuracy)}% নির্ভুল`
+              ? `${o.bestTest.title} · ${Math.round(o.bestTest.accuracy)}% accuracy`
               : bestSpeed > 0
-                ? `লেসনে · সেরা নির্ভুলতা ${Math.round(o.lessons.bestAccuracy)}%`
+                ? `In lessons · best accuracy ${Math.round(o.lessons.bestAccuracy)}%`
                 : "একটা টেস্ট দিয়ে গতি মাপুন"
           }
         />
-        <Tile icon={Clock} label="আজ টাইপ করেছেন" value={`${o.todayMinutes} / ${o.goalMinutes} মিনিট`} hint={`শেষ ৭ দিনে মোট ${weekMinutes} মিনিট`}>
+        <Tile icon={Clock} label="Typed today" value={`${o.todayMinutes} / ${o.goalMinutes} min`} hint={`${weekMinutes} min in the last 7 days`}>
           <ProgressBar value={Math.min(o.todayMinutes, o.goalMinutes)} max={o.goalMinutes} label="Daily goal" />
         </Tile>
       </div>
@@ -151,14 +151,14 @@ export default async function ProgressPage() {
         {/* Lessons by level */}
         <Card>
           <CardContent>
-            <SectionHeader title="লেভেল অনুযায়ী লেসন" description="প্রতিটা লেভেলে কয়টা লেসন শেষ, কত স্টার, আর পরের লেসন কোনটা।" />
+            <SectionHeader title="Lessons by level" description="প্রতিটা লেভেলে কয়টা লেসন শেষ, কত স্টার, আর পরের লেসন কোনটা।" />
             <ul className="flex flex-col gap-4">
               {enLevels.map((l) => (
                 <LevelRow key={l.id} l={l} LESSONS={LESSONS} />
               ))}
             </ul>
             <div className="mt-5 border-t pt-4" style={{ borderColor: "var(--tap-border)" }}>
-              <p className="mb-3 text-sm font-bold">বাংলা</p>
+              <p className="mb-3 text-sm font-bold">Bangla</p>
               {bnStarted ? (
                 <ul className="flex flex-col gap-4">
                   {bnLevels.map((l) => (
@@ -169,7 +169,7 @@ export default async function ProgressPage() {
                 <p className="text-sm text-ink-muted">
                   বাংলা লেসন এখনো শুরু হয়নি। English Level 1-এর Final Assessment শেষ করলে বাংলা খুলে যায়।{" "}
                   <Link href={`${LESSONS}?mode=bn`} className="tap-link-btn">
-                    বাংলা লেসন দেখুন
+                    Bangla lessons
                   </Link>
                 </p>
               )}
@@ -180,14 +180,14 @@ export default async function ProgressPage() {
         <div className="flex flex-col gap-6">
           <Card>
             <CardContent>
-              <SectionHeader title="টেস্টে গতি কীভাবে বাড়ছে" description="প্রতিটা টাইপিং টেস্টের WPM, পুরনো থেকে নতুন। বিন্দুর ওপর মাউস রাখলে বিস্তারিত দেখাবে।" />
+              <SectionHeader title="Test speed over time" description="প্রতিটা টাইপিং টেস্টের WPM, পুরনো থেকে নতুন। বিন্দুর ওপর মাউস রাখলে বিস্তারিত দেখাবে।" />
               {o.tests.length >= 2 ? (
                 <SpeedChart points={o.tests} />
               ) : (
                 <p className="py-6 text-center text-sm text-ink-muted">
                   গ্রাফ দেখতে অন্তত দুটো টেস্ট দিন।{" "}
                   <Link href={`${base}/tests`} className="tap-link-btn">
-                    টেস্ট দিন
+                    Take a test
                   </Link>
                 </p>
               )}
@@ -195,7 +195,7 @@ export default async function ProgressPage() {
           </Card>
           <Card>
             <CardContent>
-              <SectionHeader title="প্রতিদিনের টাইপিং (শেষ ১৪ দিন)" description="লেসন, টেস্ট আর Practice মিলিয়ে মিনিট। ড্যাশ-রেখা = আপনার দৈনিক লক্ষ্য।" />
+              <SectionHeader title="Daily typing (last 14 days)" description="লেসন, টেস্ট আর Practice মিলিয়ে মিনিট। ড্যাশ-রেখা = আপনার দৈনিক লক্ষ্য।" />
               <MinutesChart days={o.days} goal={o.goalMinutes} />
             </CardContent>
           </Card>
@@ -206,7 +206,7 @@ export default async function ProgressPage() {
         {/* Activity feed */}
         <Card>
           <CardContent>
-            <SectionHeader title="সাম্প্রতিক কার্যক্রম" description="কী করেছেন আর তার জন্য কত XP পেয়েছেন।" />
+            <SectionHeader title="Recent activity" description="কী করেছেন আর তার জন্য কত XP পেয়েছেন।" />
             {o.activity.length === 0 ? (
               <p className="text-sm text-ink-muted">{t("noHistory")}</p>
             ) : (
@@ -234,22 +234,22 @@ export default async function ProgressPage() {
         {/* Games */}
         <Card>
           <CardContent>
-            <SectionHeader title="গেমে সেরা রেকর্ড" description={`প্রতিটা খোলা গেমে আপনার সেরা স্কোর · এখন ${arcade.coins} কয়েন আছে`} />
+            <SectionHeader title="Game records" description={`প্রতিটা খোলা গেমে আপনার সেরা স্কোর · Coins: ${arcade.coins}`} />
             {gameRows.length === 0 ? (
               <p className="text-sm text-ink-muted">
                 এখনো কোনো গেম খেলেননি।{" "}
                 <Link href={`${base}/games`} className="tap-link-btn">
-                  গেম খেলুন
+                  Play a game
                 </Link>
               </p>
             ) : (
               <table className="tap-table w-full text-sm">
                 <thead>
                   <tr>
-                    <th className="text-left">গেম</th>
-                    <th className="text-right" style={{ textAlign: "right" }}>খেলেছেন</th>
-                    <th className="text-right" style={{ textAlign: "right" }}>সেরা লেভেল</th>
-                    <th className="text-right" style={{ textAlign: "right" }}>সেরা স্কোর</th>
+                    <th className="text-left">Game</th>
+                    <th className="text-right" style={{ textAlign: "right" }}>Plays</th>
+                    <th className="text-right" style={{ textAlign: "right" }}>Best level</th>
+                    <th className="text-right" style={{ textAlign: "right" }}>Best score</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -260,7 +260,7 @@ export default async function ProgressPage() {
                           {info.title}
                         </Link>
                       </td>
-                      <td className="text-right tabular-nums">{state?.plays ?? 0} বার</td>
+                      <td className="text-right tabular-nums">{state?.plays ?? 0}</td>
                       <td className="text-right tabular-nums">{state?.bestLevel ?? "—"}</td>
                       <td className="text-right font-semibold tabular-nums">{state?.best != null ? state.best.toLocaleString("en-US") : "—"}</td>
                     </tr>
@@ -271,7 +271,7 @@ export default async function ProgressPage() {
             {games.achievements.length > 0 ? (
               <div className="mt-5">
                 <p className="mb-2 flex items-center gap-1.5 text-sm font-bold">
-                  <Medal className="h-4 w-4" aria-hidden="true" /> অর্জন
+                  <Medal className="h-4 w-4" aria-hidden="true" /> Achievements
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {games.achievements.map((a) => (

@@ -23,7 +23,7 @@ export default async function AdminAnalyticsPage() {
     <div className="flex flex-col gap-5">
       <ConsoleHero
         kicker="Analytics"
-        title="শেখার অগ্রগতি"
+        title="Learning Progress"
         desc="স্টুডেন্টরা কোর্সের কোথায় আছে, কত দ্রুত টাইপ করছে আর কোন গেম বেশি খেলছে। কোন লেভেলে সবাই আটকে যাচ্ছে, সেটা দেখে ক্লাসে জোর দিন।"
       />
       <AnalyticsView ins={ins} />

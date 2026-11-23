@@ -45,10 +45,10 @@ export default async function StudentsPage(props: { searchParams: Promise<{ q?: 
     <div className="flex flex-col gap-5">
       <ConsoleHero
         kicker="Students"
-        title="স্টুডেন্ট"
+        title="Students"
         desc="প্রত্যেকের লেভেল, শেষ করা লেসন, সেরা টেস্ট স্পিড আর শেষ কবে টাইপ করেছে। নামে ক্লিক করলে বিস্তারিত ও ব্যাচ/রোল/স্ট্যাটাস বদলানো যায়।"
       />
-      <Panel title={`${rows.length} জন`} desc={batch ? batches.find((b) => b.id === batch)?.name : "সব ব্যাচ"}>
+      <Panel title={`${rows.length} students`} desc={batch ? batches.find((b) => b.id === batch)?.name : "All batches"}>
         <StudentFilters action={BASE} q={q} batch={batch} filter={filter} batches={batches} counts={counts} />
         <StudentTable rows={rows} today={today} hrefFor={(id) => `${BASE}/${id}`} />
       </Panel>

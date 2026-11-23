@@ -31,7 +31,7 @@ export function BatchLessonGrid({ members, progress, levelId, baseHref }: Props)
   return (
     <Card>
       <CardContent>
-        <SectionHeader title="লেসন অগ্রগতি" description="প্রতিটা লেভেলে কয়টা লেসন সম্পূর্ণ (গড় স্টার), সেরা ১ মিনিট টেস্ট, আর টাইপিং সময়।" />
+        <SectionHeader title="Lesson progress" description="প্রতিটা লেভেলে কয়টা লেসন সম্পূর্ণ (গড় স্টার), সেরা ১ মিনিট টেস্ট, আর টাইপিং সময়।" />
         <div className="overflow-x-auto">
           <table className="tap-table text-sm">
             <thead>
@@ -41,14 +41,14 @@ export function BatchLessonGrid({ members, progress, levelId, baseHref }: Props)
                 {LEVELS.map((l) => (
                   <th key={l.id} scope="col" className="whitespace-nowrap text-center">
                     <Link href={`${baseHref}?level=${l.id}`} className="tap-link-btn" title={l.title}>
-                      {l.mode === "bn" ? "বাং " : "EN "}
+                      {l.mode === "bn" ? "BN " : "EN "}
                       {l.number}
                     </Link>
                   </th>
                 ))}
                 <th scope="col" className="text-right">1-min best</th>
-                <th scope="col" className="text-right">আজ (মি.)</th>
-                <th scope="col" className="text-right">৭ দিন (মি.)</th>
+                <th scope="col" className="text-right">Today (min)</th>
+                <th scope="col" className="text-right">7 days (min)</th>
               </tr>
             </thead>
             <tbody>
@@ -81,7 +81,7 @@ export function BatchLessonGrid({ members, progress, levelId, baseHref }: Props)
         {level ? (
           <div className="mt-6">
             <h3 className="mb-2 font-display text-base font-bold">
-              {level.mode === "bn" ? "বাংলা" : "English"} Level {level.number} · {level.title} — লেসন ধরে
+              {level.mode === "bn" ? "Bangla" : "English"} Level {level.number} · {level.title} — লেসন ধরে
             </h3>
             <div className="overflow-x-auto">
               <table className="tap-table text-xs">

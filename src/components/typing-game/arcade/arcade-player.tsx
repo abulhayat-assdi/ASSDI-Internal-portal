@@ -68,21 +68,21 @@ interface Hud {
 }
 
 const STAT_LABEL: Record<string, string> = {
-  meteors: "উল্কা ধ্বংস",
-  bubbles: "বাবল ফাটানো",
-  bestChain: "সেরা চেইন",
-  distance: "দূরত্ব (মি.)",
-  jumps: "লাফ",
-  races: "রেস শেষ (Top 3)",
-  wins: "১ম স্থান",
-  bestMultiplier: "সেরা গুণক",
-  bonusSeconds: "বোনাস সেকেন্ড",
-  defused: "নিষ্ক্রিয় বোমা",
-  exploded: "ফাটা বোমা",
-  height: "উচ্চতা (মি.)",
-  blocks: "ব্লক",
-  dragonHp: "ড্রাগনের বাকি HP",
-  blocked: "আটকানো মন্ত্র",
+  meteors: "Meteors destroyed",
+  bubbles: "Bubbles popped",
+  bestChain: "Best chain",
+  distance: "Distance (m)",
+  jumps: "Jumps",
+  races: "Races in Top 3",
+  wins: "1st places",
+  bestMultiplier: "Best multiplier",
+  bonusSeconds: "Bonus seconds",
+  defused: "Bombs defused",
+  exploded: "Bombs exploded",
+  height: "Height (m)",
+  blocks: "Blocks",
+  dragonHp: "Dragon HP left",
+  blocked: "Spells blocked",
 };
 
 export function ArcadePlayer({ game, best: initialBest }: { game: ArcadeGameInfo; best: number | null }) {
@@ -380,7 +380,7 @@ export function ArcadePlayer({ game, best: initialBest }: { game: ArcadeGameInfo
       {/* HUD */}
       <div className="tap-card flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-2" style={{ background: `linear-gradient(90deg, ${game.colors[0]}, ${game.colors[1]})`, color: "#fff" }}>
         <Link href={LIBRARY} className="inline-flex items-center gap-1 text-sm font-semibold opacity-90 hover:opacity-100">
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" /> সব গেম
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" /> All games
         </Link>
         <span className="font-display text-lg font-extrabold" style={WHITE}>{game.title}</span>
         <span className="ml-auto flex items-center gap-4 text-sm font-semibold tabular-nums">
@@ -410,7 +410,7 @@ export function ArcadePlayer({ game, best: initialBest }: { game: ArcadeGameInfo
           ) : null}
         </span>
         <span className="flex items-center gap-1">
-          <button type="button" onClick={toggleMute} className="rounded-full p-1.5 hover:bg-white/20" aria-label={muted ? "Sound on" : "Mute"} title={muted ? "শব্দ চালু" : "শব্দ বন্ধ"}>
+          <button type="button" onClick={toggleMute} className="rounded-full p-1.5 hover:bg-white/20" aria-label={muted ? "Sound on" : "Mute"} title={muted ? "Sound on" : "Mute"}>
             {muted ? <VolumeX className="h-5 w-5" aria-hidden="true" /> : <Volume2 className="h-5 w-5" aria-hidden="true" />}
           </button>
           {phase === "playing" || phase === "paused" ? (
@@ -418,7 +418,7 @@ export function ArcadePlayer({ game, best: initialBest }: { game: ArcadeGameInfo
               <button type="button" onClick={() => go(phase === "playing" ? "paused" : "playing")} className="rounded-full p-1.5 hover:bg-white/20" aria-label="Pause" title="Pause (Esc)">
                 {phase === "playing" ? <Pause className="h-5 w-5" aria-hidden="true" /> : <Play className="h-5 w-5" aria-hidden="true" />}
               </button>
-              <button type="button" onClick={quit} className="rounded-full p-1.5 hover:bg-white/20" aria-label="End game" title="খেলা শেষ করুন">
+              <button type="button" onClick={quit} className="rounded-full p-1.5 hover:bg-white/20" aria-label="End game" title="End game">
                 <X className="h-5 w-5" aria-hidden="true" />
               </button>
             </>
@@ -449,9 +449,9 @@ export function ArcadePlayer({ game, best: initialBest }: { game: ArcadeGameInfo
               ))}
             </ul>
             <button type="button" onClick={() => void start()} disabled={phase === "loading"} className="arcade-cta mt-2 text-lg">
-              <Play className="h-5 w-5" aria-hidden="true" /> {phase === "loading" ? "লোড হচ্ছে…" : "খেলা শুরু করুন"}
+              <Play className="h-5 w-5" aria-hidden="true" /> {phase === "loading" ? "Loading…" : "Start game"}
             </button>
-            <p className="text-xs opacity-70">Enter চাপলেও শুরু হবে · Esc = Pause · শুধু ইংরেজি কীবোর্ড</p>
+            <p className="text-xs opacity-70">Enter = Start · Esc = Pause · English keyboard only</p>
           </Overlay>
         ) : null}
 
@@ -465,31 +465,31 @@ export function ArcadePlayer({ game, best: initialBest }: { game: ArcadeGameInfo
           <Overlay>
             <h2 className="font-display text-4xl font-extrabold" style={WHITE}>Paused</h2>
             <button type="button" onClick={() => go("playing")} className="arcade-cta">
-              <Play className="h-5 w-5" aria-hidden="true" /> চালিয়ে যান (Esc)
+              <Play className="h-5 w-5" aria-hidden="true" /> Resume (Esc)
             </button>
             <button type="button" onClick={quit} className="text-sm underline opacity-80">
-              এখানেই খেলা শেষ করুন
+              End game here
             </button>
           </Overlay>
         ) : null}
 
         {phase === "submitting" ? (
           <Overlay>
-            <p className="text-lg font-semibold">স্কোর যাচাই হচ্ছে…</p>
+            <p className="text-lg font-semibold">Checking your score…</p>
           </Overlay>
         ) : null}
 
         {phase === "error" ? (
           <Overlay>
-            <p className="text-lg font-semibold">কিছু একটা সমস্যা হয়েছে ({error})।</p>
+            <p className="text-lg font-semibold">Something went wrong ({error}).</p>
             <div className="flex gap-2">
               {sessionRef.current && simRef.current ? (
                 <button type="button" onClick={() => void submit()} className="arcade-cta">
-                  আবার পাঠান
+                  Try again
                 </button>
               ) : null}
               <button type="button" onClick={() => void start()} className="arcade-cta">
-                <RotateCcw className="h-5 w-5" aria-hidden="true" /> নতুন খেলা
+                <RotateCcw className="h-5 w-5" aria-hidden="true" /> New game
               </button>
             </div>
           </Overlay>
@@ -497,16 +497,16 @@ export function ArcadePlayer({ game, best: initialBest }: { game: ArcadeGameInfo
 
         {phase === "result" && finish ? (
           <Overlay>
-            <p className="text-sm font-bold uppercase tracking-widest opacity-80">{finish.result.won ? "জয়!" : "Game Over"}</p>
+            <p className="text-sm font-bold uppercase tracking-widest opacity-80">{finish.result.won ? "Victory!" : "Game Over"}</p>
             <p className="font-display text-6xl font-black tabular-nums">{finish.result.score.toLocaleString("en-US")}</p>
-            {finish.newBest ? <span className="rounded-full bg-yellow-300 px-3 py-1 text-sm font-extrabold text-yellow-900">🏆 নতুন সেরা স্কোর!</span> : <p className="text-sm opacity-80">সেরা: {finish.best.toLocaleString("en-US")}</p>}
+            {finish.newBest ? <span className="rounded-full bg-yellow-300 px-3 py-1 text-sm font-extrabold text-yellow-900">🏆 New best score!</span> : <p className="text-sm opacity-80">Best: {finish.best.toLocaleString("en-US")}</p>}
             <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-sm sm:grid-cols-4">
-              <Stat label={game.scoreLabel === "Best x" ? "সেরা গুণক" : game.scoreLabel} value={String(finish.result.level)} />
-              <Stat label="গতি" value={`${Math.round(finish.result.wpm)} wpm`} />
-              <Stat label="নির্ভুলতা" value={`${Math.round(finish.result.accuracy)}%`} />
-              <Stat label="সময়" value={`${Math.floor(finish.result.durationMs / 60000)}:${String(Math.floor(finish.result.durationMs / 1000) % 60).padStart(2, "0")}`} />
+              <Stat label={game.scoreLabel === "Best x" ? "Best multiplier" : game.scoreLabel} value={String(finish.result.level)} />
+              <Stat label="Speed" value={`${Math.round(finish.result.wpm)} wpm`} />
+              <Stat label="Accuracy" value={`${Math.round(finish.result.accuracy)}%`} />
+              <Stat label="Time" value={`${Math.floor(finish.result.durationMs / 60000)}:${String(Math.floor(finish.result.durationMs / 1000) % 60).padStart(2, "0")}`} />
               {Object.entries(finish.result.stats).map(([k, v]) => (STAT_LABEL[k] ? <Stat key={k} label={STAT_LABEL[k]} value={String(v)} /> : null))}
-              <Stat label="সেরা কম্বো" value={String(finish.result.maxCombo)} />
+              <Stat label="Best combo" value={String(finish.result.maxCombo)} />
             </div>
             {finish.xp > 0 || finish.coins > 0 ? (
               <div className="flex gap-2">
@@ -520,10 +520,10 @@ export function ArcadePlayer({ game, best: initialBest }: { game: ArcadeGameInfo
             )}
             <div className="flex flex-wrap justify-center gap-2">
               <button type="button" onClick={() => void start()} className="arcade-cta">
-                <RotateCcw className="h-5 w-5" aria-hidden="true" /> আবার খেলুন
+                <RotateCcw className="h-5 w-5" aria-hidden="true" /> Play again
               </button>
               <Link href={LIBRARY} className="rounded-full border border-white/40 px-5 py-2.5 font-semibold hover:bg-white/10">
-                সব গেম
+                All games
               </Link>
             </div>
           </Overlay>

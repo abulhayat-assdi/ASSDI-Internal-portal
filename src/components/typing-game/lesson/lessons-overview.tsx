@@ -85,7 +85,7 @@ export function LessonsOverview({ levels, current, units, firstVisit, banglaUnlo
       if (mode === "unlock") router.push(`${BASE}/${lessonId}`);
       else router.refresh();
     } catch (e) {
-      setMsg(`করা যায়নি: ${e instanceof Error ? e.message : ""}`);
+      setMsg(`Failed: ${e instanceof Error ? e.message : ""}`);
     } finally {
       setBusy(null);
     }
@@ -117,16 +117,16 @@ export function LessonsOverview({ levels, current, units, firstVisit, banglaUnlo
             </Link>
             {banglaUnlocked ? (
               <Link href={`${BASE}?mode=bn`} role="tab" aria-selected={mode === "bn"} className={`tap-tab ${mode === "bn" ? "tap-tab-active" : ""}`}>
-                বাংলা
+                Bangla
               </Link>
             ) : (
               <span className="tap-tab inline-flex items-center gap-1 opacity-60" title="English Level 1-এর Final Assessment পাস করলে খুলবে">
-                বাংলা <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+                Bangla <Lock className="h-3.5 w-3.5" aria-hidden="true" />
               </span>
             )}
           </div>
           <p className="px-1 text-xs font-bold uppercase tracking-wide text-ink-faint">
-            {mode === "en" ? "English · Learn to Type" : "বাংলা · Bijoy / Avro"}
+            {mode === "en" ? "English · Learn to Type" : "Bangla · Bijoy / Avro"}
           </p>
           {levels.map((l) => {
             const active = l.id === current.id;
@@ -158,7 +158,7 @@ export function LessonsOverview({ levels, current, units, firstVisit, banglaUnlo
             );
           })}
           <button type="button" className="tap-btn tap-btn-secondary tap-btn-sm mt-2" onClick={() => setGuide(true)}>
-            <Hand className="h-4 w-4" aria-hidden="true" /> হাত কীভাবে বসাবেন
+            <Hand className="h-4 w-4" aria-hidden="true" /> Hand position
           </button>
         </aside>
 

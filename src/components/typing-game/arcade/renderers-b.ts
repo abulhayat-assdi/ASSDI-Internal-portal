@@ -169,7 +169,7 @@ export function drawBlitz(ctx: CanvasRenderingContext2D, s: ComboBlitzSim, now: 
       ctx.fillRect(x, y + 26, cw, 4);
     }
     ctx.fillStyle = i < s.pos ? "rgba(74,222,128,0.5)" : i === s.pos ? "#fff" : "#e2e8f0";
-    ctx.fillText(s.text[i] === " " && i === s.pos ? "·" : s.text[i], x, y);
+    ctx.fillText(s.text[i], x, y);
   }
   ctx.restore();
 }

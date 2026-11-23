@@ -21,19 +21,19 @@ export default async function SuperAuditPage() {
   }
   return (
     <div className="flex flex-col gap-5">
-      <ConsoleHero tone="super" kicker="Audit log" title="পরিবর্তনের খাতা" desc="কোর্স, ব্যাচ, টিচার অ্যাসাইনমেন্ট, রোল আর ব্যাচ মেম্বারশিপে শেষ ১০০টা পরিবর্তন।" />
-      <Panel title={`${rows.length}টা এন্ট্রি`}>
+      <ConsoleHero tone="super" kicker="Audit log" title="Audit Log" desc="কোর্স, ব্যাচ, টিচার অ্যাসাইনমেন্ট, রোল আর ব্যাচ মেম্বারশিপে শেষ ১০০টা পরিবর্তন।" />
+      <Panel title={`${rows.length} entries`}>
         {rows.length === 0 ? (
-          <Empty>এখনো কোনো পরিবর্তন নেই।</Empty>
+          <Empty>No changes yet.</Empty>
         ) : (
           <div className="overflow-x-auto">
             <table className="tap-table w-full text-sm">
               <thead>
                 <tr>
-                  <th className="text-left">কী হয়েছে</th>
-                  <th className="text-left">টেবিল</th>
-                  <th className="text-left">আইডি</th>
-                  <th className="text-right">সময় (UTC)</th>
+                  <th className="text-left">What happened</th>
+                  <th className="text-left">Table</th>
+                  <th className="text-left">ID</th>
+                  <th className="text-right">Time (UTC)</th>
                 </tr>
               </thead>
               <tbody>

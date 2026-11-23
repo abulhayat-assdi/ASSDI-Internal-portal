@@ -17,24 +17,24 @@ export function StudentProgress({ p }: { p: StaffStudentProgress }) {
   return (
     <div className="flex flex-col gap-5">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        <Kpi icon={Trophy} label="লেভেল · XP" value={p.profile?.level ?? "—"} hint={`${p.profile?.xp ?? 0} XP · ${p.profile?.coins ?? 0} কয়েন`} tone="amber" />
-        <Kpi icon={BookOpenCheck} label="লেসন শেষ" value={done} tone="violet" />
-        <Kpi icon={Gauge} label="সেরা টেস্ট WPM" value={bestTest || "—"} hint={p.tests[0] ? `শেষ টেস্টে নির্ভুলতা ${p.tests[0].accuracy}%` : "এখনো টেস্ট দেয়নি"} tone="indigo" />
-        <Kpi icon={Clock3} label="মোট টাইপ" value={`${p.minutesTotal} মি.`} hint={`শেষ টাইপ ${daysAgo(p.lastDay, p.today)}`} tone="sky" />
+        <Kpi icon={Trophy} label="Level · XP" value={p.profile?.level ?? "—"} hint={`${p.profile?.xp ?? 0} XP · ${p.profile?.coins ?? 0} coins`} tone="amber" />
+        <Kpi icon={BookOpenCheck} label="Lessons done" value={done} tone="violet" />
+        <Kpi icon={Gauge} label="Best test WPM" value={bestTest || "—"} hint={p.tests[0] ? `Last test accuracy ${p.tests[0].accuracy}%` : "No tests yet"} tone="indigo" />
+        <Kpi icon={Clock3} label="Total typing" value={`${p.minutesTotal} min`} hint={`Last typed ${daysAgo(p.lastDay, p.today)}`} tone="sky" />
         <Kpi
           icon={Swords}
-          label="কম্পিটিশন"
+          label="Competition"
           value={`${p.challenges.wins}/${p.challenges.played}`}
-          hint={p.challenges.played ? `জয় / খেলা · ${p.challenges.draws} ড্র` : "এখনো খেলেনি"}
+          hint={p.challenges.played ? `Wins / played · ${p.challenges.draws} draws` : "Not played yet"}
           tone="rose"
         />
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <Panel title="দৈনিক টাইপিং" desc="গত ১৪ দিন">
+        <Panel title="Daily typing" desc="Last 14 days">
           <ActivityChart days={p.days} />
         </Panel>
-        <Panel title="লেভেল অনুযায়ী লেসন">
+        <Panel title="Lessons by level">
           <ul className="flex flex-col gap-2.5">
             {started.map((lv) => {
               const total = levelLessons(lv).length;
@@ -44,7 +44,7 @@ export function StudentProgress({ p }: { p: StaffStudentProgress }) {
                 <li key={lv.id} className="text-sm">
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="truncate font-semibold">
-                      {lv.mode === "bn" ? "বাংলা " : ""}L{lv.number} · {lv.title}
+                      {lv.mode === "bn" ? "Bangla " : ""}L{lv.number} · {lv.title}
                     </span>
                     <span className="shrink-0 text-xs tabular-nums text-ink-muted">
                       {row?.done ?? 0}/{total}
@@ -63,17 +63,17 @@ export function StudentProgress({ p }: { p: StaffStudentProgress }) {
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <Panel title="সাম্প্রতিক টেস্ট">
+        <Panel title="Recent tests">
           {p.tests.length === 0 ? (
-            <Empty>এখনো কোনো টাইপিং টেস্ট দেয়নি।</Empty>
+            <Empty>No typing tests yet.</Empty>
           ) : (
             <table className="tap-table w-full text-sm">
               <thead>
                 <tr>
-                  <th className="text-left">টেস্ট</th>
+                  <th className="text-left">Test</th>
                   <th className="text-right">WPM</th>
-                  <th className="text-right">নির্ভুলতা</th>
-                  <th className="text-right">তারিখ</th>
+                  <th className="text-right">Accuracy</th>
+                  <th className="text-right">Date</th>
                 </tr>
               </thead>
               <tbody>
@@ -89,16 +89,16 @@ export function StudentProgress({ p }: { p: StaffStudentProgress }) {
             </table>
           )}
         </Panel>
-        <Panel title="গেম">
+        <Panel title="Games">
           {p.games.length === 0 ? (
-            <Empty>এখনো কোনো গেম খেলেনি।</Empty>
+            <Empty>No games played yet.</Empty>
           ) : (
             <table className="tap-table w-full text-sm">
               <thead>
                 <tr>
-                  <th className="text-left">গেম</th>
-                  <th className="text-right">খেলেছে</th>
-                  <th className="text-right">সেরা স্কোর</th>
+                  <th className="text-left">Game</th>
+                  <th className="text-right">Plays</th>
+                  <th className="text-right">Best score</th>
                 </tr>
               </thead>
               <tbody>

@@ -116,13 +116,13 @@ export async function loadStaffStudents(
   return (Array.isArray(res.data) ? res.data : []) as StaffStudentRow[];
 }
 
-/** "আজ", "গতকাল", "৫ দিন আগে" — for a Dhaka date string relative to today. */
+/** "Today", "Yesterday", "5 days ago" — for a Dhaka date string relative to today. */
 export function daysAgo(day: string | null, today: string): string {
-  if (!day) return "কখনো না";
+  if (!day) return "Never";
   const diff = Math.round((Date.parse(today) - Date.parse(day)) / 86400000);
-  if (diff <= 0) return "আজ";
-  if (diff === 1) return "গতকাল";
-  return `${diff} দিন আগে`;
+  if (diff <= 0) return "Today";
+  if (diff === 1) return "Yesterday";
+  return `${diff} days ago`;
 }
 
 /** Today's date in Dhaka (YYYY-MM-DD). */

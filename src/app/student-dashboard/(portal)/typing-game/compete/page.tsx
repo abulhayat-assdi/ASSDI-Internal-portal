@@ -7,6 +7,6 @@ import { CompeteHub } from "@/components/typing-game/compete/compete-hub";
 
 export default async function CompetePage() {
   await studentContext(DEFAULT_LOCALE);
-  if (!(await featureOn(await userDbClient(), "BATCH_COMPETITION_ENABLED"))) return <FeatureOff title="ব্যাচ কম্পিটিশন" />;
+  if (!(await featureOn(await userDbClient(), "BATCH_COMPETITION_ENABLED"))) return <FeatureOff title="Batch Competition" />;
   return <CompeteHub />;
 }

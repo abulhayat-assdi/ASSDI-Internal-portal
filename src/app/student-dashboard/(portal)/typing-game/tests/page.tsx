@@ -42,11 +42,11 @@ export default async function TestsPage({ searchParams }: { searchParams: Promis
         </Link>
         {banglaUnlocked ? (
           <Link href={`${BASE}?lang=bn`} role="tab" aria-selected={lang === "bn"} className={`tap-tab ${lang === "bn" ? "tap-tab-active" : ""}`}>
-            বাংলা
+            Bangla
           </Link>
         ) : (
           <span className="tap-tab inline-flex items-center gap-1 opacity-60" title="English Level 1 পাস করলে খুলবে">
-            বাংলা <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+            Bangla <Lock className="h-3.5 w-3.5" aria-hidden="true" />
           </span>
         )}
       </div>
@@ -67,7 +67,7 @@ export default async function TestsPage({ searchParams }: { searchParams: Promis
               </span>
               <span className="text-sm text-ink-muted">{t.description}</span>
               <span className="text-xs text-ink-faint">
-                {b ? `Best: ${Math.round(b.wpm)} wpm · ${Math.round(b.accuracy)}%` : "এখনো দেননি"}
+                {b ? `Best: ${Math.round(b.wpm)} wpm · ${Math.round(b.accuracy)}%` : "Not taken yet"}
               </span>
             </Link>
           );
@@ -75,9 +75,9 @@ export default async function TestsPage({ searchParams }: { searchParams: Promis
       </div>
 
       <section className="flex flex-col gap-2">
-        <h2 className="font-display text-lg font-bold">আমার ফলাফল</h2>
+        <h2 className="font-display text-lg font-bold">My results</h2>
         {history.length === 0 ? (
-          <p className="text-sm text-ink-muted">এখনো কোনো টেস্ট দেননি।</p>
+          <p className="text-sm text-ink-muted">No tests yet.</p>
         ) : (
           <div className="tap-card overflow-x-auto p-0">
             <table className="tap-table w-full text-sm">

@@ -54,30 +54,30 @@ export default async function TeacherBatchPage(props: {
     <div className="flex flex-col gap-5">
       <ConsoleHero
         tone="teacher"
-        kicker={`${batch.course} · জয়েন কোড ${batch.joinCode}`}
+        kicker={`${batch.course} · Join code ${batch.joinCode}`}
         title={batch.name}
-        desc={batch.teachers.length ? `টিচার: ${batch.teachers.join(", ")}` : undefined}
+        desc={batch.teachers.length ? `Teachers: ${batch.teachers.join(", ")}` : undefined}
       >
-        <HeroLink href="/dashboard/typing-game/teacher/missions/new">এই ব্যাচকে মিশন দিন</HeroLink>
+        <HeroLink href="/dashboard/typing-game/teacher/missions/new">Give this batch a mission</HeroLink>
       </ConsoleHero>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Kpi icon={Users} label="স্টুডেন্ট" value={t.students} hint={`${t.neverStarted} জন শুরু করেনি`} tone="emerald" />
-        <Kpi icon={Flame} label="আজ / ৭ দিনে সক্রিয়" value={`${t.activeToday} / ${t.active7d}`} tone="rose" />
-        <Kpi icon={Clock3} label="মিনিট (৭ দিন)" value={t.minutes7d} hint={`${t.lessons7d}টা লেসন শেষ`} tone="sky" />
-        <Kpi icon={Gauge} label="গড় সেরা WPM" value={t.avgBestWpm ?? "—"} hint={t.avgAccuracy != null ? `নির্ভুলতা ${t.avgAccuracy}%` : undefined} tone="amber" />
+        <Kpi icon={Users} label="Students" value={t.students} hint={`${t.neverStarted} not started`} tone="emerald" />
+        <Kpi icon={Flame} label="Active today / 7d" value={`${t.activeToday} / ${t.active7d}`} tone="rose" />
+        <Kpi icon={Clock3} label="Minutes (7d)" value={t.minutes7d} hint={`${t.lessons7d} lessons done`} tone="sky" />
+        <Kpi icon={Gauge} label="Avg best WPM" value={t.avgBestWpm ?? "—"} hint={t.avgAccuracy != null ? `Accuracy ${t.avgAccuracy}%` : undefined} tone="amber" />
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <Panel title="দৈনিক টাইপিং" desc="এই ব্যাচ, গত ১৪ দিন">
+        <Panel title="Daily typing" desc="এই ব্যাচ, গত ১৪ দিন">
           <ActivityChart days={ins.days} />
         </Panel>
-        <Panel title={`নজর দিন (${ins.attentionCount})`}>
+        <Panel title={`Needs attention (${ins.attentionCount})`}>
           <AttentionList data={ins} studentHref={student} />
         </Panel>
       </div>
 
-      <Panel title="স্টুডেন্ট" desc="নামে ক্লিক করলে লেসন, টেস্ট, গেম ও কম্পিটিশনের বিস্তারিত">
+      <Panel title="Students" desc="নামে ক্লিক করলে লেসন, টেস্ট, গেম ও কম্পিটিশনের বিস্তারিত">
         <StudentFilters action={base} q={q} batch="" filter={filter} counts={counts} />
         <StudentTable rows={rows} today={today} hrefFor={student} showBatch={false} />
       </Panel>

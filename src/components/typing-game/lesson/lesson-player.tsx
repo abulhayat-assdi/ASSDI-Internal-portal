@@ -261,7 +261,7 @@ export function LessonPlayer({ lessonId, lessonTitle, levelTitle, screens }: Pro
     return (
       <div className="tap-card mx-auto flex max-w-xl flex-col items-center gap-4 p-6 text-center">
         <p className="text-xs font-semibold uppercase tracking-wide text-ink-faint">{levelTitle}</p>
-        <h2 className="font-display text-2xl font-extrabold">{lessonTitle} — সম্পূর্ণ!</h2>
+        <h2 className="font-display text-2xl font-extrabold">{lessonTitle} — Complete!</h2>
         <Stars n={r.stars} size="h-10 w-10" />
         <dl className="grid w-full grid-cols-3 gap-3 text-sm">
           <div>
@@ -286,14 +286,14 @@ export function LessonPlayer({ lessonId, lessonTitle, levelTitle, screens }: Pro
         <div className="flex flex-wrap justify-center gap-2">
           {outcome.nextLessonId ? (
             <Link href={`${LESSONS_HREF}/${outcome.nextLessonId}`} className="tap-btn tap-btn-primary tap-btn-md">
-              পরের লেসন <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              Next lesson <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Link>
           ) : null}
           <button type="button" className="tap-btn tap-btn-secondary tap-btn-md" onClick={() => window.location.reload()}>
-            <RotateCcw className="h-4 w-4" aria-hidden="true" /> আবার করুন
+            <RotateCcw className="h-4 w-4" aria-hidden="true" /> Try again
           </button>
           <Link href={LESSONS_HREF} className="tap-btn tap-btn-ghost tap-btn-md">
-            সব লেসন
+            All lessons
           </Link>
         </div>
         <AdSlot slot="result" />
@@ -337,9 +337,9 @@ export function LessonPlayer({ lessonId, lessonTitle, levelTitle, screens }: Pro
       <div className={`tap-card flex flex-col items-center justify-center gap-4 p-4 sm:p-6 lg:px-10 ${showKeyboard ? "shrink-0" : "min-h-0 flex-1"}`}>
         {phase === "error" ? (
           <div className="text-center">
-            <p className="font-semibold">ফল সেভ করা যায়নি ({errorMsg})।</p>
+            <p className="font-semibold">Could not save your result ({errorMsg}).</p>
             <button type="button" className="tap-btn tap-btn-primary tap-btn-sm mt-3" onClick={() => void submitLesson()}>
-              আবার চেষ্টা করুন
+              Try again
             </button>
           </div>
         ) : phase === "submitting" ? (
@@ -359,7 +359,7 @@ export function LessonPlayer({ lessonId, lessonTitle, levelTitle, screens }: Pro
                 {index + 1 < screens.length ? "Continue" : "Finish lesson"} <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
-            <p className="text-xs text-ink-faint">Enter চাপলেও এগোবে</p>
+            <p className="text-xs text-ink-faint">Enter = Next</p>
           </div>
         ) : screen.type === "key_intro" ? (
           <div className="flex flex-col items-center gap-3 text-center">
