@@ -26,7 +26,8 @@ export async function GET(
             where: {
               programId: f.programId,
               kind: "transfer",
-              status: "posted",
+              // The receiving lead must see the voucher before accepting.
+              status: { in: ["posted", "transfer_pending"] },
               OR: [{ teamId: member.teamId }, { targetTeamId: member.teamId }],
               data: { path: ["voucherId"], equals: f.id },
             },
