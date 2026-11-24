@@ -2468,6 +2468,12 @@ model FieldTrack {
   lastCapturedAt      DateTime? @map("last_captured_at")
   lastReceivedAt      DateTime? @map("last_received_at")
   lastBattery         Int?      @map("last_battery")
+  // Walking summary (cleaned trail), saved when the track ends; kept after positions are purged.
+  distanceMeters      Int?      @map("distance_meters")
+  stopCount           Int?      @map("stop_count")
+  stopMinutes         Int?      @map("stop_minutes")
+  pointCount          Int?      @map("point_count")
+  summaryAt           DateTime? @map("summary_at")
   tokenHash           String    @unique @map("token_hash")
   tokenExpiresAt      DateTime  @map("token_expires_at")
   tokenRevokedAt      DateTime? @map("token_revoked_at")
@@ -2480,6 +2486,7 @@ model FieldTrack {
 
   @@unique([id, courseId])
   @@index([courseId, competitionId, endedAt])
+  @@index([courseId, competitionId, startedAt])
   @@index([userId, endedAt])
   @@index([incubationSessionId])
   @@map("field_tracks")

@@ -210,3 +210,21 @@ export function cleanTrail(raw: RawFix[]): CleanTrail {
     end: { latitude: last.latitude, longitude: last.longitude, at: iso(last.to) },
   };
 }
+
+export type TrailSummary = {
+  distanceMeters: number;
+  stopCount: number;
+  stopMinutes: number;
+  pointCount: number;
+};
+
+/** The numbers saved on a track: same cleaning as the map, so both always agree. */
+export function summarizeTrail(raw: RawFix[]): TrailSummary {
+  const clean = cleanTrail(raw);
+  return {
+    distanceMeters: clean.distanceMeters,
+    stopCount: clean.stops.length,
+    stopMinutes: clean.stops.reduce((sum, s) => sum + s.minutes, 0),
+    pointCount: clean.rawCount,
+  };
+}

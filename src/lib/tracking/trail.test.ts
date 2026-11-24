@@ -82,3 +82,23 @@ describe("cleanTrail", () => {
     expect(t.path).toHaveLength(1);
   });
 });
+
+import { summarizeTrail } from "./trail";
+
+describe("summarizeTrail", () => {
+  it("matches the cleaned trail used by the map", () => {
+    const t0 = Date.parse("2026-11-24T04:00:00Z");
+    const raw = [
+      // 10 minutes standing still, then a walk north.
+      ...Array.from({ length: 11 }, (_, i) => ({ latitude: 23.81, longitude: 90.41, accuracy: 10, capturedAt: new Date(t0 + i * 60000) })),
+      ...[1, 2, 3].map((i) => ({ latitude: 23.81 + i * 0.002, longitude: 90.41, accuracy: 10, capturedAt: new Date(t0 + (10 + i) * 60000) })),
+    ];
+    const s = summarizeTrail(raw);
+    expect(s.pointCount).toBe(14);
+    expect(s.stopCount).toBe(1);
+    expect(s.stopMinutes).toBe(10);
+    expect(s.distanceMeters).toBeGreaterThan(600);
+    expect(s.distanceMeters).toBeLessThan(700);
+    expect(summarizeTrail([])).toEqual({ distanceMeters: 0, stopCount: 0, stopMinutes: 0, pointCount: 0 });
+  });
+});

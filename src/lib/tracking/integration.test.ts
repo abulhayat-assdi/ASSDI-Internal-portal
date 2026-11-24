@@ -178,6 +178,54 @@ describe("competition field tracking", () => {
     expect(row.endedAt).not.toBeNull();
   });
 
+  it("saves the walking summary when a track ends and reports it per day", async () => {
+    const t = await tracking.startCompetitionTrack(other, "c-two", ORIGIN);
+    // Four fixes ~222 m apart, 30 s apart: a straight walk of ~666 m.
+    const positions = [-100, -70, -40, -10].map((sec, i) => fix(sec, { latitude: 23.81 + i * 0.002 }));
+    await tracking.ingest(t.token, { trackId: t.track.id, positions });
+
+    const open = await tracking.dayReport(staff, "c-two");
+    const live = open.rows.find((r) => r.userId === "other")!;
+    expect(live.status).toBe("fresh");
+    expect(live.lastEndedAt).toBeNull();
+    expect(live.distanceMeters).toBeGreaterThan(600);
+    expect(live.distanceMeters).toBeLessThan(700);
+
+    await tracking.stopTrack(other, t.track.id);
+    const saved = await prisma.fieldTrack.findUniqueOrThrow({ where: { id: t.track.id } });
+    expect(saved.distanceMeters).toBe(live.distanceMeters);
+    expect(saved.pointCount).toBe(4);
+    expect(saved.stopCount).toBe(0);
+    expect(saved.summaryAt).not.toBeNull();
+
+    // Ended tracks leave the live map but stay in the day report.
+    expect((await tracking.liveTracks(staff, "c-two")).tracks.find((x) => x.id === t.track.id)).toBeUndefined();
+    const report = await tracking.dayReport(staff, "c-two", open.today);
+    expect(report.days).toContain(open.today);
+    const row = report.rows.find((r) => r.userId === "other")!;
+    expect(row).toMatchObject({ status: "ended", sessions: 1, distanceMeters: saved.distanceMeters });
+    expect(row.lastEndedAt).not.toBeNull();
+
+    // The saved numbers survive the positions being deleted.
+    await prisma.fieldTrackPosition.deleteMany({ where: { trackId: t.track.id } });
+    const after = await tracking.dayReport(staff, "c-two", open.today);
+    expect(after.rows.find((r) => r.userId === "other")!.distanceMeters).toBe(saved.distanceMeters);
+
+    const empty = await tracking.dayReport(staff, "c-two", "2020-01-01");
+    expect(empty.rows).toEqual([]);
+    await expect(tracking.dayReport(staff, "c-two", "2020-13-40")).rejects.toMatchObject({ status: 400 });
+    await expect(tracking.dayReport(student, "c-two")).rejects.toMatchObject({ status: 403 });
+  });
+
+  it("serves a whole day of sessions for the day trail", async () => {
+    const today = (await tracking.dayReport(staff, "c-track")).today;
+    const day = await tracking.dayPositions(staff, "c-track", "stu", today);
+    expect(day.tracks.length).toBeGreaterThan(0);
+    expect(day.tracks[0].positions.length).toBeGreaterThan(0);
+    await expect(tracking.dayPositions(other, "c-track", "stu", today)).rejects.toMatchObject({ status: 403 });
+    expect((await tracking.dayPositions(student, "c-track", "stu", today)).tracks.length).toBe(day.tracks.length);
+  });
+
   it("deletes positions older than 90 days", async () => {
     const track = await prisma.fieldTrack.findFirstOrThrow({ where: { userId: "stu" } });
     await prisma.fieldTrackPosition.create({
