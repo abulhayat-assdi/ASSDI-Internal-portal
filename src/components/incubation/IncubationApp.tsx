@@ -3840,6 +3840,13 @@ export default function IncubationApp({
               </button>
             ))}
           </nav>
+          {bundle.ledgerError && (
+            <div style={{ marginBottom: 12 }}>
+              <ErrorText
+                message={`The accounts do not add up right now, so stock and totals are hidden: ${bundle.ledgerError} Fix the entry or sprint dates in Data sheets / Sprints.`}
+              />
+            </div>
+          )}
           {bundle.program.status === "draft" && (
             <div className="inc-notice">
               This program is a draft. Set up teams, products and sprints, then

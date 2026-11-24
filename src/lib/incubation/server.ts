@@ -12,7 +12,7 @@ import { isFeatureEnabled } from "@/lib/features";
 import {
   checkTransition,
   incubationState,
-  isIncubationRunning,
+  acceptsStudentEntries,
   isProgramLocked,
   lockedMessage,
   PROGRAM_STATUSES,
@@ -852,7 +852,15 @@ export async function overview(
         ? { ...r, teamId: member.teamId, targetTeamId: null, kind: "purchase" }
         : r,
     );
-    const computed = await ledger(tx, programId);
+    // A broken ledger (e.g. after a sprint edit) must not lock everyone out of the
+    // program: show the problem as a banner so staff can open the sheet and fix it.
+    let ledgerError: string | null = null;
+    const computed = await ledger(tx, programId).catch((e: unknown) => {
+      ledgerError = e instanceof Error ? e.message : String(e);
+      return { stocks: {}, reserved: {}, summaries: [] } as unknown as Awaited<
+        ReturnType<typeof ledger>
+      >;
+    });
     const monitor = issuesFor(
       buildMonitor({
         today: todayDhaka(),
@@ -980,6 +988,7 @@ export async function overview(
             ),
           }
         : computed,
+      ledgerError,
       actor: { id: actor.id, name: actor.displayName, role: actor.role },
       state: incubationState(program),
       capabilities: {
@@ -1237,7 +1246,9 @@ export async function command(actor: Actor, input: unknown) {
     // staff keep full control until the program is closed.
     if (actor.role === "student")
       insist(
-        isIncubationRunning(program) ||
+        // After the end date students can still add or fix entries dated within the
+        // program until staff close it (e.g. the last evening's sales next morning).
+        acceptsStudentEntries(program) ||
           !["record", "correct", "accept_transfer"].includes(body.action),
         "Entries for this program are closed. Contact your teacher if something needs to change.",
         409,
@@ -1475,6 +1486,9 @@ export async function command(actor: Actor, input: unknown) {
         : await tx.incubationSprint.create({
             data: { ...data, courseId: actor.courseId, programId: pid },
           });
+      // Sprint dates decide which purchases count as sprint stock, so re-check
+      // every posted entry before the change is saved.
+      await ledger(tx, pid);
       await audit(tx, actor, pid, "sprint.saved", item.id, before, item);
       return item;
     }
@@ -1562,7 +1576,7 @@ export async function command(actor: Actor, input: unknown) {
     }
     if (body.action === "record") {
       insist(
-        actor.role !== "student" || isIncubationRunning(program),
+        actor.role !== "student" || acceptsStudentEntries(program),
         "The program must be running to accept entries.",
       );
       const v = z
