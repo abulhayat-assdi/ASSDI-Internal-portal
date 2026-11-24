@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import path from "path";
-import fs from "fs";
 import { getSessionUser } from "@/lib/auth";
 import {
     authorizeFileRead,
@@ -9,6 +8,7 @@ import {
     resolveStoredFile,
     servingHeadersFor,
 } from "@/lib/fileAccess";
+import { streamFileResponse } from "@/lib/fileStream";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -45,18 +45,14 @@ export async function GET(request: NextRequest) {
 
     try {
         const fileName = path.basename(file.absolutePath);
-        const stream = fs.createReadStream(file.absolutePath);
-
-        return new Response(stream as unknown as ReadableStream, {
-            headers: {
-                ...servingHeadersFor(file.absolutePath, relPath),
-                "Content-Length": String(file.size),
-                "Content-Disposition": `inline; filename="${encodeURIComponent(fileName)}"`,
-                "Cache-Control": decision.isPublic
-                    ? "public, max-age=31536000, immutable"
-                    : "private, no-store",
-                "X-Content-Type-Options": "nosniff",
-            },
+        // Range-aware so videos can seek and big PDFs load progressively.
+        return streamFileResponse(request.headers.get("range"), file.absolutePath, file.size, {
+            ...servingHeadersFor(file.absolutePath, relPath),
+            "Content-Disposition": `inline; filename="${encodeURIComponent(fileName)}"`,
+            "Cache-Control": decision.isPublic
+                ? "public, max-age=31536000, immutable"
+                : "private, no-store",
+            "X-Content-Type-Options": "nosniff",
         });
     } catch (error) {
         console.error("[File API] Stream Error:", error);

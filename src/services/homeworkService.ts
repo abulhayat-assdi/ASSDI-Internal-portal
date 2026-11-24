@@ -28,6 +28,25 @@ export interface HomeworkSubmission {
     submissionDate: string;
     assignmentId?: string;
     submittedAt: string;
+    // Grading (students get these only after the work is returned)
+    marks?: number | null;
+    feedback?: string | null;
+    gradedAt?: string | null;
+    gradedByName?: string | null;
+    returnedAt?: string | null;
+    // Student view only: the folder's marking setup and thread size
+    marksEnabled?: boolean;
+    totalMarks?: number | null;
+    commentCount?: number;
+}
+
+export interface HomeworkComment {
+    id: string;
+    authorUid: string;
+    authorName: string;
+    authorRole: string;
+    body: string;
+    createdAt: string;
 }
 
 export interface HomeworkAssignment {
@@ -39,6 +58,9 @@ export interface HomeworkAssignment {
     /** Optional "HH:mm" cut-off on deadlineDate (Asia/Dhaka); null/absent = end of day. */
     deadlineTime?: string | null;
     batchName: string;
+    /** when true, submissions are marked out of totalMarks */
+    marksEnabled?: boolean;
+    totalMarks?: number | null;
     createdAt: string;
     /** true when this folder is shared with the viewer (not owned by them) */
     isSharedWithMe?: boolean;
@@ -278,13 +300,75 @@ export const createHomeworkAssignment = addAssignment;
 export const deleteHomeworkAssignment = deleteAssignment;
 
 /** Update an assignment */
+export class HomeworkApiError extends Error {
+    constructor(message: string, public data?: Record<string, unknown>) {
+        super(message);
+    }
+}
+
 export const updateHomeworkAssignment = async (id: string, data: Partial<Omit<HomeworkAssignment, "id" | "createdAt">>): Promise<void> => {
     const res = await fetch("/api/homework/assignments", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, ...data }),
     });
-    if (!res.ok) throw new Error("Failed to update assignment.");
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new HomeworkApiError(body.error || "Failed to update assignment.", body);
+    }
+};
+
+// ─── Grading, comments, file viewer ───────────────────────────
+
+async function jsonOrThrow<T>(res: Response, fallback: string): Promise<T> {
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new HomeworkApiError(body.error || fallback, body);
+    return body as T;
+}
+
+export const gradeSubmission = async (
+    submissionId: string,
+    data: { marks?: number | string | null; feedback?: string; action?: "save" | "return" | "unreturn" }
+): Promise<HomeworkSubmission> => {
+    const res = await fetch("/api/homework/grade", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ submissionId, ...data }),
+    });
+    return jsonOrThrow(res, "Failed to save the grade.");
+};
+
+export const returnAllGraded = async (assignmentId: string): Promise<{ returned: number; ids: string[]; returnedAt: string | null }> => {
+    const res = await fetch("/api/homework/grade", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assignmentId, action: "return_all" }),
+    });
+    return jsonOrThrow(res, "Failed to return submissions.");
+};
+
+export const getHomeworkComments = async (submissionId: string): Promise<{ comments: HomeworkComment[]; canPost: boolean }> => {
+    const res = await fetch(`/api/homework/comments?submissionId=${encodeURIComponent(submissionId)}`, { cache: "no-store" });
+    return jsonOrThrow(res, "Failed to load comments.");
+};
+
+export const postHomeworkComment = async (submissionId: string, body: string): Promise<HomeworkComment> => {
+    const res = await fetch("/api/homework/comments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ submissionId, body }),
+    });
+    return jsonOrThrow(res, "Failed to post the comment.");
+};
+
+/** A 60-minute public link to one file, for the Microsoft Office viewer. */
+export const getHomeworkFileViewLink = async (submissionId: string, fileIndex: number): Promise<{ url: string; expiresAt: string }> => {
+    const res = await fetch("/api/homework/file-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ submissionId, fileIndex }),
+    });
+    return jsonOrThrow(res, "Could not prepare the file for viewing.");
 };
 
 /** Upload multiple homework files sequentially */

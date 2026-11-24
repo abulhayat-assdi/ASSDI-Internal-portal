@@ -4,6 +4,7 @@ import { getSessionUser, isTeacherOrAdmin } from "@/lib/auth";
 import { notifyStudentsOfAssignment } from "@/lib/notifications";
 import { logHomeworkActivity } from "@/lib/homeworkLog";
 import { formatDeadline, isHomeworkClosed, normalizeDeadlineTime, todayInDhaka } from "@/lib/homeworkDeadline";
+import { formatMarks, parseTotalMarks, submissionsOverTotal } from "@/lib/homeworkGrading";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -89,6 +90,13 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const { teacherUid, teacherName, title, deadlineDate, batchName } = body;
         const deadlineTime = normalizeDeadlineTime(body.deadlineTime);
+        const marksEnabled = body.marksEnabled === true;
+        let totalMarks: number | null = null;
+        if (marksEnabled) {
+            const parsed = parseTotalMarks(body.totalMarks);
+            if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+            totalMarks = parsed.value;
+        }
 
         const assignment = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
             const created = await tx.homeworkAssignment.create({
@@ -100,13 +108,15 @@ export async function POST(req: NextRequest) {
                     deadlineDate,
                     deadlineTime,
                     batchName,
+                    marksEnabled,
+                    totalMarks,
                 },
             });
             await logHomeworkActivity(tx, user, {
                 action: "HOMEWORK_ASSIGNMENT_CREATED",
                 targetType: "homework_assignment",
                 targetId: created.id,
-                description: `${created.teacherName} created homework folder "${created.title}" for ${created.batchName === "all" ? "all batches" : created.batchName} (deadline ${formatDeadline(created.deadlineDate, created.deadlineTime)})`,
+                description: `${created.teacherName} created homework folder "${created.title}" for ${created.batchName === "all" ? "all batches" : created.batchName} (deadline ${formatDeadline(created.deadlineDate, created.deadlineTime)}${created.marksEnabled ? `, ${formatMarks(created.totalMarks)} marks` : ""})`,
             });
             return created;
         });
@@ -137,15 +147,24 @@ export async function PATCH(req: NextRequest) {
 
     try {
         const body = await req.json();
-        const { id, ...data } = body;
+        const { id } = body;
         if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
-        // Never allow ownership transfer through this endpoint
-        delete (data as Record<string, unknown>).teacherUid;
-        delete (data as Record<string, unknown>).teacherName;
-        delete (data as Record<string, unknown>).courseId;
+        // Only these fields are editable — never ownership, course or ids.
+        const data: Record<string, unknown> = {};
+        for (const key of ["title", "batchName", "deadlineDate"] as const) {
+            if (typeof body[key] === "string") data[key] = body[key];
+        }
         // "" (cleared in the form) must become NULL, and junk must not reach the column.
-        if ("deadlineTime" in data) {
-            (data as Record<string, unknown>).deadlineTime = normalizeDeadlineTime(data.deadlineTime);
+        if ("deadlineTime" in body) data.deadlineTime = normalizeDeadlineTime(body.deadlineTime);
+        if ("marksEnabled" in body) {
+            data.marksEnabled = body.marksEnabled === true;
+            if (data.marksEnabled) {
+                const parsed = parseTotalMarks(body.totalMarks);
+                if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+                data.totalMarks = parsed.value;
+            }
+            // Turning marks off keeps totalMarks and every given mark, so
+            // turning it back on restores them.
         }
 
         return await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
@@ -156,6 +175,20 @@ export async function PATCH(req: NextRequest) {
             if (!isOwner && !isAdminUser) {
                 return NextResponse.json({ error: "Only the owner can edit this assignment." }, { status: 403 });
             }
+            // A lower total may not strand marks above it: name who to re-mark first.
+            if (data.marksEnabled && typeof data.totalMarks === "number") {
+                const graded = await tx.homeworkSubmission.findMany({
+                    where: { courseId, assignmentId: id, deletedAt: null, marks: { not: null } },
+                    select: { id: true, studentName: true, studentRoll: true, studentBatchName: true, marks: true },
+                });
+                const over = submissionsOverTotal(graded, data.totalMarks);
+                if (over.length) {
+                    return NextResponse.json({
+                        error: `নতুন মোট মার্কস (${formatMarks(data.totalMarks)}) এর চেয়ে বেশি মার্কস পেয়েছে ${over.length} জন। আগে তাদের মার্কস ঠিক করুন।`,
+                        overStudents: over.map((s) => ({ id: s.id, name: s.studentName, roll: s.studentRoll, marks: s.marks })),
+                    }, { status: 409 });
+                }
+            }
             const assignment = await tx.homeworkAssignment.update({ where: { id, courseId }, data });
             const changes: string[] = [];
             if (assignment.title !== existing.title) changes.push(`title "${existing.title}" → "${assignment.title}"`);
@@ -163,6 +196,10 @@ export async function PATCH(req: NextRequest) {
                 changes.push(`deadline ${formatDeadline(existing.deadlineDate, existing.deadlineTime)} → ${formatDeadline(assignment.deadlineDate, assignment.deadlineTime)}`);
             }
             if (assignment.batchName !== existing.batchName) changes.push(`batch ${existing.batchName} → ${assignment.batchName}`);
+            const marksLabel = (on: boolean, total: number | null) => (on ? `${formatMarks(total)} marks` : "no marks");
+            if (assignment.marksEnabled !== existing.marksEnabled || (assignment.marksEnabled && assignment.totalMarks !== existing.totalMarks)) {
+                changes.push(`marks ${marksLabel(existing.marksEnabled, existing.totalMarks)} → ${marksLabel(assignment.marksEnabled, assignment.totalMarks)}`);
+            }
             await logHomeworkActivity(tx, user, {
                 action: "HOMEWORK_ASSIGNMENT_UPDATED",
                 targetType: "homework_assignment",

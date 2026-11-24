@@ -22,6 +22,8 @@ const ACTIONS: Record<string, { label: string; tone: string }> = {
     HOMEWORK_FOLDER_VIEWED: { label: "ফোল্ডার দেখা", tone: "bg-sky-50 text-sky-700 border-sky-200" },
     HOMEWORK_SUBMISSION_DELETED: { label: "জমা ডিলিট", tone: "bg-red-50 text-red-700 border-red-200" },
     HOMEWORK_BATCH_PURGED: { label: "ব্যাচ কমপ্লিট ক্লিনআপ", tone: "bg-purple-50 text-purple-700 border-purple-200" },
+    HOMEWORK_SUBMISSION_GRADED: { label: "মার্কস/ফিডব্যাক", tone: "bg-teal-50 text-teal-700 border-teal-200" },
+    HOMEWORK_SUBMISSION_RETURNED: { label: "Return", tone: "bg-lime-50 text-lime-700 border-lime-200" },
 };
 
 function formatWhen(iso: string): string {

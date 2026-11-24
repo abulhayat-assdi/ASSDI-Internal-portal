@@ -416,3 +416,52 @@ export function notifyStudentsOfResults(published: {
         }))
     );
 }
+
+/** Teacher returned a graded homework: tell that one student. */
+export function notifyStudentOfHomeworkReturned(returned: {
+    courseId: string;
+    batchName: string;
+    roll: string;
+    studentName: string;
+    homeworkTitle: string;
+    marks: number | null;
+    totalMarks: number | null;
+}): void {
+    dispatchInBackground(`homework returned to ${returned.batchName}/${returned.roll}`, async () => {
+        if (!isMailConfigured()) return { skipped: 'not-configured' as const };
+
+        const course = await loadCourse(returned.courseId);
+        if (!course) return { skipped: 'no-course' as const };
+        if (!isFeatureEnabled(course.settings, EMAIL_NOTIFICATIONS_FEATURE)) {
+            return { skipped: 'disabled' as const };
+        }
+
+        const to = await studentEmail(returned.courseId, returned.batchName, returned.roll);
+        if (!to) return { skipped: 'no-recipients' as const };
+
+        const heading = `হোমওয়ার্ক চেক করা হয়েছে: ${returned.homeworkTitle}`;
+        const ok = await sendMail({
+            courseName: course.name,
+            to: [to],
+            subject: heading,
+            html: renderEmail({
+                courseName: course.name,
+                heading,
+                bodyHtml: paragraphs(
+                    [
+                        `${returned.studentName} (রোল ${returned.roll}),`,
+                        returned.marks !== null && returned.totalMarks
+                            ? `আপনি পেয়েছেন: ${returned.marks} / ${returned.totalMarks}`
+                            : null,
+                        'টিচারের ফিডব্যাক ও কমেন্ট পোর্টালের Homework পেজে দেখুন।',
+                    ]
+                        .filter(Boolean)
+                        .join('\n')
+                ),
+                ctaLabel: 'পোর্টালে দেখুন',
+                ctaUrl: portalUrl(course.slug, '/student-dashboard/homework'),
+            }),
+        });
+        return ok ? { sent: 1, failed: 0 } : { sent: 0, failed: 1 };
+    });
+}
