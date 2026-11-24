@@ -488,6 +488,11 @@ const STOCK_FIX_GENERAL =
 const STOCK_FIX_CORRECTION =
   "এই সংশোধনে ক্রয়ের পণ্য/ভ্যারিয়েন্ট বা পরিমাণ বদলানোয় ঐ পণ্যের স্টক কমে যায়, অথচ পরে ঐ পণ্য বিক্রি/ট্রান্সফার/ড্যামেজ দেখানো আছে। সমাধান: (১) প্রস্তাবিত সংশোধনের প্রতিটি লাইনের পণ্য ও ভ্যারিয়েন্ট মূল এন্ট্রির সাথে মিলিয়ে দেখুন — ভুল ভ্যারিয়েন্ট বাছাই হলে অনুরোধটি Reject করে সঠিক ভ্যারিয়েন্ট দিয়ে নতুন অনুরোধ পাঠাতে বলুন; অথবা (২) সংশোধনটি সঠিক হলে আগে পরের সেই বিক্রয়/ট্রান্সফার এন্ট্রিটি ঠিক করুন, তারপর এই অনুরোধ Approve করুন।";
 
+const STOCK_FIX_LATER =
+  "আপনি যে এন্ট্রি বদলাচ্ছেন/বাতিল করছেন, পরের ঐ এন্ট্রিটি তার স্টকের উপর নির্ভর করে। আগে পরের এন্ট্রিটি ঠিক বা বাতিল করুন, অথবা পরিবর্তনে এমন পরিমাণ/তারিখ দিন যাতে স্টক থাকে।";
+const STOCK_FIX_LINES =
+  "একই পণ্য একাধিক লাইনে দিলে সব লাইনের পরিমাণ যোগ হয় — লাইনগুলো মিলিয়ে দেখুন।";
+
 const RULES: Rule[] = [
   [
     /^Team "(.+?)" — (.+?): not enough stock for transfers waiting to be accepted \(in stock: ([\d.]+), in transfers: ([\d.]+)\)\.$/,
@@ -500,15 +505,49 @@ const RULES: Rule[] = [
     },
   ],
   [
-    /^(Approving this correction would break stock: )?(?:Team "(.+?)" — )?(.+?): more than the available stock on (\S+) \(in stock: ([\d.]+)(?:, needed: ([\d.]+); entry: (.+?))?\)\.$/,
+    /^(Approving this correction would break stock: )?(?:Team "(.+?)" — )?(.+?): more than the available stock on (\S+) \(in stock: ([\d.]+)(?:, needed: ([\d.]+)(?: in total across (\d+) lines)?; (later )?entry: (.+?)(?: by (.+?))?)?\)\.$/,
     (m) => {
-      const [, correction, team, product, date, have, need, kind] = m;
+      const [, correction, team, product, date, have, need, lineCount, later, kind, by] = m;
       const who = team ? `“${team}” টিমের ` : "";
-      const entry = kind ? `${KIND_BN[kind] ?? kind} এন্ট্রিতে ` : "";
-      const needText = need ? `${Number(need)} টি লাগবে, কিন্তু ` : "";
-      return [
-        `${correction ? "এই সংশোধন অনুমোদন করা যাচ্ছে না — " : ""}স্টকে পর্যাপ্ত পণ্য নেই: ${who}“${product}” — ${date} তারিখের ${entry}${needText}স্প্রিন্টের ক্রয়সহ স্টকে আছে মাত্র ${Number(have)} টি।`,
+      const kindBn = kind ? KIND_BN[kind] ?? kind : "";
+      const entry = kind
+        ? later
+          ? `পরের একটি ${kindBn} এন্ট্রিতে${by ? ` (এন্ট্রি দিয়েছেন: ${by})` : ""} `
+          : `${kindBn} এন্ট্রিতে `
+        : "";
+      const needText = need
+        ? `${lineCount ? `${lineCount}টি লাইনে মিলিয়ে মোট ` : ""}${Number(need)} টি লাগবে, কিন্তু `
+        : "";
+      const fix = [
+        later ? STOCK_FIX_LATER : "",
+        lineCount ? STOCK_FIX_LINES : "",
         correction ? STOCK_FIX_CORRECTION : STOCK_FIX_GENERAL,
+      ]
+        .filter(Boolean)
+        .join(" ");
+      return [
+        `${correction ? "এই সংশোধন অনুমোদন করা যাচ্ছে না — " : ""}${later ? "এই পরিবর্তনের ফলে পরের একটি এন্ট্রিতে স্টক কম পড়ছে — " : ""}স্টকে পর্যাপ্ত পণ্য নেই: ${who}“${product}” — ${date} তারিখের ${entry}${needText}স্প্রিন্টের ক্রয়সহ স্টকে আছে মাত্র ${Number(have)} টি।`,
+        fix,
+      ];
+    },
+  ],
+  [
+    /^(?:Team "(.+?)" — )?(.+?): this sale has a customer refund on (\S+) — correct or void the refund first\.$/,
+    (m) => {
+      const [, team, product, date] = m;
+      return [
+        `${team ? `“${team}” টিমের ` : ""}“${product}” — এই বিক্রির বিপরীতে ${date} তারিখে কাস্টমার রিফান্ড আছে — আগে রিফান্ডটি ঠিক/বাতিল করুন।`,
+        "বিক্রিটি বাতিল, সংশোধন বা তারিখ পরিবর্তন করার আগে ঐ কাস্টমার রিফান্ড এন্ট্রিটি ঠিক বা বাতিল করুন (রিফান্ডের তারিখ বিক্রির তারিখের পরে হতে হবে এবং পণ্যটি বিক্রিতে থাকতে হবে)।",
+      ];
+    },
+  ],
+  [
+    /^(?:Team "(.+?)" — )?(.+?): cannot return more than the remaining quantity of the sale \(sold: ([\d.]+), already returned: ([\d.]+), refund on (\S+): ([\d.]+)\)\.$/,
+    (m) => {
+      const [, team, product, sold, returned, date, q] = m;
+      return [
+        `${team ? `“${team}” টিমের ` : ""}“${product}” — মূল বিক্রিতে ${Number(sold)} টি বিক্রি হয়েছিল, আগেই ${Number(returned)} টি ফেরত এসেছে; ${date} তারিখের রিফান্ডে ${Number(q)} টি ফেরত দেখানো হয়েছে, যা অবশিষ্টের চেয়ে বেশি।`,
+        "রিফান্ডের পরিমাণ কমান। বিক্রির এন্ট্রি বদলানোর (পরিমাণ কমানো) কারণে এটি হলে আগে রিফান্ডটি ঠিক/বাতিল করুন, তারপর বিক্রি সংশোধন করুন।",
       ];
     },
   ],

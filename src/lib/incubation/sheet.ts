@@ -2,7 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { IncubationProgram, IncubationRecord, Prisma } from "@prisma/client";
-import { IncubationError, insist, type EntryData } from "./domain";
+import { explainStockError, IncubationError, insist, type EntryData } from "./domain";
 
 type Tx = Prisma.TransactionClient;
 
@@ -84,7 +84,8 @@ export async function sheetSave(deps: SheetDeps, payload: unknown) {
       return await fn();
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      if (e instanceof IncubationError) throw new IncubationError(`[[${key}]] ${message}`, e.status);
+      if (e instanceof IncubationError)
+        throw new IncubationError(`[[${key}]] ${message}`, e.status, { ...e.details, rowKey: key });
       if (e instanceof z.ZodError) {
         const issue = e.issues[0];
         const field = issue?.path?.filter((x) => typeof x === "string").pop();
@@ -111,7 +112,10 @@ export async function sheetSave(deps: SheetDeps, payload: unknown) {
     await deps.audit("record.sheet_voided", old.id, old, changed, v.reason);
   }
 
+  // Sheet row key of each entry this save touches, to point errors at the row.
+  const changedKeys = new Map<string, string>();
   for (const u of v.updates) {
+    changedKeys.set(u.recordId, u.key);
     await row(u.key, async () => {
       const old = await tx.incubationRecord.findFirst({ where: { id: u.recordId, programId: program.id, status: "posted" } });
       insist(old && old.version === u.version, "This entry was changed by someone else. Reopen the sheet.", 409);
@@ -163,18 +167,30 @@ export async function sheetSave(deps: SheetDeps, payload: unknown) {
         },
       });
       created++;
+      changedKeys.set(record.id, c.key);
       await deps.audit("record.sheet_created", record.id, null, record, v.reason);
     });
   }
 
   try {
     await deps.recompute();
-  } catch (e) {
-    if (e instanceof IncubationError)
+  } catch (raw) {
+    // A stock shortfall on an entry this save did not touch is a later entry
+    // that relied on the stock — say so, and point at that entry's row.
+    const e = explainStockError(raw, changedKeys.keys());
+    if (e instanceof IncubationError) {
+      const recordId = typeof e.details?.recordId === "string" ? e.details.recordId : "";
+      const lineIndex = typeof e.details?.lineIndex === "number" ? e.details.lineIndex : undefined;
+      // Rows of an existing entry are keyed "<id>" (or "<id>:<line>" for product lines).
+      const key = recordId
+        ? changedKeys.get(recordId) ?? (lineIndex === undefined ? recordId : `${recordId}:${lineIndex}`)
+        : "";
       throw new IncubationError(
-        `These changes would break the stock or cash rules: ${e.message} Check quantities and dates of the rows you changed.`,
+        `${key ? `[[${key}]] ` : ""}These changes would break the stock or cash rules: ${e.message} Check quantities and dates of the rows you changed.`,
         e.status,
+        { ...e.details, ...(key ? { rowKey: key } : {}) },
       );
+    }
     throw e;
   }
   return { created, updated: v.updates.length, voided: v.voids.length };
