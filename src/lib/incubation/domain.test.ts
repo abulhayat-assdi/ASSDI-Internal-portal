@@ -316,3 +316,88 @@ describe("incubation accounting", () => {
     });
   });
 });
+describe("sprint stock pooling", () => {
+  const sprints = [{ teamId: "a", startDate: "2026-11-18", endDate: "2026-11-30" }];
+  const late = () => [
+    entry("fund", { amount: "1000" }, { date: "2026-11-18" }),
+    // Sold on the 20th, but the purchase was entered with the 22nd's date.
+    entry("sale", { lines: [line("3", "150")] }, { date: "2026-11-20" }),
+    entry("purchase", { lines: [line("5", "100")] }, { date: "2026-11-22" }),
+  ];
+  it("counts every purchase in the sprint for a sale dated earlier in that sprint", () => {
+    expect(() => calculateLedger(late(), products)).toThrow(/more than the available stock/);
+    const l = calculateLedger(late(), products, { sprints });
+    expect(l.stocks["a|p"].quantity).toBe(2000);
+    const s = l.summaries[0];
+    expect(s.costOfSales).toBe(30000);
+    expect(s.revenue).toBe(45000);
+    expect(s.cash).toBe(100000 + 45000 - 50000);
+  });
+  it("keeps cash on the real date, so a cash count before the purchase is not disturbed", () => {
+    const rows = [
+      entry("fund", { amount: "1000" }, { date: "2026-11-18" }),
+      entry("cash_count", { amount: "1000" }, { date: "2026-11-19" }),
+      entry("purchase", { lines: [line("5", "100")] }, { date: "2026-11-22" }),
+    ];
+    const s = calculateLedger(rows, products, { sprints }).summaries[0];
+    expect(s.cashAtCount).toBe(100000);
+    expect(s.cashDifference).toBe(0);
+  });
+  it("does not pool across sprints or into dates before the sprint", () => {
+    const rows = [
+      entry("sale", { lines: [line("1", "150")] }, { date: "2026-11-17" }),
+      entry("purchase", { lines: [line("5", "100")] }, { date: "2026-11-22" }),
+    ];
+    expect(() => calculateLedger(rows, products, { sprints })).toThrow(/more than the available stock/);
+    const other = [
+      entry("sale", { lines: [line("1", "150")] }, { date: "2026-11-20", teamId: "b" }),
+      entry("purchase", { lines: [line("5", "100")] }, { date: "2026-11-22", teamId: "b" }),
+    ];
+    expect(() => calculateLedger(other, products, { sprints })).toThrow(/more than the available stock/);
+  });
+  it("date-filtered reports still work when a sale used stock bought later in the sprint", () => {
+    const rows = late();
+    const r = buildReport(rows, products, [{ id: "a", name: "A" }], { to: "2026-11-21" }, sprints);
+    expect(r.summaries[0].revenue).toBe(45000);
+    expect(r.summaries[0].purchases).toBe(0);
+    expect(r.summaries[0].cash).toBe(100000 + 45000);
+    const after = buildReport(rows, products, [{ id: "a", name: "A" }], { from: "2026-11-21" }, sprints);
+    expect(after.summaries[0].revenue).toBe(0);
+    expect(after.summaries[0].purchases).toBe(50000);
+    expect(after.summaries[0].openingCash).toBe(145000);
+    const whole = buildReport(rows, products, [{ id: "a", name: "A" }], {}, sprints);
+    expect(whole.summaries[0].netProfit).toBe(15000);
+  });
+});
+describe("sprint pooling for goods received from another team", () => {
+  const sprints = [
+    { teamId: "a", startDate: "2026-11-14", endDate: "2026-11-30" },
+    { teamId: "b", startDate: "2026-11-20", endDate: "2026-11-30" },
+  ];
+  it("counts a transfer received later in the receiver's sprint, with cash on its own date", () => {
+    const rows = [
+      entry("purchase", { lines: [line("5")] }, { date: "2026-11-14" }),
+      entry("sale", { lines: [line("2", "150")] }, { date: "2026-11-21", teamId: "b" }),
+      entry("transfer", { lines: [line("3", "120")] }, { date: "2026-11-22", targetTeamId: "b" }),
+    ];
+    const l = calculateLedger(rows, products, { sprints });
+    expect(l.stocks["b|p"].quantity).toBe(1000);
+    const a = l.summaries.find((s) => s.teamId === "a")!,
+      b = l.summaries.find((s) => s.teamId === "b")!;
+    expect(a.returnGain).toBe(6000);
+    expect(a.cash).toBe(-50000 + 36000);
+    expect(b.cash).toBe(30000 - 36000);
+    expect(b.costOfSales).toBe(24000);
+  });
+  it("falls back when moving the transfer earlier would leave the sender short", () => {
+    const rows = [
+      entry("purchase", { lines: [line("3")] }, { date: "2026-11-21" }),
+      entry("transfer", { lines: [line("3")] }, { date: "2026-11-22", targetTeamId: "b" }),
+    ];
+    const l = calculateLedger(rows, products, {
+      sprints: [{ teamId: "b", startDate: "2026-11-20", endDate: "2026-11-30" }],
+    });
+    expect(l.stocks["b|p"].quantity).toBe(3000);
+    expect(l.stocks["a|p"].quantity).toBe(0);
+  });
+});

@@ -44,6 +44,7 @@ export async function GET(req: NextRequest) {
         products,
         teams,
         filters,
+        bundle.sprints || [],
       );
     const sheets: ExportSheet[] = [
       {

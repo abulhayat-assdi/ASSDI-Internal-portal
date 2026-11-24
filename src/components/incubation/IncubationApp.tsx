@@ -461,6 +461,7 @@ export default function IncubationApp({
               products,
               bundle.teams,
               filters,
+              bundle.sprints || [],
             )
           : null,
         reportError: "",
@@ -472,7 +473,7 @@ export default function IncubationApp({
   const liveRanking = useMemo(() => {
     if (!bundle?.manager || !bundle?.records || bundle?.member) return [];
     try {
-      const full = buildReport(bundle.records, products, bundle.teams, {});
+      const full = buildReport(bundle.records, products, bundle.teams, {}, bundle.sprints || []);
       return rankTeams(
         full.summaries
           .filter(
@@ -490,6 +491,8 @@ export default function IncubationApp({
       return [];
     }
   }, [bundle, products]);
+  // Correction requests (not staff edits) may only change the entry's own products.
+  const lockedLines = editor?.type === "correct" && !bundle?.manager;
   // Before staff approve a correction, replay the ledger with it applied so a stock
   // problem shows up (with the team, product and date) before pressing Save.
   const correctionWarning = useMemo(() => {
@@ -510,6 +513,7 @@ export default function IncubationApp({
             : r,
         ),
         products,
+        { sprints: bundle.sprints || [] },
       );
       return "";
     } catch (e) {
@@ -1665,8 +1669,10 @@ export default function IncubationApp({
                     />
                   </Field>
                   <div className="inc-notice">
-                    A voucher is always required for purchases. Entries for older dates (after the
-                    next day) go for approval. Profit stays with the team.
+                    Students attach a voucher for purchases and for returns to a merchant; proof for
+                    transfers between teams is optional. Entries for older dates (after the next day) go
+                    for approval. Within a sprint, every purchase counts toward that sprint&apos;s sales.
+                    Profit stays with the team.
                   </div>
                 </>
               )}
@@ -2355,6 +2361,12 @@ export default function IncubationApp({
                               <Field name="Product / variant">
                                 <select
                                   required
+                                  disabled={lockedLines}
+                                  title={
+                                    lockedLines
+                                      ? "A correction can only change products already in this entry."
+                                      : undefined
+                                  }
                                   value={l.productId}
                                   onChange={(e) =>
                                     setData(
@@ -2496,6 +2508,9 @@ export default function IncubationApp({
                                 type="button"
                                 aria-label="Remove product line"
                                 className="inc-btn"
+                                disabled={
+                                  lockedLines && editor.data.data.lines.length <= 1
+                                }
                                 onClick={() =>
                                   setData(
                                     "lines",
@@ -2509,24 +2524,31 @@ export default function IncubationApp({
                               </button>
                             </div>
                           ))}
-                          <button
-                            type="button"
-                            className="inc-btn"
-                            onClick={() =>
-                              setData("lines", [
-                                ...(editor.data.data.lines || []),
-                                {
-                                  productId: "",
-                                  quantity: "1",
-                                  unitPrice: "",
-                                  cash: "",
-                                },
-                              ])
-                            }
-                          >
-                            <Plus size={14} />
-                            Add another product
-                          </button>
+                          {lockedLines ? (
+                            <p className="inc-sub">
+                              সংশোধনে শুধু এই এন্ট্রির পণ্যগুলোর পরিমাণ/দাম বদলানো যায়।
+                              নতুন পণ্যের জন্য নতুন এন্ট্রি দিন।
+                            </p>
+                          ) : (
+                            <button
+                              type="button"
+                              className="inc-btn"
+                              onClick={() =>
+                                setData("lines", [
+                                  ...(editor.data.data.lines || []),
+                                  {
+                                    productId: "",
+                                    quantity: "1",
+                                    unitPrice: "",
+                                    cash: "",
+                                  },
+                                ])
+                              }
+                            >
+                              <Plus size={14} />
+                              Add another product
+                            </button>
+                          )}
                         </div>
                       )}
                       {editor.data.kind === "transfer" && (
@@ -2797,13 +2819,22 @@ export default function IncubationApp({
                         <Field
                           name={
                             editor.data.kind === "purchase"
-                              ? "Voucher (required)"
-                              : "Voucher / proof (optional)"
+                              ? "Purchase voucher / receipt (required)"
+                              : editor.data.kind === "supplier_return"
+                                ? "Merchant return voucher (required)"
+                                : editor.data.kind === "transfer"
+                                  ? "Transfer proof (optional)"
+                                  : "Voucher / proof (optional)"
                           }
                         >
                           <input
                             type="file"
                             accept="image/jpeg,image/png,image/webp,application/pdf"
+                            required={
+                              editor.type === "record" &&
+                              ["purchase", "supplier_return"].includes(editor.data.kind) &&
+                              !editor.data.data.voucherId
+                            }
                             onChange={(e) => uploadEditor(e.target.files?.[0])}
                           />
                           {editor.data.data.voucherId && (
@@ -2919,10 +2950,9 @@ export default function IncubationApp({
                       </Field>
                       {editor.data.reviewType === "accept_transfer" &&
                         editor.data.approve && (
-                          <Field name="Receipt voucher / transfer proof (required)">
+                          <Field name="Receipt / transfer proof (optional)">
                             <input
                               type="file"
-                              required={!editor.data.data?.voucherId}
                               accept="image/*,application/pdf"
                               onChange={(e) =>
                                 uploadEditor(e.target.files?.[0])
@@ -4296,18 +4326,37 @@ export default function IncubationApp({
               />
               <h2 style={{ marginTop: 26 }}>Late submissions and transfers</h2>
               <GridTable
-                rows={bundle.records.filter((r: Row) =>
-                  ["pending", "transfer_pending", "rejected"].includes(
-                    r.status,
-                  ),
-                )}
+                rows={bundle.records
+                  .filter((r: Row) =>
+                    ["pending", "transfer_pending", "rejected"].includes(
+                      r.status,
+                    ),
+                  )
+                  // Items waiting for action first, then the reviewed ones.
+                  .sort(
+                    (a: Row, b: Row) =>
+                      Number(a.status === "rejected") -
+                      Number(b.status === "rejected"),
+                  )}
                 columns={[
-                  { title: "Date", render: (r) => r.date },
-                  { title: "Team", render: (r) => teamName(r.teamId) },
-                  { title: "Type", render: (r) => label(r.kind) },
+                  {
+                    title: "Entry",
+                    render: (r) => (
+                      <>
+                        <b>{teamName(r.teamId)}</b>
+                        {r.targetTeamId && <> → {teamName(r.targetTeamId)}</>}
+                        <br />
+                        <small>
+                          {r.date} · {label(r.kind)}
+                        </small>
+                      </>
+                    ),
+                  },
                   {
                     title: "Reason",
-                    render: (r) => <div className="wrap">{r.data.reason}</div>,
+                    render: (r) => (
+                      <div className="wrap">{r.data.reason || "—"}</div>
+                    ),
                   },
                   {
                     title: "Status",
@@ -4599,7 +4648,7 @@ Type the program name to confirm:`,
                   Max field time:{" "}
                   {bundle.program.settings.maxFieldHours ?? "Not set"}
                   <br />
-                  Purchase voucher: required
+                  Voucher: required for purchases and merchant returns · optional for transfers
                 </p>
               </section>
               <section className="inc-card">

@@ -11,6 +11,7 @@ import {
   settingsSchema,
   isManager,
   isSupervisor,
+  stockWindows,
   type Actor,
 } from "./server";
 import {
@@ -159,7 +160,7 @@ export async function fieldCommand(actor: Actor, input: unknown) {
           })),
         "Select an area.",
       );
-      const [products, records, fields] = await Promise.all([
+      const [products, records, fields, sprints] = await Promise.all([
         tx.incubationCatalog.findMany({
           where: { programId: program.id, kind: "product" },
         }),
@@ -172,10 +173,12 @@ export async function fieldCommand(actor: Actor, input: unknown) {
         tx.incubationFieldSession.findMany({
           where: { programId: program.id },
         }),
+        stockWindows(tx, program.id),
       ]);
       const ledger = calculateLedger(
           records.map((r) => ({ ...r, data: r.data as EntryData })),
           products,
+          { sprints },
         ),
         held = custody(
           fields,

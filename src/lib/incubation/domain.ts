@@ -187,7 +187,81 @@ const emptyFinance = (): Finance => ({
   countedCash: null,
   cashAtCount: null,
 });
-export function calculateLedger(entries: Entry[], products: Product[]) {
+/** A team's sprint window. Inside a sprint, every purchase the team records
+ * counts as stock from the first day of that sprint, so a sale that is entered
+ * late (or dated before the purchase was entered) is checked against everything
+ * bought in the sprint, not only what was bought before the sale's date. Cash
+ * and all money figures still use each entry's own date. */
+export interface StockWindow {
+  teamId: string;
+  startDate: string;
+  endDate: string;
+}
+export interface LedgerOptions {
+  sprints?: StockWindow[];
+  /** Dates at which to snapshot the ledger state (state before anything on/after that date). */
+  cuts?: string[];
+}
+type LedgerState = ReturnType<typeof summarize>;
+function summarize(
+  finances: Record<string, Finance>,
+  stocks: Record<string, Stock>,
+) {
+  const summaries = Object.entries(finances).map(([teamId, f]) => ({
+    teamId,
+    ...f,
+    grossProfit: f.revenue - f.costOfSales,
+    netProfit: f.revenue - f.costOfSales - f.expenses - f.damage + f.returnGain,
+    principalOutstanding: f.funding - f.principalReturned,
+    cashDifference:
+      f.countedCash === null ? null : f.countedCash - (f.cashAtCount ?? f.cash),
+    stockValue: Object.entries(stocks)
+      .filter(([k]) => k.startsWith(`${teamId}|`))
+      .reduce((n, [, s]) => n + s.value, 0),
+    internalMargin: Object.entries(stocks)
+      .filter(([k]) => k.startsWith(`${teamId}|`))
+      .reduce((n, [, s]) => n + s.internalMargin, 0),
+  }));
+  return { stocks, summaries };
+}
+/** The first day of the team's sprint that contains `date`, when that is earlier than `date`. */
+export function stockDate(
+  sprints: StockWindow[] | undefined,
+  teamId: string,
+  date: string,
+) {
+  const s = sprints?.find(
+    (s) => s.teamId === teamId && s.startDate <= date && s.endDate >= date,
+  );
+  return s && s.startDate < date ? s.startDate : date;
+}
+export function calculateLedger(
+  entries: Entry[],
+  products: Product[],
+  options: LedgerOptions = {},
+) {
+  if (!options.sprints?.length) return runLedger(entries, products, options, false);
+  // First let goods received from another team during the receiver's sprint count
+  // from the sprint's first day too. If that would leave the sending team short
+  // earlier in its own sprint, count only purchases that way (never worse than
+  // plain date order, because stock only ever arrives earlier).
+  try {
+    return runLedger(entries, products, options, true);
+  } catch (e) {
+    if (!(e instanceof IncubationError) || e.details?.code !== "stock_short") throw e;
+    try {
+      return runLedger(entries, products, options, false);
+    } catch {
+      throw e;
+    }
+  }
+}
+function runLedger(
+  entries: Entry[],
+  products: Product[],
+  options: LedgerOptions,
+  pullTransfers: boolean,
+) {
   const stocks: Record<string, Stock> = {},
     finances: Record<string, Finance> = {};
   const productMap = new Map(products.map((p) => [p.id, p]));
@@ -219,18 +293,45 @@ export function calculateLedger(entries: Entry[], products: Product[]) {
     >
   >();
   const effects: Record<string, Record<string, Finance>> = {};
-  const postings = entries
-    .filter((r) => r.status === "posted")
-    .sort(
-      (a, b) =>
-        a.date.localeCompare(b.date) ||
-        (a.entryOrder !== undefined && b.entryOrder !== undefined
-          ? a.entryOrder - b.entryOrder
-          : new Date(a.createdAt).getTime() -
-            new Date(b.createdAt).getTime()) ||
-        a.id.localeCompare(b.id),
-    );
-  for (const r of postings) {
+  const sequence = (a: Entry, b: Entry) =>
+    a.date.localeCompare(b.date) ||
+    (a.entryOrder !== undefined && b.entryOrder !== undefined
+      ? a.entryOrder - b.entryOrder
+      : new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) ||
+    a.id.localeCompare(b.id);
+  // A purchase (or a transfer received) inside a sprint is split: its stock
+  // arrives on the sprint's first day (before anything else that day); its cash
+  // moves on its own date.
+  type Step = { r: Entry; at: string; part: "all" | "stock" | "money" };
+  const steps: Step[] = [];
+  const transferCost = new Map<string, number>();
+  for (const r of entries) {
+    if (r.status !== "posted") continue;
+    const at =
+      r.kind === "purchase"
+        ? stockDate(options.sprints, r.teamId, r.date)
+        : r.kind === "transfer" && pullTransfers && r.targetTeamId
+          ? stockDate(options.sprints, r.targetTeamId, r.date)
+          : r.date;
+    if (at < r.date)
+      steps.push({ r, at, part: "stock" }, { r, at: r.date, part: "money" });
+    else steps.push({ r, at, part: "all" });
+  }
+  steps.sort(
+    (a, b) =>
+      a.at.localeCompare(b.at) ||
+      (a.part === "stock" ? 0 : 1) - (b.part === "stock" ? 0 : 1) ||
+      sequence(a.r, b.r),
+  );
+  const cuts = [...new Set(options.cuts || [])].sort();
+  const snapshots: Record<string, LedgerState> = {};
+  const snap = (cut: string) =>
+    (snapshots[cut] = summarize(
+      JSON.parse(JSON.stringify(finances)),
+      JSON.parse(JSON.stringify(stocks)),
+    ));
+  for (const { r, at, part } of steps) {
+    while (cuts.length && cuts[0] <= at) snap(cuts.shift()!);
     const before = JSON.parse(JSON.stringify(finances)) as Record<
       string,
       Finance
@@ -355,11 +456,27 @@ export function calculateLedger(entries: Entry[], products: Product[]) {
       }
       if (r.kind === "purchase") {
         const amount = lineTotal(line.quantity, line.unitPrice ?? "0");
-        s.quantity += q;
-        s.value += amount;
-        s.procured += q;
-        f.purchases += amount;
-        f.cash -= amount;
+        if (part !== "money") {
+          s.quantity += q;
+          s.value += amount;
+          s.procured += q;
+        }
+        if (part !== "stock") {
+          f.purchases += amount;
+          f.cash -= amount;
+        }
+        continue;
+      }
+      const lineKey = `${r.id}|${d.lines.indexOf(line)}`;
+      if (r.kind === "transfer" && part === "money") {
+        // Stock already moved on the receiving team's sprint start; settle cash now.
+        const amount = lineTotal(line.quantity, line.unitPrice ?? "0");
+        const cost = transferCost.get(lineKey) ?? 0;
+        f.cash += amount;
+        f.returnGain += amount - cost;
+        const destF = finance(r.targetTeamId!);
+        destF.cash -= amount;
+        destF.purchases += amount;
         continue;
       }
       // Sequential mutation also validates repeated product lines in a single form.
@@ -415,8 +532,11 @@ export function calculateLedger(entries: Entry[], products: Product[]) {
       } else if (r.kind === "supplier_return" || r.kind === "transfer") {
         const amount = lineTotal(line.quantity, line.unitPrice ?? "0");
         s.returned += q;
-        f.cash += amount;
-        f.returnGain += amount - cost;
+        if (part === "stock") transferCost.set(lineKey, cost);
+        else {
+          f.cash += amount;
+          f.returnGain += amount - cost;
+        }
         if (r.kind === "transfer") {
           insist(
             r.targetTeamId && r.targetTeamId !== r.teamId,
@@ -428,8 +548,10 @@ export function calculateLedger(entries: Entry[], products: Product[]) {
           dest.value += amount;
           dest.procured += q;
           dest.internalMargin += amount - cost + margin;
-          destF.cash -= amount;
-          destF.purchases += amount;
+          if (part !== "stock") {
+            destF.cash -= amount;
+            destF.purchases += amount;
+          }
         }
       } else throw new IncubationError("Invalid record type.");
     }
@@ -441,22 +563,8 @@ export function calculateLedger(entries: Entry[], products: Product[]) {
       f.variance += saleTotal - saleCash;
       saleLines.set(r.id, sales);
     }
-    recordEffects();
+    if (part !== "stock") recordEffects();
   }
-  const summaries = Object.entries(finances).map(([teamId, f]) => ({
-    teamId,
-    ...f,
-    grossProfit: f.revenue - f.costOfSales,
-    netProfit: f.revenue - f.costOfSales - f.expenses - f.damage + f.returnGain,
-    principalOutstanding: f.funding - f.principalReturned,
-    cashDifference:
-      f.countedCash === null ? null : f.countedCash - (f.cashAtCount ?? f.cash),
-    stockValue: Object.entries(stocks)
-      .filter(([k]) => k.startsWith(`${teamId}|`))
-      .reduce((n, [, s]) => n + s.value, 0),
-    internalMargin: Object.entries(stocks)
-      .filter(([k]) => k.startsWith(`${teamId}|`))
-      .reduce((n, [, s]) => n + s.internalMargin, 0),
-  }));
-  return { stocks, summaries, effects };
+  for (const cut of cuts) snap(cut);
+  return { ...summarize(finances, stocks), effects, snapshots };
 }

@@ -71,6 +71,7 @@ export async function publicReport(
       products,
       teams,
       filters,
+      sprints,
     );
     // Public payload is an allowlist, never the staff bundle with fields hidden in CSS.
     return {
