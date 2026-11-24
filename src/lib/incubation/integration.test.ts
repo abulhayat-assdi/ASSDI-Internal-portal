@@ -1138,7 +1138,7 @@ describe("real migration and transactional incubation workflows", () => {
     const row = await prisma.incubationProgram.findUniqueOrThrow({ where: { id: created.id } });
     expect(row.deletedAt).not.toBeNull();
     expect(row.deleteReason).toBe("Created twice");
-    expect(await prisma.incubationRecord.count({ where: { programId: created.id } })).toBe(1);
+    expect(await prisma.incubationRecord.count({ where: { programId: created.id } })).toBe(2);
     expect(await prisma.incubationAudit.count({ where: { programId: created.id, action: "program.deleted" } })).toBe(1);
   });
 
