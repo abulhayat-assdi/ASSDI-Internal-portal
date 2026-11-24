@@ -10,8 +10,6 @@ export const MAX_INTERVAL_SECONDS = 3600;
 export const TOKEN_TTL_MS = 18 * 3600 * 1000;
 /** Accepted capturedAt window around [track start, now]. */
 export const SAMPLE_SKEW_MS = 2 * 60 * 1000;
-/** Ended tracks stay on the live map this long. */
-export const RECENT_ENDED_MS = 12 * 3600 * 1000;
 /** A track is stale after this many intervals without a fix. */
 export const STALE_INTERVALS = 3;
 export const RETENTION_DAYS = 90;
@@ -233,4 +231,90 @@ export function requestOrigin(headers: {
     headers.get("x-forwarded-proto")?.split(",")[0].trim() ||
     (/^(localhost|127\.|10\.|192\.168\.)/.test(host) ? "http" : "https");
   return `${proto}://${host}`;
+}
+
+// ---------- days (Asia/Dhaka, UTC+6, no daylight saving) ----------
+
+const DHAKA_OFFSET_MS = 6 * 3600 * 1000;
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** The Dhaka calendar day ("YYYY-MM-DD") a moment falls on. */
+export function dhakaDay(at: Date = new Date()): string {
+  return new Date(at.getTime() + DHAKA_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+/** [from, to) in UTC for a Dhaka day; null when the text is not a real date. */
+export function dhakaDayRange(day: string): { from: Date; to: Date } | null {
+  if (!DAY_RE.test(day)) return null;
+  const midnightUtc = Date.parse(`${day}T00:00:00Z`);
+  if (!Number.isFinite(midnightUtc) || new Date(midnightUtc).toISOString().slice(0, 10) !== day) return null;
+  const from = new Date(midnightUtc - DHAKA_OFFSET_MS);
+  return { from, to: new Date(from.getTime() + 86400000) };
+}
+
+export type DayTrack = {
+  id: string;
+  userId: string;
+  userName: string;
+  batchName: string | null;
+  label: string | null;
+  startedAt: Date;
+  endedAt: Date | null;
+  lastCapturedAt: Date | null;
+  intervalSeconds: number;
+  distanceMeters: number | null;
+  stopCount: number | null;
+  stopMinutes: number | null;
+  pointCount: number | null;
+};
+
+export type DayRow = {
+  userId: string;
+  userName: string;
+  batchName: string | null;
+  label: string | null;
+  status: "fresh" | "stale" | "ended";
+  sessions: number;
+  trackIds: string[];
+  firstStartedAt: string;
+  /** null while a session is still open. */
+  lastEndedAt: string | null;
+  outMinutes: number;
+  distanceMeters: number;
+  stopCount: number;
+  stopMinutes: number;
+  pointCount: number;
+};
+
+/** One row per student: every session they started that day added together. */
+export function groupDay(tracks: DayTrack[], now = new Date()): DayRow[] {
+  const byUser = new Map<string, DayTrack[]>();
+  for (const t of tracks) byUser.set(t.userId, [...(byUser.get(t.userId) || []), t]);
+  const rows: DayRow[] = [];
+  for (const list of byUser.values()) {
+    list.sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime());
+    const latest = list[list.length - 1];
+    const open = list.filter((t) => !t.endedAt);
+    const status = open.length ? (open.some((t) => trackStatus(t, now) === "fresh") ? "fresh" : "stale") : "ended";
+    const ends = list.map((t) => t.endedAt).filter((d): d is Date => !!d);
+    rows.push({
+      userId: latest.userId,
+      userName: latest.userName,
+      batchName: latest.batchName,
+      label: latest.label,
+      status,
+      sessions: list.length,
+      trackIds: list.map((t) => t.id),
+      firstStartedAt: list[0].startedAt.toISOString(),
+      lastEndedAt: open.length ? null : new Date(Math.max(...ends.map((d) => d.getTime()))).toISOString(),
+      outMinutes: Math.round(
+        list.reduce((sum, t) => sum + Math.max(0, (t.endedAt || now).getTime() - t.startedAt.getTime()), 0) / 60000,
+      ),
+      distanceMeters: list.reduce((s, t) => s + (t.distanceMeters || 0), 0),
+      stopCount: list.reduce((s, t) => s + (t.stopCount || 0), 0),
+      stopMinutes: list.reduce((s, t) => s + (t.stopMinutes || 0), 0),
+      pointCount: list.reduce((s, t) => s + (t.pointCount || 0), 0),
+    });
+  }
+  return rows.sort((a, b) => b.distanceMeters - a.distanceMeters || a.userName.localeCompare(b.userName));
 }

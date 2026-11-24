@@ -93,11 +93,15 @@ function fakeTx(sessions: S[]) {
       }),
     },
     fieldTrack: {
+      // One open track per field session, found first, then ended and summarised.
+      findMany: vi.fn(async ({ where }: any) => [{ id: `track-${where.incubationSessionId}`, where }]),
       updateMany: vi.fn(async (args: any) => {
         trackEnds.push(args);
         return { count: 1 };
       }),
+      update: vi.fn(async () => ({})),
     },
+    fieldTrackPosition: { findMany: vi.fn(async () => []) },
     incubationAudit: {
       create: vi.fn(async ({ data }: any) => {
         audits.push(data);
@@ -134,7 +138,7 @@ describe("autoCheckoutStale", () => {
     expect(sessions[0].endAreaId).toBe("area-1");
     expect(sessions[0].version).toBe(2);
     expect(trackEnds[0]).toEqual({
-      where: { incubationSessionId: "s1", endedAt: null },
+      where: { id: { in: ["track-s1"] }, endedAt: null },
       data: {
         endedAt: sessions[0].checkOut,
         endReason: "auto_checkout",

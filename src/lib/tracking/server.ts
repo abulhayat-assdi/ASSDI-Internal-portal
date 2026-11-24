@@ -10,15 +10,19 @@ import { isSupervisor } from "@/lib/incubation/server";
 import { autoCheckoutStale } from "@/lib/incubation/auto-checkout";
 import {
   endTracks,
+  needsSummary,
   openTrack,
   publicTrack,
+  summarizeTracks,
   trackingConfig,
 } from "./tracks";
 import {
   DEFAULT_INTERVAL_SECONDS,
-  RECENT_ENDED_MS,
   RETENTION_DAYS,
   batchAllowed,
+  dhakaDay,
+  dhakaDayRange,
+  groupDay,
   generateToken,
   hashToken,
   ingestSchema,
@@ -343,15 +347,10 @@ export async function liveTracks(actor: TrackingActor, competitionId: string) {
       "expired",
       now,
     );
+    // Only students still out (live or no signal); finished ones are in the day report.
     const tracks = await tx.fieldTrack.findMany({
-      where: {
-        competitionId: competition.id,
-        OR: [
-          { endedAt: null },
-          { endedAt: { gte: new Date(now.getTime() - RECENT_ENDED_MS) } },
-        ],
-      },
-      orderBy: [{ endedAt: { sort: "desc", nulls: "first" } }, { userName: "asc" }],
+      where: { competitionId: competition.id, endedAt: null },
+      orderBy: { userName: "asc" },
     });
     return {
       competition: {
@@ -362,8 +361,10 @@ export async function liveTracks(actor: TrackingActor, competitionId: string) {
             : competition.trackingIntervalSeconds,
       },
       now: now.toISOString(),
+      today: dhakaDay(now),
       tracks: tracks.map((t) => ({
         id: t.id,
+        day: dhakaDay(t.startedAt),
         userId: t.userId,
         userName: t.userName,
         batchName: t.batchName,
@@ -424,10 +425,128 @@ export async function trackPositions(actor: TrackingActor, trackId: string) {
   });
 }
 
+// ---------- staff: day report (who walked how far on a date) ----------
+
+async function watchableCompetition(tx: Tx, actor: TrackingActor, competitionId: string) {
+  const competition = await tx.competition.findUnique({
+    where: { id: competitionId, courseId: actor.courseId },
+    select: { id: true, title: true, kind: true },
+  });
+  insist(competition, "Competition not found.", 404);
+  insist(
+    await canWatchCompetition(tx, actor, competition.id),
+    "You do not have permission to watch this competition.",
+    403,
+  );
+  return competition;
+}
+
+function dayOrToday(day: string | null | undefined, now: Date) {
+  const value = day || dhakaDay(now);
+  const range = dhakaDayRange(value);
+  insist(range, "Invalid date.");
+  return { day: value, ...range };
+}
+
+/** Days (Dhaka) that have any tracking for this competition, newest first. */
+async function trackedDays(tx: Tx, competitionId: string): Promise<string[]> {
+  const rows = await tx.$queryRaw<{ day: string }[]>`
+    SELECT DISTINCT to_char(started_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Dhaka', 'YYYY-MM-DD') AS day
+    FROM field_tracks WHERE competition_id = ${competitionId}
+    ORDER BY day DESC LIMIT 400`;
+  return rows.map((r) => r.day);
+}
+
+export async function dayReport(actor: TrackingActor, competitionId: string, day?: string | null) {
+  return withCourseContext(ctx(actor.courseId), async (tx) => {
+    const competition = await watchableCompetition(tx, actor, competitionId);
+    const now = new Date();
+    const range = dayOrToday(day, now);
+    await endTracks(
+      tx,
+      { competitionId: competition.id, tokenExpiresAt: { lte: now } },
+      "expired",
+      now,
+    );
+    const where = {
+      competitionId: competition.id,
+      startedAt: { gte: range.from, lt: range.to },
+    };
+    // Fill in summaries that are missing (tracks ended before this was added) or still
+    // growing (open tracks), then read everything back.
+    const stale = (
+      await tx.fieldTrack.findMany({ where, select: { id: true, endedAt: true, summaryAt: true } })
+    ).filter(needsSummary);
+    if (stale.length) await summarizeTracks(tx, stale.map((t) => t.id), now);
+    const tracks = await tx.fieldTrack.findMany({ where, orderBy: { startedAt: "asc" } });
+    const today = dhakaDay(now);
+    const days = await trackedDays(tx, competition.id);
+    return {
+      competition,
+      now: now.toISOString(),
+      today,
+      day: range.day,
+      days: days.includes(today) ? days : [today, ...days],
+      rows: groupDay(tracks, now),
+    };
+  }, { timeout: 30000 });
+}
+
+const DAY_TRAIL_LIMIT = 8000;
+/** Every session one student started on a day, each with its positions, for the day trail. */
+export async function dayPositions(
+  actor: TrackingActor,
+  competitionId: string,
+  userId: string,
+  day?: string | null,
+) {
+  insist(userId, "userId is required.");
+  return withCourseContext(ctx(actor.courseId), async (tx) => {
+    if (!(actor.role === "student" && actor.id === userId))
+      await watchableCompetition(tx, actor, competitionId);
+    const range = dayOrToday(day, new Date());
+    const tracks = await tx.fieldTrack.findMany({
+      where: { competitionId, userId, startedAt: { gte: range.from, lt: range.to } },
+      orderBy: { startedAt: "asc" },
+    });
+    let budget = DAY_TRAIL_LIMIT;
+    const out = [];
+    for (const t of tracks) {
+      const rows = budget > 0
+        ? await tx.fieldTrackPosition.findMany({
+            where: { trackId: t.id },
+            orderBy: { capturedAt: "asc" },
+            take: budget,
+          })
+        : [];
+      budget -= rows.length;
+      out.push({
+        track: publicTrack(t),
+        positions: rows.map((p) => ({
+          latitude: Number(p.latitude),
+          longitude: Number(p.longitude),
+          accuracy: Number(p.accuracy),
+          capturedAt: p.capturedAt,
+        })),
+      });
+    }
+    return { day: range.day, userId, truncated: budget <= 0, tracks: out };
+  });
+}
+
 // ---------- retention ----------
 
-/** Deletes field_track_positions older than 90 days in every course. Caller supplies a super-admin tx. */
+/**
+ * Deletes field_track_positions older than 90 days in every course. Caller supplies a
+ * super-admin tx. Expired tracks are closed and every missing walking summary is saved
+ * first, so the day report keeps its numbers after the positions are gone.
+ */
 export async function purgeOldPositions(tx: Tx, now = new Date()) {
+  await endTracks(tx, { tokenExpiresAt: { lte: now } }, "expired", now);
+  const missing = await tx.$queryRaw<{ id: string }[]>`
+    SELECT id FROM field_tracks
+    WHERE ended_at IS NOT NULL AND (summary_at IS NULL OR summary_at < ended_at)`;
+  if (missing.length) await summarizeTracks(tx, missing.map((r) => r.id), now);
   const cutoff = new Date(now.getTime() - RETENTION_DAYS * 86400000);
   return (
     await tx.fieldTrackPosition.deleteMany({

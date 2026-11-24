@@ -185,3 +185,66 @@ describe("urls", () => {
     expect(ingestUrl("https://x.tasm-skill.asf.bd/")).toBe("https://x.tasm-skill.asf.bd/api/tracking/ingest");
   });
 });
+
+import { dhakaDay, dhakaDayRange, groupDay, type DayTrack } from "./core";
+
+describe("Dhaka days", () => {
+  it("maps moments to the Dhaka calendar day", () => {
+    expect(dhakaDay(new Date("2026-11-23T17:59:00Z"))).toBe("2026-11-23");
+    expect(dhakaDay(new Date("2026-11-23T18:00:00Z"))).toBe("2026-11-24");
+  });
+  it("gives the UTC range of a Dhaka day and rejects bad dates", () => {
+    expect(dhakaDayRange("2026-11-24")).toEqual({
+      from: new Date("2026-11-23T18:00:00Z"),
+      to: new Date("2026-11-24T18:00:00Z"),
+    });
+    expect(dhakaDayRange("2026-02-30")).toBeNull();
+    expect(dhakaDayRange("24-11-2026")).toBeNull();
+  });
+});
+
+describe("groupDay", () => {
+  const base: DayTrack = {
+    id: "t1",
+    userId: "u1",
+    userName: "A",
+    batchName: "B",
+    label: "T",
+    startedAt: new Date("2026-11-24T03:00:00Z"),
+    endedAt: new Date("2026-11-24T05:00:00Z"),
+    lastCapturedAt: new Date("2026-11-24T05:00:00Z"),
+    intervalSeconds: 60,
+    distanceMeters: 1200,
+    stopCount: 2,
+    stopMinutes: 25,
+    pointCount: 120,
+  };
+  const now = new Date("2026-11-24T08:00:00Z");
+  it("adds a student's sessions together and orders by distance", () => {
+    const rows = groupDay(
+      [
+        base,
+        { ...base, id: "t2", startedAt: new Date("2026-11-24T06:00:00Z"), endedAt: new Date("2026-11-24T07:00:00Z"), distanceMeters: 800, stopCount: 1, stopMinutes: 10 },
+        { ...base, id: "t3", userId: "u2", userName: "B", distanceMeters: 5000 },
+      ],
+      now,
+    );
+    expect(rows.map((r) => r.userId)).toEqual(["u2", "u1"]);
+    expect(rows[1]).toMatchObject({
+      sessions: 2,
+      distanceMeters: 2000,
+      stopCount: 3,
+      stopMinutes: 35,
+      outMinutes: 180,
+      status: "ended",
+      firstStartedAt: "2026-11-24T03:00:00.000Z",
+      lastEndedAt: "2026-11-24T07:00:00.000Z",
+    });
+  });
+  it("marks a student with an open session as still out", () => {
+    const [row] = groupDay([{ ...base, endedAt: null, lastCapturedAt: new Date("2026-11-24T07:59:30Z") }], now);
+    expect(row).toMatchObject({ status: "fresh", lastEndedAt: null, outMinutes: 300 });
+    const [stale] = groupDay([{ ...base, endedAt: null, lastCapturedAt: new Date("2026-11-24T07:00:00Z") }], now);
+    expect(stale.status).toBe("stale");
+  });
+});
