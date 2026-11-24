@@ -64,8 +64,11 @@ export function buildReport(
   const scope = all.filter((r) => !filters.to || r.date <= filters.to);
   const dayAfter = (d: string) =>
     new Date(Date.parse(`${d}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
+  // Report mode: entries may have had lines filtered out above, so per-entry
+  // submission checks (e.g. a sale's cash vs amount needs a reason) don't apply.
   const full = calculateLedger(all, products, {
     sprints,
+    reportMode: true,
     cuts: [
       ...(filters.from ? [filters.from] : []),
       ...(filters.to ? [dayAfter(filters.to)] : []),
@@ -207,7 +210,23 @@ export function buildReport(
   ] as const;
   const totals = Object.fromEntries(
     totalKeys.map((k) => [k, summaries.reduce((n, s) => n + (s[k] || 0), 0)]),
-  ) as Record<(typeof totalKeys)[number], number>;
+  ) as Record<(typeof totalKeys)[number], number> & {
+    /** Sum of the team rows, before the internal-transfer adjustment. */
+    teamsNetProfit: number;
+    teamsStockValue: number;
+    /** Markup one team booked by selling to another team, on goods still in
+     * the receiving team's stock. Not profit for the program as a whole, so it
+     * is taken out of the overall totals (but not out of the team rows):
+     * totals.netProfit = teamsNetProfit + internalTransferAdjustment. */
+    internalTransferAdjustment: number;
+    /** Same markup, taken out of the stock value: totals.stockValue =
+     * teamsStockValue + internalStockAdjustment. */
+    internalStockAdjustment: number;
+  };
+  totals.teamsNetProfit = totals.netProfit;
+  totals.teamsStockValue = totals.stockValue;
+  totals.internalTransferAdjustment = 0;
+  totals.internalStockAdjustment = 0;
   // Money given to teams, grouped by the funding round ("ধাপ") written on each entry.
   const fundingRounds = visible
     .filter((r) => r.kind === "fund" && teams.some((t) => t.id === r.teamId))
@@ -218,11 +237,16 @@ export function buildReport(
       return a;
     }, {});
   if (!filters.teamId && !filters.areaId && !filters.batchName) {
-    totals.netProfit -= summaries.reduce(
+    totals.internalTransferAdjustment = 0 - summaries.reduce(
       (n, s) => n + s.internalMarginChange,
       0,
     );
-    totals.stockValue -= summaries.reduce((n, s) => n + s.internalMargin, 0);
+    totals.internalStockAdjustment = 0 - summaries.reduce(
+      (n, s) => n + s.internalMargin,
+      0,
+    );
+    totals.netProfit += totals.internalTransferAdjustment;
+    totals.stockValue += totals.internalStockAdjustment;
   }
   return {
     summaries,
