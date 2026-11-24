@@ -717,3 +717,22 @@
   background: #e4eefb;
   color: #2f5f9e;
 }
+/* File picker on the glass theme. */
+.inc-file {
+  background: rgba(255, 255, 255, 0.5);
+  border-color: rgba(15, 122, 92, 0.3);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.inc-file.has {
+  background: var(--glass-strong);
+  border-color: var(--glass-border);
+  box-shadow: var(--shadow);
+}
+.inc-file-btn {
+  background: linear-gradient(135deg, #0f7a5c, #18946f);
+  box-shadow: 0 6px 18px rgba(15, 122, 92, 0.28);
+}
+.inc-file-btn:hover {
+  background: #0c6a4f;
+}

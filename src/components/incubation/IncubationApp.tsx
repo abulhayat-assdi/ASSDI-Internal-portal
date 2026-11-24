@@ -2,6 +2,8 @@
 import { numericOnly } from "./numeric";
 import { useRouter } from "next/navigation";
 import StudentWorkspace from "./StudentWorkspace";
+import FilePicker from "./FilePicker";
+import FgdLines, { cleanFgdLines } from "./FgdLines";
 import Link from "next/link";
 import { APP_DOWNLOAD_PAGE, asmApp, useAppTracking } from "@/lib/tracking/client";
 import {
@@ -493,6 +495,9 @@ export default function IncubationApp({
   }, [bundle, products]);
   // Correction requests (not staff edits) may only change the entry's own products.
   const lockedLines = editor?.type === "correct" && !bundle?.manager;
+  // FGD / market insight have no money or stock effect: edits save directly.
+  const quickEdit =
+    editor?.type === "correct" && !FINANCIAL_KINDS.includes(editor.data.kind);
   // Before staff approve a correction, replay the ledger with it applied so a stock
   // problem shows up (with the team, product and date) before pressing Save.
   const correctionWarning = useMemo(() => {
@@ -746,8 +751,8 @@ export default function IncubationApp({
           amount: "",
           note: "",
           reason: "",
-          findings: ["", "", ""],
-          actions: ["", "", ""],
+          findings: [""],
+          actions: [""],
         },
       },
     });
@@ -757,14 +762,7 @@ export default function IncubationApp({
       original: r,
       data: {
         ...r,
-        data: (() => {
-          const d = JSON.parse(JSON.stringify(r.data));
-          // Always offer three finding/action boxes, even if fewer were stored.
-          if (r.kind === "fgd")
-            for (const key of ["findings", "actions"])
-              d[key] = Array.from({ length: 3 }, (_, j) => d[key]?.[j] ?? "");
-          return d;
-        })(),
+        data: JSON.parse(JSON.stringify(r.data)),
         reason: "",
         void: false,
       },
@@ -891,6 +889,14 @@ export default function IncubationApp({
         if (kind !== "fgd") {
           delete raw.findings;
           delete raw.actions;
+        } else {
+          // No single line is required — only at least one finding or action.
+          raw.findings = cleanFgdLines(raw.findings);
+          raw.actions = cleanFgdLines(raw.actions);
+          if (!raw.findings.length && !raw.actions.length)
+            throw Error(
+              "Please write at least one finding or next action from the FGD.",
+            );
         }
         for (const key of Object.keys(raw))
           if (raw[key] === "") delete raw[key];
@@ -931,7 +937,7 @@ export default function IncubationApp({
       );
       setEditor(null);
       setMessage(
-        editor.type === "correct" && !bundle?.manager
+        editor.type === "correct" && !bundle?.manager && !quickEdit
           ? "Correction request sent."
           : editor.type === "remove"
             ? "Deleted successfully."
@@ -1245,7 +1251,9 @@ export default function IncubationApp({
                   (!FINANCIAL_KINDS.includes(r.kind) &&
                     r.enteredBy === bundle?.actor?.id)) && (
                   <button className="inc-btn" onClick={() => editRecord(r)}>
-                    {bundle?.manager ? "Edit" : "Correction request"}
+                    {bundle?.manager || !FINANCIAL_KINDS.includes(r.kind)
+                      ? "Edit"
+                      : "Correction request"}
                   </button>
                 )}
             </div>
@@ -1354,7 +1362,7 @@ export default function IncubationApp({
                       remove: "Delete " + (editor.data.label || ""),
                       sprint: "Sprint and category",
                       record: label(editor.data.kind),
-                      correct: bundle?.manager
+                      correct: bundle?.manager || quickEdit
                         ? "Edit data"
                         : "Correction request",
                       review: "Review request",
@@ -1586,23 +1594,6 @@ export default function IncubationApp({
                       </Field>
                     ))}
                   </div>
-                  <Field name="Required FGD findings / actions">
-                    <select
-                      value={editor.data.settings.fgdRequiredCount || 1}
-                      onChange={(e) =>
-                        setValue("settings", {
-                          ...editor.data.settings,
-                          fgdRequiredCount: Number(e.target.value),
-                        })
-                      }
-                    >
-                      {[1, 2, 3].map((n) => (
-                        <option key={n} value={n}>
-                          {n}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
                   <label className="inc-row">
                     <input
                       type="checkbox"
@@ -2732,51 +2723,24 @@ export default function IncubationApp({
                           </select>
                         </Field>
                       )}
-                      {editor.data.kind === "fgd" &&
-                        [0, 1, 2].map((i) => (
-                          <div className="inc-form-grid" key={i}>
-                            <Field name={`Finding ${i + 1}`}>
-                              <textarea
-                                required={
-                                  i <
-                                  (bundle?.program.settings.fgdRequiredCount ||
-                                    1)
-                                }
-                                value={editor.data.data.findings?.[i] || ""}
-                                onChange={(e) =>
-                                  setData(
-                                    "findings",
-                                    (
-                                      editor.data.data.findings || ["", "", ""]
-                                    ).map((s: string, j: number) =>
-                                      i === j ? e.target.value : s,
-                                    ),
-                                  )
-                                }
-                              />
-                            </Field>
-                            <Field name={`Action ${i + 1}`}>
-                              <textarea
-                                required={
-                                  i <
-                                  (bundle?.program.settings.fgdRequiredCount ||
-                                    1)
-                                }
-                                value={editor.data.data.actions?.[i] || ""}
-                                onChange={(e) =>
-                                  setData(
-                                    "actions",
-                                    (
-                                      editor.data.data.actions || ["", "", ""]
-                                    ).map((s: string, j: number) =>
-                                      i === j ? e.target.value : s,
-                                    ),
-                                  )
-                                }
-                              />
-                            </Field>
-                          </div>
-                        ))}
+                      {editor.data.kind === "fgd" && (
+                        <div className="inc-form-grid">
+                          <FgdLines
+                            title="Findings"
+                            addLabel="Add finding"
+                            placeholder="What did you learn?"
+                            values={editor.data.data.findings}
+                            onChange={(v) => setData("findings", v)}
+                          />
+                          <FgdLines
+                            title="Next actions"
+                            addLabel="Add action"
+                            placeholder="What will the team do next?"
+                            values={editor.data.data.actions}
+                            onChange={(v) => setData("actions", v)}
+                          />
+                        </div>
+                      )}
                       {editor.data.kind === "insight" &&
                         [
                           ["segment", "Best customer segment"],
@@ -2827,25 +2791,22 @@ export default function IncubationApp({
                                   : "Voucher / proof (optional)"
                           }
                         >
-                          <input
-                            type="file"
+                          <FilePicker
                             accept="image/jpeg,image/png,image/webp,application/pdf"
+                            label="Select photo or PDF"
                             required={
                               editor.type === "record" &&
-                              ["purchase", "supplier_return"].includes(editor.data.kind) &&
-                              !editor.data.data.voucherId
+                              ["purchase", "supplier_return"].includes(editor.data.kind)
                             }
-                            onChange={(e) => uploadEditor(e.target.files?.[0])}
+                            uploaded={!!editor.data.data.voucherId}
+                            viewHref={
+                              editor.data.data.voucherId
+                                ? `/api/incubation/files/${editor.data.data.voucherId}`
+                                : undefined
+                            }
+                            onSelect={(f) => uploadEditor(f)}
+                            onRemove={() => setData("voucherId", "")}
                           />
-                          {editor.data.data.voucherId && (
-                            <a
-                              target="_blank"
-                              rel="noreferrer"
-                              href={`/api/incubation/files/${editor.data.data.voucherId}`}
-                            >
-                              ✓ Uploaded • view
-                            </a>
-                          )}
                         </Field>
                       )}
                       <Field name="Reason / explanation of cash difference">
@@ -2865,6 +2826,7 @@ export default function IncubationApp({
                   </div>
                   {editor.type === "correct" && (
                     <>
+                      {!quickEdit && (
                       <Field name="Why is a correction needed? (required)">
                         <textarea
                           required
@@ -2873,13 +2835,16 @@ export default function IncubationApp({
                           onChange={(e) => setValue("reason", e.target.value)}
                         />
                       </Field>
+                      )}
                       <label className="inc-row">
                         <input
                           type="checkbox"
                           checked={editor.data.void}
                           onChange={(e) => setValue("void", e.target.checked)}
                         />
-                        Request to void this entry (history is kept)
+                        {quickEdit
+                          ? "Remove this entry (history is kept)"
+                          : "Request to void this entry (history is kept)"}
                       </label>
                     </>
                   )}
@@ -2951,14 +2916,13 @@ export default function IncubationApp({
                       {editor.data.reviewType === "accept_transfer" &&
                         editor.data.approve && (
                           <Field name="Receipt / transfer proof (optional)">
-                            <input
-                              type="file"
+                            <FilePicker
                               accept="image/*,application/pdf"
-                              onChange={(e) =>
-                                uploadEditor(e.target.files?.[0])
-                              }
+                              label="Select photo or PDF"
+                              uploaded={!!editor.data.data?.voucherId}
+                              onSelect={(f) => uploadEditor(f)}
+                              onRemove={() => setData("voucherId", "")}
                             />
-                            {editor.data.data?.voucherId && "✓ Uploaded"}
                           </Field>
                         )}
                     </>
@@ -2994,7 +2958,7 @@ export default function IncubationApp({
                     ? "Saving…"
                     : editor.type === "remove"
                       ? "Delete permanently"
-                      : editor.type === "correct" && !bundle?.manager
+                      : editor.type === "correct" && !bundle?.manager && !quickEdit
                         ? "Send request"
                         : "Save"}
                 </button>
@@ -3852,7 +3816,7 @@ export default function IncubationApp({
                           style={{ marginTop: 12 }}
                           onClick={() => editRecord(r)}
                         >
-                          Correct
+                          Edit
                         </button>
                       )}
                     </section>
@@ -4061,23 +4025,24 @@ export default function IncubationApp({
                   )}
                   {ownField && (
                     <Field name="Pedometer proof (optional)">
-                      <input
-                        type="file"
+                      <FilePicker
                         accept="image/jpeg,image/png,image/webp,application/pdf"
-                        onChange={async (e) => {
-                          const f = e.target.files?.[0];
-                          if (f) {
-                            setBusy(true);
-                            try {
-                              const a = await upload(f, bundle.member.teamId);
-                              setFieldForm({ ...fieldForm, proofId: a.id });
-                            } catch (e) {
-                              setError((e as Error).message);
-                            } finally {
-                              setBusy(false);
-                            }
+                        label="Select photo or PDF"
+                        uploaded={!!fieldForm.proofId}
+                        onSelect={async (f) => {
+                          setBusy(true);
+                          try {
+                            const a = await upload(f, bundle.member.teamId);
+                            setFieldForm({ ...fieldForm, proofId: a.id });
+                          } catch (e) {
+                            setError((e as Error).message);
+                          } finally {
+                            setBusy(false);
                           }
                         }}
+                        onRemove={() =>
+                          setFieldForm({ ...fieldForm, proofId: undefined })
+                        }
                       />
                     </Field>
                   )}

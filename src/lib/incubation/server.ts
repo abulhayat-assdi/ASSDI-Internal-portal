@@ -48,6 +48,11 @@ const text = z.string().trim().min(1).max(500);
 const id = z.string().min(1).max(100);
 const day = z.string().refine(validDate, "Enter a valid date.");
 const numberText = z.union([z.string(), z.number()]).transform(String);
+// FGD findings / next actions: any number of lines (blank ones are dropped).
+const fgdLines = z
+  .array(z.string().trim().max(1000, "Each FGD line can be at most 1000 characters."))
+  .max(50, "An FGD can have at most 50 findings and 50 actions.")
+  .transform((a) => a.filter(Boolean));
 const entryDataSchema = z
   .object({
     lines: z
@@ -72,8 +77,8 @@ const entryDataSchema = z
     saleable: z.boolean().optional(),
     session: z.string().max(100).optional(),
     round: z.string().max(100).optional(),
-    findings: z.array(z.string().trim().max(500)).min(1).max(3).optional(),
-    actions: z.array(z.string().trim().max(500)).min(1).max(3).optional(),
+    findings: fgdLines.optional(),
+    actions: fgdLines.optional(),
     segment: z.string().max(500).optional(),
     objections: z.string().max(2000).optional(),
     whyBought: z.string().max(2000).optional(),
@@ -495,15 +500,8 @@ async function validateData(
     );
   if (r.kind === "fgd")
     insist(
-      d.findings &&
-        d.actions &&
-        d.findings
-          .slice(0, settings.fgdRequiredCount)
-          .filter((v) => v.length >= 3).length === settings.fgdRequiredCount &&
-        d.actions
-          .slice(0, settings.fgdRequiredCount)
-          .filter((v) => v.length >= 3).length === settings.fgdRequiredCount,
-      `Enter at least ${settings.fgdRequiredCount} finding(s) and action(s) for the FGD.`,
+      (d.findings?.length || 0) + (d.actions?.length || 0) > 0,
+      "Write at least one finding or next action for the FGD.",
     );
   if (r.kind === "insight")
     insist(
@@ -1630,7 +1628,7 @@ export async function command(actor: Actor, input: unknown) {
           version: z.number().int().positive(),
           date: day,
           data: entryDataSchema,
-          reason: text,
+          reason: z.string().trim().max(500).default(""),
           void: z.boolean().default(false),
         })
         .parse(p);
@@ -1638,6 +1636,13 @@ export async function command(actor: Actor, input: unknown) {
         where: { id: v.recordId, programId: pid, status: "posted" },
       });
       insist(r, "Active record not found.", 404);
+      // FGD / market insight entries carry no money or stock, so their author
+      // (or staff) edits them directly — no correction request or approval.
+      const financial = FINANCIAL_KINDS.includes(r.kind as RecordKind);
+      insist(
+        !financial || v.reason.length > 0,
+        "Explain why the correction is needed.",
+      );
       insist(
         r.version === v.version,
         "This record has changed. Refresh and try again.",
@@ -1663,7 +1668,7 @@ export async function command(actor: Actor, input: unknown) {
         date: v.date,
         data: json(v.data),
       });
-      if (manager) {
+      if (manager || !financial) {
         const changed = await tx.incubationRecord.update({
           where: { id: r.id },
           data: {
@@ -1678,11 +1683,11 @@ export async function command(actor: Actor, input: unknown) {
           tx,
           actor,
           pid,
-          "record.admin_corrected",
+          manager ? "record.admin_corrected" : "record.edited",
           r.id,
           r,
           changed,
-          v.reason,
+          v.reason || "Edited",
         );
         return changed;
       }
