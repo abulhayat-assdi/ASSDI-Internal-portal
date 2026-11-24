@@ -1091,7 +1091,7 @@ describe("real migration and transactional incubation workflows", () => {
     await expect(send(lead, "sheet_save", { reason: "x x x", voids: [] })).rejects.toThrow();
   });
 
-  it("after the end date only staff can add or change entries; a deleted program disappears", async () => {
+  it("after the end date students can still add entries until closed; a deleted program disappears", async () => {
     const yesterday = new Date(Date.now() - 86400000).toLocaleDateString("en-CA", { timeZone: "Asia/Dhaka" });
     const created = (await api.command(manager, {
       action: "program",
@@ -1116,18 +1116,13 @@ describe("real migration and transactional incubation workflows", () => {
       programId: created.id,
       payload: { teamId: team.id, kind: "expense", date, requestKey: key, data: { amount: "5", expenseType: "Transport" } },
     });
-    // The student (team lead) is shut out once the end date has passed…
-    await expect(api.command(target, expense(yesterday, "student-late"))).rejects.toThrow(/closed|running/);
-    // …but staff can still record and correct.
+    // While the program is still active, the student (team lead) can still add
+    // entries dated within the program after its end date…
+    const studentEntry = (await api.command(target, expense(yesterday, "student-late"))) as any;
+    expect(studentEntry.status).toBe("posted");
+    // …and staff can too.
     const staffEntry = (await api.command(manager, expense(yesterday, "staff-late"))) as any;
     expect(staffEntry.status).toBe("posted");
-    await expect(
-      api.command(target, {
-        action: "correct",
-        programId: created.id,
-        payload: { recordId: staffEntry.id, version: 1, date: yesterday, data: { amount: "6", expenseType: "Transport" }, reason: "typo", void: false },
-      }),
-    ).rejects.toThrow(/closed/);
     expect((await api.overview(manager, created.id)).state).toBe("ended");
 
     // Deleting needs the exact name and staff rights, then hides the program everywhere.
