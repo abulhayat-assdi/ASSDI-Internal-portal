@@ -669,6 +669,9 @@ export default function StudentWorkspace({
                 </label>
               </div>
             )}
+            <p className="inc-sub" style={{ margin: "12px 0 0" }}>
+              {"রাত ১১টায় অটোমেটিক চেক-আউট হয়ে যাবে (automatic check-out at 11 PM)."}
+            </p>
             <button
               className="inc-btn primary"
               disabled={busy || uploading || !f.areaId || (!own && !running)}
@@ -702,6 +705,11 @@ export default function StudentWorkspace({
                         {time(s.checkIn)}
                         <br />
                         {s.checkOut ? time(s.checkOut) : "In the field"}
+                        {s.autoCheckout && (
+                          <span className="inc-status pending" style={{ display: "inline-block", marginLeft: 6 }}>
+                            Auto checkout
+                          </span>
+                        )}
                       </td>
                       <td>
                         {s.steps}

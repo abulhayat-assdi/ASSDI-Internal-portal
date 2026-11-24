@@ -68,6 +68,7 @@
 | `202611070002_incubation_program_cancelled` | status CHECK-এ `cancelled` যোগ |
 | `202611070003_incubation_notifications_results` | `incubation_notifications`, `incubation_results` (RLS) |
 | `202611070004_incubation_program_soft_delete` | প্রোগ্রাম মুছে ফেলার জন্য `deleted_at`, `deleted_by`, `delete_reason` |
+| `202611240001_incubation_field_auto_checkout` | `incubation_field_sessions.auto_checkout` (boolean, default false) — রাত ১১টার অটো চেক-আউট চিহ্নিত করে |
 
 কোনো table drop, ডাটা reset বা পুরোনো row পরিবর্তন নেই। বিদ্যমান startup (`ensure-app-role` → `prisma migrate deploy` → `incubation-check-schema`) এগুলো চালাবে; readiness gate নতুন দুই table-এর RLS-ও যাচাই করে।
 
@@ -75,8 +76,12 @@
 1. Deploy-এর আগে database ও `/app/storage` backup।
 2. `CRON_SECRET` (১৬+ অক্ষর) সেট থাকতে হবে, নইলে দৈনিক রিমাইন্ডার চলবে না। একাধিক instance হলে `DISABLE_INTERNAL_CRON=1` দিয়ে external scheduler থেকে `POST /api/cron/incubation-reminders` (`x-cron-secret` header) ডাকুন।
 3. **সময়:** Business Incubation রিমাইন্ডার এখন container-এর ঘড়ি যা-ই হোক, বাংলাদেশ সময় সকাল ৭টার পরে চলে (অডিট-সংশোধন)। Server চালুর ১ মিনিট পরেই প্রথম যাচাই হয়। অন্য দৈনিক কাজ (attendance alert ইত্যাদি) আগের মতো container-এর ঘড়িতে চলে; `TZ` বদলানোর দরকার নেই।
-4. Email চাইলে course settings-এ email notifications চালু রাখুন এবং SMTP env দিন: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`। Email-এর লিংকের জন্য `BASE_DOMAIN` (যেমন `tasm-skill.asf.bd`) সঠিক থাকতে হবে।
-5. প্রোগ্রাম setup-এ রিমাইন্ডার settings দেখে নিন; প্রতিটি টিমে লিডার ও sprint আছে কিনা "আজকের করণীয়"-তে দেখুন।
+4. **মাঠ সেশনের অটো চেক-আউট (রাত ১১টা, Asia/Dhaka):** যে সেশন check-out হয়নি, সেটি check-in দিনের রাত ২৩:০০-এ বন্ধ হয় — `checkOut` = ঐ দিনের ২৩:০০ (cron দেরিতে চললেও একই সময় লেখা হয়), `auto_checkout = true`, GPS track `auto_checkout` কারণে বন্ধ (Android অ্যাপ পরের upload-এ 410 পেয়ে থামে), audit `field.auto_checkout`। রাত ২৩:০০-এর পরে check-in করলে পরের দিনের ২৩:০০-এ বন্ধ হবে। মাঠের সময় ২৩:০০ পর্যন্ত স্বাভাবিকভাবে গোনা হয়; `maxFieldHours` পেরোলে audit-এ `overLimit: true` ও review-এর কারণ লেখা থাকে (হাতে check-out-এর `field.checkout.over_limit`-এর মতো)।
+   - Internal scheduler প্রতি ৫ মিনিটে দেখে, বাংলাদেশ সময় ২৩:০০-এর পরে দিনে একবার `POST /api/cron/incubation-auto-checkout` (`x-cron-secret`) ডাকে; server চালুর ১ মিনিট পরে একবার catch-up run-ও হয়। External scheduler (`DISABLE_INTERNAL_CRON=1`) হলে প্রতিদিন ২৩:০৫ Asia/Dhaka (= ১৭:০৫ UTC) এ ডাকুন; বারবার ডাকা নিরাপদ।
+   - Cron মিস হলেও (server বন্ধ ছিল) শিক্ষার্থীর check-in/ping/check-out, Incubation পাতা লোড এবং Android location upload-এর সময় ঐ ব্যবহারকারীর/সেশনের পুরোনো খোলা সেশন একই নিয়মে বন্ধ হয় (`checkOut IS NULL` শর্তে update — race-safe)।
+   - Staff ও শিক্ষার্থীর field তালিকায় "Auto checkout" ব্যাজ দেখায়; check-in কার্ডে "রাত ১১টায় অটোমেটিক চেক-আউট হয়ে যাবে" লেখা থাকে।
+5. Email চাইলে course settings-এ email notifications চালু রাখুন এবং SMTP env দিন: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`। Email-এর লিংকের জন্য `BASE_DOMAIN` (যেমন `tasm-skill.asf.bd`) সঠিক থাকতে হবে।
+6. প্রোগ্রাম setup-এ রিমাইন্ডার settings দেখে নিন; প্রতিটি টিমে লিডার ও sprint আছে কিনা "আজকের করণীয়"-তে দেখুন।
 
 ## ৪. Rollback
 আগের application release-এ ফেরা যায়; নতুন table/column রেখে দিন (পুরোনো code এগুলো ব্যবহার করে না)। ব্যতিক্রম: কোনো প্রোগ্রাম `cancelled` অবস্থায় থাকলে পুরোনো code সেটি বুঝবে না — rollback-এর আগে সেটি `draft`/`archived` করুন। Database restore সাধারণ rollback নয়।

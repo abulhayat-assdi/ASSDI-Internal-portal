@@ -107,6 +107,12 @@ export async function startIncubationTestDatabase(
       "utf8",
     ),
   );
+  await db.exec(
+    readFileSync(
+      "prisma/migrations/202611240001_incubation_field_auto_checkout/migration.sql",
+      "utf8",
+    ),
+  );
   // Same for field tracking: drop the generated tables/columns and run the real migration.
   await db.exec(
     'DROP TABLE IF EXISTS "field_track_positions" CASCADE; DROP TABLE IF EXISTS "field_tracks" CASCADE; ALTER TABLE "competitions" DROP COLUMN IF EXISTS "tracking_enabled", DROP COLUMN IF EXISTS "tracking_interval_seconds";',

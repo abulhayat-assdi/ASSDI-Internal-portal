@@ -3,6 +3,7 @@ import { z } from "zod";
 import { isIncubationRunning, isProgramLocked, lockedMessage } from "./lifecycle";
 import { Prisma } from "@prisma/client";
 import { endTracks, openTrack } from "@/lib/tracking/tracks";
+import { autoCheckoutStale } from "./auto-checkout";
 import { DEFAULT_INTERVAL_SECONDS } from "@/lib/tracking/core";
 import {
   accessProgram,
@@ -139,9 +140,23 @@ export async function fieldCommand(actor: Actor, input: unknown) {
         },
       },
     });
+    // A session forgotten past 23:00 (Dhaka) is closed at 23:00 before anything else,
+    // even if the scheduled run was missed, so check-in is not blocked by it.
+    const autoClosed = await autoCheckoutStale(
+      tx,
+      { userId: actor.id, courseId: actor.courseId },
+      now,
+    );
     let session = await tx.incubationFieldSession.findFirst({
       where: { userId: actor.id, courseId: actor.courseId, checkOut: null },
     });
+    if (!session && body.action !== "checkin" && autoClosed.length) {
+      // Do not throw here: that would roll back the automatic check-out just made.
+      const closed = await tx.incubationFieldSession.findUniqueOrThrow({
+        where: { id: autoClosed[autoClosed.length - 1].id },
+      });
+      return { session: closed, autoCheckedOut: true };
+    }
     // Check-in also opens a field track so the Android app can post locations
     // while the screen is locked. The route adds ingestUrl (it knows the origin).
     let tracking:

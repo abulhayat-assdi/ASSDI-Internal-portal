@@ -7,6 +7,7 @@ import { isFeatureEnabled } from "@/lib/features";
 import { resolveStudent, resolveTeam } from "@/lib/competitionServer";
 import { insist, IncubationError } from "@/lib/incubation/domain";
 import { isSupervisor } from "@/lib/incubation/server";
+import { autoCheckoutStale } from "@/lib/incubation/auto-checkout";
 import {
   endTracks,
   openTrack,
@@ -248,6 +249,14 @@ export async function ingest(token: string | null, input: unknown) {
       where: { id: found.id },
     });
     const now = new Date();
+    // A field session forgotten past 23:00 Dhaka ends here too (closes its track), so
+    // the app is told to stop even if the scheduled auto check-out has not run yet.
+    if (
+      track.incubationSessionId &&
+      !track.endedAt &&
+      (await autoCheckoutStale(tx, { id: track.incubationSessionId }, now)).length
+    )
+      return { gone: "ended" } as const;
     const state = tokenState(track, now);
     if (state === "expired")
       await endTracks(tx, { id: track.id }, "expired", now);

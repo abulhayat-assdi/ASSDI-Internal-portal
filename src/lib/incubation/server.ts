@@ -25,6 +25,7 @@ import { RESULT_METRIC, rankTeams } from "./results";
 import { sheetSave } from "./sheet";
 import { catalogCommand, catalogUsage, CATALOG_ACTIONS } from "./catalog-server";
 import { groupKey } from "./catalog";
+import { autoCheckoutStale } from "./auto-checkout";
 import {
   calculateLedger,
   decimal,
@@ -532,6 +533,11 @@ export async function overview(
   options: { fullHistory?: boolean } = {},
 ) {
   return featureTx(actor, async (tx) => {
+    // Close sessions left open past 23:00 Dhaka even if the scheduled run was missed.
+    await autoCheckoutStale(tx, {
+      courseId: actor.courseId,
+      ...(actor.role === "student" ? { userId: actor.id } : {}),
+    });
     const manager = isManager(actor),
       supervisor = isSupervisor(actor);
     const student =
