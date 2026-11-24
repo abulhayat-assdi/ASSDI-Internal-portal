@@ -71,6 +71,9 @@ const entryDataSchema = z
     reason: z.string().max(2000).optional(),
     note: z.string().max(5000).optional(),
     voucherId: id.optional(),
+    // Transfer handover: the sender confirms the goods, the receiver confirms receipt.
+    senderConfirmed: z.boolean().optional(),
+    receiverConfirmed: z.boolean().optional(),
     areaId: id.optional(),
     categoryId: id.optional(),
     expenseType: z.string().max(100).optional(),
@@ -364,6 +367,18 @@ async function validateData(
   // returns saved before this rule can still be corrected without one.)
   if (r.kind === "supplier_return" && r.id === "new")
     insist(d.voucherId, "A voucher upload is required for supplier returns.");
+  // A new transfer needs a photo of the handwritten product list signed by the
+  // receiving team, and the sender's confirmation. (Older transfers stay valid.)
+  if (r.kind === "transfer" && r.id === "new") {
+    insist(
+      d.voucherId,
+      "A voucher photo is required for transfers (the product list signed by the receiving team).",
+    );
+    insist(
+      d.senderConfirmed === true,
+      "Confirm that all products are correct and being handed over to the receiving team.",
+    );
+  }
   if (
     ["supplier_return", "transfer", "damage", "customer_refund"].includes(
       r.kind,
@@ -1564,7 +1579,9 @@ export async function command(actor: Actor, input: unknown) {
           recordId: id,
           approve: z.boolean(),
           reason: text,
+          // Older clients could attach the receiver's own proof; still accepted.
           voucherId: id.optional(),
+          receiverConfirmed: z.boolean().optional(),
         })
         .parse(p);
       const r = await tx.incubationRecord.findFirst({
@@ -1593,6 +1610,14 @@ export async function command(actor: Actor, input: unknown) {
           "Only the receiving team lead can accept this.",
           403,
         );
+        insist(
+          !v.approve || v.receiverConfirmed === true,
+          "Tick the box confirming that you received all the products before accepting.",
+        );
+        insist(
+          v.approve || v.reason.trim().length >= 3,
+          "Enter a reason for declining this transfer.",
+        );
         // Proof is optional between teams; if one is attached it must belong here.
         if (v.approve && v.voucherId)
           insist(
@@ -1618,7 +1643,13 @@ export async function command(actor: Actor, input: unknown) {
           reviewedBy: actor.id,
           data: json({
             ...(r.data as object),
-            ...(v.voucherId ? { voucherId: v.voucherId } : {}),
+            // Never replace the sender's voucher; only fill one in for older transfers.
+            ...(v.voucherId && !(r.data as EntryData).voucherId
+              ? { voucherId: v.voucherId }
+              : {}),
+            ...(body.action === "accept_transfer" && v.approve
+              ? { receiverConfirmed: true }
+              : {}),
           }),
         },
       });

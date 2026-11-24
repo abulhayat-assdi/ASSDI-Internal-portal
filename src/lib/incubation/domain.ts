@@ -119,6 +119,8 @@ export interface EntryData {
   reason?: string;
   note?: string;
   voucherId?: string;
+  senderConfirmed?: boolean;
+  receiverConfirmed?: boolean;
   areaId?: string;
   categoryId?: string;
   expenseType?: string;

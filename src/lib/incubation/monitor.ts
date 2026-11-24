@@ -177,7 +177,7 @@ export function buildMonitor(input: MonitorInput): MonitorIssue[] {
       severity: "medium",
       audience: ["staff"],
       count: late,
-      text: `${late} late submission(s) pending approval.`,
+      text: `${late} old late entr${late === 1 ? "y" : "ies"} waiting for review.`,
     });
   }
   for (const r of input.records) {
@@ -186,7 +186,8 @@ export function buildMonitor(input: MonitorInput): MonitorIssue[] {
       key: `transfer_pending:${r.id ?? `${r.targetTeamId}:${r.teamId}:${r.date}`}:${today}`,
       kind: "transfer_pending",
       severity: "medium",
-      audience: ["lead", "staff"],
+      // Only the receiving lead acts on a transfer; staff just see the list.
+      audience: ["lead"],
       teamId: r.targetTeamId,
       teamName: teamName.get(r.targetTeamId),
       date: r.date,

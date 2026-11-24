@@ -179,27 +179,37 @@ export function FieldCorrectionReviews({
   bundle,
   onSaved,
   onError,
+  status,
+  reviewerName,
 }: {
   bundle: any;
   onSaved: () => void;
   onError: (s: string) => void;
+  /** Show only requests with this status (all when omitted). */
+  status?: string;
+  reviewerName?: (id?: string | null) => string;
 }) {
   const [notes, setNotes] = useState<Record<string, string>>({}),
     [busy, setBusy] = useState("");
+  const rows = (bundle.fieldCorrections || []).filter(
+    (r: any) => !status || r.status === status,
+  );
   return (
     <section style={{ marginTop: 24 }}>
       <h2>Field session correction requests</h2>
-      {!bundle.fieldCorrections?.length && (
-        <p className="inc-sub">No requests.</p>
-      )}
+      {!rows.length && <p className="inc-sub">No requests.</p>}
       <div className="inc-grid">
-        {bundle.fieldCorrections?.map((r: any) => (
+        {rows.map((r: any) => (
           <article className="inc-card" key={r.id}>
             <div className="inc-row inc-between">
               <b>{r.requestedByName}</b>
               <span className={`inc-status ${r.status}`}>{r.status}</span>
             </div>
-            <p>{r.reason}</p>
+            <p>
+              <small>Requested {local(r.createdAt).replace("T", " ")} · Reason:</small>
+              <br />
+              {r.reason}
+            </p>
             <div className="inc-form-grid">
               {[
                 ["Before", r.before],
@@ -216,6 +226,18 @@ export function FieldCorrectionReviews({
                 </div>
               ))}
             </div>
+            {r.status !== "pending" && (
+              <p className="inc-sub" style={{ marginTop: 10 }}>
+                Reviewed by {reviewerName?.(r.reviewedBy) || "staff"}
+                {r.reviewedAt && <> · {local(r.reviewedAt).replace("T", " ")}</>}
+                {r.reviewNote && (
+                  <>
+                    <br />
+                    Review note: {r.reviewNote}
+                  </>
+                )}
+              </p>
+            )}
             {bundle.supervisor && r.status === "pending" && (
               <>
                 <textarea

@@ -119,6 +119,13 @@ const stamp = (v: string) =>
     minute: "2-digit",
   });
 const label = (kind: string) => KIND_LABELS[kind as RecordKind] || kind;
+const TRANSFER_STATUS: Record<string, string> = {
+  transfer_pending: "Waiting for receiving team",
+  posted: "Accepted",
+  rejected: "Declined",
+  pending: "Old late entry — waiting",
+  void: "Void",
+};
 const blankProgram = () => ({
   name: "",
   description: "",
@@ -499,6 +506,22 @@ export default function IncubationApp({
   // FGD / market insight have no money or stock effect: edits save directly.
   const quickEdit =
     editor?.type === "correct" && !FINANCIAL_KINDS.includes(editor.data.kind);
+  // A transfer is sent only after the sender ticks the declaration, and accepted
+  // only after the receiver ticks that everything arrived.
+  const confirmReady = !(
+    (editor?.type === "record" &&
+      editor.data.kind === "transfer" &&
+      editor.data.data?.senderConfirmed !== true) ||
+    (editor?.type === "review" &&
+      editor.data.reviewType === "accept_transfer" &&
+      editor.data.approve &&
+      editor.data.receiverConfirmed !== true)
+  );
+  const [voucherZoom, setVoucherZoom] = useState(false);
+  const [reviewStatus, setReviewStatus] = useState<"pending" | "approved" | "rejected">("pending");
+  // Leads only get their own team in `teams`; the transfer list names every team.
+  const anyTeamName = (id: string) =>
+    bundle?.transferTeams?.find((t: Row) => t.id === id)?.name || teamName(id);
   // Before staff approve a correction, replay the ledger with it applied so a stock
   // problem shows up (with the team, product and date) before pressing Save.
   const correctionWarning = useMemo(() => {
@@ -903,6 +926,10 @@ export default function IncubationApp({
               "Please write at least one finding or next action from the FGD.",
             );
         }
+        if (kind !== "transfer") {
+          delete raw.senderConfirmed;
+          delete raw.receiverConfirmed;
+        }
         for (const key of Object.keys(raw))
           if (raw[key] === "") delete raw[key];
         if (editor.type === "record")
@@ -931,8 +958,13 @@ export default function IncubationApp({
             ? { id: d.id }
             : { recordId: d.id }),
           approve: d.approve,
-          reason: d.reason,
-          voucherId: d.data?.voucherId || undefined,
+          reason:
+            action === "accept_transfer" && d.approve && !String(d.reason || "").trim()
+              ? "সব পণ্য বুঝে পেয়েছি"
+              : d.reason,
+          ...(action === "accept_transfer"
+            ? { receiverConfirmed: d.approve ? d.receiverConfirmed === true : undefined }
+            : { voucherId: d.data?.voucherId || undefined }),
         };
       }
       const result = await send(
@@ -1000,14 +1032,30 @@ export default function IncubationApp({
       ))}
     </div>
   );
-  const pending =
-    (bundle?.fieldCorrections?.filter((c: Row) => c.status === "pending")
-      .length || 0) +
-    (bundle?.corrections?.filter((c: Row) => c.status === "pending").length ||
-      0) +
-    (bundle?.records?.filter((r: Row) =>
-      ["pending", "transfer_pending"].includes(r.status),
-    ).length || 0);
+  // Old late entries still waiting for staff (late approval no longer exists).
+  const legacyLate: Row[] =
+    bundle?.records?.filter((r: Row) => r.status === "pending") || [];
+  const reviewCounts = Object.fromEntries(
+    (["pending", "approved", "rejected"] as const).map((st) => [
+      st,
+      [...(bundle?.corrections || []), ...(bundle?.fieldCorrections || [])].filter(
+        (c: Row) => c.status === st,
+      ).length + (st === "pending" ? legacyLate.length : 0),
+    ]),
+  ) as Record<"pending" | "approved" | "rejected", number>;
+  // Requests staff must act on. Transfers wait for the receiving team lead, not staff.
+  const pending = reviewCounts.pending;
+  const reviewerName = (userId?: string | null) =>
+    (userId &&
+      (bundle?.staff?.find((u: Row) => u.id === userId)?.displayName ||
+        bundle?.history?.find((h: Row) => h.actorId === userId)?.actorName)) ||
+    "Staff";
+  const transferDecision = (recordId: string) =>
+    bundle?.history?.find(
+      (h: Row) =>
+        h.entityId === recordId &&
+        ["accept_transfer", "review_late"].includes(h.action),
+    );
   const notices = (
     <>
       {error && (
@@ -2784,6 +2832,13 @@ export default function IncubationApp({
                             )}
                           </Field>
                         ))}
+                      {editor.type === "record" && editor.data.kind === "transfer" && (
+                        <div className="inc-notice" style={{ gridColumn: "1 / -1" }}>
+                          <b>ভাউচার কেমন হবে:</b> একটি কাগজে হাতে লিখুন কোন কোন পণ্য দিচ্ছেন — প্রতিটি পণ্যের নাম/ভ্যারিয়েন্ট,
+                          পরিমাণ ও দাম। গ্রহীতা টিম (যারা পণ্য নিচ্ছে) কাগজে স্বাক্ষর করবে। তারপর সেই কাগজের পরিষ্কার ছবি
+                          তুলে নিচে আপলোড করুন।
+                        </div>
+                      )}
                       {FINANCIAL_KINDS.includes(editor.data.kind) && (
                         <Field
                           name={
@@ -2792,7 +2847,9 @@ export default function IncubationApp({
                               : editor.data.kind === "supplier_return"
                                 ? "Merchant return voucher (required)"
                                 : editor.data.kind === "transfer"
-                                  ? "Transfer proof (optional)"
+                                  ? editor.type === "record"
+                                    ? "Signed product list photo (required)"
+                                    : "Transfer voucher (signed product list)"
                                   : "Voucher / proof (optional)"
                           }
                         >
@@ -2801,7 +2858,8 @@ export default function IncubationApp({
                             label="Select photo or PDF"
                             required={
                               editor.type === "record" &&
-                              ["purchase", "supplier_return"].includes(editor.data.kind)
+                              ["purchase", "supplier_return", "transfer"].includes(editor.data.kind) &&
+                              !editor.data.data.voucherId
                             }
                             uploaded={!!editor.data.data.voucherId}
                             viewHref={
@@ -2829,6 +2887,17 @@ export default function IncubationApp({
                       </Field>
                     </div>
                   </div>
+                  {editor.type === "record" && editor.data.kind === "transfer" && (
+                    <label className="inc-row inc-notice" style={{ alignItems: "center", gap: 10, cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        required
+                        checked={editor.data.data.senderConfirmed === true}
+                        onChange={(e) => setData("senderConfirmed", e.target.checked)}
+                      />
+                      <b>আমি নিশ্চিত করছি যে এখানে দেওয়া সব পণ্য ঠিক আছে এবং গ্রহীতা টিমকে বুঝিয়ে দিচ্ছি</b>
+                    </label>
+                  )}
                   {editor.type === "correct" && (
                     <>
                       {!quickEdit && (
@@ -2855,8 +2924,225 @@ export default function IncubationApp({
                   )}
                 </>
               )}
-              {editor.type === "review" && (
+              {editor.type === "review" && editor.data.reviewType === "accept_transfer" && (() => {
+                const r = editor.original || {};
+                const lines: Row[] = r.data?.lines || [];
+                const total = lines.reduce(
+                  (sum, l) => sum + Number(l.quantity || 0) * Number(l.unitPrice || 0),
+                  0,
+                );
+                const open = r.status === "transfer_pending" && !editor.data.readOnly;
+                const decision = (bundle?.history || []).find(
+                  (h: Row) =>
+                    h.entityId === r.id &&
+                    ["accept_transfer", "review_late"].includes(h.action),
+                );
+                const steps = [
+                  "পণ্যের তালিকা মিলিয়ে দেখুন",
+                  "ভাউচারের ছবি দেখুন",
+                  "সব বুঝে পেলে নিচের বক্সে টিক দিন",
+                  "Accept চাপুন",
+                ];
+                const voucherUrl = r.data?.voucherId
+                  ? `/api/incubation/files/${r.data.voucherId}`
+                  : "";
+                return (
+                  <>
+                    <p className="inc-sub" style={{ margin: "0 0 10px" }}>
+                      প্রেরক টিম: <b>{anyTeamName(r.teamId)}</b> → গ্রহীতা টিম:{" "}
+                      <b>{anyTeamName(r.targetTeamId)}</b>
+                      <br />
+                      {r.date} · পাঠিয়েছেন: {r.enteredByName || "—"} ·{" "}
+                      <Badge value={r.status || ""} />
+                    </p>
+                    {open && (
+                      <div className="inc-row" style={{ gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+                        {steps.map((t, i) => (
+                          <div className="inc-step" key={t} style={{ flex: "1 1 150px" }}>
+                            <b>{["১", "২", "৩", "৪"][i]}</b>
+                            <div>{t}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <section className="inc-old">
+                      <h3>১) পণ্যের তালিকা</h3>
+                      <div className="inc-table-wrap">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>পণ্য</th>
+                              <th>পরিমাণ</th>
+                              <th>দাম (প্রতিটি)</th>
+                              <th>মোট</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {lines.map((l, i) => (
+                              <tr key={i}>
+                                <td>{productName(l.productId)}</td>
+                                <td>{l.quantity}</td>
+                                <td>{money(Number(l.unitPrice || 0) * 100)}</td>
+                                <td>
+                                  {money(Number(l.quantity || 0) * Number(l.unitPrice || 0) * 100)}
+                                </td>
+                              </tr>
+                            ))}
+                            <tr>
+                              <td colSpan={3}>
+                                <b>সর্বমোট</b>
+                              </td>
+                              <td>
+                                <b>{money(total * 100)}</b>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      {r.data?.reason && (
+                        <p className="inc-sub" style={{ marginTop: 8 }}>
+                          কারণ: {r.data.reason}
+                        </p>
+                      )}
+                      {r.data?.note && <p className="inc-sub">নোট: {r.data.note}</p>}
+                    </section>
+                    <section className="inc-old" style={{ marginTop: 12 }}>
+                      <h3>২) ভাউচারের ছবি</h3>
+                      {voucherUrl ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setVoucherZoom(true)}
+                            title="বড় করে দেখুন"
+                            style={{ border: 0, padding: 0, background: "none", cursor: "zoom-in" }}
+                          >
+                            <img
+                              src={voucherUrl}
+                              alt="Transfer voucher"
+                              style={{ maxWidth: "100%", maxHeight: 260, borderRadius: 8, display: "block" }}
+                            />
+                          </button>
+                          <a target="_blank" rel="noreferrer" href={voucherUrl}>
+                            ছবিতে চাপ দিলে বড় হবে • নতুন ট্যাবে খুলুন
+                          </a>
+                          {voucherZoom && (
+                            <div
+                              role="dialog"
+                              aria-label="Voucher"
+                              onClick={() => setVoucherZoom(false)}
+                              style={{
+                                position: "fixed",
+                                inset: 0,
+                                zIndex: 1000,
+                                background: "rgba(0,0,0,.85)",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                padding: 16,
+                                cursor: "zoom-out",
+                              }}
+                            >
+                              <img
+                                src={voucherUrl}
+                                alt="Transfer voucher (large)"
+                                style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
+                              />
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <p className="inc-sub">
+                          এই পুরোনো ট্রান্সফারে কোনো ভাউচার নেই — পণ্য হাতে মিলিয়ে দেখুন।
+                        </p>
+                      )}
+                    </section>
+                    {open ? (
+                      <>
+                        {bundle?.manager && (
+                          <div className="inc-notice" style={{ marginTop: 12 }}>
+                            সাধারণত গ্রহীতা টিমের লিড নিজেই Accept করে; স্টাফের অনুমোদন লাগে না। লিড না পারলে
+                            কেবল তখনই স্টাফ এখানে তার পক্ষে সিদ্ধান্ত দিতে পারে।
+                          </div>
+                        )}
+                        <div className="inc-row" style={{ gap: 16, margin: "14px 0 6px", flexWrap: "wrap" }}>
+                          <label className="inc-row" style={{ gap: 6 }}>
+                            <input
+                              type="radio"
+                              name="transfer-decision"
+                              checked={editor.data.approve}
+                              onChange={() => setValue("approve", true)}
+                            />
+                            গ্রহণ করব (Accept)
+                          </label>
+                          <label className="inc-row" style={{ gap: 6 }}>
+                            <input
+                              type="radio"
+                              name="transfer-decision"
+                              checked={!editor.data.approve}
+                              onChange={() => setValue("approve", false)}
+                            />
+                            গ্রহণ করব না (Decline)
+                          </label>
+                        </div>
+                        {editor.data.approve ? (
+                          <label
+                            className="inc-row inc-notice"
+                            style={{ alignItems: "center", gap: 10, cursor: "pointer" }}
+                          >
+                            <input
+                              type="checkbox"
+                              required
+                              checked={editor.data.receiverConfirmed === true}
+                              onChange={(e) => setValue("receiverConfirmed", e.target.checked)}
+                            />
+                            <b>৩) আমি এখানে থাকা সব পণ্য বুঝে পেয়েছি এবং সব কিছু ঠিক আছে</b>
+                          </label>
+                        ) : (
+                          <Field name="কেন গ্রহণ করছেন না? (আবশ্যক)">
+                            <textarea
+                              required
+                              minLength={3}
+                              value={editor.data.reason}
+                              onChange={(e) => setValue("reason", e.target.value)}
+                            />
+                          </Field>
+                        )}
+                      </>
+                    ) : (
+                      <p className="inc-sub" style={{ marginTop: 12 }}>
+                        {r.status === "transfer_pending"
+                          ? "গ্রহীতা টিমের লিডের সিদ্ধান্তের অপেক্ষায়।"
+                          : decision
+                            ? `সিদ্ধান্ত: ${decision.actorName} · ${stamp(decision.createdAt)}${decision.reason ? ` · ${decision.reason}` : ""}`
+                            : `Status: ${r.status}`}
+                        {r.status === "transfer_pending" && bundle?.manager && (
+                          <>
+                            <br />
+                            <button
+                              type="button"
+                              className="inc-btn"
+                              style={{ marginTop: 8 }}
+                              onClick={() => setValue("readOnly", false)}
+                            >
+                              Decide on behalf of the receiving lead (only if needed)
+                            </button>
+                          </>
+                        )}
+                      </p>
+                    )}
+                  </>
+                );
+              })()}
+              {editor.type === "review" && editor.data.reviewType !== "accept_transfer" && (
                 <>
+                  {editor.data.reviewType === "review_correction" && editor.data.requestedByName && (
+                    <p className="inc-sub" style={{ margin: "0 0 10px" }}>
+                      Requested by <b>{editor.data.requestedByName}</b>
+                      {editor.data.createdAt && <> · {stamp(editor.data.createdAt)}</>}
+                      <br />
+                      Reason: {editor.data.requestReason}
+                    </p>
+                  )}
                   <div className="inc-form-grid">
                     <section className="inc-old">
                       <h3>Current / submitted values</h3>
@@ -2918,22 +3204,22 @@ export default function IncubationApp({
                           onChange={(e) => setValue("reason", e.target.value)}
                         />
                       </Field>
-                      {editor.data.reviewType === "accept_transfer" &&
-                        editor.data.approve && (
-                          <Field name="Receipt / transfer proof (optional)">
-                            <FilePicker
-                              accept="image/*,application/pdf"
-                              label="Select photo or PDF"
-                              uploaded={!!editor.data.data?.voucherId}
-                              onSelect={(f) => uploadEditor(f)}
-                              onRemove={() => setData("voucherId", "")}
-                            />
-                          </Field>
-                        )}
                     </>
                   ) : (
                     <p className="inc-sub">
-                      Request status: {editor.data.status || "pending"}
+                      Request status: <Badge value={editor.data.status || "pending"} />
+                      {editor.data.reviewedAt && (
+                        <>
+                          {" "}
+                          · {reviewerName(editor.data.reviewedBy)} · {stamp(editor.data.reviewedAt)}
+                        </>
+                      )}
+                      {editor.data.reviewNote && (
+                        <>
+                          <br />
+                          Review note: {editor.data.reviewNote}
+                        </>
+                      )}
                     </p>
                   )}
                 </>
@@ -2951,12 +3237,15 @@ export default function IncubationApp({
               {!(
                 editor.type === "review" &&
                 ((student && editor.data.reviewType !== "accept_transfer") ||
-                  ["approved", "rejected"].includes(editor.data.status))
+                  editor.data.readOnly ||
+                  ["approved", "rejected"].includes(editor.data.status) ||
+                  (editor.data.reviewType === "accept_transfer" &&
+                    editor.original?.status !== "transfer_pending"))
               ) && (
                 <button
                   type="submit"
                   className={editor.type === "remove" ? "inc-btn danger" : "inc-btn primary"}
-                  disabled={busy}
+                  disabled={busy || !confirmReady}
                 >
                   {editor.type === "remove" ? <Trash2 size={16} /> : <Check size={16} />}
                   {busy
@@ -2965,7 +3254,11 @@ export default function IncubationApp({
                       ? "Delete permanently"
                       : editor.type === "correct" && !bundle?.manager && !quickEdit
                         ? "Send request"
-                        : "Save"}
+                        : editor.type === "review" && editor.data.reviewType === "accept_transfer"
+                          ? editor.data.approve
+                            ? "৪) Accept"
+                            : "Decline"
+                          : "Save"}
                 </button>
               )}
             </div>
@@ -4238,41 +4531,83 @@ export default function IncubationApp({
           )}
           {tab === "reviews" && (
             <>
-              <FieldCorrectionReviews
-                bundle={bundle}
-                onSaved={() => load()}
-                onError={setError}
-              />
-              <div className="inc-notice">
-                The current values stay in effect until approval. On approval,
-                stock and related accounts are checked again.
+              <div className="inc-row" role="tablist" aria-label="Request status" style={{ gap: 8, flexWrap: "wrap", margin: "8px 0 14px" }}>
+                {(
+                  [
+                    ["pending", "Pending"],
+                    ["approved", "Approved"],
+                    ["rejected", "Rejected"],
+                  ] as const
+                ).map(([key, title]) => (
+                  <button
+                    key={key}
+                    role="tab"
+                    aria-selected={reviewStatus === key}
+                    className={`inc-btn ${reviewStatus === key ? "primary" : ""}`}
+                    onClick={() => setReviewStatus(key)}
+                  >
+                    {title} ({reviewCounts[key]})
+                  </button>
+                ))}
               </div>
+              {reviewStatus === "pending" && (
+                <div className="inc-notice">
+                  The current values stay in effect until approval. On approval,
+                  stock and related accounts are checked again.
+                </div>
+              )}
               <h2>Correction requests</h2>
               <GridTable
-                rows={bundle.corrections}
+                rows={bundle.corrections.filter((r: Row) => r.status === reviewStatus)}
                 columns={[
                   {
                     title: "Team / entry",
+                    render: (r) => {
+                      const rec = bundle.records.find((x: Row) => x.id === r.recordId);
+                      return (
+                        <>
+                          {teamName(rec?.teamId)}
+                          <br />
+                          <small>
+                            {rec ? `${rec.date} · ${label(rec.kind)}` : r.recordId.slice(0, 8)}
+                          </small>
+                        </>
+                      );
+                    },
+                  },
+                  {
+                    title: "Requested by",
                     render: (r) => (
                       <>
-                        {teamName(
-                          bundle.records.find((x: Row) => x.id === r.recordId)
-                            ?.teamId,
-                        )}
+                        {r.requestedByName}
                         <br />
-                        <small>{r.recordId.slice(0, 8)}</small>
+                        <small>{stamp(r.createdAt)}</small>
                       </>
                     ),
                   },
-                  { title: "Requested by", render: (r) => r.requestedByName },
                   {
                     title: "Reason",
                     render: (r) => <div className="wrap">{r.reason}</div>,
                   },
-                  {
-                    title: "Status",
-                    render: (r) => <Badge value={r.status} />,
-                  },
+                  ...(reviewStatus === "pending"
+                    ? []
+                    : [
+                        {
+                          title: "Review",
+                          render: (r: Row) => (
+                            <div className="wrap">
+                              <Badge value={r.status} /> {reviewerName(r.reviewedBy)}
+                              {r.reviewedAt && <small> · {stamp(r.reviewedAt)}</small>}
+                              {r.reviewNote && (
+                                <>
+                                  <br />
+                                  {r.reviewNote}
+                                </>
+                              )}
+                            </div>
+                          ),
+                        },
+                      ]),
                   {
                     title: "Compare / review",
                     render: (r) => (
@@ -4285,6 +4620,7 @@ export default function IncubationApp({
                             data: {
                               ...r,
                               reviewType: "review_correction",
+                              requestReason: r.reason,
                               approve: true,
                               reason: "",
                               comparison: r.proposed,
@@ -4292,84 +4628,163 @@ export default function IncubationApp({
                           })
                         }
                       >
-                        Details
+                        {r.status === "pending" ? "Review" : "Details"}
                       </button>
                     ),
                   },
                 ]}
               />
-              <h2 style={{ marginTop: 26 }}>Late submissions and transfers</h2>
+              <FieldCorrectionReviews
+                bundle={bundle}
+                status={reviewStatus}
+                reviewerName={reviewerName}
+                onSaved={() => load()}
+                onError={setError}
+              />
+              {reviewStatus === "pending" && legacyLate.length > 0 && (
+                <>
+                  <h3 style={{ marginTop: 26 }}>Old late entries waiting</h3>
+                  <p className="inc-sub">
+                    Submitted before late approval was removed. Approve or reject each one.
+                  </p>
+                  <GridTable
+                    rows={legacyLate}
+                    columns={[
+                      {
+                        title: "Entry",
+                        render: (r) => (
+                          <>
+                            <b>{teamName(r.teamId)}</b>
+                            {r.targetTeamId && <> → {teamName(r.targetTeamId)}</>}
+                            <br />
+                            <small>
+                              {r.date} · {label(r.kind)} · {r.enteredByName}
+                            </small>
+                          </>
+                        ),
+                      },
+                      {
+                        title: "Reason",
+                        render: (r) => <div className="wrap">{r.data.reason || "—"}</div>,
+                      },
+                      {
+                        title: "Review",
+                        render: (r) => (
+                          <button
+                            className="inc-btn"
+                            onClick={() =>
+                              setEditor({
+                                type: "review",
+                                original: r,
+                                data: {
+                                  id: r.id,
+                                  teamId: r.teamId,
+                                  reviewType: "review_late",
+                                  approve: true,
+                                  reason: "",
+                                  data: {},
+                                },
+                              })
+                            }
+                          >
+                            Review
+                          </button>
+                        ),
+                      },
+                    ]}
+                  />
+                </>
+              )}
+              <h2 style={{ marginTop: 26 }}>Transfers</h2>
+              <p className="inc-sub">
+                Teams hand products over directly. The receiving team lead checks the product
+                list and the signed voucher, then accepts or declines — no staff approval is needed.
+              </p>
               <GridTable
                 rows={bundle.records
-                  .filter((r: Row) =>
-                    ["pending", "transfer_pending", "rejected"].includes(
-                      r.status,
-                    ),
-                  )
-                  // Items waiting for action first, then the reviewed ones.
+                  .filter((r: Row) => r.kind === "transfer")
+                  // Waiting transfers first, then the decided ones (newest first).
                   .sort(
                     (a: Row, b: Row) =>
-                      Number(a.status === "rejected") -
-                      Number(b.status === "rejected"),
+                      Number(b.status === "transfer_pending") -
+                      Number(a.status === "transfer_pending"),
                   )}
                 columns={[
                   {
-                    title: "Entry",
+                    title: "Transfer",
                     render: (r) => (
                       <>
-                        <b>{teamName(r.teamId)}</b>
-                        {r.targetTeamId && <> → {teamName(r.targetTeamId)}</>}
+                        <b>{teamName(r.teamId)}</b> → <b>{teamName(r.targetTeamId)}</b>
                         <br />
                         <small>
-                          {r.date} · {label(r.kind)}
+                          {r.date} · {r.enteredByName}
                         </small>
                       </>
                     ),
                   },
                   {
-                    title: "Reason",
+                    title: "Products",
                     render: (r) => (
-                      <div className="wrap">{r.data.reason || "—"}</div>
+                      <div className="wrap">
+                        {(r.data.lines || [])
+                          .map((l: Row) => `${productName(l.productId)} × ${l.quantity}`)
+                          .join(", ")}
+                      </div>
                     ),
                   },
                   {
                     title: "Status",
-                    render: (r) => <Badge value={r.status} />,
+                    render: (r) => (
+                      <span className={`inc-status ${r.status}`}>
+                        {TRANSFER_STATUS[r.status] || r.status}
+                      </span>
+                    ),
                   },
                   {
-                    title: "Review",
-                    render: (r) =>
-                      r.status !== "rejected" &&
-                      ((r.status === "pending" && !student) ||
-                        (r.status === "transfer_pending" &&
-                          (bundle.manager ||
-                            (bundle.member?.isLead &&
-                              bundle.member.teamId === r.targetTeamId)))) ? (
-                        <button
-                          className="inc-btn"
-                          onClick={() =>
-                            setEditor({
-                              type: "review",
-                              original: r,
-                              data: {
-                                id: r.id,
-                                teamId: r.targetTeamId || r.teamId,
-                                reviewType:
-                                  r.status === "pending"
-                                    ? "review_late"
-                                    : "accept_transfer",
-                                approve: true,
-                                reason: "",
-                                data: {},
-                              },
-                            })
-                          }
-                        >
-                          Review
-                        </button>
+                    title: "Decision",
+                    render: (r) => {
+                      const h = transferDecision(r.id);
+                      return h && r.status !== "transfer_pending" ? (
+                        <div className="wrap">
+                          {h.actorName}
+                          <small> · {stamp(h.createdAt)}</small>
+                          {h.reason && (
+                            <>
+                              <br />
+                              {h.reason}
+                            </>
+                          )}
+                        </div>
                       ) : (
                         "—"
-                      ),
+                      );
+                    },
+                  },
+                  {
+                    title: "",
+                    render: (r) => (
+                      <button
+                        className="inc-btn"
+                        onClick={() =>
+                          setEditor({
+                            type: "review",
+                            original: r,
+                            data: {
+                              id: r.id,
+                              teamId: r.targetTeamId || r.teamId,
+                              reviewType: "accept_transfer",
+                              approve: true,
+                              reason: "",
+                              data: {},
+                              // Staff only look; the receiving lead decides.
+                              readOnly: true,
+                            },
+                          })
+                        }
+                      >
+                        View
+                      </button>
+                    ),
                   },
                 ]}
               />

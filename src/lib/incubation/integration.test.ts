@@ -343,7 +343,7 @@ describe("real migration and transactional incubation workflows", () => {
     const r = await record(
       lead,
       "transfer",
-      { lines: [line("2")], reason: "Category finished" },
+      { lines: [line("2")], reason: "Category finished", voucherId: "voucher-a", senderConfirmed: true },
       { targetTeamId: teamB },
     );
     expect(r.status).toBe("transfer_pending");
@@ -358,7 +358,7 @@ describe("real migration and transactional incubation workflows", () => {
       recordId: r.id,
       approve: true,
       reason: "Goods received",
-      voucherId: "voucher-b",
+      receiverConfirmed: true,
     });
     const b = (await api.overview(target, programId)) as any;
     expect(b.ledger.stocks[`${teamB}|${product}`].quantity).toBe(2000);
@@ -625,7 +625,7 @@ describe("real migration and transactional incubation workflows", () => {
     const r = await record(
       lead,
       "transfer",
-      { lines: [line("4")], reason: "Reserve handover" },
+      { lines: [line("4")], reason: "Reserve handover", voucherId: "voucher-a", senderConfirmed: true },
       { targetTeamId: teamB },
     );
     const scoped = await api.overview(lead, programId);
@@ -1273,7 +1273,7 @@ describe("sprint stock pooling, vouchers and correction limits", () => {
     const report = buildReport(b.reportEntries, b.catalog.filter((c: any) => c.kind === "product"), b.teams, {}, b.sprints);
     expect(report.inventory.find((s) => s.teamId === tA)?.quantity).toBe(2000);
   });
-  it("needs a voucher for a merchant return but not for a team transfer", async () => {
+  it("needs a voucher for a merchant return and a signed voucher plus confirmations for a team transfer", async () => {
     await expect(
       run(lead, "record", {
         teamId: tA,
@@ -1283,16 +1283,58 @@ describe("sprint stock pooling, vouchers and correction limits", () => {
         requestKey: crypto.randomUUID(),
       }),
     ).rejects.toThrow(/voucher upload is required for supplier returns/);
-    const t = await run(lead, "record", {
-      teamId: tA,
-      targetTeamId: tB,
-      kind: "transfer",
-      date: todayDhaka(),
-      data: { lines: [gl("1")], reason: "Sprint finished" },
-      requestKey: crypto.randomUUID(),
+    const transfer = (data: Record<string, unknown>) =>
+      run(lead, "record", {
+        teamId: tA,
+        targetTeamId: tB,
+        kind: "transfer",
+        date: todayDhaka(),
+        data: { lines: [gl("1")], reason: "Sprint finished", ...data },
+        requestKey: crypto.randomUUID(),
+      });
+    // No voucher photo: refused.
+    await expect(transfer({ senderConfirmed: true })).rejects.toThrow(/voucher photo is required for transfers/);
+    // Voucher but no sender confirmation: refused.
+    await expect(transfer({ voucherId: "sv-a" })).rejects.toThrow(/Confirm that all products/);
+    await expect(transfer({ voucherId: "sv-a", senderConfirmed: false })).rejects.toThrow(/Confirm that all products/);
+    const t = await transfer({ voucherId: "sv-a", senderConfirmed: true });
+    expect(t.status).toBe("transfer_pending");
+    expect(t.data.senderConfirmed).toBe(true);
+    // Only the receiving lead may accept: the sending lead and a plain member are refused.
+    await expect(
+      run(lead, "accept_transfer", { recordId: t.id, approve: true, reason: "Received", receiverConfirmed: true }),
+    ).rejects.toThrow(/Only the receiving team lead/);
+    await expect(
+      run(member, "accept_transfer", { recordId: t.id, approve: true, reason: "Received", receiverConfirmed: true }),
+    ).rejects.toThrow();
+    // The receiving lead must tick the confirmation before accepting.
+    await expect(
+      run(target, "accept_transfer", { recordId: t.id, approve: true, reason: "Received" }),
+    ).rejects.toThrow(/Tick the box/);
+    await expect(
+      run(target, "accept_transfer", { recordId: t.id, approve: true, reason: "Received", receiverConfirmed: false }),
+    ).rejects.toThrow(/Tick the box/);
+    // An older client sending its own proof never replaces the sender's voucher.
+    const accepted = await run(target, "accept_transfer", {
+      recordId: t.id,
+      approve: true,
+      reason: "Received",
+      receiverConfirmed: true,
     });
-    const accepted = await run(target, "accept_transfer", { recordId: t.id, approve: true, reason: "Received" });
     expect(accepted.status).toBe("posted");
+    expect(accepted.data.voucherId).toBe("sv-a");
+    expect(accepted.data.receiverConfirmed).toBe(true);
+    // Declining needs a real reason, but no confirmation box.
+    const t2 = await transfer({ voucherId: "sv-a", senderConfirmed: true });
+    await expect(
+      run(target, "accept_transfer", { recordId: t2.id, approve: false, reason: "No" }),
+    ).rejects.toThrow(/reason for declining/);
+    const declined = await run(target, "accept_transfer", {
+      recordId: t2.id,
+      approve: false,
+      reason: "Goods not handed over",
+    });
+    expect(declined.status).toBe("rejected");
   });
   it("lets a correction request change only the entry's own products", async () => {
     const sale = await run(lead, "record", {
