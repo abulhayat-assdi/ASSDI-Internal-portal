@@ -57,6 +57,9 @@ import {
 } from "lucide-react";
 import {
   calculateLedger,
+  isLate,
+  stockShortfalls,
+  STOCK_OUT_KINDS,
   KIND_LABELS,
   FINANCIAL_KINDS,
   todayDhaka,
@@ -343,10 +346,10 @@ export default function IncubationApp({
       }),
     });
     const d = await r.json();
-    if (!r.ok) throw Error(d.error);
+    if (!r.ok) throw Object.assign(Error(d.error), { details: d.details });
     return d;
   };
-  const act = async (action: string, payload: Row) => {
+  const act =async (action: string, payload: Row) => {
     setBusy(true);
     setError("");
     try {
@@ -524,6 +527,54 @@ export default function IncubationApp({
         : err.message;
     }
   }, [editor, bundle, products]);
+  // Live stock check for each product line of a sale / return / transfer /
+  // damage, with the same ledger the server uses: the most this entry can take
+  // of a product, per line, or null when the line fits.
+  const draft =
+    editor?.type === "record" || editor?.type === "correct" ? editor.data : null;
+  const lineShortfalls = useMemo<(number | null)[]>(() => {
+    if (!draft || !bundle?.records || !STOCK_OUT_KINDS.includes(draft.kind))
+      return [];
+    const base: Row =
+      editor?.type === "correct" && editor.original
+        ? { ...editor.original, status: "posted" }
+        : {
+            id: "draft",
+            status: draft.kind === "transfer" ? "transfer_pending" : "posted",
+            createdAt: new Date().toISOString(),
+          };
+    return stockShortfalls(
+      bundle.records,
+      products,
+      {
+        ...base,
+        teamId: draft.teamId,
+        targetTeamId: draft.kind === "transfer" ? draft.targetTeamId || null : null,
+        kind: draft.kind,
+        date: draft.date,
+        data: { ...draft.data, lines: draft.data.lines || [] },
+      } as Parameters<typeof stockShortfalls>[2],
+      bundle.sprints || [],
+    );
+  }, [draft, editor?.type, editor?.original, bundle, products]);
+  const linesInvalid = lineShortfalls.some((x) => x !== null);
+  // A stock error from the server, shown under the matching product line.
+  const [lineError, setLineError] = useState<{ productId: string; message: string } | null>(null);
+  useEffect(
+    () => setLineError(null),
+    [draft?.data?.lines, draft?.date, draft?.kind, draft?.teamId],
+  );
+  // With "purchases only in the sprint category", the category comes from the
+  // sprint that contains the entry's own date (not today).
+  const purchaseSprint =
+    draft?.kind === "purchase" && bundle?.program?.settings?.enforceCategory
+      ? bundle?.sprints?.find(
+          (s: Row) =>
+            s.teamId === draft.teamId &&
+            s.startDate <= draft.date &&
+            s.endDate >= draft.date,
+        ) || null
+      : undefined;
   const records = useMemo(
     () =>
       bundle?.records?.filter(
@@ -862,6 +913,8 @@ export default function IncubationApp({
         if (d.needsTarget && !d.targetId) throw Error("Choose where to move the existing data first.");
         payload = { id: d.id, whole: !!d.whole, targetId: d.targetId || null };
       }
+      if ((editor.type === "record" || editor.type === "correct") && linesInvalid)
+        throw Error("কিছু পণ্যের পরিমাণ স্টকের চেয়ে বেশি — লাল লেখা লাইনগুলো ঠিক করুন।");
       if (editor.type === "record" || editor.type === "correct") {
         const kind = d.kind as RecordKind,
           raw: Row = { ...d.data };
@@ -941,12 +994,20 @@ export default function IncubationApp({
         router.push("/dashboard/competitions/" + result.competitionId);
       else await load();
     } catch (e) {
-      setError((e as Error).message);
+      const err = e as Error & { details?: { productId?: string } };
+      setError(err.message);
+      // Point a stock error at the product line it is about.
+      if (
+        (editor.type === "record" || editor.type === "correct") &&
+        err.details?.productId &&
+        editor.data.data.lines?.some((l: Row) => l.productId === err.details?.productId)
+      )
+        setLineError({ productId: err.details.productId, message: err.message });
     } finally {
       setBusy(false);
     }
   };
-  const download = async (format: string, scope?: string) => {
+  const download =async (format: string, scope?: string) => {
     setBusy(true);
     try {
       const q = new URLSearchParams({
@@ -1670,8 +1731,8 @@ export default function IncubationApp({
                   </Field>
                   <div className="inc-notice">
                     Students attach a voucher for purchases and for returns to a merchant; proof for
-                    transfers between teams is optional. Entries for older dates (after the next day) go
-                    for approval. Within a sprint, every purchase counts toward that sprint&apos;s sales.
+                    transfers between teams is optional. Entries post straight away; a student entry dated
+                    before yesterday needs a written reason. Within a sprint, every purchase counts toward that sprint&apos;s sales.
                     Profit stays with the team.
                   </div>
                 </>
@@ -2340,6 +2401,22 @@ export default function IncubationApp({
                             value={editor.data.date}
                             onChange={(e) => setValue("date", e.target.value)}
                           />
+                          {student &&
+                            editor.type === "record" &&
+                            FINANCIAL_KINDS.includes(editor.data.kind) && (
+                              <small className="inc-sub">
+                                {isLate(editor.data.date)
+                                  ? "আগের তারিখ: নিচে “Reason” ঘরে কারণ লিখুন। এন্ট্রি সঙ্গে সঙ্গে পোস্ট হবে।"
+                                  : "আজ বা গতকালের এন্ট্রিতে কারণ লাগবে না।"}
+                              </small>
+                            )}
+                          {purchaseSprint !== undefined && (
+                            <small className="inc-sub">
+                              {purchaseSprint
+                                ? `এই তারিখের ক্যাটাগরি: ${categories.find((c: Row) => c.id === purchaseSprint.categoryId)?.name || "?"} (${purchaseSprint.startDate} — ${purchaseSprint.endDate})`
+                                : "এই তারিখে আপনার টিমের কোনো স্প্রিন্ট নেই — স্প্রিন্টের ভেতরের তারিখ দিন।"}
+                            </small>
+                          )}
                         </Field>
                       </div>
                       {[
@@ -2522,6 +2599,30 @@ export default function IncubationApp({
                               >
                                 <X size={14} />
                               </button>
+                              {(() => {
+                                const short = lineShortfalls[i];
+                                const product = products.find((p) => p.id === l.productId);
+                                const message =
+                                  short !== null && short !== undefined
+                                    ? short === 0
+                                      ? "এই পণ্যটি এই স্প্রিন্টে কেনা হয়নি"
+                                      : `এই পরিমাণ পণ্য আপনার পার্চেসে যোগ করা নেই — স্টকে আছে ${Number((short / 1000).toFixed(3))} টি`
+                                    : purchaseSprint !== undefined &&
+                                        product &&
+                                        product.parentId !== purchaseSprint?.categoryId
+                                      ? "এই তারিখের স্প্রিন্টের ক্যাটাগরির পণ্য নয় — ঠিক তারিখ বা পণ্য বেছে নিন"
+                                      : lineError && lineError.productId === l.productId
+                                        ? lineError.message
+                                        : "";
+                                return message ? (
+                                  <p
+                                    role="alert"
+                                    style={{ gridColumn: "1 / -1", margin: 0, color: "#dc2626", fontSize: 13 }}
+                                  >
+                                    {message}
+                                  </p>
+                                ) : null;
+                              })()}
                             </div>
                           ))}
                           {lockedLines ? (
@@ -2850,7 +2951,13 @@ export default function IncubationApp({
                       )}
                       <Field name="Reason / explanation of cash difference">
                         <textarea
-                          required={editor.data.kind === "repayment"}
+                          required={
+                            student &&
+                            editor.type === "record" &&
+                            FINANCIAL_KINDS.includes(editor.data.kind) &&
+                            isLate(editor.data.date)
+                          }
+                          minLength={3}
                           value={editor.data.data.reason || ""}
                           onChange={(e) => setData("reason", e.target.value)}
                         />
@@ -2987,7 +3094,10 @@ export default function IncubationApp({
                 <button
                   type="submit"
                   className={editor.type === "remove" ? "inc-btn danger" : "inc-btn primary"}
-                  disabled={busy}
+                  disabled={
+                    busy ||
+                    ((editor.type === "record" || editor.type === "correct") && linesInvalid)
+                  }
                 >
                   {editor.type === "remove" ? <Trash2 size={16} /> : <Check size={16} />}
                   {busy

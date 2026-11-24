@@ -568,3 +568,130 @@ function runLedger(
   for (const cut of cuts) snap(cut);
   return { ...summarize(finances, stocks), effects, snapshots };
 }
+/** Entries that take goods out of a team's stock. */
+export const STOCK_OUT_KINDS = ["sale", "supplier_return", "transfer", "damage"];
+/**
+ * Live stock check for an entry form, using the same ledger as the server.
+ * For each product line of `draft` it returns null when the line fits, or the
+ * most the team can take out of that product in this entry (1/1000 units)
+ * when the line (together with earlier lines of the same product) is too much.
+ * `entries` may be the whole program or one team's view; only entries of the
+ * draft's team are used (goods received from another team count as bought).
+ * When the draft has the id of an existing entry, it replaces that entry.
+ */
+export function stockShortfalls(
+  entries: Entry[],
+  products: Product[],
+  draft: Entry,
+  sprints: StockWindow[] = [],
+): (number | null)[] {
+  const lines = draft.data.lines || [];
+  const none = lines.map(() => null);
+  if (!STOCK_OUT_KINDS.includes(draft.kind)) return none;
+  const team = draft.teamId;
+  const scope = entries
+    .filter(
+      (r) => r.id !== draft.id && (r.teamId === team || r.targetTeamId === team),
+    )
+    .map((r) =>
+      r.kind === "transfer" && r.teamId !== team
+        ? { ...r, teamId: team, targetTeamId: null, kind: "purchase" }
+        : r,
+    );
+  const quantity = (q: unknown) => {
+    try {
+      const n = scaled(q, 3);
+      return n > 0 ? n : 0;
+    } catch {
+      return 0;
+    }
+  };
+  const reserved: Record<string, number> = {};
+  for (const r of scope)
+    if (r.kind === "transfer" && r.status === "transfer_pending")
+      for (const l of r.data.lines || [])
+        reserved[l.productId] = (reserved[l.productId] || 0) + quantity(l.quantity);
+  const options = { sprints };
+  let base: ReturnType<typeof calculateLedger>;
+  try {
+    base = calculateLedger(scope, products, options);
+  } catch {
+    return none; // Cannot judge from here; the server still checks on save.
+  }
+  const wanted: Record<string, number> = {};
+  for (const l of lines)
+    if (l.productId)
+      wanted[l.productId] = (wanted[l.productId] || 0) + quantity(l.quantity);
+  const price = (v: unknown) => {
+    try {
+      scaled(v ?? "0");
+      return String(v ?? "0");
+    } catch {
+      return "0";
+    }
+  };
+  // The draft with every line of `productId` merged into one line of `q`.
+  const withQuantity = (productId: string, q: number): Entry => {
+    const others = lines.filter((l) => l.productId && l.productId !== productId);
+    const first = lines.find((l) => l.productId === productId);
+    return {
+      ...draft,
+      status: "posted",
+      data: {
+        ...draft.data,
+        reason: draft.data.reason || "check",
+        lines: [
+          ...others.map((l) => ({
+            productId: l.productId,
+            quantity: String(quantity(l.quantity) / 1000),
+            unitPrice: price(l.unitPrice),
+          })),
+          ...(q > 0
+            ? [{ productId, quantity: String(q / 1000), unitPrice: price(first?.unitPrice) }]
+            : []),
+        ],
+      },
+    };
+  };
+  const fits = (productId: string, q: number) => {
+    try {
+      calculateLedger([...scope, withQuantity(productId, q)], products, options);
+      return true;
+    } catch (e) {
+      return !(
+        e instanceof IncubationError &&
+        e.details?.code === "stock_short" &&
+        e.details.productId === productId
+      );
+    }
+  };
+  const allowed: Record<string, number> = {};
+  for (const [productId, total] of Object.entries(wanted)) {
+    const left = Math.max(
+      0,
+      (base.stocks[`${team}|${productId}`]?.quantity || 0) - (reserved[productId] || 0),
+    );
+    let max = Math.min(total, left);
+    // A transfer only reserves stock until accepted; other entries must also
+    // fit the dated ledger (e.g. a sale dated before the goods arrived).
+    if (draft.kind !== "transfer" && max > 0 && !fits(productId, max)) {
+      const step = productMap(products).get(productId)?.fractional ? 1 : 1000;
+      let lo = 0,
+        hi = Math.floor(max / step) - 1;
+      while (lo < hi) {
+        const mid = Math.ceil((lo + hi) / 2);
+        if (fits(productId, mid * step)) lo = mid;
+        else hi = mid - 1;
+      }
+      max = lo * step;
+    }
+    allowed[productId] = total > max ? max : Infinity;
+  }
+  const used: Record<string, number> = {};
+  return lines.map((l) => {
+    if (!l.productId || allowed[l.productId] === Infinity) return null;
+    used[l.productId] = (used[l.productId] || 0) + quantity(l.quantity);
+    return used[l.productId] > allowed[l.productId] ? allowed[l.productId] : null;
+  });
+}
+const productMap = (products: Product[]) => new Map(products.map((p) => [p.id, p]));

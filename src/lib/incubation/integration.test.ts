@@ -277,23 +277,47 @@ describe("real migration and transactional incubation workflows", () => {
       await record(lead, "sale", { lines: [line("4", "150")], areaId: area })
     ).id;
   });
-  it("does not post an old submission until reviewed", async () => {
+  it("posts an old submission directly, needing a reason only before yesterday", async () => {
+    const yesterday = new Date(Date.parse(`${todayDhaka()}T00:00:00Z`) - 86400000)
+      .toISOString()
+      .slice(0, 10);
+    // Today or yesterday: no reason needed, posted at once.
+    const recent = await record(
+      lead,
+      "expense",
+      { amount: "5", expenseType: "Transport" },
+      { date: yesterday },
+    );
+    expect(recent.status).toBe("posted");
+    // Older: a reason is required, and then it is posted (no approval step).
+    await expect(
+      record(
+        lead,
+        "expense",
+        { amount: "50", expenseType: "Transport" },
+        { date: "2026-01-02" },
+      ),
+    ).rejects.toThrow(/reason for submitting an earlier date/);
     const r = await record(
       lead,
       "expense",
       { amount: "50", expenseType: "Transport", reason: "Forgot report" },
       { date: "2026-01-02" },
     );
-    expect(r.status).toBe("pending");
-    await send(manager, "review_late", {
-      recordId: r.id,
-      approve: true,
-      reason: "Evidence checked",
-    });
-    expect(
-      (await prisma.incubationRecord.findUnique({ where: { id: r.id } }))
-        ?.status,
-    ).toBe("posted");
+    expect(r.status).toBe("posted");
+    // A repayment is also posted directly.
+    const repay = await record(lead, "repayment", { amount: "1" });
+    expect(repay.status).toBe("posted");
+    // Future dates are still refused.
+    await expect(
+      record(
+        lead,
+        "expense",
+        { amount: "5", expenseType: "Transport" },
+        { date: "2999-01-01" },
+      ),
+    ).rejects.toThrow(/future dates/);
+    // A posted entry has nothing left to review.
     await expect(
       send(manager, "review_late", {
         recordId: r.id,
@@ -301,6 +325,80 @@ describe("real migration and transactional incubation workflows", () => {
         reason: "Again",
       }),
     ).rejects.toThrow();
+  });
+  it("auto-posts legacy pending late entries that pass, and keeps the rest for review", async () => {
+    // Simulate entries left "pending" by the old approval rule.
+    const ok = await record(
+      lead,
+      "expense",
+      { amount: "7", expenseType: "Transport", reason: "Old paper log" },
+      { date: "2026-01-03" },
+    );
+    const bad = await record(lead, "expense", {
+      amount: "2",
+      expenseType: "Transport",
+    });
+    await prisma.incubationRecord.updateMany({
+      where: { id: { in: [ok.id, bad.id] } },
+      data: { status: "pending" },
+    });
+    // This one no longer passes validation (unknown expense type), so it must stay pending.
+    await prisma.incubationRecord.update({
+      where: { id: bad.id },
+      data: { data: { amount: "2", expenseType: "Removed type" } },
+    });
+    // Students loading the program do not trigger it; staff do.
+    await api.overview(lead, programId);
+    expect(
+      (await prisma.incubationRecord.findUniqueOrThrow({ where: { id: ok.id } })).status,
+    ).toBe("pending");
+    await api.overview(manager, programId);
+    expect(
+      (await prisma.incubationRecord.findUniqueOrThrow({ where: { id: ok.id } })).status,
+    ).toBe("posted");
+    expect(
+      (await prisma.incubationRecord.findUniqueOrThrow({ where: { id: bad.id } })).status,
+    ).toBe("pending");
+    expect(
+      await prisma.incubationAudit.count({
+        where: { entityId: ok.id, action: "record.auto_posted" },
+      }),
+    ).toBe(1);
+    // Running again changes nothing.
+    await api.overview(manager, programId);
+    expect(
+      await prisma.incubationAudit.count({
+        where: { entityId: ok.id, action: "record.auto_posted" },
+      }),
+    ).toBe(1);
+    // The one left behind can still be decided by staff.
+    const rejected = await send(manager, "review_late", {
+      recordId: bad.id,
+      approve: false,
+      reason: "Wrong type",
+    });
+    expect(rejected.status).toBe("rejected");
+  });
+  it("leaves a legacy pending sale pending when it would oversell", async () => {
+    const sale = await record(lead, "sale", {
+      lines: [line("1", "150")],
+      areaId: area,
+    });
+    await prisma.incubationRecord.update({
+      where: { id: sale.id },
+      data: {
+        status: "pending",
+        data: { lines: [line("999", "150")], areaId: area },
+      },
+    });
+    await api.overview(manager, programId);
+    expect(
+      (await prisma.incubationRecord.findUniqueOrThrow({ where: { id: sale.id } })).status,
+    ).toBe("pending");
+    await expect(
+      send(manager, "review_late", { recordId: sale.id, approve: true, reason: "Try" }),
+    ).rejects.toThrow(/available stock/);
+    await send(manager, "review_late", { recordId: sale.id, approve: false, reason: "Too many" });
   });
   it("keeps old values until correction approval and retains revisions", async () => {
     const original = await prisma.incubationRecord.findUniqueOrThrow({
@@ -1013,13 +1111,14 @@ describe("real migration and transactional incubation workflows", () => {
     await expect(
       api.command(manager, { action: "program", programId: pid2, payload: { ...base, startDate: "2026-02-01", status: "active" } }),
     ).rejects.toThrow(/outside the program/);
-    // A late student entry stays pending; closing with it pending needs a reason.
+    // A legacy pending entry (old approval rule); closing with it pending needs a reason.
     const late = (await api.command(target, {
       action: "record",
       programId: pid2,
       payload: { teamId: t.id, kind: "expense", date: "2026-01-10", requestKey: crypto.randomUUID(), data: { amount: "3", expenseType: "Transport", reason: "Paper log" } },
     })) as any;
-    expect(late.status).toBe("pending");
+    expect(late.status).toBe("posted");
+    await prisma.incubationRecord.update({ where: { id: late.id }, data: { status: "pending" } });
     await expect(
       api.command(manager, { action: "program", programId: pid2, payload: { ...base, startDate: "2026-01-01", status: "closed" } }),
     ).rejects.toThrow(/still need action/);
@@ -1181,16 +1280,18 @@ describe("sprint stock pooling, vouchers and correction limits", () => {
     });
     await run(manager, "record", { teamId: tA, kind: "fund", date: daysAgo(10), data: { amount: "5000" }, requestKey: crypto.randomUUID() });
   }, 60000);
-  it("approves a late sale using stock bought later in the same sprint", async () => {
-    const sale = await run(lead, "record", {
-      teamId: tA,
-      kind: "sale",
-      date: daysAgo(5),
-      data: { lines: [gl("3", "150")], areaId: where, reason: "Forgot to submit" },
-      requestKey: crypto.randomUUID(),
-    });
-    expect(sale.status).toBe("pending");
-    // The purchase is recorded afterwards, dated after the sale.
+  it("posts a late sale directly using stock bought later in the same sprint", async () => {
+    const lateSale = (q: string) =>
+      run(lead, "record", {
+        teamId: tA,
+        kind: "sale",
+        date: daysAgo(5),
+        data: { lines: [gl(q, "150")], areaId: where, reason: "Forgot to submit" },
+        requestKey: crypto.randomUUID(),
+      });
+    // Nothing bought in the sprint yet: refused straight away.
+    await expect(lateSale("3")).rejects.toThrow(/available stock/);
+    // The purchase is dated after the sale, but inside the same sprint.
     await run(manager, "record", {
       teamId: tA,
       kind: "purchase",
@@ -1198,8 +1299,9 @@ describe("sprint stock pooling, vouchers and correction limits", () => {
       data: { lines: [gl("5")], voucherId: "sv-a" },
       requestKey: crypto.randomUUID(),
     });
-    const approved = await run(manager, "review_late", { recordId: sale.id, approve: true, reason: "Checked" });
-    expect(approved.status).toBe("posted");
+    await expect(lateSale("6")).rejects.toThrow(/available stock/);
+    const sale = await lateSale("3");
+    expect(sale.status).toBe("posted");
     const b = (await api.overview(manager, pid)) as any;
     const report = buildReport(b.reportEntries, b.catalog.filter((c: any) => c.kind === "product"), b.teams, {}, b.sprints);
     expect(report.inventory.find((s) => s.teamId === tA)?.quantity).toBe(2000);
@@ -1252,5 +1354,81 @@ describe("sprint stock pooling, vouchers and correction limits", () => {
       void: false,
     });
     expect(ok.status).toBe("pending");
+  });
+});
+describe("old sprint category after the sprint has ended", () => {
+  let pid = "",
+    team = "",
+    oldItem = "",
+    newItem = "",
+    where = "";
+  const daysAgo = (n: number) =>
+    new Date(Date.parse(`${todayDhaka()}T00:00:00Z`) - n * 86400000)
+      .toISOString()
+      .slice(0, 10);
+  const run = (actor: Actor, action: string, payload: Record<string, unknown>) =>
+    api.command(actor, { action, programId: pid, payload }) as Promise<any>;
+  const entry = (kind: string, date: string, data: Record<string, unknown>) =>
+    run(lead, "record", { teamId: team, kind, date, data, requestKey: crypto.randomUUID() });
+  const buy = (productId: string, date: string, reason?: string) =>
+    entry("purchase", date, {
+      lines: [{ productId, quantity: "5", unitPrice: "100" }],
+      voucherId: "cv-a",
+      ...(reason ? { reason } : {}),
+    });
+  beforeAll(async () => {
+    pid = (
+      (await api.command(manager, {
+        action: "program",
+        payload: {
+          name: "Category lab",
+          description: "",
+          startDate: "2026-01-01",
+          endDate: null,
+          batchNames: ["Batch 1"],
+          staffIds: [],
+          settings: { ...settings, enforceCategory: true },
+          status: "active",
+        },
+      })) as any
+    ).id;
+    team = (await run(manager, "team", { name: "C-A", studentIds: ["s-lead"], leadId: "s-lead", active: true })).id;
+    const cat = async (name: string) =>
+      (await run(manager, "catalog", { kind: "category", name, parentId: null, unit: "piece", fractional: false, active: true })).id;
+    const oldCat = await cat("Old"),
+      newCat = await cat("New");
+    oldItem = (await run(manager, "catalog", { kind: "product", name: "Old item", parentId: oldCat, unit: "piece", fractional: false, active: true })).id;
+    newItem = (await run(manager, "catalog", { kind: "product", name: "New item", parentId: newCat, unit: "piece", fractional: false, active: true })).id;
+    where = (await run(manager, "catalog", { kind: "area", name: "Bazaar", parentId: null, unit: "piece", fractional: false, active: true })).id;
+    // The old sprint ended yesterday; the new one starts today.
+    await run(manager, "sprint", { teamId: team, categoryId: oldCat, startDate: daysAgo(10), endDate: daysAgo(1) });
+    await run(manager, "sprint", { teamId: team, categoryId: newCat, startDate: todayDhaka(), endDate: daysAgo(-5) });
+    await prisma.incubationAttachment.create({
+      data: { id: "cv-a", courseId: "course-a", programId: pid, teamId: team, uploadedBy: "lead", name: "v.jpg", mime: "image/jpeg", size: 100, path: "incubation/cv-a.jpg" },
+    });
+    await run(manager, "record", { teamId: team, kind: "fund", date: daysAgo(10), data: { amount: "5000" }, requestKey: crypto.randomUUID() });
+  }, 60000);
+  it("uses the category of the entry's own date, not today's", async () => {
+    // Bought on the old sprint's last day (yesterday): no reason needed, posted.
+    expect((await buy(oldItem, daysAgo(1))).status).toBe("posted");
+    // Older dates inside the old sprint: posted with a reason, refused without one.
+    await expect(buy(oldItem, daysAgo(4))).rejects.toThrow(/reason/);
+    expect((await buy(oldItem, daysAgo(4), "Paper voucher found")).status).toBe("posted");
+    // Today belongs to the new sprint, so the old category cannot be bought today…
+    await expect(buy(oldItem, todayDhaka())).rejects.toThrow(/category assigned for that date/);
+    // …and the new category cannot be bought on an old-sprint date.
+    await expect(buy(newItem, daysAgo(2))).rejects.toThrow(/category assigned for that date/);
+    expect((await buy(newItem, todayDhaka())).status).toBe("posted");
+    // Old-sprint goods can still be sold, on an old date or today.
+    const sell = (date: string, q: string, reason?: string) =>
+      entry("sale", date, {
+        lines: [{ productId: oldItem, quantity: q, unitPrice: "150" }],
+        areaId: where,
+        ...(reason ? { reason } : {}),
+      });
+    expect((await sell(daysAgo(3), "4", "Sold at the fair")).status).toBe("posted");
+    expect((await sell(todayDhaka(), "6")).status).toBe("posted");
+    // Never more than was bought.
+    await expect(sell(todayDhaka(), "1")).rejects.toThrow(/available stock/);
   });
 });
