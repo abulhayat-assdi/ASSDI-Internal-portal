@@ -297,6 +297,89 @@ async function ledger(
   }
   return { ...computed, reserved };
 }
+/** Stock each team has promised in transfers still waiting to be accepted. */
+function reservedStock(waiting: Pick<IncubationRecord, "teamId" | "data">[]) {
+  const reserved: Record<string, number> = {};
+  for (const r of waiting)
+    for (const l of (r.data as EntryData).lines || []) {
+      const key = `${r.teamId}|${l.productId}`;
+      reserved[key] = (reserved[key] || 0) + scaled(l.quantity, 3);
+    }
+  return reserved;
+}
+/**
+ * Late entries used to wait as "pending" for a teacher's approval; they are now
+ * posted directly. This posts each old pending entry, oldest first, that still
+ * passes every check (same validation and stock/cash ledger as a new entry).
+ * Any entry that would break the accounts stays pending, so staff can still
+ * approve or reject it with `review_late`. Safe to run any number of times.
+ */
+export async function postPendingLate(
+  tx: Tx,
+  actor: Actor,
+  program: IncubationProgram,
+) {
+  const pending = await tx.incubationRecord.findMany({
+    where: { programId: program.id, status: "pending" },
+    orderBy: [{ date: "asc" }, { createdAt: "asc" }],
+  });
+  if (!pending.length) return 0;
+  const [posted, waiting, products, sprints] = await Promise.all([
+    tx.incubationRecord.findMany({
+      where: { programId: program.id, status: "posted" },
+    }),
+    tx.incubationRecord.findMany({
+      where: { programId: program.id, kind: "transfer", status: "transfer_pending" },
+    }),
+    tx.incubationCatalog.findMany({
+      where: { programId: program.id, kind: "product" },
+    }),
+    stockWindows(tx, program.id),
+  ]);
+  const entries = posted.map(asEntry);
+  let count = 0;
+  for (const r of pending) {
+    const next = {
+      ...r,
+      status: r.kind === "transfer" ? "transfer_pending" : "posted",
+    };
+    try {
+      await validateData(tx, program, r);
+      const candidate =
+        next.status === "posted" ? [...entries, asEntry(next)] : entries;
+      const { stocks } = calculateLedger(candidate, products, { sprints });
+      const reserving = next.status === "posted" ? waiting : [...waiting, next];
+      if (
+        Object.entries(reservedStock(reserving)).some(
+          ([key, q]) => (stocks[key]?.quantity || 0) < q,
+        )
+      )
+        continue;
+    } catch {
+      continue; // Still not valid: leave it for staff review.
+    }
+    const done = await tx.incubationRecord.updateMany({
+      where: { id: r.id, status: "pending" },
+      data: { status: next.status },
+    });
+    if (!done.count) continue;
+    if (next.status === "posted") entries.push(asEntry(next));
+    else waiting.push(next);
+    await audit(
+      tx,
+      actor,
+      program.id,
+      "record.auto_posted",
+      r.id,
+      r,
+      next,
+      "Late entries no longer need approval; posted after passing the stock and cash checks.",
+    );
+    count++;
+  }
+  if (count) await ledger(tx, program.id);
+  return count;
+}
 function financialAccess(
   actor: Actor,
   member: { isLead: boolean; teamId: string } | null,
@@ -612,6 +695,9 @@ export async function overview(
           : [],
       };
     const { program, member } = await accessProgram(tx, actor, programId);
+    // One-time clean-up of late entries left waiting for approval under the old rule.
+    if (!member && supervisor && !isProgramLocked(program.status))
+      await postPendingLate(tx, actor, program);
     const teamWhere = member ? { teamId: member.teamId } : {};
     const [
       teams,
@@ -1541,11 +1627,14 @@ export async function command(actor: Actor, input: unknown) {
             : {}),
         }),
       });
-      const late =
+      // Entries post straight away (no teacher approval). A student entry dated
+      // before yesterday only needs a written reason; the ledger check below
+      // still refuses anything that would break stock or cash.
+      if (
         actor.role === "student" &&
         FINANCIAL_KINDS.includes(v.kind) &&
-        (isLate(v.date) || v.kind === "repayment");
-      if (late)
+        isLate(v.date)
+      )
         insist(
           (d.reason || "").trim().length >= 3,
           "Enter a reason for submitting an earlier date.",
@@ -1559,17 +1648,10 @@ export async function command(actor: Actor, input: unknown) {
           enteredBy: actor.id,
           enteredByName: actor.displayName,
           requestHash: hash,
-          status: late
-            ? "pending"
-            : v.kind === "transfer"
-              ? "transfer_pending"
-              : "posted",
+          status: v.kind === "transfer" ? "transfer_pending" : "posted",
         },
       });
-      if (record.status === "posted" || record.status === "transfer_pending")
-        await ledger(tx, pid);
-      else if (record.kind === "transfer")
-        await ledger(tx, pid, undefined, record);
+      await ledger(tx, pid);
       await audit(tx, actor, pid, "record.created", record.id, null, record);
       return record;
     }

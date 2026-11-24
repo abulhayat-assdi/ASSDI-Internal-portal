@@ -5,6 +5,7 @@ import {
   lineTotal,
   isLate,
   validDate,
+  stockShortfalls,
   type Entry,
   type Product,
 } from "./domain";
@@ -399,5 +400,42 @@ describe("sprint pooling for goods received from another team", () => {
     });
     expect(l.stocks["b|p"].quantity).toBe(3000);
     expect(l.stocks["a|p"].quantity).toBe(0);
+  });
+});
+describe("stockShortfalls (live per-line stock check in entry forms)", () => {
+  const sprints = [{ teamId: "a", startDate: "2026-11-01", endDate: "2026-11-07" }];
+  const bought = [
+    entry("fund", { amount: "10000" }, { date: "2026-11-01" }),
+    entry("purchase", { lines: [line("5")] }, { date: "2026-11-05" }),
+  ];
+  const draft = (kind: string, lines: Entry["data"]["lines"], date = "2026-11-03") =>
+    entry(kind, { lines, areaId: "x" }, { id: "draft", date });
+  it("passes lines within the sprint's stock, even dated before the purchase", () => {
+    expect(stockShortfalls(bought, products, draft("sale", [line("5")]), sprints)).toEqual([null]);
+  });
+  it("flags only the line that goes over, with what is available", () => {
+    expect(
+      stockShortfalls(bought, products, draft("sale", [line("3"), line("3")]), sprints),
+    ).toEqual([null, 5000]);
+    expect(stockShortfalls(bought, products, draft("damage", [line("6")]), sprints)).toEqual([5000]);
+  });
+  it("reports 0 for a product never bought and counts transfers waiting to be accepted", () => {
+    const other = { ...products[0], id: "q" };
+    expect(
+      stockShortfalls(bought, [...products, other], draft("sale", [{ ...line("1"), productId: "q" }]), sprints),
+    ).toEqual([0]);
+    const waiting = entry(
+      "transfer",
+      { lines: [line("4")], reason: "move" },
+      { status: "transfer_pending", targetTeamId: "b", date: "2026-11-06" },
+    );
+    expect(stockShortfalls([...bought, waiting], products, draft("sale", [line("2")]), sprints)).toEqual([1000]);
+  });
+  it("uses the dated ledger when there is no sprint (sale before the goods arrived)", () => {
+    expect(stockShortfalls(bought, products, draft("sale", [line("2")]))).toEqual([0]);
+    expect(stockShortfalls(bought, products, draft("sale", [line("2")], "2026-11-06"))).toEqual([null]);
+  });
+  it("ignores entries that do not take stock out", () => {
+    expect(stockShortfalls(bought, products, draft("purchase", [line("99")]))).toEqual([null]);
   });
 });
