@@ -5,7 +5,7 @@ import { mkdir, writeFile, unlink } from "node:fs/promises";
 import { getSessionUser } from "@/lib/auth";
 import { featureTx, accessProgram, audit, type Actor } from "@/lib/incubation/server";
 import { insist } from "@/lib/incubation/domain";
-import { isIncubationRunning, isProgramLocked, lockedMessage } from "@/lib/incubation/lifecycle";
+import { acceptsStudentEntries, isProgramLocked, lockedMessage } from "@/lib/incubation/lifecycle";
 import { failure } from "@/lib/incubation/http";
 import { verifyFileSignature } from "@/lib/uploadGuard";
 export const runtime = "nodejs";
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
       const { member, program } = await accessProgram(tx, actor, programId);
       insist(!isProgramLocked(program.status), lockedMessage(program.status), 409);
       insist(
-        actor.role !== "student" || isIncubationRunning(program),
+        actor.role !== "student" || acceptsStudentEntries(program),
         "Entries for this program are closed.",
         409,
       );

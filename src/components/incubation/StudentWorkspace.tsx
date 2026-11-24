@@ -75,7 +75,10 @@ export default function StudentWorkspace({
   const lead = !!b?.member?.isLead,
     team = b?.teams?.[0],
     own = b?.fields?.find((s: R) => s.userId === b.actor.id && !s.checkOut),
-    running = b?.state === "running";
+    // Field check-in only while the program runs; entries stay open after the end
+    // date until staff close the program.
+    fieldOpen = b?.state === "running",
+    running = fieldOpen || (b?.state === "ended" && b?.program?.status === "active");
   const summary = b?.ledger?.summaries?.[0] || {},
     products = b?.catalog?.filter((c: R) => c.kind === "product") || [],
     areas = b?.catalog?.filter((c: R) => c.kind === "area") || [];
@@ -256,6 +259,17 @@ export default function StudentWorkspace({
       {message && (
         <p role="status" className="inc-notice">
           {message}
+        </p>
+      )}
+      {b.ledgerError && (
+        <p className="inc-notice" role="alert">
+          হিসাবে একটি সমস্যা আছে, তাই স্টক ও মোট এখন দেখানো যাচ্ছে না। শিক্ষককে জানান।
+        </p>
+      )}
+      {running && !fieldOpen && (
+        <p className="inc-notice">
+          The program has ended. You can still add or fix entries dated up to{" "}
+          {b.program.endDate} until your teacher closes it.
         </p>
       )}
       {!running && (
@@ -679,7 +693,7 @@ export default function StudentWorkspace({
             </p>
             <button
               className="inc-btn primary"
-              disabled={busy || uploading || !f.areaId || (!own && !running)}
+              disabled={busy || uploading || !f.areaId || (!own && !fieldOpen)}
               onClick={() => onField(own ? "checkout" : "checkin")}
             >
               {busy

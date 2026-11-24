@@ -81,3 +81,11 @@ export function incubationState(
 export function isIncubationRunning(p: Parameters<typeof incubationState>[0]) {
   return incubationState(p) === "running";
 }
+/**
+ * Students may add or fix entries while the program runs, and also after its end
+ * date until staff close it (entries must still be dated within the program).
+ */
+export function acceptsStudentEntries(p: Parameters<typeof incubationState>[0]) {
+  const state = incubationState(p);
+  return state === "running" || (state === "ended" && p.status === "active");
+}

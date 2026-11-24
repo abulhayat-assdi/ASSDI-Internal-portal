@@ -1636,3 +1636,77 @@ describe("old sprint category after the sprint has ended", () => {
     await expect(sell(todayDhaka(), "1")).rejects.toThrow(/available stock/);
   });
 });
+describe("audit follow-ups: sprint edits, ledger banner, end-date grace", () => {
+  let pid = "",
+    team = "",
+    item = "",
+    where = "";
+  const daysAgo = (n: number) =>
+    new Date(Date.parse(`${todayDhaka()}T00:00:00Z`) - n * 86400000)
+      .toISOString()
+      .slice(0, 10);
+  const run = (actor: Actor, action: string, payload: Record<string, unknown>) =>
+    api.command(actor, { action, programId: pid, payload }) as Promise<any>;
+  beforeAll(async () => {
+    pid = (
+      (await api.command(manager, {
+        action: "program",
+        payload: {
+          name: "Audit lab",
+          description: "",
+          startDate: daysAgo(20),
+          endDate: daysAgo(2),
+          batchNames: ["Batch 1"],
+          staffIds: [],
+          settings,
+          status: "active",
+        },
+      })) as any
+    ).id;
+    team = (await run(manager, "team", { name: "AU-A", studentIds: ["s-lead"], leadId: "s-lead", active: true })).id;
+    const cat = (await run(manager, "catalog", { kind: "category", name: "Cat", parentId: null, unit: "piece", fractional: false, active: true })).id;
+    item = (await run(manager, "catalog", { kind: "product", name: "Thing", parentId: cat, unit: "piece", fractional: false, active: true })).id;
+    where = (await run(manager, "catalog", { kind: "area", name: "Hat", parentId: null, unit: "piece", fractional: false, active: true })).id;
+    await prisma.incubationAttachment.create({
+      data: { id: "au-v", courseId: "course-a", programId: pid, teamId: team, uploadedBy: "lead", name: "v.jpg", mime: "image/jpeg", size: 100, path: "incubation/au-v.jpg" },
+    });
+    await run(manager, "record", { teamId: team, kind: "fund", date: daysAgo(20), data: { amount: "5000" }, requestKey: crypto.randomUUID() });
+  }, 60000);
+  it("lets students add entries dated within the program after its end date while still active", async () => {
+    const r = await run(lead, "record", {
+      teamId: team,
+      kind: "purchase",
+      date: daysAgo(3),
+      data: { lines: [{ productId: item, quantity: "5", unitPrice: "100" }], voucherId: "au-v", reason: "Entered after the last day" },
+      requestKey: crypto.randomUUID(),
+    });
+    expect(r.status).toBe("posted");
+    // Dates after the end date are still refused.
+    await expect(
+      run(lead, "record", {
+        teamId: team,
+        kind: "purchase",
+        date: daysAgo(1),
+        data: { lines: [{ productId: item, quantity: "1", unitPrice: "100" }], voucherId: "au-v" },
+        requestKey: crypto.randomUUID(),
+      }),
+    ).rejects.toThrow(/program period/);
+  });
+  it("refuses a sprint edit that would break posted sales", async () => {
+    const cat = (await prisma.incubationCatalog.findFirst({ where: { id: item } }))!.parentId!;
+    const sprint = await run(manager, "sprint", { teamId: team, categoryId: cat, startDate: daysAgo(10), endDate: daysAgo(2) });
+    // Sale dated 9 days ago relies on the purchase 3 days ago counting from sprint start.
+    await run(manager, "record", {
+      teamId: team,
+      kind: "sale",
+      date: daysAgo(9),
+      data: { lines: [{ productId: item, quantity: "2", unitPrice: "150" }], areaId: where },
+      requestKey: crypto.randomUUID(),
+    });
+    await expect(
+      run(manager, "sprint", { id: sprint.id, teamId: team, categoryId: cat, startDate: daysAgo(8), endDate: daysAgo(2) }),
+    ).rejects.toThrow();
+    const still = await prisma.incubationSprint.findFirst({ where: { id: sprint.id } });
+    expect(still!.startDate).toBe(daysAgo(10));
+  });
+});
