@@ -5,6 +5,7 @@ import ResultsCard from "./ResultsCard";
 import { STATUS_LABELS } from "@/lib/incubation/lifecycle";
 import NotificationBell from "./NotificationBell";
 import ErrorText from "./ErrorText";
+import FilePicker from "./FilePicker";
 import { useState, useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import {
@@ -97,6 +98,9 @@ export default function StudentWorkspace({
     (["fgd", "insight"].includes(r.kind)
       ? r.enteredBy === b.actor.id
       : lead && r.kind !== "fund");
+  // FGD / insight have no money effect: their author edits them directly.
+  const editLabel = (r: R) =>
+    ["fgd", "insight"].includes(r.kind) ? "Edit" : "Correction request";
   const records = (b?.records || []).filter(
     (r: R) => (!from || r.date >= from) && (!to || r.date <= to),
   );
@@ -495,7 +499,7 @@ export default function StudentWorkspace({
                       <td>
                         {canCorrect(r) && (
                           <button className="inc-btn" onClick={() => onEdit(r)}>
-                            Correction request
+                            {editLabel(r)}
                           </button>
                         )}
                       </td>
@@ -648,12 +652,13 @@ export default function StudentWorkspace({
                 </label>
                 <label className="inc-field">
                   Pedometer proof
-                  <input
-                    type="file"
+                  <FilePicker
                     accept="image/*,application/pdf"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
+                    label="Select photo or PDF"
+                    uploading={uploading}
+                    uploaded={!!f.proofId}
+                    onRemove={() => setF((x: R) => ({ ...x, proofId: undefined }))}
+                    onSelect={async (file) => {
                       setUploading(true);
                       try {
                         const a = await onUpload(file, b.member.teamId);
@@ -842,7 +847,7 @@ export default function StudentWorkspace({
                   )}
                   {canCorrect(r) && (
                     <button className="inc-btn" onClick={() => onEdit(r)}>
-                      Correction request
+                      Edit
                     </button>
                   )}
                 </article>
@@ -930,7 +935,7 @@ export default function StudentWorkspace({
               </p>
               {canCorrect(r) && (
                 <button className="inc-btn" onClick={() => onEdit(r)}>
-                  Correction request
+                  {editLabel(r)}
                 </button>
               )}
             </div>

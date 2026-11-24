@@ -192,8 +192,8 @@ export default function DataSheetManager({
         return [
           teamCol,
           dateCol,
-          ...[1, 2, 3].map((i) => ({ key: `f${i}`, label: `Finding ${i}`, type: "text" as const, width: 220, recordLevel: true, required: i <= (settings.fgdRequiredCount || 1) })),
-          ...[1, 2, 3].map((i) => ({ key: `a${i}`, label: `Action ${i}`, type: "text" as const, width: 220, recordLevel: true, required: i <= (settings.fgdRequiredCount || 1) })),
+          ...[1, 2, 3].map((i) => ({ key: `f${i}`, label: `Finding ${i}`, type: "text" as const, width: 220, recordLevel: true, required: false })),
+          ...[1, 2, 3].map((i) => ({ key: `a${i}`, label: `Action ${i}`, type: "text" as const, width: 220, recordLevel: true, required: false })),
         ];
       return [
         teamCol,

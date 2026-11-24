@@ -1254,3 +1254,96 @@ describe("sprint stock pooling, vouchers and correction limits", () => {
     expect(ok.status).toBe("pending");
   });
 });
+describe("FGD lines and direct edits", () => {
+  let pid = "",
+    tA = "";
+  const run = (actor: Actor, action: string, payload: Record<string, unknown>) =>
+    api.command(actor, { action, programId: pid, payload }) as Promise<any>;
+  const fgd = (actor: Actor, data: Record<string, unknown>) =>
+    run(actor, "record", {
+      teamId: tA,
+      kind: "fgd",
+      date: todayDhaka(),
+      data,
+      requestKey: crypto.randomUUID(),
+    });
+  beforeAll(async () => {
+    pid = (
+      (await api.command(manager, {
+        action: "program",
+        payload: {
+          name: "FGD lab",
+          description: "",
+          startDate: "2026-01-01",
+          endDate: null,
+          batchNames: ["Batch 1"],
+          staffIds: [],
+          // An old program that still asks for 3 lines: no longer enforced.
+          settings: { ...settings, fgdRequiredCount: 3 },
+          status: "active",
+        },
+      })) as any
+    ).id;
+    tA = (await run(manager, "team", { name: "F-A", studentIds: ["s-lead", "s-member"], leadId: "s-lead", active: true })).id;
+  }, 60000);
+  it("refuses an FGD with no finding or action at all", async () => {
+    await expect(fgd(member, { findings: ["", "  "], actions: [""] })).rejects.toThrow(
+      /at least one finding or next action/,
+    );
+    await expect(fgd(member, {})).rejects.toThrow(/at least one finding or next action/);
+  });
+  it("accepts a single line and drops the blank ones", async () => {
+    const r = await fgd(member, { findings: ["", "Price matters", ""], actions: [] });
+    expect(r.status).toBe("posted");
+    expect(r.data.findings).toEqual(["Price matters"]);
+    expect(r.data.actions).toEqual([]);
+    const onlyAction = await fgd(member, { actions: ["Offer a combo"] });
+    expect(onlyAction.data.actions).toEqual(["Offer a combo"]);
+  });
+  it("accepts many lines, up to the cap", async () => {
+    const many = Array.from({ length: 12 }, (_, i) => `Finding ${i + 1}`);
+    const r = await fgd(member, { findings: many, actions: many.slice(0, 7) });
+    expect(r.data.findings).toHaveLength(12);
+    expect(r.data.actions).toHaveLength(7);
+    await expect(
+      fgd(member, { findings: Array.from({ length: 51 }, (_, i) => `F${i}`) }),
+    ).rejects.toThrow();
+  });
+  it("lets the author edit an FGD directly without a correction request", async () => {
+    const r = await fgd(member, { findings: ["First"], actions: ["Act"] });
+    const changed = await run(member, "correct", {
+      recordId: r.id,
+      version: 1,
+      date: r.date,
+      data: { findings: ["First", "Second"], actions: ["Act", ""] },
+      void: false,
+    });
+    expect(changed.status).toBe("posted");
+    expect(changed.version).toBe(2);
+    expect(changed.data).toMatchObject({ findings: ["First", "Second"], actions: ["Act"] });
+    expect(await prisma.incubationCorrection.count({ where: { recordId: r.id } })).toBe(0);
+    expect(
+      await prisma.incubationAudit.count({ where: { entityId: r.id, action: "record.edited" } }),
+    ).toBe(1);
+    // Another student (even the team lead) cannot edit someone else's FGD.
+    await expect(
+      run(lead, "correct", {
+        recordId: r.id,
+        version: 2,
+        date: r.date,
+        data: { findings: ["Hijack"] },
+        void: false,
+      }),
+    ).rejects.toThrow(/only correct your own entries/);
+    // Editing an FGD down to nothing is refused too.
+    await expect(
+      run(member, "correct", {
+        recordId: r.id,
+        version: 2,
+        date: r.date,
+        data: { findings: [""], actions: [] },
+        void: false,
+      }),
+    ).rejects.toThrow(/at least one finding or next action/);
+  });
+});
