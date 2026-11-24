@@ -28,6 +28,7 @@ import { groupKey } from "./catalog";
 import { autoCheckoutStale } from "./auto-checkout";
 import {
   calculateLedger,
+  explainStockError,
   decimal,
   FINANCIAL_KINDS,
   insist,
@@ -1975,7 +1976,9 @@ export async function command(actor: Actor, input: unknown) {
         });
         try {
           await ledger(tx, pid);
-        } catch (e) {
+        } catch (raw) {
+          // Say so when the entry that goes short is a later one, not this one.
+          const e = explainStockError(raw, [req.recordId]);
           if (e instanceof IncubationError && e.details?.code === "stock_short")
             throw new IncubationError(
               `Approving this correction would break stock: ${e.message}`,
