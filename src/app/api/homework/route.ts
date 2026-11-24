@@ -4,6 +4,7 @@ import { getSessionUser, isTeacherOrAdmin } from "@/lib/auth";
 import { logHomeworkActivity } from "@/lib/homeworkLog";
 import { logActivity } from "@/lib/activityLog";
 import { formatDeadline, isHomeworkClosed } from "@/lib/homeworkDeadline";
+import { hideUnreturnedGrade } from "@/lib/homeworkGrading";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -28,6 +29,49 @@ export async function GET(req: NextRequest) {
 
     if (all && !isTeacherOrAdmin(user)) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    // A student only ever reads their own submissions — whatever filter they
+    // send — and sees marks/feedback only after the teacher returns the work.
+    if (!isTeacherOrAdmin(user)) {
+        try {
+            const result = await withCourseContext({ courseId, isSuperAdmin: false }, async (tx) => {
+                const own = await tx.homeworkSubmission.findMany({
+                    where: { courseId, deletedAt: null, studentUid: user.id },
+                    orderBy: { submittedAt: "desc" },
+                });
+                const assignmentIds = [...new Set(own.map((s) => s.assignmentId).filter((id): id is string => !!id))];
+                const assignments = assignmentIds.length
+                    ? await tx.homeworkAssignment.findMany({
+                        where: { courseId, id: { in: assignmentIds } },
+                        select: { id: true, marksEnabled: true, totalMarks: true },
+                    })
+                    : [];
+                const byId = new Map(assignments.map((a) => [a.id, a]));
+                const commentCounts = own.length
+                    ? await tx.homeworkComment.groupBy({
+                        by: ["submissionId"],
+                        where: { courseId, submissionId: { in: own.map((s) => s.id) } },
+                        _count: { _all: true },
+                    })
+                    : [];
+                const countById = new Map(commentCounts.map((c) => [c.submissionId, c._count._all]));
+                return own.map((s) => {
+                    const a = s.assignmentId ? byId.get(s.assignmentId) : undefined;
+                    const marksEnabled = !!a?.marksEnabled && !!a.totalMarks;
+                    return hideUnreturnedGrade({
+                        ...s,
+                        marksEnabled,
+                        totalMarks: marksEnabled ? a!.totalMarks : null,
+                        commentCount: countById.get(s.id) ?? 0,
+                    });
+                });
+            });
+            return NextResponse.json(result);
+        } catch (error) {
+            console.error("[Homework GET student]", error);
+            return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+        }
     }
 
     try {
@@ -101,7 +145,6 @@ export async function POST(req: NextRequest) {
     if (!user || !user.courseId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const courseId = user.courseId;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let body: any;
     try {
         body = await req.json();

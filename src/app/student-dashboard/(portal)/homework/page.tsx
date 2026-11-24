@@ -13,6 +13,8 @@ import {
     HomeworkAssignment
 } from "@/services/homeworkService";
 import { formatDeadline } from "@/lib/homeworkDeadline";
+import { formatMarks } from "@/lib/homeworkGrading";
+import HomeworkCommentThread from "@/components/homework/HomeworkCommentThread";
 
 export default function HomeworkSubmissionPage() {
     const { user, userProfile, loading: authLoading } = useAuth();
@@ -46,6 +48,8 @@ export default function HomeworkSubmissionPage() {
     // History
     const [mySubmissions, setMySubmissions] = useState<HomeworkSubmission[]>([]);
     const [loadingHistory, setLoadingHistory] = useState(true);
+    const [openThreadId, setOpenThreadId] = useState<string | null>(null);
+    const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
 
     const MAX_TOTAL_SIZE_MB = 50;
     const MAX_TOTAL_BYTES = MAX_TOTAL_SIZE_MB * 1024 * 1024;
@@ -420,7 +424,7 @@ export default function HomeworkSubmissionPage() {
                                         ref={fileInputRef}
                                         onChange={handleFileChange}
                                         multiple
-                                        accept=".jpg,.jpeg,.png,.gif,.webp,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.html,.htm,.zip,.csv,.txt,.md,.markdown"
+                                        accept=".jpg,.jpeg,.png,.gif,.webp,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.html,.htm,.zip,.csv,.txt,.md,.markdown,.mp4,.mp3"
                                         className="hidden"
                                     />
                                     <div className="flex flex-col items-center gap-2 pointer-events-none">
@@ -439,7 +443,7 @@ export default function HomeworkSubmissionPage() {
                                                 একাধিক ফাইল সিলেক্ট করা যাবে · সর্বোচ্চ {MAX_TOTAL_SIZE_MB}MB
                                             </p>
                                             <p className="text-xs text-gray-400 mt-0.5">
-                                                ছবি, PDF, Word, Excel, PowerPoint, HTML, SVG, ZIP, Markdown (.md)
+                                                ছবি, PDF, Word, Excel, PowerPoint, HTML, SVG, ZIP, Markdown (.md), ভিডিও (.mp4), অডিও (.mp3)
                                             </p>
                                         </div>
                                     </div>
@@ -625,6 +629,45 @@ export default function HomeworkSubmissionPage() {
                                                 <p className="mt-2 text-xs text-gray-600 bg-white px-3 py-2 rounded-lg border border-gray-100 line-clamp-3">
                                                     {hw.textContent}
                                                 </p>
+                                            )}
+
+                                            {/* Grade & feedback — visible once the teacher returns it */}
+                                            {hw.returnedAt ? (
+                                                <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50/70 px-3 py-2.5">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <span className="text-xs font-bold text-emerald-800">✅ চেক করা হয়েছে</span>
+                                                        {hw.marksEnabled && hw.marks !== null && hw.marks !== undefined && (
+                                                            <span className="text-sm font-black text-emerald-700 bg-white px-2.5 py-0.5 rounded-full border border-emerald-200">
+                                                                {formatMarks(hw.marks)} / {formatMarks(hw.totalMarks)}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {hw.feedback && (
+                                                        <p className="mt-1.5 text-xs text-gray-700 whitespace-pre-wrap">
+                                                            <span className="font-semibold text-gray-800">Feedback:</span> {hw.feedback}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            ) : hw.marksEnabled ? (
+                                                <p className="mt-2 text-[11px] text-gray-400">⏳ এখনো চেক করা হয়নি{hw.totalMarks ? ` (মোট ${formatMarks(hw.totalMarks)} মার্কস)` : ""}</p>
+                                            ) : null}
+
+                                            <button
+                                                type="button"
+                                                onClick={() => setOpenThreadId(openThreadId === hw.id ? null : hw.id)}
+                                                className="mt-2 text-xs font-bold text-blue-600 hover:underline"
+                                            >
+                                                💬 Private comments{(commentCounts[hw.id] ?? hw.commentCount) ? ` (${commentCounts[hw.id] ?? hw.commentCount})` : ""} {openThreadId === hw.id ? "▴" : "▾"}
+                                            </button>
+                                            {openThreadId === hw.id && (
+                                                <div className="mt-2 bg-white rounded-xl border border-gray-100 p-3">
+                                                    <HomeworkCommentThread
+                                                        submissionId={hw.id}
+                                                        viewerUid={userProfile?.uid}
+                                                        compact
+                                                        onCount={(n) => setCommentCounts(prev => ({ ...prev, [hw.id]: n }))}
+                                                    />
+                                                </div>
                                             )}
                                         </div>
                                     );

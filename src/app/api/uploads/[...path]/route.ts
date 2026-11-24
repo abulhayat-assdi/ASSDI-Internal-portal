@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import path from "path";
-import { createReadStream } from "fs";
 import { getSessionUser } from "@/lib/auth";
 import {
     authorizeFileRead,
@@ -9,6 +8,7 @@ import {
     resolveStoredFile,
     servingHeadersFor,
 } from "@/lib/fileAccess";
+import { streamFileResponse } from "@/lib/fileStream";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -53,21 +53,15 @@ export async function GET(
     // Streamed, not readFileSync. This route serves every image and document
     // in the portal; reading them synchronously blocked the single Node event
     // loop for the whole read, so concurrent requests queued behind each
-    // other instead of being served in parallel.
-    const stream = createReadStream(file.absolutePath);
-
-    return new Response(stream as unknown as ReadableStream, {
-        status: 200,
-        headers: {
-            ...servingHeadersFor(file.absolutePath, relPath),
-            "Content-Length": String(file.size),
-            "Content-Disposition": `inline; filename="${encodeURIComponent(fileName)}"`,
-            // Private files must never be cached by a shared proxy — two
-            // students behind one school NAT would otherwise swap documents.
-            "Cache-Control": decision.isPublic
-                ? "public, max-age=31536000, immutable"
-                : "private, no-store",
-            "X-Content-Type-Options": "nosniff",
-        },
+    // other instead of being served in parallel. Range-aware so videos seek.
+    return streamFileResponse(req.headers.get("range"), file.absolutePath, file.size, {
+        ...servingHeadersFor(file.absolutePath, relPath),
+        "Content-Disposition": `inline; filename="${encodeURIComponent(fileName)}"`,
+        // Private files must never be cached by a shared proxy — two
+        // students behind one school NAT would otherwise swap documents.
+        "Cache-Control": decision.isPublic
+            ? "public, max-age=31536000, immutable"
+            : "private, no-store",
+        "X-Content-Type-Options": "nosniff",
     });
 }

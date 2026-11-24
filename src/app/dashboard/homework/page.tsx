@@ -19,11 +19,55 @@ import {
     unshareAssignment,
     getShareableTeachers,
     getSubmissionsByAssignment,
-    ShareableTeacher
+    ShareableTeacher,
+    returnAllGraded,
+    HomeworkApiError,
 } from "@/services/homeworkService";
 import { formatDeadline } from "@/lib/homeworkDeadline";
 import { formatHomeworkSubmittedAt as formatSubmittedAt } from "@/lib/homeworkExport";
 import HomeworkDownload from "@/components/homework/HomeworkDownload";
+import HomeworkReviewWindow from "@/components/homework/HomeworkReviewWindow";
+import { exportRowsToXlsx } from "@/lib/exportRows";
+import {
+    buildMarksExportRows,
+    compareRoll,
+    formatMarks,
+    gradeStatus,
+    isGraded,
+    MARKS_EXPORT_COLUMNS,
+    parseTotalMarks,
+} from "@/lib/homeworkGrading";
+
+/** Marks on/off + total, shared by the Create and Edit forms. */
+function MarksFields({
+    enabled, total, onEnabled, onTotal, note,
+}: { enabled: boolean; total: string; onEnabled: (v: boolean) => void; onTotal: (v: string) => void; note?: string }) {
+    const check = enabled ? parseTotalMarks(total) : null;
+    return (
+        <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-3 space-y-2">
+            <label className="flex items-center gap-2.5 cursor-pointer">
+                <input type="checkbox" checked={enabled} onChange={(e) => onEnabled(e.target.checked)} className="w-4 h-4 accent-emerald-600" />
+                <span className="text-sm font-semibold text-gray-700">এই অ্যাসাইনমেন্টে মার্কস দেওয়া হবে</span>
+            </label>
+            {enabled && (
+                <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">মোট মার্কস (কত মার্কসের মধ্যে) <span className="text-red-500">*</span></label>
+                    <input
+                        type="text"
+                        inputMode="decimal"
+                        required
+                        value={total}
+                        onChange={(e) => onTotal(e.target.value.replace(/[^\d.]/g, ""))}
+                        placeholder="যেমন 20, 30, 100"
+                        className={`w-40 px-3 py-2 border rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none ${check && !check.ok && total ? "border-red-400" : "border-gray-300"}`}
+                    />
+                    {check && !check.ok && total && <p className="text-xs text-red-600 mt-1">{check.error}</p>}
+                </div>
+            )}
+            {note && <p className="text-[11px] text-gray-500">{note}</p>}
+        </div>
+    );
+}
 import { getAllBatchInfo, getPublicUniqueBatches } from "@/services/batchInfoService";
 
 // Open folder lives in the URL (?folder=<assignmentId>|other) so a browser
@@ -58,12 +102,16 @@ export default function HomeworkViewPage() {
     const [assignmentBatch, setAssignmentBatch] = useState("all");
     const [assignmentDeadline, setAssignmentDeadline] = useState("");
     const [assignmentDeadlineTime, setAssignmentDeadlineTime] = useState("");
+    const [assignmentMarksEnabled, setAssignmentMarksEnabled] = useState(false);
+    const [assignmentTotalMarks, setAssignmentTotalMarks] = useState("");
+    const [createError, setCreateError] = useState("");
     const [isSubmittingAssignment, setIsSubmittingAssignment] = useState(false);
 
     // View States
     const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
     const [refreshing, setRefreshing] = useState(false);
-    const [viewingSubmission, setViewingSubmission] = useState<HomeworkSubmission | null>(null);
+    const [reviewId, setReviewId] = useState<string | null>(null);
+    const [returningAll, setReturningAll] = useState(false);
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [cleanupCount, setCleanupCount] = useState(0);
 
@@ -75,6 +123,9 @@ export default function HomeworkViewPage() {
     const [editBatch, setEditBatch] = useState("");
     const [editDeadline, setEditDeadline] = useState("");
     const [editDeadlineTime, setEditDeadlineTime] = useState("");
+    const [editMarksEnabled, setEditMarksEnabled] = useState(false);
+    const [editTotalMarks, setEditTotalMarks] = useState("");
+    const [editError, setEditError] = useState("");
     const [isSavingEdit, setIsSavingEdit] = useState(false);
 
     // Search within folder
@@ -206,6 +257,13 @@ export default function HomeworkViewPage() {
     const handleCreateAssignment = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!userProfile) return;
+        let totalMarks: number | null = null;
+        if (assignmentMarksEnabled) {
+            const parsed = parseTotalMarks(assignmentTotalMarks);
+            if (!parsed.ok) { setCreateError(parsed.error); return; }
+            totalMarks = parsed.value;
+        }
+        setCreateError("");
         setIsSubmittingAssignment(true);
         try {
             await createHomeworkAssignment({
@@ -215,16 +273,20 @@ export default function HomeworkViewPage() {
                 batchName: assignmentBatch,
                 deadlineDate: assignmentDeadline,
                 deadlineTime: assignmentDeadlineTime || null,
+                marksEnabled: assignmentMarksEnabled,
+                totalMarks,
             });
             setIsCreatingAssignment(false);
             setAssignmentTitle("");
             setAssignmentBatch("all");
             setAssignmentDeadline("");
             setAssignmentDeadlineTime("");
+            setAssignmentMarksEnabled(false);
+            setAssignmentTotalMarks("");
             fetchData(); // Reload assignments
         } catch (err) {
             console.error(err);
-            alert("Failed to create assignment");
+            setCreateError(err instanceof Error ? err.message : "Failed to create assignment");
         } finally {
             setIsSubmittingAssignment(false);
         }
@@ -268,7 +330,7 @@ export default function HomeworkViewPage() {
             const paths = hw.files ? hw.files.map(f => f.storagePath) : (hw.storagePath ? [hw.storagePath] : []);
             await deleteHomework(hw.id, paths);
             setHomework(prev => prev.filter(h => h.id !== hw.id));
-            if (viewingSubmission?.id === hw.id) setViewingSubmission(null);
+            if (reviewId === hw.id) setReviewId(null);
         } catch (err) {
             console.error("Delete failed:", err);
             alert("Failed to delete homework.");
@@ -283,11 +345,21 @@ export default function HomeworkViewPage() {
         setEditBatch(a.batchName);
         setEditDeadline(a.deadlineDate);
         setEditDeadlineTime(a.deadlineTime || "");
+        setEditMarksEnabled(!!a.marksEnabled);
+        setEditTotalMarks(a.totalMarks ? formatMarks(a.totalMarks) : "");
+        setEditError("");
     };
 
     const handleSaveEdit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!assignmentToEdit) return;
+        let totalMarks: number | null = null;
+        if (editMarksEnabled) {
+            const parsed = parseTotalMarks(editTotalMarks);
+            if (!parsed.ok) { setEditError(parsed.error); return; }
+            totalMarks = parsed.value;
+        }
+        setEditError("");
         setIsSavingEdit(true);
         try {
             await updateHomeworkAssignment(assignmentToEdit.id, {
@@ -295,12 +367,21 @@ export default function HomeworkViewPage() {
                 batchName: editBatch,
                 deadlineDate: editDeadline,
                 deadlineTime: editDeadlineTime || null,
+                marksEnabled: editMarksEnabled,
+                ...(editMarksEnabled ? { totalMarks } : {}),
             });
             fetchData();
             setAssignmentToEdit(null);
         } catch (err) {
             console.error(err);
-            alert("Failed to update assignment.");
+            if (err instanceof HomeworkApiError && Array.isArray(err.data?.overStudents)) {
+                const names = (err.data.overStudents as { name: string; roll: string; marks: number }[])
+                    .map(s => `${s.name} (রোল ${s.roll}): ${formatMarks(s.marks)}`)
+                    .join(", ");
+                setEditError(`${err.message} — ${names}`);
+            } else {
+                setEditError(err instanceof Error ? err.message : "Failed to update assignment.");
+            }
         } finally {
             setIsSavingEdit(false);
         }
@@ -413,6 +494,55 @@ export default function HomeworkViewPage() {
             hw.studentRoll?.toLowerCase().includes(searchQueryTrimmed)
         )
         : folderSubmissionsList;
+
+    // ─── Grading ───
+    const folderAssignment: HomeworkAssignment | null =
+        selectedFolder && selectedFolder !== "other" ? selectedFolder : null;
+    const folderMarksEnabled = !!folderAssignment?.marksEnabled && !!folderAssignment.totalMarks;
+    // Shared folders are view-only; "Other" holds submissions addressed to me by name.
+    const folderCanGrade = selectedFolder === "other" || (!!folderAssignment && !folderAssignment.isSharedWithMe);
+    // The review window walks students in roll order, like a register.
+    const reviewList = [...activeSubmissionsList].sort((a, b) =>
+        a.studentBatchName.localeCompare(b.studentBatchName) || compareRoll(a.studentRoll, b.studentRoll));
+    const folderGradedCount = folderSubmissionsList.filter(h => gradeStatus(h, folderMarksEnabled) !== "not_graded").length;
+    const folderReadyToReturn = folderSubmissionsList.filter(h => !h.returnedAt && isGraded(h, folderMarksEnabled)).length;
+
+    const handleSubmissionUpdated = useCallback((updated: HomeworkSubmission) => {
+        setHomework(prev => prev.map(h => (h.id === updated.id ? { ...h, ...updated } : h)));
+    }, []);
+
+    const handleExportMarks = async () => {
+        if (!folderAssignment || !folderMarksEnabled) return;
+        const rows = buildMarksExportRows(folderAssignment.title, folderAssignment.totalMarks!, folderSubmissionsList);
+        if (!rows.length) { alert("এই ফোল্ডারে কোনো জমা নেই।"); return; }
+        await exportRowsToXlsx({
+            fileName: `marks-${folderAssignment.title}`.replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_").slice(0, 80),
+            sheetName: "Marks",
+            rows,
+            columns: MARKS_EXPORT_COLUMNS,
+        });
+    };
+
+    const handleReturnAll = async () => {
+        if (!folderAssignment) return;
+        const ok = await confirm({
+            title: "সবাইকে Return করবেন?",
+            message: `${folderReadyToReturn} জন স্টুডেন্টের গ্রেড করা কাজ Return হবে — তারা মার্কস ও ফিডব্যাক দেখতে পাবে।`,
+            confirmText: "Return all",
+            variant: "info",
+        });
+        if (!ok) return;
+        setReturningAll(true);
+        try {
+            const res = await returnAllGraded(folderAssignment.id);
+            const ids = new Set(res.ids);
+            setHomework(prev => prev.map(h => (ids.has(h.id) ? { ...h, returnedAt: res.returnedAt } : h)));
+        } catch (err) {
+            alert(err instanceof Error ? err.message : "Failed to return.");
+        } finally {
+            setReturningAll(false);
+        }
+    };
 
     if (authLoading || loading) {
         return (
@@ -587,6 +717,14 @@ export default function HomeworkViewPage() {
                                                     <span className="text-gray-500">Deadline:</span>
                                                     <span className="font-bold text-red-600">{formatDeadline(a.deadlineDate, a.deadlineTime)}</span>
                                                 </div>
+                                                <div className="flex justify-between w-full">
+                                                    <span className="text-gray-500">Marks:</span>
+                                                    {a.marksEnabled && a.totalMarks ? (
+                                                        <span className="font-bold text-indigo-700">{formatMarks(a.totalMarks)} মার্কস</span>
+                                                    ) : (
+                                                        <span className="text-gray-400">নেই</span>
+                                                    )}
+                                                </div>
                                                 <div className="flex justify-between w-full mt-1.5 pt-1.5 border-t border-gray-100/50">
                                                     <span className="text-gray-600 font-medium">Submissions:</span>
                                                     <span className="font-black text-emerald-600 text-sm bg-emerald-100 px-2 rounded-full">{subs.length}</span>
@@ -678,6 +816,10 @@ export default function HomeworkViewPage() {
                                     <span>Target Batch: <strong className="text-emerald-100">{selectedFolder.batchName === "all" ? "All Batches" : selectedFolder.batchName}</strong></span>
                                     <span className="hidden sm:inline opacity-50">|</span>
                                     <span>Deadline: <strong className="text-emerald-100">{formatDeadline(selectedFolder.deadlineDate, selectedFolder.deadlineTime)}</strong></span>
+                                    <span className="hidden sm:inline opacity-50">|</span>
+                                    <span>Marks: <strong className="text-emerald-100">{folderMarksEnabled ? `${formatMarks(selectedFolder.totalMarks)}` : "নেই"}</strong></span>
+                                    <span className="hidden sm:inline opacity-50">|</span>
+                                    <span>Graded: <strong className="text-emerald-100">{folderGradedCount}/{folderSubmissionsList.length}</strong></span>
                                 </div>
                             )}
                             <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -699,6 +841,31 @@ export default function HomeworkViewPage() {
                                     title={selectedFolder === "other" ? "Other Submissions" : selectedFolder.title}
                                     submissions={activeSubmissionsList}
                                 />
+                                {reviewList.length > 0 && (
+                                    <button
+                                        onClick={() => setReviewId(reviewList[0].id)}
+                                        className="px-3 py-1 bg-white text-emerald-800 hover:bg-emerald-50 font-bold rounded-lg text-sm shadow-sm"
+                                    >
+                                        ✍️ Review & Grade
+                                    </button>
+                                )}
+                                {folderMarksEnabled && folderSubmissionsList.length > 0 && (
+                                    <button
+                                        onClick={handleExportMarks}
+                                        className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 border border-white/30 text-white font-bold rounded-lg text-sm shadow-sm"
+                                    >
+                                        📊 Export Marks
+                                    </button>
+                                )}
+                                {folderCanGrade && folderAssignment && folderReadyToReturn > 0 && (
+                                    <button
+                                        onClick={handleReturnAll}
+                                        disabled={returningAll}
+                                        className="px-3 py-1 bg-blue-600 hover:bg-blue-700 border border-white/30 text-white font-bold rounded-lg text-sm shadow-sm disabled:opacity-60"
+                                    >
+                                        {returningAll ? "Returning…" : `↩ Return all graded (${folderReadyToReturn})`}
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -781,6 +948,16 @@ export default function HomeworkViewPage() {
                                     <div className="p-5 flex-1 flex flex-col min-w-0">
                                         <div className="flex items-start justify-between gap-2 mb-3">
                                             <p className="text-xs text-gray-400 font-medium">Submitted: {formatSubmittedAt(hw)}</p>
+                                            {(() => {
+                                                const st = gradeStatus(hw, folderMarksEnabled);
+                                                const m = folderMarksEnabled && hw.marks !== null && hw.marks !== undefined
+                                                    ? `${formatMarks(hw.marks)}/${formatMarks(folderAssignment?.totalMarks)}` : null;
+                                                return (
+                                                    <span className={`shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-full ${st === "returned" ? "bg-emerald-100 text-emerald-700" : st === "graded" ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500"}`}>
+                                                        {st === "returned" ? `${m ?? "Feedback"} · Returned` : st === "graded" ? `${m ?? "Feedback"} · Draft` : "Not graded"}
+                                                    </span>
+                                                );
+                                            })()}
                                         </div>
 
                                         {/* File attachments (multi-file support) */}
@@ -847,10 +1024,10 @@ export default function HomeworkViewPage() {
                                                 </button>
                                             )}
                                             <button
-                                                onClick={() => setViewingSubmission(hw)}
+                                                onClick={() => setReviewId(hw.id)}
                                                 className="text-sm font-bold text-white bg-[#059669] hover:bg-[#047857] px-4 py-1.5 rounded-lg transition-colors shadow-sm whitespace-nowrap"
                                             >
-                                                View Details  ↗
+                                                {folderCanGrade ? "Review & Grade ↗" : "View ↗"}
                                             </button>
                                         </div>
                                     </div>
@@ -861,113 +1038,17 @@ export default function HomeworkViewPage() {
                 </div>
             )}
 
-            {/* Detail Modal */}
-            {viewingSubmission && (
-                <div
-                    className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-                    onClick={() => setViewingSubmission(null)}
-                >
-                    <div
-                        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <div className="bg-gradient-to-r from-[#059669] to-[#10b981] p-6 text-white">
-                            <div className="flex justify-between items-start">
-                                <div className="flex-1 min-w-0">
-                                    <h3 className="text-xl font-bold truncate">{viewingSubmission.subject}</h3>
-                                    <p className="text-emerald-100 text-sm mt-1">Submitted {formatSubmittedAt(viewingSubmission)}</p>
-                                </div>
-                                <button
-                                    onClick={() => setViewingSubmission(null)}
-                                    className="text-white/80 hover:text-white text-3xl leading-none ml-3"
-                                >✕</button>
-                            </div>
-
-                            <div className="mt-4 bg-white/20 rounded-xl px-5 py-3 text-sm space-y-1 backdrop-blur-sm">
-                                <p><span className="opacity-75">Student:</span> <strong className="text-lg ml-1">{viewingSubmission.studentName}</strong></p>
-                                <p>
-                                    <span className="opacity-75">Roll:</span> <strong className="ml-1">{viewingSubmission.studentRoll}</strong>
-                                    <span className="mx-2 opacity-50">|</span>
-                                    <span className="opacity-75">Batch:</span> <strong className="ml-1">{viewingSubmission.studentBatchName}</strong>
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="p-6 space-y-5 max-h-[500px] overflow-y-auto">
-                            {(() => {
-                                const filesToShow: UploadedFile[] = viewingSubmission.files && viewingSubmission.files.length > 0
-                                    ? viewingSubmission.files
-                                    : viewingSubmission.fileName
-                                        ? [{ fileName: viewingSubmission.fileName, url: viewingSubmission.fileUrl ?? "", storagePath: viewingSubmission.storagePath ?? "", size: 0 }]
-                                        : [];
-                                return filesToShow.length > 0 ? (
-                                    <div>
-                                        <label className="block text-xs font-black text-gray-400 uppercase tracking-wider mb-2">
-                                            Attached Files ({filesToShow.length})
-                                        </label>
-                                        <div className="space-y-2">
-                                            {filesToShow.map((f, i) => (
-                                                <a
-                                                    key={i}
-                                                    href={f.url}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="flex items-center gap-3 px-5 py-3 bg-blue-50/50 rounded-xl text-sm text-blue-700 hover:bg-blue-100 transition-colors border border-blue-100 shadow-sm"
-                                                >
-                                                    <svg className="w-5 h-5 shrink-0 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                                                    </svg>
-                                                    <span className="font-bold truncate flex-1">{f.fileName}</span>
-                                                    {f.size! > 0 && (
-                                                        <span className="text-xs text-blue-400">{(f.size!/1024/1024).toFixed(1)}MB</span>
-                                                    )}
-                                                    <span className="text-xs text-white bg-blue-500 px-3 py-1 rounded-full font-bold whitespace-nowrap shadow-sm">Download</span>
-                                                </a>
-                                            ))}
-                                        </div>
-                                    </div>
-                                ) : null;
-                            })()}
-
-
-                            {viewingSubmission.textContent && (
-                                <div>
-                                    <label className="block text-xs font-black text-gray-400 uppercase tracking-wider mb-2">Written Content</label>
-                                    <div className="bg-gray-50/80 rounded-xl px-5 py-4 text-sm text-gray-800 border border-gray-200 whitespace-pre-wrap leading-relaxed shadow-inner font-medium">
-                                        {/https?:\/\/\S+/i.test(viewingSubmission.textContent) ? (
-                                            <a
-                                                href={viewingSubmission.textContent.trim()}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="text-blue-600 hover:underline break-all font-semibold flex items-center gap-2"
-                                            >
-                                                <svg className="w-4 h-4 shrink-0 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                                </svg>
-                                                {viewingSubmission.textContent.trim()}
-                                            </a>
-                                        ) : (
-                                            viewingSubmission.textContent
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
-                            {!(viewingSubmission.files?.length) && !viewingSubmission.fileName && !viewingSubmission.textContent && (
-                                <p className="text-gray-400 text-sm text-center py-4 italic">No content or attachment found.</p>
-                            )}
-                        </div>
-
-                        <div className="px-6 py-4 border-t border-gray-100 flex justify-end bg-gray-50">
-                             <button
-                                onClick={() => setViewingSubmission(null)}
-                                className="px-6 py-2 bg-gray-200 text-gray-800 font-bold rounded-xl hover:bg-gray-300 transition-colors"
-                            >
-                                Close
-                            </button>
-                        </div>
-                    </div>
-                </div>
+            {/* Review & grade window (Google Classroom style) */}
+            {reviewId && reviewList.some(h => h.id === reviewId) && (
+                <HomeworkReviewWindow
+                    submissions={reviewList}
+                    initialId={reviewId}
+                    assignment={folderAssignment}
+                    canGrade={folderCanGrade}
+                    viewerUid={userProfile?.uid}
+                    onClose={() => setReviewId(null)}
+                    onSubmissionUpdated={handleSubmissionUpdated}
+                />
             )}
 
             {/* Delete Assignment Confirmation Modal */}
@@ -1090,6 +1171,18 @@ export default function HomeworkViewPage() {
                                 </div>
                                 <p className="text-xs text-gray-400 mt-1">Leave empty to keep submissions open until the end of the deadline date.</p>
                             </div>
+                            <MarksFields
+                                enabled={editMarksEnabled}
+                                total={editTotalMarks}
+                                onEnabled={setEditMarksEnabled}
+                                onTotal={setEditTotalMarks}
+                                note={assignmentToEdit.marksEnabled && !editMarksEnabled
+                                    ? "মার্কস বন্ধ করলে দেওয়া মার্কস মুছবে না — আবার চালু করলে ফিরে আসবে।"
+                                    : "মোট মার্কস বদলালে আগের দেওয়া মার্কস যেমন আছে তেমনই থাকবে।"}
+                            />
+                            {editError && (
+                                <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{editError}</p>
+                            )}
                             <div className="pt-4 flex justify-end gap-3">
                                 <button
                                     type="button"
@@ -1313,6 +1406,16 @@ export default function HomeworkViewPage() {
                                 </div>
                                 <p className="text-xs text-gray-400 mt-1">Leave empty to keep submissions open until the end of the deadline date.</p>
                             </div>
+                            <MarksFields
+                                enabled={assignmentMarksEnabled}
+                                total={assignmentTotalMarks}
+                                onEnabled={setAssignmentMarksEnabled}
+                                onTotal={setAssignmentTotalMarks}
+                                note="পরে Edit করে মার্কস চালু/বন্ধ বা মোট মার্কস বদলানো যাবে।"
+                            />
+                            {createError && (
+                                <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{createError}</p>
+                            )}
                             <div className="pt-4 flex justify-end gap-3">
                                 <button
                                     type="button"

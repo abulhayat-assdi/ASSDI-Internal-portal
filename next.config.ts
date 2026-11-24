@@ -97,6 +97,13 @@ const nextConfig: NextConfig = {
                 source: '/api/pronunciation/launch',
                 headers: [{ key: 'X-Frame-Options', value: 'SAMEORIGIN' }],
             },
+            // Stored files (PDF, images, video) open inside the homework review
+            // window, a frame on the portal's own pages. HTML/SVG homework keeps
+            // its own CSP (sandbox + frame-ancestors 'none'), so it still can't
+            // be framed.
+            { source: '/api/file', headers: [{ key: 'X-Frame-Options', value: 'SAMEORIGIN' }] },
+            { source: '/api/uploads/:path*', headers: [{ key: 'X-Frame-Options', value: 'SAMEORIGIN' }] },
+            { source: '/uploads/:path*', headers: [{ key: 'X-Frame-Options', value: 'SAMEORIGIN' }] },
         ];
     },
     async rewrites() {

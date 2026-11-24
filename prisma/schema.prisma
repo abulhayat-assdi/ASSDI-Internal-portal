@@ -217,6 +217,7 @@ model Course {
   homeworkSubmissions      HomeworkSubmission[]
   homeworkAssignments      HomeworkAssignment[]
   homeworkAssignmentShares HomeworkAssignmentShare[]
+  homeworkComments         HomeworkComment[]
   feedback                 Feedback[]
   feedbackForms            FeedbackForm[]
   contactMessages          ContactMessage[]
@@ -1005,8 +1006,16 @@ model HomeworkSubmission {
   assignmentId     String?   @map("assignment_id")
   submittedAt      DateTime  @default(now()) @map("submitted_at")
   deletedAt        DateTime? @map("deleted_at")
+  // Grading. The student sees marks/feedback only once returnedAt is set.
+  marks            Float?
+  feedback         String?
+  gradedAt         DateTime? @map("graded_at")
+  gradedByUid      String?   @map("graded_by_uid")
+  gradedByName     String?   @map("graded_by_name")
+  returnedAt       DateTime? @map("returned_at")
 
-  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course   Course            @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  comments HomeworkComment[]
 
   @@index([studentUid])
   @@index([teacherName])
@@ -1026,6 +1035,9 @@ model HomeworkAssignment {
   // Optional "HH:mm" (Asia/Dhaka). Null = open through the end of deadlineDate.
   deadlineTime String?  @map("deadline_time")
   batchName    String   @map("batch_name")
+  // Optional grading: when enabled, submissions are marked out of totalMarks.
+  marksEnabled Boolean  @default(false) @map("marks_enabled")
+  totalMarks   Float?   @map("total_marks")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
@@ -1056,6 +1068,25 @@ model HomeworkAssignmentShare {
   @@index([sharedWithTeacherUid])
   @@index([courseId])
   @@map("homework_assignment_shares")
+}
+
+// Private thread between the grading teacher and the submitting student.
+model HomeworkComment {
+  id           String   @id @default(uuid())
+  courseId     String   @map("course_id")
+  submissionId String   @map("submission_id")
+  authorUid    String   @map("author_uid")
+  authorName   String   @map("author_name")
+  authorRole   String   @map("author_role")
+  body         String
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  course     Course             @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  submission HomeworkSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId, createdAt])
+  @@index([courseId])
+  @@map("homework_comments")
 }
 
 // ============================================================
