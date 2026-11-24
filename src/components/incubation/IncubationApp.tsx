@@ -191,6 +191,7 @@ function Badge({ value }: { value: string }) {
           scheduled: "Upcoming",
           running: "Running",
           ended: "Closing",
+          auto_checkout: "Auto checkout",
         } as Row
       )[value] || value}
     </span>
@@ -632,7 +633,11 @@ export default function IncubationApp({
       }
       stoppedTrackId = null;
       setMessage(
-        action === "checkin" ? "Field session started." : "Field session ended.",
+        action === "checkin"
+          ? "Field session started."
+          : d.autoCheckedOut
+            ? "This session was already checked out automatically at 11 PM."
+            : "Field session ended.",
       );
       if (action === "checkout")
         setFieldForm({
@@ -4046,6 +4051,9 @@ export default function IncubationApp({
                       />
                     </Field>
                   )}
+                  <p className="inc-sub" style={{ margin: "12px 0 0" }}>
+                    {"রাত ১১টায় অটোমেটিক চেক-আউট হয়ে যাবে (automatic check-out at 11 PM)."}
+                  </p>
                   <button
                     className="inc-btn primary"
                     style={{ marginTop: 16 }}
@@ -4097,6 +4105,7 @@ export default function IncubationApp({
                       r.checkOut ? (
                         <>
                           {stamp(r.checkOut)}
+                          {r.autoCheckout && <> <Badge value="auto_checkout" /></>}
                           <br />
                           {(
                             (Date.parse(r.checkOut) - Date.parse(r.checkIn)) /

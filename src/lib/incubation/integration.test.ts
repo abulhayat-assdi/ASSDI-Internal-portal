@@ -460,6 +460,75 @@ describe("real migration and transactional incubation workflows", () => {
       }),
     ).rejects.toMatchObject({ status: 410 });
   });
+  it("closes a forgotten field session at 23:00 Dhaka of its check-in day (lazily and by cron)", async () => {
+    const auto = await import("./auto-checkout");
+    const tracking = await import("@/lib/tracking/server");
+    const fresh = () => ({
+      latitude: 23.8,
+      longitude: 90.4,
+      accuracy: 15,
+      capturedAt: new Date().toISOString(),
+    });
+    // Pretend the session started yesterday morning (Dhaka) and was never ended.
+    const yesterday = new Date(Date.parse(`${todayDhaka()}T00:00:00Z`) - 86400000)
+      .toISOString()
+      .slice(0, 10);
+    const backdate = (id: string) =>
+      prisma.incubationFieldSession.update({
+        where: { id },
+        data: { checkIn: new Date(`${yesterday}T10:00:00+06:00`) },
+      });
+    const cutoff = new Date(`${yesterday}T23:00:00+06:00`);
+    const checkin = () =>
+      field.fieldCommand(member, { action: "checkin", programId, position: fresh(), areaId: area }) as Promise<any>;
+
+    // 1. Android upload after 23:00: the session closes and the app is told to stop.
+    const a = await checkin();
+    await backdate(a.session.id);
+    await expect(
+      tracking.ingest(a.tracking.token, {
+        trackId: a.tracking.trackId,
+        positions: [{ latitude: 23.8, longitude: 90.4, accuracy: 9, capturedAt: new Date().toISOString() }],
+      }),
+    ).rejects.toMatchObject({ status: 410 });
+    expect(
+      await prisma.incubationFieldSession.findUniqueOrThrow({ where: { id: a.session.id } }),
+    ).toMatchObject({ checkOut: cutoff, autoCheckout: true, endAreaId: area });
+    expect(
+      await prisma.fieldTrack.findUniqueOrThrow({ where: { id: a.tracking.trackId } }),
+    ).toMatchObject({ endReason: "auto_checkout", endedAt: cutoff });
+    expect(
+      await prisma.incubationAudit.count({
+        where: { entityId: a.session.id, action: "field.auto_checkout", actorId: auto.AUTO_CHECKOUT_ACTOR.id },
+      }),
+    ).toBe(1);
+
+    // 2. Scheduled run: closes once, a repeat run is a no-op.
+    const b = await checkin();
+    await backdate(b.session.id);
+    expect(await auto.runAutoCheckout()).toMatchObject({ closed: 1 });
+    expect(await auto.runAutoCheckout()).toMatchObject({ closed: 0 });
+    expect(
+      await prisma.incubationFieldSession.findUniqueOrThrow({ where: { id: b.session.id } }),
+    ).toMatchObject({ checkOut: cutoff, autoCheckout: true });
+
+    // 3. A ping after 23:00 closes it without an error; the next check-in is not blocked.
+    const c = await checkin();
+    await backdate(c.session.id);
+    const pinged = (await field.fieldCommand(member, { action: "ping", programId, position: fresh() })) as any;
+    expect(pinged).toMatchObject({ autoCheckedOut: true, session: { id: c.session.id, autoCheckout: true } });
+    const d = await checkin();
+    expect(d.session.autoCheckout).toBe(false);
+    // A normal check-out is not marked as automatic.
+    const end = (await field.fieldCommand(member, {
+      action: "checkout",
+      programId,
+      position: fresh(),
+      areaId: area,
+    })) as any;
+    expect(end.session).toMatchObject({ id: d.session.id, autoCheckout: false });
+    expect(end.session.checkOut).not.toBeNull();
+  });
   it("reviews individual field corrections without editing recorded coordinates", async () => {
     const session = await prisma.incubationFieldSession.findFirstOrThrow({
       where: { userId: lead.id, checkOut: { not: null } },

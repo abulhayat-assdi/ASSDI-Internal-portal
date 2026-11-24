@@ -18,6 +18,8 @@
 
 const CHECK_INTERVAL_MS = 60 * 60 * 1000; // hourly; the tick decides if it is due
 const RUN_AT_HOUR = 7; // local time — a morning digest, not a 3am one
+const AUTO_CHECKOUT_HOUR = 23; // Asia/Dhaka — forgotten field sessions close at 23:00
+const AUTO_CHECKOUT_CHECK_MS = 5 * 60 * 1000;
 
 export async function register() {
     if (process.env.NEXT_RUNTIME !== 'nodejs') return;
@@ -36,6 +38,7 @@ export async function register() {
     const incubationRetentionUrl = `http://127.0.0.1:${port}/api/cron/incubation-retention`;
     const incubationRemindersUrl = `http://127.0.0.1:${port}/api/cron/incubation-reminders`;
     const emailAlertsUrl = `http://127.0.0.1:${port}/api/cron/email-alerts`;
+    const autoCheckoutUrl = `http://127.0.0.1:${port}/api/cron/incubation-auto-checkout`;
 
     let lastRunDate: string | null = null;
 
@@ -114,6 +117,29 @@ export async function register() {
         }
     };
 
+    // Field sessions still open after 23:00 Asia/Dhaka are checked out automatically
+    // (stored as 23:00 of the check-in day). Checked every few minutes so it runs
+    // shortly after 23:00, plus once at start-up to catch up after downtime.
+    let lastAutoCheckoutDate: string | null = null;
+    let autoCheckoutCatchUp = true;
+    const autoCheckoutTick = async () => {
+        const { date, hour } = dhaka();
+        const catchUp = autoCheckoutCatchUp;
+        autoCheckoutCatchUp = false;
+        if (!catchUp && (hour < AUTO_CHECKOUT_HOUR || lastAutoCheckoutDate === date)) return;
+        if (hour >= AUTO_CHECKOUT_HOUR) lastAutoCheckoutDate = date;
+        try {
+            const res = await fetch(autoCheckoutUrl, { method: 'POST', headers: { 'x-cron-secret': secret } });
+            const body = res.ok ? ((await res.json()) as { closed: number; overLimit: number }) : null;
+            if (body) console.info(`[cron] incubation auto checkout: ${body.closed} session(s) closed, ${body.overLimit} over limit`);
+            else console.error(`[cron] incubation auto checkout returned ${res.status}`);
+        } catch (error) {
+            console.error('[cron] incubation auto checkout failed:', error instanceof Error ? error.message : error);
+        }
+    };
+    const autoCheckoutTimer = setInterval(() => void autoCheckoutTick(), AUTO_CHECKOUT_CHECK_MS);
+    autoCheckoutTimer.unref?.();
+
     const timer = setInterval(() => {
         void tick();
         void reminderTick();
@@ -124,8 +150,9 @@ export async function register() {
     const first = setTimeout(() => {
         void tick();
         void reminderTick();
+        void autoCheckoutTick();
     }, 60_000);
     first.unref?.();
 
-    console.info('[cron] internal scheduler started (attendance alerts, deployment cleanup, incubation retention, incubation reminders + email alerts at 07:00 Asia/Dhaka)');
+    console.info('[cron] internal scheduler started (attendance alerts, deployment cleanup, incubation retention, incubation reminders + email alerts at 07:00 Asia/Dhaka, field auto checkout at 23:00 Asia/Dhaka)');
 }

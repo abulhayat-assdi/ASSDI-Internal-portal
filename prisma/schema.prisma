@@ -442,6 +442,8 @@ model IncubationFieldSession {
   carried Json @default("[]")
   steps Int @default(0)
   proofId String? @map("proof_id")
+  /// Closed by the 23:00 Asia/Dhaka automatic check-out, not by the student.
+  autoCheckout Boolean @default(false) @map("auto_checkout")
   program IncubationProgram @relation(fields: [programId, courseId], references: [id, courseId], onDelete: Restrict)
   team IncubationTeam @relation(fields: [teamId, programId, courseId], references: [id, programId, courseId], onDelete: Restrict)
   pings IncubationPosition[]
