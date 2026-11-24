@@ -212,6 +212,13 @@ const asEntry = (r: IncubationRecord): Entry => ({
   ...r,
   data: r.data as EntryData,
 });
+/** Every team's sprint dates: purchases inside a sprint count as stock for the whole sprint. */
+export function stockWindows(tx: Tx, programId: string) {
+  return tx.incubationSprint.findMany({
+    where: { programId },
+    select: { teamId: true, startDate: true, endDate: true },
+  });
+}
 async function ledger(
   tx: Tx,
   programId: string,
@@ -221,16 +228,17 @@ async function ledger(
   // problem at submit time instead of the teacher at approval time.
   extraPending?: IncubationRecord,
 ) {
-  const [records, products] = await Promise.all([
+  const [records, products, sprints] = await Promise.all([
     tx.incubationRecord.findMany({ where: { programId, status: "posted" } }),
     tx.incubationCatalog.findMany({ where: { programId, kind: "product" } }),
+    stockWindows(tx, programId),
   ]);
   const all = replacement
     ? [...records.filter((r) => r.id !== replacement.id), replacement]
     : records;
   let computed: ReturnType<typeof calculateLedger>;
   try {
-    computed = calculateLedger(all.map(asEntry), products);
+    computed = calculateLedger(all.map(asEntry), products, { sprints });
   } catch (e) {
     // Name the team that ran short, so staff know where to look.
     if (e instanceof IncubationError && typeof e.details?.teamId === "string") {
@@ -346,6 +354,10 @@ async function validateData(
   }
   if (r.kind === "purchase")
     insist(d.voucherId, "A voucher upload is required for purchases.");
+  // Goods sent back to an outside merchant need the merchant's voucher. (Older
+  // returns saved before this rule can still be corrected without one.)
+  if (r.kind === "supplier_return" && r.id === "new")
+    insist(d.voucherId, "A voucher upload is required for supplier returns.");
   if (
     ["supplier_return", "transfer", "damage", "customer_refund"].includes(
       r.kind,
@@ -1378,18 +1390,21 @@ export async function command(actor: Actor, input: unknown) {
         await audit(tx, actor, pid, "results.withdrawn", current.id, current, null, v.note);
         return { ok: true };
       }
-      const [teams, records, products] = await Promise.all([
+      const [teams, records, products, sprints] = await Promise.all([
         tx.incubationTeam.findMany({
           where: { programId: pid },
           select: { id: true, name: true, batchName: true, active: true },
         }),
         tx.incubationRecord.findMany({ where: { programId: pid, status: "posted" } }),
         tx.incubationCatalog.findMany({ where: { programId: pid, kind: "product" } }),
+        stockWindows(tx, pid),
       ]);
       const report = buildReport(
         records.map((r) => ({ ...r, data: r.data as EntryData })),
         products,
         teams,
+        {},
+        sprints,
       );
       const ranking = rankTeams(
         report.summaries
@@ -1574,17 +1589,17 @@ export async function command(actor: Actor, input: unknown) {
           "Only the receiving team lead can accept this.",
           403,
         );
-        if (v.approve)
+        // Proof is optional between teams; if one is attached it must belong here.
+        if (v.approve && v.voucherId)
           insist(
-            v.voucherId &&
-              (await tx.incubationAttachment.findFirst({
-                where: {
-                  id: v.voucherId,
-                  programId: pid,
-                  OR: [{ teamId: r.targetTeamId }, { teamId: null }],
-                },
-              })),
-            "Upload the transfer voucher or proof.",
+            await tx.incubationAttachment.findFirst({
+              where: {
+                id: v.voucherId,
+                programId: pid,
+                OR: [{ teamId: r.targetTeamId }, { teamId: null }],
+              },
+            }),
+            "Select a valid voucher for this team.",
           );
       }
       if (v.approve) await validateData(tx, program, r);
@@ -1671,6 +1686,15 @@ export async function command(actor: Actor, input: unknown) {
         );
         return changed;
       }
+      // A correction request may only change the products already on the entry
+      // (quantity, price, cash, or drop a line) — never add a different product.
+      const original = new Set(
+        ((r.data as EntryData).lines || []).map((l) => l.productId),
+      );
+      insist(
+        (v.data.lines || []).every((l) => original.has(l.productId)),
+        "A correction can only change products already in this entry. To add a new product, submit a new entry.",
+      );
       insist(
         !(await tx.incubationCorrection.findFirst({
           where: { recordId: r.id, status: "pending" },

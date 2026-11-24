@@ -6,6 +6,7 @@ import {
   validDate,
   type Entry,
   type Product,
+  type StockWindow,
 } from "./domain";
 import { productLabel } from "./catalog";
 export interface ReportFilters {
@@ -22,6 +23,7 @@ export function buildReport(
   products: Product[],
   allTeams: { id: string; name: string; batchName?: string }[],
   filters: ReportFilters = {},
+  sprints: StockWindow[] = [],
 ) {
   const teams = allTeams.filter(
     (t) => !filters.batchName || t.batchName === filters.batchName,
@@ -42,10 +44,10 @@ export function buildReport(
       )
       .map((p) => p.id),
   );
-  const scope = records
-    .filter(
-      (r) => r.status === "posted" && (!filters.to || r.date <= filters.to),
-    )
+  // The whole ledger is always computed; date filters read snapshots of it, so a
+  // sale that used stock bought later in the same sprint never breaks a range.
+  const all = records
+    .filter((r) => r.status === "posted")
     .map((r) => ({
       ...r,
       data: {
@@ -59,11 +61,22 @@ export function buildReport(
         !!r.data.lines?.length ||
         (!filters.productId && r.data.categoryId === filters.categoryId),
     );
-  const end = calculateLedger(scope, products),
-    before = calculateLedger(
-      scope.filter((r) => !!filters.from && r.date < filters.from),
-      products,
-    );
+  const scope = all.filter((r) => !filters.to || r.date <= filters.to);
+  const dayAfter = (d: string) =>
+    new Date(Date.parse(`${d}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
+  const full = calculateLedger(all, products, {
+    sprints,
+    cuts: [
+      ...(filters.from ? [filters.from] : []),
+      ...(filters.to ? [dayAfter(filters.to)] : []),
+    ],
+  });
+  const empty = { summaries: [] as typeof full.summaries, stocks: {} };
+  const end = {
+      ...(filters.to ? full.snapshots[dayAfter(filters.to)] : full),
+      effects: full.effects,
+    },
+    before = filters.from ? full.snapshots[filters.from] : empty;
   const flowKeys = [
     "funding",
     "principalReturned",

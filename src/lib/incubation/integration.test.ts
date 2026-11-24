@@ -1132,3 +1132,125 @@ describe("real migration and transactional incubation workflows", () => {
     expect(output).toContain("no data seeded");
   });
 });
+describe("sprint stock pooling, vouchers and correction limits", () => {
+  let pid = "",
+    tA = "",
+    tB = "",
+    gadget = "",
+    other = "",
+    where = "";
+  const daysAgo = (n: number) =>
+    new Date(Date.parse(`${todayDhaka()}T00:00:00Z`) - n * 86400000)
+      .toISOString()
+      .slice(0, 10);
+  const run = (actor: Actor, action: string, payload: Record<string, unknown>) =>
+    api.command(actor, { action, programId: pid, payload }) as Promise<any>;
+  const gl = (q: string, price = "100", productId = gadget) => ({
+    productId,
+    quantity: q,
+    unitPrice: price,
+  });
+  beforeAll(async () => {
+    pid = (
+      (await api.command(manager, {
+        action: "program",
+        payload: {
+          name: "Sprint lab",
+          description: "",
+          startDate: "2026-01-01",
+          endDate: null,
+          batchNames: ["Batch 1"],
+          staffIds: [],
+          settings,
+          status: "active",
+        },
+      })) as any
+    ).id;
+    tA = (await run(manager, "team", { name: "S-A", studentIds: ["s-lead", "s-member"], leadId: "s-lead", active: true })).id;
+    tB = (await run(manager, "team", { name: "S-B", studentIds: ["s-target"], leadId: "s-target", active: true })).id;
+    const cat = (await run(manager, "catalog", { kind: "category", name: "Tech", parentId: null, unit: "piece", fractional: false, active: true })).id;
+    gadget = (await run(manager, "catalog", { kind: "product", name: "Gadget", parentId: cat, unit: "piece", fractional: false, active: true })).id;
+    other = (await run(manager, "catalog", { kind: "product", name: "Other", parentId: cat, unit: "piece", fractional: false, active: true })).id;
+    where = (await run(manager, "catalog", { kind: "area", name: "Market", parentId: null, unit: "piece", fractional: false, active: true })).id;
+    for (const teamId of [tA, tB])
+      await run(manager, "sprint", { teamId, categoryId: cat, startDate: daysAgo(10), endDate: todayDhaka() });
+    await prisma.incubationAttachment.createMany({
+      data: [
+        { id: "sv-a", courseId: "course-a", programId: pid, teamId: tA, uploadedBy: "lead", name: "v.jpg", mime: "image/jpeg", size: 100, path: "incubation/sv-a.jpg" },
+      ],
+    });
+    await run(manager, "record", { teamId: tA, kind: "fund", date: daysAgo(10), data: { amount: "5000" }, requestKey: crypto.randomUUID() });
+  }, 60000);
+  it("approves a late sale using stock bought later in the same sprint", async () => {
+    const sale = await run(lead, "record", {
+      teamId: tA,
+      kind: "sale",
+      date: daysAgo(5),
+      data: { lines: [gl("3", "150")], areaId: where, reason: "Forgot to submit" },
+      requestKey: crypto.randomUUID(),
+    });
+    expect(sale.status).toBe("pending");
+    // The purchase is recorded afterwards, dated after the sale.
+    await run(manager, "record", {
+      teamId: tA,
+      kind: "purchase",
+      date: daysAgo(2),
+      data: { lines: [gl("5")], voucherId: "sv-a" },
+      requestKey: crypto.randomUUID(),
+    });
+    const approved = await run(manager, "review_late", { recordId: sale.id, approve: true, reason: "Checked" });
+    expect(approved.status).toBe("posted");
+    const b = (await api.overview(manager, pid)) as any;
+    const report = buildReport(b.reportEntries, b.catalog.filter((c: any) => c.kind === "product"), b.teams, {}, b.sprints);
+    expect(report.inventory.find((s) => s.teamId === tA)?.quantity).toBe(2000);
+  });
+  it("needs a voucher for a merchant return but not for a team transfer", async () => {
+    await expect(
+      run(lead, "record", {
+        teamId: tA,
+        kind: "supplier_return",
+        date: todayDhaka(),
+        data: { lines: [gl("1")], reason: "Faulty item" },
+        requestKey: crypto.randomUUID(),
+      }),
+    ).rejects.toThrow(/voucher upload is required for supplier returns/);
+    const t = await run(lead, "record", {
+      teamId: tA,
+      targetTeamId: tB,
+      kind: "transfer",
+      date: todayDhaka(),
+      data: { lines: [gl("1")], reason: "Sprint finished" },
+      requestKey: crypto.randomUUID(),
+    });
+    const accepted = await run(target, "accept_transfer", { recordId: t.id, approve: true, reason: "Received" });
+    expect(accepted.status).toBe("posted");
+  });
+  it("lets a correction request change only the entry's own products", async () => {
+    const sale = await run(lead, "record", {
+      teamId: tA,
+      kind: "sale",
+      date: todayDhaka(),
+      data: { lines: [gl("1", "150")], areaId: where },
+      requestKey: crypto.randomUUID(),
+    });
+    await expect(
+      run(lead, "correct", {
+        recordId: sale.id,
+        version: 1,
+        date: sale.date,
+        data: { lines: [gl("1", "150"), gl("1", "150", other)], areaId: where },
+        reason: "Add another",
+        void: false,
+      }),
+    ).rejects.toThrow(/only change products already in this entry/);
+    const ok = await run(lead, "correct", {
+      recordId: sale.id,
+      version: 1,
+      date: sale.date,
+      data: { lines: [gl("1", "140")], areaId: where },
+      reason: "Price typo",
+      void: false,
+    });
+    expect(ok.status).toBe("pending");
+  });
+});

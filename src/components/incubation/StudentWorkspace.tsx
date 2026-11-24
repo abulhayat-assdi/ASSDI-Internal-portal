@@ -873,7 +873,7 @@ export default function StudentWorkspace({
                       className="inc-btn primary"
                       onClick={() => onAccept(r)}
                     >
-                      Accept with voucher / reject
+                      Accept / reject
                     </button>
                   ) : (
                     <p className="inc-sub">Entries are closed — your teacher can accept or reject this transfer.</p>
